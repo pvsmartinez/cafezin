@@ -353,11 +353,9 @@ export default function App() {
     } else if (channel === 'ios') {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
       openUrl(APP_STORE_URL).catch(() => {});
-    } else if (channel === 'dev') {
-      setShowUpdateModal(true);
     } else {
-      // release / non-MAS desktop build — check GitHub releases
-      setShowUpdateReleaseModal(true);
+      // dev + release desktop builds — update via local build script
+      setShowUpdateModal(true);
     }
   }
 
