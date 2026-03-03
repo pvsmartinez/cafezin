@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Check, CaretLeft, CaretRight, CaretDown, Play, FolderSimple, Copy, Warning, FolderPlus, Minus } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
@@ -378,6 +379,7 @@ export default function Sidebar({
   newFileRef,
 }: SidebarProps) {
   // ── Creator state ──────────────────────────────────────────────────────────
+  const { t } = useTranslation();
   /** null = hidden; '' = root; 'path/to/dir' = inside that dir */
   const [creatingIn, setCreatingIn] = useState<string | null>(null);
   const [creatingKind, setCreatingKind] = useState<'file' | 'folder'>('file');
@@ -758,7 +760,7 @@ export default function Sidebar({
         <button
           className={`sidebar-tab${sidebarMode === 'search' ? ' active' : ''}`}
           onClick={() => onSidebarModeChange('search')}
-          title="Search workspace (⌘⇧F)"
+          title={t('sidebar.searchTitle')}
         >⌕ Search</button>
       </div>
 
@@ -778,7 +780,7 @@ export default function Sidebar({
 
       {/* Explorer label with hover create actions */}
       <div className="sidebar-explorer-label">
-        <span>EXPLORER</span>
+        <span>{t('sidebar.explorerLabel')}</span>
         <div className="sidebar-explorer-actions">
           <button className="sidebar-explorer-action" title="New file" onClick={() => startCreating('')}>+</button>
           <button className="sidebar-explorer-action" title="New folder" onClick={() => startCreating('', 'folder')}><FolderPlus weight="thin" size={13} /></button>
@@ -793,12 +795,12 @@ export default function Sidebar({
           <button
             className="sidebar-multiselect-delete"
             onClick={handleBulkDelete}
-            title="Delete selected files"
-          >Delete</button>
+            title={t('sidebar.deleteSelectedTitle')}
+          >{t('sidebar.deleteSelected')}</button>
           <button
             className="sidebar-multiselect-clear"
             onClick={() => setMultiSelected(new Set())}
-            title="Clear selection"
+            title={t('sidebar.clearSelection')}
           ><X weight="thin" size={12} /></button>
         </div>
       )}
@@ -880,41 +882,41 @@ export default function Sidebar({
                     type="button"
                     className={`sidebar-creator-cat${selectedCategory === 'canvas' ? ' active canvas' : ''}`}
                     onClick={() => selectCategory('canvas')}
-                    title="Canvas (tldraw slide deck)"
+                    title={t('sidebar.newCanvasTitle')}
                   >
                     <span className="scc-icon">◈</span>
-                    <span className="scc-label">Canvas</span>
+                    <span className="scc-label">{t('sidebar.newCanvas')}</span>
                   </button>
                   <button
                     type="button"
                     className={`sidebar-creator-cat${selectedCategory === 'text' ? ' active text' : ''}`}
                     onClick={() => selectCategory('text')}
-                    title="Text / document file"
+                    title={t('sidebar.newTextTitle')}
                   >
                     <span className="scc-icon">◎</span>
-                    <span className="scc-label">Text</span>
+                    <span className="scc-label">{t('sidebar.newText')}</span>
                   </button>
                   <button
                     type="button"
                     className={`sidebar-creator-cat${selectedCategory === 'code' ? ' active code' : ''}`}
                     onClick={() => selectCategory('code')}
-                    title="Code / source file"
+                    title={t('sidebar.newCodeTitle')}
                   >
                     <span className="scc-icon">&lt;/&gt;</span>
-                    <span className="scc-label">Code</span>
+                    <span className="scc-label">{t('sidebar.newCode')}</span>
                   </button>
                 </div>
 
                 {/* ── Sub-options for Text ── */}
                 {selectedCategory === 'text' && (
                   <div className="sidebar-creator-subtypes">
-                    {TEXT_TYPES.map((t) => (
+                    {TEXT_TYPES.map((tp) => (
                       <button
-                        key={t.ext}
+                        key={tp.ext}
                         type="button"
-                        className={`sidebar-type-pill${selectedExt === t.ext ? ' active' : ''}`}
-                        onClick={() => { setSelectedExt(t.ext); setTimeout(() => createInputRef.current?.focus(), 0); }}
-                      >{t.label}</button>
+                        className={`sidebar-type-pill${selectedExt === tp.ext ? ' active' : ''}`}
+                        onClick={() => { setSelectedExt(tp.ext); setTimeout(() => createInputRef.current?.focus(), 0); }}
+                      >{tp.label}</button>
                     ))}
                   </div>
                 )}
@@ -922,13 +924,13 @@ export default function Sidebar({
                 {/* ── Sub-options for Code ── */}
                 {selectedCategory === 'code' && (
                   <div className="sidebar-creator-subtypes">
-                    {CODE_TYPES.map((t) => (
+                    {CODE_TYPES.map((tp) => (
                       <button
-                        key={t.ext}
+                        key={tp.ext}
                         type="button"
-                        className={`sidebar-type-pill${selectedExt === t.ext ? ' active' : ''}`}
-                        onClick={() => { setSelectedExt(t.ext); setTimeout(() => createInputRef.current?.focus(), 0); }}
-                      >{t.label}</button>
+                        className={`sidebar-type-pill${selectedExt === tp.ext ? ' active' : ''}`}
+                        onClick={() => { setSelectedExt(tp.ext); setTimeout(() => createInputRef.current?.focus(), 0); }}
+                      >{tp.label}</button>
                     ))}
                   </div>
                 )}
@@ -940,7 +942,7 @@ export default function Sidebar({
                 autoFocus
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder={creatingKind === 'folder' ? 'folder-name' : 'filename'}
+                placeholder={creatingKind === 'folder' ? t('sidebar.folderNamePlaceholder') : t('sidebar.fileNamePlaceholder')}
                 className="sidebar-new-file-input"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleCreate();
@@ -955,14 +957,14 @@ export default function Sidebar({
           className={`sidebar-btn sidebar-btn-sync${syncStatus !== 'idle' ? ` ${syncStatus}` : ''}${syncStatus === 'idle' && gitChangedCount > 0 ? ' has-changes' : ''}${!workspace.hasGit ? ' disabled-no-git' : ''}`}
           onClick={() => { if (workspace.hasGit) { setShowSyncModal(true); fetchGitCount(); } }}
           disabled={syncStatus === 'syncing' || !workspace.hasGit}
-          title={workspace.hasGit ? 'Review git diff and commit + push' : 'Workspace local — sem git remoto'}
+          title={workspace.hasGit ? t('sidebar.syncTitle') : t('sidebar.syncNoGitTitle')}
         >
           <span className="sidebar-sync-label">
-            {!workspace.hasGit     && '⊘ Local'}
-            {workspace.hasGit && syncStatus === 'idle'    && '⇅ Sync'}
-            {workspace.hasGit && syncStatus === 'syncing' && '⇅ Syncing…'}
-            {workspace.hasGit && syncStatus === 'done'    && <><Check weight="thin" size={13} />{' Synced'}</>}
-            {workspace.hasGit && syncStatus === 'error'   && <><Warning weight="thin" size={13} />{' Sync failed'}</>}
+            {!workspace.hasGit     && t('sidebar.syncLocal')}
+            {workspace.hasGit && syncStatus === 'idle'    && t('sidebar.syncIdle')}
+            {workspace.hasGit && syncStatus === 'syncing' && t('sidebar.syncSyncing')}
+            {workspace.hasGit && syncStatus === 'done'    && <><Check weight="thin" size={13} />{t('sidebar.syncDone')}</>}
+            {workspace.hasGit && syncStatus === 'error'   && <><Warning weight="thin" size={13} />{t('sidebar.syncError')}</>}
           </span>
           {syncStatus === 'idle' && gitChangedCount > 0 && (
             <span className="sidebar-sync-badge">{gitChangedCount}</span>
@@ -1019,7 +1021,7 @@ export default function Sidebar({
                     <button
                       className="sidebar-ai-review-all"
                       onClick={(e) => { e.stopPropagation(); onReviewAllMarks(); }}
-                      title="Marcar todas como revisadas"
+                      title={t('sidebar.aiEditsReviewAll')}
                     ><Check weight="thin" size={13} /></button>
                   </div>
                 </div>

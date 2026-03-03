@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Play, CloudSlash } from '@phosphor-icons/react';
+import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import type { Workspace, AIEditMark, FileTreeNode } from '../types';
 import './WorkspaceHome.css';
@@ -54,6 +55,7 @@ function fileIcon(name: string): React.ReactNode {
 }
 
 export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: WorkspaceHomeProps) {
+  const { t } = useTranslation();
   const [sync, setSync] = useState<SyncState>({ loading: true, changedCount: 0, error: false });
 
   useEffect(() => {
@@ -70,9 +72,9 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: W
   // Pick a greeting based on time of day
   const hour = new Date().getHours();
   const greeting =
-    hour < 12 ? 'Good morning' :
-    hour < 17 ? 'Good afternoon' :
-    'Good evening';
+    hour < 12 ? t('wh.goodMorning') :
+    hour < 17 ? t('wh.goodAfternoon') :
+    t('wh.goodEvening');
 
   return (
     <div className="wh-root">
@@ -88,8 +90,8 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: W
           <div className="wh-local-banner">
             <CloudSlash weight="thin" size={14} className="wh-local-banner-icon" />
             <div>
-              <strong>Workspace local</strong>
-              <span> — sem git remoto. Arquivos não estão protegidos por controle de versão e não são sincronizados com a nuvem.</span>
+            <strong>{t('wh.localBannerTitle')}</strong>
+            <span>{t('wh.localBannerDesc')}</span>
             </div>
           </div>
         )}
@@ -98,7 +100,7 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: W
         <div className="wh-stats">
           {/* Last edited */}
           <div className="wh-stat">
-            <span className="wh-stat-label">Last edited</span>
+            <span className="wh-stat-label">{t('wh.lastEdited')}</span>
             <span className="wh-stat-value">
               {lastEditedAt ? relativeTime(lastEditedAt) : '—'}
             </span>
@@ -106,9 +108,9 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: W
 
           {/* Sync status */}
           <div className="wh-stat">
-            <span className="wh-stat-label">Sync status</span>
+            <span className="wh-stat-label">{t('wh.syncStatus')}</span>
             {!workspace.hasGit ? (
-              <span className="wh-stat-value wh-sync error">local only</span>
+              <span className="wh-stat-value wh-sync error">{t('wh.localOnly')}</span>
             ) : (
               <span
                 className={`wh-stat-value wh-sync${
@@ -121,17 +123,17 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: W
                 {sync.loading
                   ? '…'
                   : sync.error
-                  ? 'unavailable'
+                  ? t('wh.unavailable')
                   : sync.changedCount > 0
-                  ? `${sync.changedCount} unsync'd file${sync.changedCount !== 1 ? 's' : ''}`
-                  : 'up to date'}
+                  ? t('wh.syncDirty', { count: sync.changedCount })
+                  : t('wh.upToDate')}
               </span>
             )}
           </div>
 
           {/* File count */}
           <div className="wh-stat">
-            <span className="wh-stat-label">Files</span>
+            <span className="wh-stat-label">{t('wh.files')}</span>
             <span className="wh-stat-value">{countFiles(workspace.fileTree)}</span>
           </div>
         </div>
@@ -139,7 +141,7 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: W
         {/* Recent files */}
         {recentFiles.length > 0 && (
           <div className="wh-recent">
-            <div className="wh-section-label">Recent files</div>
+            <div className="wh-section-label">{t('wh.recentFiles')}</div>
             <div className="wh-file-list">
               {recentFiles.map((file) => (
                 <button
@@ -163,7 +165,7 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: W
         {workspace.agentContext && (
           <div className="wh-agent-note">
             <span className="wh-agent-icon">✦</span>
-            AGENT.md loaded as AI context
+            {t('wh.agentContextLoaded')}
           </div>
         )}
 
@@ -178,7 +180,7 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: W
           return (
             <div className="wh-ai-section">
               <div className="wh-section-label">
-                AI edits pending review
+                {t('wh.aiEditsPending')}
                 <span className="wh-ai-total">{unreviewed.length}</span>
               </div>
               <div className="wh-ai-file-list">

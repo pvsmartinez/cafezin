@@ -316,6 +316,8 @@ export interface AppSettings {
   formatOnSave: boolean;
   /** Show the integrated terminal panel (advanced / power-user feature) */
   showTerminal: boolean;
+  /** UI language — undefined means auto-detect from navigator.language */
+  locale?: 'en' | 'pt-BR';
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {

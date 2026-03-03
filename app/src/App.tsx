@@ -59,6 +59,7 @@ import { getFileTypeInfo } from './utils/fileType';
 import { generateId } from './utils/generateId';
 import type { Workspace, AIEditMark, AppSettings, WorkspaceExportConfig, WorkspaceConfig } from './types';
 import { DEFAULT_APP_SETTINGS, APP_SETTINGS_KEY } from './types';
+import { setupI18n } from './i18n';
 import { useBacklinks } from './hooks/useBacklinks';
 import { useModals } from './hooks/useModals';
 import { useCanvasState } from './hooks/useCanvasState';
@@ -73,6 +74,9 @@ function loadAppSettings(): AppSettings {
   } catch { /* ignore */ }
   return DEFAULT_APP_SETTINGS;
 }
+
+// Eagerly init i18n before first render so translated strings show immediately
+setupI18n(loadAppSettings().locale);
 
 const FALLBACK_CONTENT = `# Untitled Document\n\nStart writing here…\n`;
 
@@ -102,6 +106,11 @@ export default function App() {
   useEffect(() => {
     document.title = workspace ? workspace.name : 'Cafezin';
   }, [workspace?.name]);
+
+  // Sync i18n language when user changes the locale setting
+  useEffect(() => {
+    setupI18n(appSettings.locale);
+  }, [appSettings.locale]);
 
   const [isAIStreaming, setIsAIStreaming] = useState(false);
 
