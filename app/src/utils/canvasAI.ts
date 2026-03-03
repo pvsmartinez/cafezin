@@ -780,15 +780,20 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
 
       const pid = frameId as TLShapeId;
 
+      // ── Accent bar (blue stripe across the top of every slide) ────────────
+      editor.createShapes<TLGeoShape>([{ id: createShapeId(), type: 'geo', parentId: pid, x: 0, y: 0,
+        props: { geo: 'rectangle', w: 1280, h: 8, richText: toRichText(''), color: 'blue', fill: 'solid', size: 's', font: 'sans', align: 'middle', scale: 1 } }]);
+      totalCount++;
+
       if (slideType === 'title' || slideType === 'closing' || slideType === 'summary' || slideType === 'questions') {
         const subtitle = String(spec.subtitle ?? '');
-        // Centered vertically: title at y=220, subtitle at y=370
+        // Centered vertically: title at y=240, subtitle at y=355
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 100, y: 220, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1080 } as any }]);
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 100, y: 240, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1080 } as any }]);
         totalCount++;
         if (subtitle) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 100, y: 370, props: { richText: toRichTextMd(subtitle), color: 'grey', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 1080 } as any }]);
+          editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 100, y: 355, props: { richText: toRichTextMd(subtitle), color: 'grey', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 1080 } as any }]);
           totalCount++;
         }
 
@@ -796,15 +801,18 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
         const bullets = Array.isArray(spec.bullets) ? (spec.bullets as unknown[]).map(String) : [];
         // Title at top
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: 40, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1100 } as any }]);
-        totalCount++;
-        // Bullets stacked — pitch 90px
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: 22, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1100 } as any }]);
+        // Thin separator line under title
+        editor.createShapes<TLGeoShape>([{ id: createShapeId(), type: 'geo', parentId: pid, x: 80, y: 104,
+          props: { geo: 'rectangle', w: 1120, h: 2, richText: toRichText(''), color: 'grey', fill: 'solid', size: 's', font: 'sans', align: 'middle', scale: 1 } }]);
+        totalCount += 2;
+        // Bullets stacked as bordered cards — pitch 90px
         const maxBullets = Math.min(bullets.length, 6);
         for (let i = 0; i < maxBullets; i++) {
-          editor.createShapes<TLNoteShape>([{
-            id: createShapeId(), type: 'note', parentId: pid,
-            x: 80, y: 140 + i * 90,
-            props: { richText: toRichTextMd(bullets[i]), color: mapColor(spec.item_color, 'yellow'), size: 'm', font: 'sans', align: 'start' },
+          editor.createShapes<TLGeoShape>([{
+            id: createShapeId(), type: 'geo', parentId: pid,
+            x: 80, y: 118 + i * 90,
+            props: { geo: 'rectangle', w: 1120, h: 78, richText: toRichTextMd(bullets[i]), color: mapColor(spec.item_color, 'black'), fill: 'none', size: 'm', font: 'sans', align: 'start', scale: 1 },
           }]);
           totalCount++;
         }
@@ -816,30 +824,33 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
         const rightItems = Array.isArray((spec as Record<string, unknown>).right_items) ? ((spec as Record<string, unknown>).right_items as unknown[]).map(String) : [];
         // Main title
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: 40, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1100 } as any }]);
-        totalCount++;
-        // Column headers
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80,  y: 130, props: { richText: toRichTextMd(leftTitle),  color: 'blue', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 520 } as any }]);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 680, y: 130, props: { richText: toRichTextMd(rightTitle), color: 'blue', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 520 } as any }]);
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: 22, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1100 } as any }]);
+        // Thin separator line under title
+        editor.createShapes<TLGeoShape>([{ id: createShapeId(), type: 'geo', parentId: pid, x: 80, y: 104,
+          props: { geo: 'rectangle', w: 1120, h: 2, richText: toRichText(''), color: 'grey', fill: 'solid', size: 's', font: 'sans', align: 'middle', scale: 1 } }]);
         totalCount += 2;
-        // Column items
+        // Column headers (blue)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80,  y: 118, props: { richText: toRichTextMd(leftTitle),  color: 'blue', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 520 } as any }]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 680, y: 118, props: { richText: toRichTextMd(rightTitle), color: 'blue', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 520 } as any }]);
+        totalCount += 2;
+        // Column items as bordered geo cards
         const maxLeft  = Math.min(leftItems.length,  5);
         const maxRight = Math.min(rightItems.length, 5);
         for (let i = 0; i < maxLeft; i++) {
-          editor.createShapes<TLNoteShape>([{
-            id: createShapeId(), type: 'note', parentId: pid,
-            x: 80, y: 215 + i * 90,
-            props: { richText: toRichTextMd(leftItems[i]), color: 'yellow', size: 'm', font: 'sans', align: 'start' },
+          editor.createShapes<TLGeoShape>([{
+            id: createShapeId(), type: 'geo', parentId: pid,
+            x: 80, y: 188 + i * 86,
+            props: { geo: 'rectangle', w: 540, h: 74, richText: toRichTextMd(leftItems[i]), color: 'black', fill: 'none', size: 'm', font: 'sans', align: 'start', scale: 1 },
           }]);
           totalCount++;
         }
         for (let i = 0; i < maxRight; i++) {
-          editor.createShapes<TLNoteShape>([{
-            id: createShapeId(), type: 'note', parentId: pid,
-            x: 680, y: 215 + i * 90,
-            props: { richText: toRichTextMd(rightItems[i]), color: 'light-blue', size: 'm', font: 'sans', align: 'start' },
+          editor.createShapes<TLGeoShape>([{
+            id: createShapeId(), type: 'geo', parentId: pid,
+            x: 680, y: 188 + i * 86,
+            props: { geo: 'rectangle', w: 540, h: 74, richText: toRichTextMd(rightItems[i]), color: 'grey', fill: 'none', size: 'm', font: 'sans', align: 'start', scale: 1 },
           }]);
           totalCount++;
         }
@@ -848,7 +859,7 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
         const events = Array.isArray(spec.events) ? (spec.events as unknown[]).map(String) : [];
         // Main title
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: 40, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1100 } as any }]);
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: 22, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1100 } as any }]);
         totalCount++;
         // Horizontal spine arrow
         const arrowId = createShapeId();
