@@ -19,6 +19,9 @@ export function setupI18n(locale?: 'en' | 'pt-BR') {
       'pt-BR': { translation: ptBR },
     },
     interpolation: { escapeValue: false },
+    // Inline resources — init synchronously so i18n is ready on first render
+    initImmediate: false,
+    react: { useSuspense: false },
   });
 }
 
