@@ -18,6 +18,7 @@ import WebPreview, { type WebPreviewHandle } from './components/WebPreview';
 import PDFViewer from './components/PDFViewer';
 import MediaViewer from './components/MediaViewer';
 import UpdateModal from './components/UpdateModal';
+import UpdateReleaseModal from './components/UpdateReleaseModal';
 import MobilePendingModal from './components/MobilePendingModal';
 import { loadPendingTasks } from './services/mobilePendingTasks';
 import type { MobilePendingTask } from './services/mobilePendingTasks';
@@ -182,6 +183,7 @@ export default function App() {
     aiOpen, setAiOpen,
     aiInitialPrompt, setAiInitialPrompt,
   } = useModals();
+  const [showUpdateReleaseModal, setShowUpdateReleaseModal] = useState(false);
   const [showMobilePending, setShowMobilePending] = useState(false);
   const [mobilePendingTasks, setMobilePendingTasks] = useState<MobilePendingTask[]>([]);
   // ── Canvas refs + transient state ───────────────────────────────────────
@@ -342,8 +344,11 @@ export default function App() {
     } else if (channel === 'ios') {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
       openUrl(APP_STORE_URL).catch(() => {});
-    } else {
+    } else if (channel === 'dev') {
       setShowUpdateModal(true);
+    } else {
+      // release / non-MAS desktop build — check GitHub releases
+      setShowUpdateReleaseModal(true);
     }
   }
 
@@ -1160,6 +1165,10 @@ export default function App() {
           projectRoot={__PROJECT_ROOT__}
           onClose={() => setShowUpdateModal(false)}
         />
+        <UpdateReleaseModal
+          open={showUpdateReleaseModal}
+          onClose={() => setShowUpdateReleaseModal(false)}
+        />
       </>
     );
   }
@@ -1637,6 +1646,10 @@ export default function App() {
         open={showUpdateModal}
         projectRoot={__PROJECT_ROOT__}
         onClose={() => setShowUpdateModal(false)}
+      />
+      <UpdateReleaseModal
+        open={showUpdateReleaseModal}
+        onClose={() => setShowUpdateReleaseModal(false)}
       />
 
       <MobilePendingModal

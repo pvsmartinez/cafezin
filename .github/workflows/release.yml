@@ -1,7 +1,7 @@
 name: Release — Windows
 
 # Roda APENAS quando disparado manualmente.
-# macOS e Android são buildados localmente (scripts/build-mac.sh, scripts/build-android.sh).
+# macOS e Android são buildados localmente (scripts/build-mac.sh).
 on:
   workflow_dispatch:
     inputs:
@@ -13,10 +13,13 @@ env:
   APP_NAME: Cafezin
 
 jobs:
-  # ── Windows — .msi + .exe ────────────────────────────────────────────────
+  # ── Windows — .msi + .exe (signed for updater) ──────────────────────────
   build-windows:
     name: Windows (.msi + .exe)
     runs-on: windows-latest
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,24 +42,45 @@ jobs:
         run: npm install --legacy-peer-deps
         working-directory: app
 
-      - name: Build Windows MSI + NSIS
+      - name: Build Windows MSI + NSIS (signed)
         run: npm run tauri build -- --bundles msi,nsis
         working-directory: app
 
-      - name: Locate installers
+      - name: Collect installers + updater bundles
         id: installers
         shell: bash
         run: |
           MSI=$(find app/src-tauri/target/release/bundle/msi -name "*.msi" | head -1)
-          EXE=$(find app/src-tauri/target/release/bundle/nsis -name "*.exe" | head -1)
-          echo "msi=$MSI" >> $GITHUB_OUTPUT
-          echo "exe=$EXE" >> $GITHUB_OUTPUT
+          MSI_ZIP=$(find app/src-tauri/target/release/bundle/msi -name "*.msi.zip" | head -1)
+          MSI_SIG=$(find app/src-tauri/target/release/bundle/msi -name "*.msi.zip.sig" | head -1)
+          EXE=$(find app/src-tauri/target/release/bundle/nsis -name "*.exe" | grep -v ".zip" | head -1)
+          NSIS_ZIP=$(find app/src-tauri/target/release/bundle/nsis -name "*.nsis.zip" | head -1)
+          NSIS_SIG=$(find app/src-tauri/target/release/bundle/nsis -name "*.nsis.zip.sig" | head -1)
+          echo "msi=$MSI"         >> $GITHUB_OUTPUT
+          echo "msi_zip=$MSI_ZIP" >> $GITHUB_OUTPUT
+          echo "msi_sig=$MSI_SIG" >> $GITHUB_OUTPUT
+          echo "exe=$EXE"         >> $GITHUB_OUTPUT
+          echo "nsis_zip=$NSIS_ZIP" >> $GITHUB_OUTPUT
+          echo "nsis_sig=$NSIS_SIG" >> $GITHUB_OUTPUT
 
-      - name: Rename installers
+      - name: Rename files for release
         shell: bash
         run: |
-          [ -f "${{ steps.installers.outputs.msi }}" ] && mv "${{ steps.installers.outputs.msi }}" Cafezin_setup.msi || true
-          [ -f "${{ steps.installers.outputs.exe }}" ] && mv "${{ steps.installers.outputs.exe }}" Cafezin_setup.exe || true
+          [ -f "${{ steps.installers.outputs.msi }}"      ] && cp "${{ steps.installers.outputs.msi }}"      Cafezin_setup.msi       || true
+          [ -f "${{ steps.installers.outputs.msi_zip }}"  ] && cp "${{ steps.installers.outputs.msi_zip }}"  Cafezin_setup.msi.zip   || true
+          [ -f "${{ steps.installers.outputs.msi_sig }}"  ] && cp "${{ steps.installers.outputs.msi_sig }}"  Cafezin_setup.msi.zip.sig || true
+          [ -f "${{ steps.installers.outputs.exe }}"      ] && cp "${{ steps.installers.outputs.exe }}"      Cafezin_setup.exe       || true
+          [ -f "${{ steps.installers.outputs.nsis_zip }}" ] && cp "${{ steps.installers.outputs.nsis_zip }}" Cafezin_setup.exe.zip   || true
+          [ -f "${{ steps.installers.outputs.nsis_sig }}" ] && cp "${{ steps.installers.outputs.nsis_sig }}" Cafezin_setup.exe.zip.sig || true
+
+      - name: Save NSIS signature for latest.json
+        shell: bash
+        run: |
+          if [ -f "${{ steps.installers.outputs.nsis_sig }}" ]; then
+            SIG=$(cat "${{ steps.installers.outputs.nsis_sig }}")
+            echo "nsis_signature=$SIG" >> $GITHUB_OUTPUT
+          fi
+        id: sigs
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -64,9 +88,26 @@ jobs:
           name: windows-installers
           path: |
             Cafezin_setup.msi
+            Cafezin_setup.msi.zip
+            Cafezin_setup.msi.zip.sig
             Cafezin_setup.exe
+            Cafezin_setup.exe.zip
+            Cafezin_setup.exe.zip.sig
+          if-no-files-found: warn
 
-  # ── Publish GitHub Release ───────────────────────────────────────────────
+      - name: Store signature artifact
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          [ -f "${{ steps.installers.outputs.nsis_sig }}" ] && cp "${{ steps.installers.outputs.nsis_sig }}" artifacts/windows.nsis.zip.sig || touch artifacts/windows.nsis.zip.sig
+
+      - name: Upload signature artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-sigs
+          path: artifacts/
+
+  # ── Publish GitHub Release + update latest.json ─────────────────────────
   release:
     name: Publish GitHub Release
     needs: [build-windows]
@@ -74,6 +115,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
@@ -81,6 +126,7 @@ jobs:
         run: find . -type f | sort
 
       - name: Create Release
+        id: gh_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
@@ -90,4 +136,54 @@ jobs:
           generate_release_notes: true
           files: |
             windows-installers/Cafezin_setup.msi
+            windows-installers/Cafezin_setup.msi.zip
+            windows-installers/Cafezin_setup.msi.zip.sig
             windows-installers/Cafezin_setup.exe
+            windows-installers/Cafezin_setup.exe.zip
+            windows-installers/Cafezin_setup.exe.zip.sig
+
+      - name: Update update/latest.json (Windows entry)
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag }}"
+          VERSION="${TAG#v}"
+          BASE="https://github.com/pvsmartinez/cafezin/releases/download/${TAG}"
+          NSIS_SIG=""
+          if [ -f windows-sigs/windows.nsis.zip.sig ]; then
+            NSIS_SIG=$(cat windows-sigs/windows.nsis.zip.sig)
+          fi
+          export NSIS_SIG
+          python3 -c "
+import json, os
+from datetime import datetime, timezone
+
+with open('update/latest.json', 'r') as f:
+    data = json.load(f)
+
+version = os.environ['VERSION']
+base    = os.environ['BASE']
+sig     = os.environ.get('NSIS_SIG', '')
+
+data['version']  = version
+data['pub_date'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+data.setdefault('platforms', {})
+data['platforms']['windows-x86_64'] = {
+    'url':       f'{base}/Cafezin_setup.exe.zip',
+    'signature': sig,
+}
+
+with open('update/latest.json', 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+"
+        env:
+          VERSION: ${{ inputs.tag }}
+          BASE: https://github.com/pvsmartinez/cafezin/releases/download/${{ inputs.tag }}
+
+      - name: Commit and push update/latest.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add update/latest.json
+          git diff --staged --quiet || git commit -m "chore: update latest.json for ${{ inputs.tag }} [skip ci]"
+          git push

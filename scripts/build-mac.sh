@@ -5,7 +5,8 @@
 #   ./scripts/build-mac.sh              # build .app + .dmg
 #   ./scripts/build-mac.sh --install    # build + install to ~/Applications
 #   ./scripts/build-mac.sh --dmg        # build .dmg only
-#   ./scripts/build-mac.sh --release    # build + upload .dmg to GitHub Releases
+#   ./scripts/build-mac.sh --release    # build (signed) + upload to GitHub Releases
+#                                         and update update/latest.json
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -39,6 +40,20 @@ if ! command -v rustc &>/dev/null; then
   exit 1
 fi
 
+# ── Load signing key for release builds ─────────────────────────────────────
+SIGNING_KEY_FILE="$HOME/.tauri/cafezin.key"
+if [[ "$DO_RELEASE" == "true" ]]; then
+  if [[ -f "$SIGNING_KEY_FILE" ]]; then
+    export TAURI_SIGNING_PRIVATE_KEY
+    TAURI_SIGNING_PRIVATE_KEY="$(cat "$SIGNING_KEY_FILE")"
+    export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+    echo "▸ Signing key loaded from $SIGNING_KEY_FILE"
+  else
+    echo "⚠  No signing key at $SIGNING_KEY_FILE — build will not be signed."
+    echo "   Generate one with: npx tauri signer generate -w $SIGNING_KEY_FILE"
+  fi
+fi
+
 # ── Move into the app directory ──────────────────────────────────────────────
 cd "$APP_DIR"
 
@@ -60,9 +75,13 @@ npm run tauri build -- --bundles "$BUNDLES"
 BUNDLE_DIR="$APP_DIR/src-tauri/target/release/bundle"
 APP_PATH=""
 DMG_PATH=""
+TARGZ_PATH=""
+TARGZ_SIG_PATH=""
 
 APP_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name '*.app' 2>/dev/null | head -1)"
 DMG_PATH="$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name '*.dmg' 2>/dev/null | head -1)"
+TARGZ_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name '*.tar.gz' 2>/dev/null | head -1)"
+TARGZ_SIG_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name '*.tar.gz.sig' 2>/dev/null | head -1)"
 
 if [[ -z "$APP_PATH" && -z "$DMG_PATH" ]]; then
   echo ""
@@ -73,8 +92,10 @@ fi
 
 echo ""
 echo "✓  Build successful!"
-[[ -n "$APP_PATH" ]] && echo "   .app: $APP_PATH"
-[[ -n "$DMG_PATH" ]] && echo "   .dmg: $DMG_PATH"
+[[ -n "$APP_PATH" ]]      && echo "   .app:        $APP_PATH"
+[[ -n "$DMG_PATH" ]]      && echo "   .dmg:        $DMG_PATH"
+[[ -n "$TARGZ_PATH" ]]    && echo "   .tar.gz:     $TARGZ_PATH"
+[[ -n "$TARGZ_SIG_PATH" ]] && echo "   .tar.gz.sig: $TARGZ_SIG_PATH"
 
 # ── Optionally install into ~/Applications ───────────────────────────────────
 if [[ "$DO_INSTALL" == "true" && -n "$APP_PATH" ]]; then
@@ -88,7 +109,7 @@ if [[ "$DO_INSTALL" == "true" && -n "$APP_PATH" ]]; then
   echo "✓  Installed to $DEST"
 fi
 
-# ── Optionally upload DMG to GitHub Releases ─────────────────────────────────
+# ── Optionally upload DMG + updater bundle to GitHub Releases ────────────────
 if [[ "$DO_RELEASE" == "true" && -n "$DMG_PATH" ]]; then
   if ! command -v gh &>/dev/null; then
     echo ""
@@ -97,16 +118,76 @@ if [[ "$DO_RELEASE" == "true" && -n "$DMG_PATH" ]]; then
   else
     VERSION="$(python3 -c "import json; print(json.load(open('$APP_DIR/src-tauri/tauri.conf.json'))['version'])")"
     TAG="v$VERSION"
-    cp "$DMG_PATH" "$ROOT_DIR/Cafezin.dmg"
+
+    # Detect architecture
+    ARCH="$(uname -m)"
+    if [[ "$ARCH" == "arm64" ]]; then
+      PLATFORM="darwin-aarch64"
+      DMG_DEST="Cafezin_${VERSION}_aarch64.dmg"
+      TARGZ_DEST="Cafezin_${VERSION}_aarch64.app.tar.gz"
+      SIG_DEST="Cafezin_${VERSION}_aarch64.app.tar.gz.sig"
+    else
+      PLATFORM="darwin-x86_64"
+      DMG_DEST="Cafezin_${VERSION}_x64.dmg"
+      TARGZ_DEST="Cafezin_${VERSION}_x64.app.tar.gz"
+      SIG_DEST="Cafezin_${VERSION}_x64.app.tar.gz.sig"
+    fi
+
+    cp "$DMG_PATH" "$ROOT_DIR/$DMG_DEST"
+    FILES="$ROOT_DIR/$DMG_DEST"
+
+    [[ -n "$TARGZ_PATH" ]]    && { cp "$TARGZ_PATH"     "$ROOT_DIR/$TARGZ_DEST"; FILES="$FILES $ROOT_DIR/$TARGZ_DEST"; }
+    [[ -n "$TARGZ_SIG_PATH" ]] && { cp "$TARGZ_SIG_PATH" "$ROOT_DIR/$SIG_DEST";  FILES="$FILES $ROOT_DIR/$SIG_DEST"; }
+
     echo ""
-    echo "▸ Uploading Cafezin.dmg to GitHub Releases ($TAG)…"
+    echo "▸ Uploading to GitHub release $TAG…"
     cd "$ROOT_DIR"
-    # Create or update release and attach the DMG
-    gh release upload "$TAG" Cafezin.dmg --clobber 2>/dev/null || \
-      gh release create "$TAG" Cafezin.dmg \
+    gh release upload "$TAG" $FILES --clobber 2>/dev/null || \
+      gh release create "$TAG" $FILES \
         --title "Cafezin $TAG" \
         --generate-notes
-    rm -f Cafezin.dmg
+
     echo "✓  Uploaded to https://github.com/pvsmartinez/cafezin/releases/tag/$TAG"
+
+    # ── Update update/latest.json with macOS entry ────────────────────────
+    if [[ -n "$TARGZ_SIG_PATH" ]]; then
+      MAC_SIG="$(cat "$ROOT_DIR/$SIG_DEST")"
+      BASE="https://github.com/pvsmartinez/cafezin/releases/download/${TAG}"
+      python3 -c "
+import json, os
+from datetime import datetime, timezone
+
+with open('$ROOT_DIR/update/latest.json', 'r') as f:
+    data = json.load(f)
+
+platform = '$PLATFORM'
+base     = '$BASE'
+sig      = '$MAC_SIG'
+version  = '$VERSION'
+
+data['version']  = version
+data['pub_date'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+data.setdefault('platforms', {})
+data['platforms'][platform] = {
+    'url':       f'{base}/$TARGZ_DEST',
+    'signature': sig,
+}
+
+with open('$ROOT_DIR/update/latest.json', 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+print('✓  Updated update/latest.json for', platform)
+"
+      cd "$ROOT_DIR"
+      git add update/latest.json
+      git diff --staged --quiet || git commit -m "chore: update latest.json for $TAG macOS"
+      git push
+      echo "✓  Pushed update/latest.json"
+    else
+      echo "⚠  No .tar.gz.sig found — update/latest.json not updated."
+      echo "   Re-run with TAURI_SIGNING_PRIVATE_KEY set or signing key at $SIGNING_KEY_FILE"
+    fi
+
+    rm -f "$ROOT_DIR/$DMG_DEST" "$ROOT_DIR/$TARGZ_DEST" "$ROOT_DIR/$SIG_DEST"
   fi
 fi

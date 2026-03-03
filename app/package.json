@@ -52,6 +52,8 @@
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@tauri-apps/plugin-http": "^2.5.7",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.0",
     "@types/jszip": "^3.4.0",
     "@types/marked": "^5.0.2",
     "@uiw/react-codemirror": "^4.25.4",

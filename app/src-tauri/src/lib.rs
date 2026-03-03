@@ -889,14 +889,16 @@ async fn github_device_flow_poll(device_code: String) -> Result<DeviceFlowPollRe
 }
 
 /// Returns the distribution channel so the frontend can adapt its update UI.
-/// "dev"  → local dev build / sideload / non-store build (script-based update)
-/// "mas"  → Mac App Store (cargo feature `mas`)
-/// "ios"  → iOS App Store
+/// "dev"     → local dev / debug build (script-based update)
+/// "release" → production non-store build — uses GitHub releases updater
+/// "mas"     → Mac App Store (cargo feature `mas`)
+/// "ios"     → iOS App Store
 #[tauri::command]
 fn build_channel() -> &'static str {
     if cfg!(target_os = "ios") { "ios" }
     else if cfg!(feature = "mas") { "mas" }
-    else { "dev" }
+    else if cfg!(debug_assertions) { "dev" }
+    else { "release" }
 }
 
 /// Transcribe a base64-encoded audio blob (webm/ogg/mp4) via Groq's Whisper endpoint.
@@ -1140,6 +1142,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_updater::init())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

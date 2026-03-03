@@ -8,6 +8,8 @@
     "opener:default",
     "dialog:default",
     "deep-link:default",
+    "updater:default",
+    "process:default",
     { "identifier": "http:allow-fetch", "allow": [
       { "url": "https://api.githubcopilot.com/**" },
       { "url": "https://api.github.com/**" },
