@@ -1,30 +1,22 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# build-all.sh  —  Build + publish Cafezin for all platforms
+# build-all.sh  —  Build + publish Cafezin para todas as plataformas
 # ─────────────────────────────────────────────────────────────────────────────
 # Usage:
-#   ./scripts/build-all.sh              # build macOS + iOS, trigger CI for Windows + Android
-#   ./scripts/build-all.sh --tag v0.2.0 # push version tag → CI builds everything
-#   ./scripts/build-all.sh --mac-only   # macOS only (local)
-#   ./scripts/build-all.sh --ios-only   # iOS/TestFlight only (local)
+#   ./scripts/build-all.sh --tag v0.2.0  # build completo: macOS + iOS local, Windows no CI
+#   ./scripts/build-all.sh --mac-only    # só macOS (local)
+#   ./scripts/build-all.sh --ios-only    # só iOS/TestFlight (local)
 #
-# What runs where:
-#   macOS  → runs locally (requires this Mac)
-#   iOS    → runs locally (requires this Mac + Xcode)
-#   Windows → runs on GitHub Actions CI (windows-latest runner)
-#   Android → runs on GitHub Actions CI (ubuntu-latest runner with SDK)
+# Onde cada plataforma roda:
+#   macOS   → local (este Mac)         → gh release upload
+#   iOS     → local (este Mac + Xcode) → TestFlight via upload-testflight.sh
+#   Windows → GitHub Actions CI        → gh workflow run release.yml --field tag=
+#   Android → local (este Mac + SDK)   → usar build-android.sh separado
 #
-# To trigger a full release for all platforms:
-#   ./scripts/build-all.sh --tag v0.2.0
-# This pushes a git tag, which triggers .github/workflows/release.yml
-# which builds macOS, Windows, and Android in parallel and publishes a
-# GitHub Release with all installers attached.
-#
-# Files are available at:
+# Downloads:
 #   https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin.dmg
 #   https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin_setup.msi
 #   https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin_setup.exe
-#   https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin.apk
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -65,23 +57,22 @@ if [[ -n "$TAG" ]]; then
   "$SCRIPT_DIR/build-mac.sh" --release
   echo ""
 
-  echo "── [2/4] Windows + Android — triggering CI ─────────────────────────"
+  echo "── [2/3] Windows — GitHub Actions CI ───────────────────────────────"
   "$SCRIPT_DIR/build-windows.sh" --tag "$TAG"
   echo ""
 
-  echo "── [3/4] iOS — TestFlight ───────────────────────────────────────────"
+  echo "── [3/3] iOS — TestFlight ───────────────────────────────────────────"
   "$SCRIPT_DIR/build-ios.sh"
 
   echo ""
   echo "═══════════════════════════════════════════════════"
-  echo "  ✓ Release $TAG in progress!"
+  echo "  ✓ Release $TAG iniciada!"
   echo ""
-  echo "  • macOS DMG uploaded to GitHub Releases"
-  echo "  • Windows + Android building on GitHub Actions"
-  echo "  • iOS processing on TestFlight"
+  echo "  • macOS DMG → GitHub Releases"
+  echo "  • Windows   → CI rodando (acompanhe: https://github.com/pvsmartinez/cafezin/actions)"
+  echo "  • iOS       → processando no TestFlight"
   echo ""
-  echo "  Track CI: https://github.com/pvsmartinez/cafezin/actions"
-  echo "  Release:  https://github.com/pvsmartinez/cafezin/releases"
+  echo "  Release: https://github.com/pvsmartinez/cafezin/releases/tag/$TAG"
   echo "═══════════════════════════════════════════════════"
   exit 0
 fi
@@ -99,23 +90,15 @@ if [[ "$IOS_ONLY" == "true" ]]; then
   exit 0
 fi
 
-# ── Default: local builds (macOS + iOS) + trigger CI (Windows + Android) ─────
-echo "  Mode: LOCAL (macOS + iOS) + CI (Windows + Android)"
+# ── Default: sem --tag, exige --mac-only ou --ios-only ───────────────────────
+echo "  Para um release completo, use --tag:"
+echo "  ./scripts/build-all.sh --tag v0.2.0"
 echo ""
-
-echo "── [1/3] macOS .dmg ─────────────────────────────────────────────────"
-"$SCRIPT_DIR/build-mac.sh" --dmg
-
+echo "  Opções disponíveis:"
+echo "    --tag v0.2.0   macOS local + Windows CI + iOS TestFlight"
+echo "    --mac-only     só macOS .dmg local"
+echo "    --ios-only     só iOS / TestFlight"
 echo ""
-echo "── [2/3] iOS / TestFlight ───────────────────────────────────────────"
-"$SCRIPT_DIR/build-ios.sh"
-
+echo "  Windows standalone:"
+echo "    ./scripts/build-windows.sh --tag v0.2.0"
 echo ""
-echo "── [3/3] Windows + Android (GitHub Actions) ─────────────────────────"
-"$SCRIPT_DIR/build-windows.sh"
-
-echo ""
-echo "═══════════════════════════════════════════════════"
-echo "  ✓ Local builds complete. CI triggered."
-echo "  Track: https://github.com/pvsmartinez/cafezin/actions"
-echo "═══════════════════════════════════════════════════"
