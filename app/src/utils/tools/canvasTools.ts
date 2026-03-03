@@ -187,11 +187,18 @@ export const executeCanvasTools: DomainExecutor = async (name, args, ctx) => {
         setCopilotOverlay(false);
         return `Error opening canvas tab "${expectedFile}": ${e instanceof Error ? e.message : String(e)}`;
       }
-      // Resolve editor: prefer registry lookup for the target file
+      // Resolve editor: prefer registry lookup for the target file.
+      // IMPORTANT: when expectedFile is set, NEVER fall back to canvasEditor.current —
+      // that would silently edit the wrong (previously open) canvas.
       const targetFile = expectedFile || (activeFile ?? '');
-      const editor = (targetFile ? getCanvasEditor(targetFile) : undefined) ?? canvasEditor.current;
+      const editor = targetFile ? getCanvasEditor(targetFile) : canvasEditor.current;
       if (!editor) {
         setCopilotOverlay(false);
+        if (expectedFile) {
+          return `Error: canvas editor for "${expectedFile}" is not mounted. ` +
+            `Make sure the file exists and was created with scaffold_workspace before calling canvas_op. ` +
+            `If it was just created, try calling canvas_op again — the tab may still be loading.`;
+        }
         return 'No canvas is currently open. Ask the user to open a .tldr.json canvas file first.';
       }
 
