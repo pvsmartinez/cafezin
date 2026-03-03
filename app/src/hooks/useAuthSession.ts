@@ -71,6 +71,16 @@ export function useAuthSession(options?: UseAuthSessionOptions): AuthSessionStat
   const onAuthSuccessRef = useRef(options?.onAuthSuccess);
   onAuthSuccessRef.current = options?.onAuthSuccess;
 
+  // Clear the OAuth safety timeout on unmount to avoid setState-after-unmount.
+  useEffect(() => {
+    return () => {
+      if (oauthTimeoutRef.current) {
+        clearTimeout(oauthTimeoutRef.current);
+        oauthTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   // ── Session bootstrap ─────────────────────────────────────────────────────
   useEffect(() => {
     getSession()

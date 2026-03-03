@@ -23,7 +23,7 @@
  *   Escape               Close AI panel (when open)
  *   Cmd/Ctrl+J           Toggle terminal panel
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export interface KeyboardShortcutOptions {
   /** Whether the AI panel is currently open (used for Escape key). */
@@ -60,16 +60,23 @@ export interface KeyboardShortcutOptions {
 }
 
 export function useKeyboardShortcuts(opts: KeyboardShortcutOptions): void {
-  const {
-    aiOpen, activeTabId, tabs, fileTypeInfo,
-    onOpenAI, onCloseAI, onCloseTab, onOpenSettings,
-    onToggleSidebar, onSave, onReload, onNewFile, onSwitchTab,
-    onToggleFind, onGlobalSearch, onTogglePreview, onToggleTerminal,
-    onToggleFocusMode, focusMode,
-  } = opts;
+  // Keep a stable ref so the listener registered once always sees the latest
+  // option values without being torn down and re-created on every file switch.
+  // Previously the effect depended on `tabs`, `activeTabId`, `fileTypeInfo`,
+  // and all 12 callbacks — causing removeEventListener + addEventListener on
+  // every tab change.
+  const optsRef = useRef(opts);
+  optsRef.current = opts;
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      const {
+        aiOpen, activeTabId, tabs, fileTypeInfo,
+        onOpenAI, onCloseAI, onCloseTab, onOpenSettings,
+        onToggleSidebar, onSave, onReload, onNewFile, onSwitchTab,
+        onToggleFind, onGlobalSearch, onTogglePreview, onToggleTerminal,
+        onToggleFocusMode, focusMode,
+      } = optsRef.current;
       const cmd = e.metaKey || e.ctrlKey;
 
       // Cmd+K → open AI panel
@@ -161,9 +168,8 @@ export function useKeyboardShortcuts(opts: KeyboardShortcutOptions): void {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  // Intentionally empty — opts values are read via optsRef.current so the
+  // listener is registered exactly once and never thrashes on file switches.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiOpen, focusMode, fileTypeInfo, activeTabId, tabs,
-      onOpenAI, onCloseAI, onCloseTab, onOpenSettings, onToggleSidebar,
-      onSave, onReload, onNewFile, onSwitchTab, onToggleFind,
-      onGlobalSearch, onTogglePreview, onToggleTerminal, onToggleFocusMode]);
+  }, []);
 }

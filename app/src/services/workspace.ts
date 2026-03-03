@@ -34,20 +34,24 @@ async function buildFileTree(
     return [];
   }
 
-  const nodes: FileTreeNode[] = [];
-  for (const entry of entries) {
-    if (!entry.name) continue;
-    if (WORKSPACE_SKIP.has(entry.name)) continue;
-    if (entry.name.startsWith('.')) continue;
+  // Filter first, then fan-out all subdirectory reads in parallel.
+  // Sequential await-in-for was O(total_dirs) IPC round-trips; Promise.all
+  // batches all siblings at each level, cutting workspace load time significantly
+  // on workspaces with many nested directories (especially on iOS).
+  const relevant = entries.filter(
+    (e) => e.name && !WORKSPACE_SKIP.has(e.name) && !e.name.startsWith('.'),
+  );
 
-    const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
-    if (entry.isDirectory) {
-      const children = await buildFileTree(`${dirAbsPath}/${entry.name}`, relPath, depth + 1);
-      nodes.push({ name: entry.name, path: relPath, isDirectory: true, children });
-    } else {
-      nodes.push({ name: entry.name, path: relPath, isDirectory: false });
-    }
-  }
+  const nodes = await Promise.all(
+    relevant.map(async (entry) => {
+      const relPath = relBase ? `${relBase}/${entry.name!}` : entry.name!;
+      if (entry.isDirectory) {
+        const children = await buildFileTree(`${dirAbsPath}/${entry.name!}`, relPath, depth + 1);
+        return { name: entry.name!, path: relPath, isDirectory: true as const, children };
+      }
+      return { name: entry.name!, path: relPath, isDirectory: false as const };
+    }),
+  );
 
   return nodes.sort((a, b) => {
     // Directories first, then alphabetical
