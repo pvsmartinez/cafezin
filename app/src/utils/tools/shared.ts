@@ -67,10 +67,15 @@ export interface ToolContext {
 
 // ── Shared utilities ─────────────────────────────────────────────────────────
 
-/** Text file extensions eligible for search_workspace. */
+/** Text file extensions eligible for search_workspace and read_workspace_file. */
 export const TEXT_EXTS = new Set([
-  'md', 'mdx', 'txt', 'ts', 'tsx', 'js', 'jsx',
-  'json', 'css', 'html', 'rs', 'toml', 'yaml', 'yml', 'sh',
+  'md', 'mdx', 'txt',
+  'ts', 'tsx', 'js', 'jsx',
+  'json', 'css', 'html',
+  'rs', 'toml', 'yaml', 'yml', 'sh',
+  'py', 'sql',           // Python scripts and SQL migrations
+  'env',                 // .env files (non-secret ones like .env.example)
+  'gitignore', 'editorconfig',
 ]);
 
 /**

@@ -1352,7 +1352,11 @@ export async function runCopilotAgent(
         return;
       }
 
-      // ── Tool calls: execute each one ──────────────────────────────────
+      // ── Tool calls: execute in parallel, preserve order in context ───────
+      // File locks (waitForUnlock / lockFile) in write operations automatically
+      // serialise concurrent writes to the same file — reads are always safe to
+      // parallelise.  We collect results in original call order so the context
+      // window is deterministic regardless of which tool finishes first.
       // Strip <tool_call>/<tool_response> noise from assistant text before storing.
       // Use '' (not null) for content when only tool_calls are present — null causes
       // 400 Bad Request on some Copilot backends.
@@ -1374,25 +1378,30 @@ export async function runCopilotAgent(
         onChunk('\n\n');
       }
 
-      for (const tc of allToolCalls) {
-        const args = (() => {
-          try { return JSON.parse(tc.function.arguments) as Record<string, unknown>; }
-          catch { return {} as Record<string, unknown>; }
-        })();
+      const toolResultsOrdered = await Promise.all(
+        allToolCalls.map(async (tc) => {
+          const args = (() => {
+            try { return JSON.parse(tc.function.arguments) as Record<string, unknown>; }
+            catch { return {} as Record<string, unknown>; }
+          })();
 
-        const activity: ToolActivity = { callId: tc.id, name: tc.function.name, args };
-        onToolActivity(activity);
+          const activity: ToolActivity = { callId: tc.id, name: tc.function.name, args };
+          onToolActivity(activity);
 
-        let result: string;
-        try {
-          result = await executeTool(tc.function.name, args);
-          activity.result = result;
-        } catch (e) {
-          result = `Error: ${e}`;
-          activity.error = result;
-        }
-        onToolActivity({ ...activity, result, error: activity.error });
+          let result: string;
+          try {
+            result = await executeTool(tc.function.name, args);
+            activity.result = result;
+          } catch (e) {
+            result = `Error: ${e}`;
+            activity.error = result;
+          }
+          onToolActivity({ ...activity, result, error: activity.error });
+          return { tc, result };
+        }),
+      );
 
+      for (const { tc, result } of toolResultsOrdered) {
         // Truncate very large results to avoid oversized requests (e.g. large files,
         // base64 blobs accidentally not caught by sentinel). Cap at 32 KB — large enough
         // for a full 40 KB paged file read without cutting responses short, but still

@@ -117,7 +117,8 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'search_workspace',
       description:
-        'Search for a word or phrase across all text files in the workspace. Returns matching lines with file context. Good for finding where a topic is mentioned.',
+        'Search for a word or phrase across all text files in the workspace. Returns matching lines with file context. Good for finding where a topic is mentioned. ' +
+        'Searches: .md, .txt, .ts, .tsx, .js, .jsx, .json, .css, .html, .rs, .toml, .yaml, .yml, .sh, .py, .sql and similar text formats.',
       parameters: {
         type: 'object',
         properties: {
@@ -462,18 +463,33 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       const hits: string[] = [];
       const MAX_HITS = 30;
 
-      for (const rel of textFiles) {
-        if (hits.length >= MAX_HITS) break;
-        let text: string;
-        try { text = await readTextFile(`${workspacePath}/${rel}`); } catch { continue; }
-        const lines = text.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-          if (hits.length >= MAX_HITS) break;
-          if (lines[i].toLowerCase().includes(needle)) {
-            const before = i > 0 ? `  ${lines[i - 1]}` : '';
-            const after  = i < lines.length - 1 ? `  ${lines[i + 1]}` : '';
-            hits.push(`${rel}:${i + 1}:\n${before}\n> ${lines[i]}\n${after}`);
+      // Read files in parallel batches of 10 — same behaviour, ~10× faster on large workspaces
+      const BATCH = 10;
+      for (let b = 0; b < textFiles.length && hits.length < MAX_HITS; b += BATCH) {
+        const batch = textFiles.slice(b, b + BATCH);
+        const batchHits = await Promise.all(
+          batch.map(async (rel) => {
+            try {
+              const text = await readTextFile(`${workspacePath}/${rel}`);
+              const lines = text.split('\n');
+              const fileHits: string[] = [];
+              for (let i = 0; i < lines.length; i++) {
+                if (lines[i].toLowerCase().includes(needle)) {
+                  const before = i > 0 ? `  ${lines[i - 1]}` : '';
+                  const after  = i < lines.length - 1 ? `  ${lines[i + 1]}` : '';
+                  fileHits.push(`${rel}:${i + 1}:\n${before}\n> ${lines[i]}\n${after}`);
+                }
+              }
+              return fileHits;
+            } catch { return []; }
+          }),
+        );
+        for (const fileHits of batchHits) {
+          for (const hit of fileHits) {
+            if (hits.length >= MAX_HITS) break;
+            hits.push(hit);
           }
+          if (hits.length >= MAX_HITS) break;
         }
       }
 
