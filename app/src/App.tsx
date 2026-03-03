@@ -121,11 +121,6 @@ export default function App() {
     document.title = workspace ? workspace.name : 'Cafezin';
   }, [workspace?.name]);
 
-  // Sync i18n language when user changes the locale setting
-  useEffect(() => {
-    setupI18n(appSettings.locale);
-  }, [appSettings.locale]);
-
   // Force-update check on startup — fetch latest.json and block if below min version
   useEffect(() => {
     async function checkMinVersion() {
@@ -167,6 +162,12 @@ export default function App() {
   const wordCount = useMemo(() => content.trim().split(/\s+/).filter(Boolean).length, [content]);
   const [fileStat, setFileStat] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(() => initSettings);
+
+  // Sync i18n language when user changes the locale setting
+  useEffect(() => {
+    setupI18n(appSettings.locale);
+  }, [appSettings.locale]);
+
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   // Find + Replace bar (Ctrl/Cmd+F)
   // Pending jump: set by project search results; cleared after content loads

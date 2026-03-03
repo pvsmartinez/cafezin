@@ -1158,30 +1158,13 @@ draft: true
           {
             path: '.cafezin/memory.md',
             content: [
-              projTitle  ? `# Projeto
-
-Título: ${projTitle}${projAuthor ? `
-Autor: ${projAuthor}` : ''}
-` : '# Projeto
-
-',
-              '# Personagens
-
-',
-              '# Plot Notes
-
-',
-              '# World Building
-
-',
-              '# Glossário
-
-',
-              '# Style Preferences
-
-',
-            ].join('
-'),
+              projTitle  ? `# Projeto\n\nTítulo: ${projTitle}${projAuthor ? `\nAutor: ${projAuthor}` : ''}\n` : '# Projeto\n\n',
+              '# Personagens\n\n',
+              '# Plot Notes\n\n',
+              '# World Building\n\n',
+              '# Glossário\n\n',
+              '# Style Preferences\n\n',
+            ].join('\n'),
           },
         ];
       } else if (preset === 'course') {
@@ -1215,21 +1198,10 @@ draft: true
           {
             path: '.cafezin/memory.md',
             content: [
-              projTitle ? `# Projeto
-
-Curso: ${projTitle}${projAuthor ? `
-Professor: ${projAuthor}` : ''}
-` : '# Projeto
-
-',
-              '# Course Structure
-
-',
-              '# Style Preferences
-
-',
-            ].join('
-'),
+              projTitle ? `# Projeto\n\nCurso: ${projTitle}${projAuthor ? `\nProfessor: ${projAuthor}` : ''}\n` : '# Projeto\n\n',
+              '# Course Structure\n\n',
+              '# Style Preferences\n\n',
+            ].join('\n'),
           },
         ];
       } else {
