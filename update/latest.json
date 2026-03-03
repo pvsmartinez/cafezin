@@ -2,6 +2,12 @@
   "version": "0.1.1",
   "notes": "Versão inicial com auto-update.",
   "pub_date": "2025-01-01T00:00:00Z",
+  "min_versions": {
+    "release": "0.1.0",
+    "dev": "0.1.0",
+    "mas": "0.1.0",
+    "ios": "0.1.0"
+  },
   "platforms": {
     "darwin-aarch64": {
       "signature": "",

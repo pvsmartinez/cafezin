@@ -19,6 +19,7 @@ import PDFViewer from './components/PDFViewer';
 import MediaViewer from './components/MediaViewer';
 import UpdateModal from './components/UpdateModal';
 import UpdateReleaseModal from './components/UpdateReleaseModal';
+import ForceUpdateModal from './components/ForceUpdateModal';
 import MobilePendingModal from './components/MobilePendingModal';
 import { loadPendingTasks } from './services/mobilePendingTasks';
 import type { MobilePendingTask } from './services/mobilePendingTasks';
@@ -78,6 +79,19 @@ function loadAppSettings(): AppSettings {
 // Eagerly init i18n before first render so translated strings show immediately
 setupI18n(loadAppSettings().locale);
 
+const FORCE_UPDATE_URL = 'https://raw.githubusercontent.com/pvsmartinez/cafezin/main/update/latest.json';
+
+/** Returns negative if a < b, 0 if equal, positive if a > b */
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
 const FALLBACK_CONTENT = `# Untitled Document\n\nStart writing here…\n`;
 
 export default function App() {
@@ -111,6 +125,32 @@ export default function App() {
   useEffect(() => {
     setupI18n(appSettings.locale);
   }, [appSettings.locale]);
+
+  // Force-update check on startup — fetch latest.json and block if below min version
+  useEffect(() => {
+    async function checkMinVersion() {
+      try {
+        const { getVersion } = await import('@tauri-apps/api/app');
+        const [version, channel] = await Promise.all([
+          getVersion(),
+          invoke<string>('build_channel').catch(() => 'release'),
+        ]);
+        const resp = await fetch(`${FORCE_UPDATE_URL}?t=${Date.now()}`);
+        if (!resp.ok) return; // network error — let user in
+        const data = await resp.json() as { min_versions?: Record<string, string> };
+        const minVersions = data.min_versions ?? {};
+        const minVersion = minVersions[channel] ?? minVersions['release'] ?? '0.0.0';
+        if (compareVersions(version, minVersion) < 0) {
+          setForceUpdateChannel(channel);
+          setForceUpdateRequired(minVersion);
+          setForceUpdateOpen(true);
+        }
+      } catch {
+        // silently fail — never block user on network errors
+      }
+    }
+    void checkMinVersion();
+  }, []);
 
   const [isAIStreaming, setIsAIStreaming] = useState(false);
 
@@ -188,6 +228,9 @@ export default function App() {
     aiInitialPrompt, setAiInitialPrompt,
   } = useModals();
   const [showUpdateReleaseModal, setShowUpdateReleaseModal] = useState(false);
+  const [forceUpdateOpen, setForceUpdateOpen] = useState(false);
+  const [forceUpdateRequired, setForceUpdateRequired] = useState('');
+  const [forceUpdateChannel, setForceUpdateChannel] = useState('release');
   const [showMobilePending, setShowMobilePending] = useState(false);
   const [mobilePendingTasks, setMobilePendingTasks] = useState<MobilePendingTask[]>([]);
   // ── Canvas refs + transient state ───────────────────────────────────────
@@ -1573,6 +1616,12 @@ export default function App() {
       <UpdateReleaseModal
         open={showUpdateReleaseModal}
         onClose={() => setShowUpdateReleaseModal(false)}
+      />
+      <ForceUpdateModal
+        open={forceUpdateOpen}
+        requiredVersion={forceUpdateRequired}
+        channel={forceUpdateChannel}
+        onUpdate={handleUpdate}
       />
 
       <MobilePendingModal
