@@ -437,7 +437,6 @@ export async function startGitAccountFlow(
 
 function waitOrResume(ms: number): Promise<void> {
   return new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms)
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
         clearTimeout(timer)
@@ -445,6 +444,10 @@ function waitOrResume(ms: number): Promise<void> {
         resolve()
       }
     }
+    const timer = setTimeout(() => {
+      document.removeEventListener('visibilitychange', onVisible)
+      resolve()
+    }, ms)
     document.addEventListener('visibilitychange', onVisible)
   })
 }

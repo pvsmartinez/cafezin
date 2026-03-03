@@ -135,13 +135,14 @@ function VideoViewer({ absPath }: { absPath: string }) {
   const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
+    let url: string | null = null;
     // Read into Blob to avoid CORS / asset-protocol issues with video seeking
     readFile(absPath).then(bytes => {
       const blob = new Blob([bytes]);
-      const url = URL.createObjectURL(blob);
+      url = URL.createObjectURL(blob);
       setSrc(url);
-      return () => URL.revokeObjectURL(url);
     }).catch(() => {});
+    return () => { if (url) URL.revokeObjectURL(url); };
   }, [absPath]);
 
   if (!src) return <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><div className="mb-spinner" /></div>;
