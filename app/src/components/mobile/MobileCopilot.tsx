@@ -5,17 +5,21 @@ import {
   FileText, PencilSimple, Wrench, FolderOpen, MagnifyingGlass,
   ArrowsLeftRight, Trash, Stack, CheckCircle, Globe, Link,
   Image, FloppyDisk, Package, GearSix, Flag, Camera, Desktop,
-  Lightning, X, Check, Key,
+  Lightning, X, Check, Key, Robot, SignOut,
 } from '@phosphor-icons/react';
 import {
-  streamCopilotChat,
   runCopilotAgent,
   startDeviceFlow,
-  getStoredOAuthToken,
   clearOAuthToken,
   fetchCopilotModels,
 } from '../../services/copilot';
 import type { DeviceFlowState } from '../../services/copilot';
+import {
+  streamChat,
+  getActiveProvider,
+  isAIConfigured,
+  PROVIDER_LABELS,
+} from '../../services/aiProvider';
 import { DEFAULT_MODEL, FALLBACK_MODELS } from '../../types';
 import type { ChatMessage, CopilotModelInfo, ToolActivity, ContentPart } from '../../types';
 import { WORKSPACE_TOOLS, buildToolExecutor } from '../../utils/workspaceTools';
@@ -92,7 +96,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   check_file:               <CheckCircle   size={S} />,
   web_search:               <Globe         size={S} />,
   fetch_url:                <Link          size={S} />,
-  search_stock_images:      <Image         size={S} />,
+  search_images:            <Image         size={S} />,
   remember:                 <FloppyDisk    size={S} />,
   export_workspace:         <Package       size={S} />,
   configure_export_targets: <GearSix       size={S} />,
@@ -147,7 +151,7 @@ export default function MobileCopilot({
 }: MobileCopilotProps) {
   // ── Auth ─────────────────────────────────────────────────────────────────
   const [authStatus, setAuthStatus] = useState<'checking' | 'unauthenticated' | 'connecting' | 'authenticated'>(
-    () => getStoredOAuthToken() ? 'authenticated' : 'unauthenticated',
+    () => isAIConfigured() ? 'authenticated' : 'unauthenticated',
   );
   const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState | null>(null);
 
@@ -307,8 +311,8 @@ export default function MobileCopilot({
         abort.signal,
       );
     } else {
-      // No workspace — plain streaming chat
-      await streamCopilotChat(apiMessages, onChunk, onDone, onError, model, undefined, abort.signal);
+      // No workspace — plain streaming chat (supports all providers)
+      await streamChat(apiMessages, onChunk, onDone, onError, model, abort.signal);
     }
   }
 
@@ -410,7 +414,7 @@ export default function MobileCopilot({
             </>
           ) : (
             <>
-              <div className="mb-empty-icon">🤖</div>
+              <div className="mb-empty-icon"><Robot size={32} /></div>
               <div className="mb-chat-auth-title">Sign in to use Copilot</div>
               <div className="mb-chat-auth-desc">
                 Connect your GitHub Copilot account to start chatting.
@@ -425,13 +429,14 @@ export default function MobileCopilot({
     );
   }
 
+  const activeProvider = getActiveProvider();
   const currentModel = models.find(m => m.id === model) ?? { name: model };
 
   return (
     <div className="mb-chat">
       {/* Header */}
       <div className="mb-header">
-        <span className="mb-header-title">Copilot</span>
+        <span className="mb-header-title">{PROVIDER_LABELS[activeProvider]}</span>
         <button
           className="mb-icon-btn mb-model-btn"
           onClick={() => setShowModelPicker(v => !v)}
@@ -440,12 +445,12 @@ export default function MobileCopilot({
           {currentModel.name} ▾
         </button>
         {messages.length > 0 && (
-          <button className="mb-icon-btn" onClick={handleClear} title="New chat" style={{ fontSize: 14 }}>
-            ✕
+          <button className="mb-icon-btn" onClick={handleClear} title="New chat">
+            <X size={14} />
           </button>
         )}
-        <button className="mb-icon-btn" onClick={handleSignOut} title="Sign out" style={{ fontSize: 14, color: 'var(--mb-muted)' }}>
-          ⊘
+        <button className="mb-icon-btn" onClick={handleSignOut} title="Sign out" style={{ color: 'var(--mb-muted)' }}>
+          <SignOut size={14} />
         </button>
       </div>
 
@@ -483,7 +488,7 @@ export default function MobileCopilot({
       <div className="mb-chat-messages">
         {messages.length === 0 && !streaming && (
           <div className="mb-chat-empty">
-            <div className="mb-chat-empty-icon">🤖</div>
+            <div className="mb-chat-empty-icon"><Robot size={32} /></div>
             <div className="mb-chat-empty-text">
               {workspace
                 ? `I can read, search, and edit files in "${workspace.name}". What would you like to do?`

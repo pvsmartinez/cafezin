@@ -13,7 +13,7 @@ import {
   stat,
 } from '../../services/fs';
 import { walkFilesFlat } from '../../services/workspace';
-import { lockFile, unlockFile } from '../../services/copilotLock';
+import { lockFile, unlockFile, waitForUnlock } from '../../services/copilotLock';
 import type { ToolDefinition, DomainExecutor } from './shared';
 import { TEXT_EXTS, safeResolvePath } from './shared';
 
@@ -201,6 +201,36 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
+      name: 'multi_patch',
+      description:
+        'Apply multiple targeted find-and-replace edits across one or more files in a single operation. ' +
+        'Use this instead of calling patch_workspace_file repeatedly when you need to make coordinated edits ' +
+        'across different files (e.g. refactor a heading in three chapters, update a config value everywhere). ' +
+        'Each file is read once, all its patches are applied in order in memory, then written back once — ' +
+        'much more efficient than round-tripping through the API for each edit.',
+      parameters: {
+        type: 'object',
+        properties: {
+          patches: {
+            type: 'string',
+            description:
+              'JSON array of patch objects. Each object has:\n' +
+              '  { "path": "relative/path.md", "search": "exact text to find", "replace": "replacement text", "occurrence": 1 }\n' +
+              '"occurrence" defaults to 1 (first match); pass 0 to replace all occurrences.\n' +
+              'Patches targeting the same file are applied in array order on the accumulated in-memory text.',
+          },
+          description: {
+            type: 'string',
+            description: 'Brief human-readable summary of what these patches accomplish, e.g. "rename Chapter 1 heading across 3 files".',
+          },
+        },
+        required: ['patches'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'scaffold_workspace',
       description:
         'Create a folder structure and stub files in one atomic operation. ' +
@@ -301,8 +331,13 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       try { abs = safeResolvePath(workspacePath, relPath); }
       catch (e) { return String(e); }
       if (!(await exists(abs))) return `File not found: ${relPath}`;
+      // Prefer in-memory editor content (unsaved edits) over stale disk version
       let text: string;
-      try { text = await readTextFile(abs); } catch (e) { return `Error reading file: ${e}`; }
+      if (ctx.activeFile === relPath && ctx.activeFileContent != null) {
+        text = ctx.activeFileContent;
+      } else {
+        try { text = await readTextFile(abs); } catch (e) { return `Error reading file: ${e}`; }
+      }
 
       const occurrence = typeof args.occurrence === 'number' ? args.occurrence : 1;
       let newText: string;
@@ -339,6 +374,14 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         replacementCount = 1;
       }
 
+      const lockWait = await waitForUnlock(relPath, ctx.agentId);
+      if (lockWait.timedOut) {
+        return (
+          `Cannot patch "${relPath}" — it is currently being edited by another Copilot agent (${lockWait.owner}). ` +
+          `Please let the user know: "I tried to edit ${relPath} but it is locked by a parallel task. ` +
+          `Please let me know when the other task finishes so I can retry."`
+        );
+      }
       lockFile(relPath, ctx.agentId);
       await new Promise<void>((r) => setTimeout(r, 0));
       try {
@@ -373,6 +416,14 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       try { abs = safeResolvePath(workspacePath, relPath); }
       catch (e) { return String(e); }
       const dir = abs.split('/').slice(0, -1).join('/');
+      const lwWrite = await waitForUnlock(relPath, ctx.agentId);
+      if (lwWrite.timedOut) {
+        return (
+          `Cannot write "${relPath}" — it is currently being edited by another Copilot agent (${lwWrite.owner}). ` +
+          `Please let the user know: "I tried to write ${relPath} but it is locked by a parallel task. ` +
+          `Please let me know when the other task finishes so I can retry."`
+        );
+      }
       lockFile(relPath, ctx.agentId);
       await new Promise<void>((r) => setTimeout(r, 0));
       try {
@@ -515,10 +566,25 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       if (await exists(toAbs)) return `Error: destination already exists: ${toRel}. Choose a different name or delete it first.`;
       const toDir = toAbs.split('/').slice(0, -1).join('/');
       if (!(await exists(toDir))) await mkdir(toDir, { recursive: true });
+      const lwRename = await waitForUnlock(fromRel, ctx.agentId);
+      if (lwRename.timedOut) {
+        return (
+          `Cannot rename "${fromRel}" — it is currently being edited by another Copilot agent (${lwRename.owner}). ` +
+          `Please let the user know: "I tried to rename ${fromRel} but it is locked by a parallel task. ` +
+          `Please let me know when the other task finishes so I can retry."`
+        );
+      }
+      lockFile(fromRel, ctx.agentId);
+      await new Promise<void>((r) => setTimeout(r, 0));
       try {
         await rename(fromAbs, toAbs);
         onFileWritten?.(toRel);
-      } catch (e) { return `Error renaming file: ${e}`; }
+        await new Promise<void>((r) => setTimeout(r, 400));
+      } catch (e) {
+        unlockFile(fromRel);
+        return `Error renaming file: ${e}`;
+      }
+      unlockFile(fromRel);
       return `Renamed "${fromRel}" → "${toRel}" successfully.`;
     }
 
@@ -535,15 +601,159 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       try { abs = safeResolvePath(workspacePath, relPath); }
       catch (e) { return String(e); }
       if (!(await exists(abs))) return `File not found: ${relPath}.`;
+      const lwDelete = await waitForUnlock(relPath, ctx.agentId);
+      if (lwDelete.timedOut) {
+        return (
+          `Cannot delete "${relPath}" — it is currently being edited by another Copilot agent (${lwDelete.owner}). ` +
+          `Please let the user know: "I tried to delete ${relPath} but it is locked by a parallel task. ` +
+          `Please let me know when the other task finishes so I can retry."`
+        );
+      }
+      lockFile(relPath, ctx.agentId);
+      await new Promise<void>((r) => setTimeout(r, 0));
       try {
         const info = await stat(abs);
         const isDir = info.isDirectory;
         await remove(abs, { recursive: isDir });
         onFileWritten?.(relPath);
+        await new Promise<void>((r) => setTimeout(r, 400));
         return isDir
           ? `Deleted folder "${relPath}" and all its contents permanently.`
           : `Deleted "${relPath}" permanently.`;
-      } catch (e) { return `Error deleting: ${e}`; }
+      } catch (e) {
+        return `Error deleting: ${e}`;
+      } finally {
+        unlockFile(relPath);
+      }
+    }
+
+    // ── multi_patch ───────────────────────────────────────────────────────
+    case 'multi_patch': {
+      const raw = String(args.patches ?? '').trim();
+      if (!raw) return 'Error: patches is required.';
+      let patches: Array<{ path: string; search: string; replace: string; occurrence?: number }>;
+      try {
+        patches = JSON.parse(raw);
+        if (!Array.isArray(patches)) return 'Error: patches must be a JSON array.';
+      } catch (e) { return `Error: patches is not valid JSON: ${e}`; }
+
+      // Read each file once and accumulate edits in memory before writing.
+      const fileCache = new Map<string, { abs: string; text: string }>();
+      const patchResults: string[] = [];
+      const patchErrors: string[] = [];
+
+      for (const patch of patches) {
+        const relPath = String(patch.path    ?? '').trim();
+        const search  = String(patch.search  ?? '');
+        const replace = String(patch.replace ?? '');
+        const occurrence = typeof patch.occurrence === 'number' ? patch.occurrence : 1;
+
+        if (!relPath) { patchErrors.push('Patch with empty path — skipped.'); continue; }
+        if (!search)  { patchErrors.push(`${relPath}: search is required — skipped.`); continue; }
+        if (relPath.endsWith('.tldr.json')) {
+          patchErrors.push(`${relPath}: canvas files cannot be patched — use canvas_op instead.`);
+          continue;
+        }
+
+        let abs: string;
+        try { abs = safeResolvePath(workspacePath, relPath); }
+        catch (e) { patchErrors.push(String(e)); continue; }
+
+        if (!fileCache.has(relPath)) {
+          if (!(await exists(abs))) { patchErrors.push(`File not found: ${relPath}`); continue; }
+          try {
+            // Use in-memory editor content for the active file to avoid
+            // overwriting unsaved user edits with a stale disk-based patch
+            const text = (ctx.activeFile === relPath && ctx.activeFileContent != null)
+              ? ctx.activeFileContent
+              : await readTextFile(abs);
+            fileCache.set(relPath, { abs, text });
+          } catch (e) { patchErrors.push(`Error reading ${relPath}: ${e}`); continue; }
+        }
+
+        const entry = fileCache.get(relPath)!;
+        let newText: string;
+        let replacementCount = 0;
+
+        if (occurrence === 0) {
+          const parts = entry.text.split(search);
+          if (parts.length === 1) { patchErrors.push(`${relPath}: search string not found.`); continue; }
+          replacementCount = parts.length - 1;
+          newText = parts.join(replace);
+        } else {
+          let pos = -1;
+          let n = 0;
+          let cursor = 0;
+          while (n < occurrence) {
+            const idx = entry.text.indexOf(search, cursor);
+            if (idx === -1) break;
+            pos = idx;
+            n++;
+            cursor = idx + search.length;
+          }
+          if (pos === -1) {
+            const total = entry.text.split(search).length - 1;
+            if (total === 0) patchErrors.push(`${relPath}: search string not found.`);
+            else patchErrors.push(`${relPath}: occurrence ${occurrence} requested but only ${total} match(es) found.`);
+            continue;
+          }
+          newText = entry.text.slice(0, pos) + replace + entry.text.slice(pos + search.length);
+          replacementCount = 1;
+        }
+
+        const occStr = occurrence === 0 ? `all ${replacementCount}` : `occurrence ${occurrence}`;
+        patchResults.push(`${relPath}: replaced ${occStr} occurrence(s)`);
+        entry.text = newText;
+      }
+
+      // Write back only modified files (those still in cache after all patches).
+      // Wait for any conflicting locks first (all in parallel), then lock all at once.
+      type WaitResult = { relPath: string } & Awaited<ReturnType<typeof waitForUnlock>>;
+      const writeErrors: string[] = [];
+      const lockedPaths: string[] = [];
+      const waitResults: WaitResult[] = await Promise.all(
+        Array.from(fileCache.keys()).map((relPath) =>
+          waitForUnlock(relPath, ctx.agentId).then((r): WaitResult => ({ relPath, ...r }))
+        )
+      );
+      const timedOutFiles = waitResults.filter((r): r is WaitResult & { timedOut: true; owner: string } => r.timedOut);
+      if (timedOutFiles.length > 0) {
+        const names = timedOutFiles.map((r) => `"${r.relPath}"`).join(', ');
+        const owner = timedOutFiles[0].owner;
+        return (
+          `Cannot apply patches — the following file(s) are locked by another Copilot agent (${owner}): ${names}. ` +
+          `Please let the user know: "I tried to edit ${names} but they are locked by a parallel task. ` +
+          `Please let me know when the other task finishes so I can retry."`
+        );
+      }
+      // Lock ALL files first so the shimmer overlay is visible for the full duration,
+      // then write, then hold the lock for 400ms so the UI has time to render it.
+      for (const relPath of fileCache.keys()) {
+        lockFile(relPath, ctx.agentId);
+        lockedPaths.push(relPath);
+      }
+      await new Promise<void>((r) => setTimeout(r, 0));
+      try {
+        for (const [relPath, { abs, text }] of fileCache) {
+          try {
+            await writeTextFile(abs, text);
+            onFileWritten?.(relPath);
+            onMarkRecorded?.(relPath, text);
+          } catch (e) {
+            writeErrors.push(`Failed to write ${relPath}: ${e}`);
+          }
+        }
+        await new Promise<void>((r) => setTimeout(r, 400));
+      } finally {
+        for (const relPath of lockedPaths) unlockFile(relPath);
+      }
+
+      const desc = args.description ? ` (${args.description})` : '';
+      const parts: string[] = [`multi_patch complete${desc}: ${fileCache.size} file(s) modified.`];
+      if (patchResults.length) parts.push(`✓ ${patchResults.join('\n✓ ')}`);
+      if (patchErrors.length)  parts.push(`Skipped:\n✗ ${patchErrors.join('\n✗ ')}`);
+      if (writeErrors.length)  parts.push(`Write errors:\n✗ ${writeErrors.join('\n✗ ')}`);
+      return parts.join('\n');
     }
 
     // ── scaffold_workspace ────────────────────────────────────────────────

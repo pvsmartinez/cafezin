@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { GearSix, X } from '@phosphor-icons/react';
+import {
+  getActiveProvider, setActiveProvider, getActiveModel, setActiveModel,
+  getProviderKey, PROVIDER_LABELS, PROVIDER_MODELS, PROVIDER_DEFAULT_MODELS,
+  type AIProviderType,
+} from '../services/aiProvider';
 import { writeTextFile } from '../services/fs';
 import { saveWorkspaceConfig } from '../services/workspace';
 import {
@@ -186,6 +192,43 @@ export default function SettingsModal({
     setVercelTokenSaved(true);
     setTimeout(() => setVercelTokenSaved(false), 2000);
   }
+
+  // ── AI Provider section state ─────────────────────────────────────────────
+  const [aiProvider, setAIProviderLocal] = useState<AIProviderType>(() => getActiveProvider());
+  const [aiProviderKey, setAIProviderKey] = useState(() => {
+    const p = getActiveProvider();
+    return p !== 'copilot' ? getProviderKey(p) : '';
+  });
+  const [aiModel, setAIModel] = useState(() => getActiveModel());
+  const [aiKeySaved, setAIKeySaved] = useState(false);
+  const [aiModelSaved, setAIModelSaved] = useState(false);
+
+  function handleAIProviderChange(p: AIProviderType) {
+    setAIProviderLocal(p);
+    setActiveProvider(p);
+    void saveApiSecret('cafezin-ai-provider', p);
+    setAIProviderKey(p !== 'copilot' ? getProviderKey(p) : '');
+    setAIModel(PROVIDER_DEFAULT_MODELS[p]);
+  }
+
+  function handleSaveAIKey() {
+    if (aiProvider === 'copilot') return;
+    const keyMap: Record<Exclude<AIProviderType, 'copilot'>, string> = {
+      openai: 'cafezin-openai-key',
+      anthropic: 'cafezin-anthropic-key',
+      groq: 'cafezin-groq-key',
+    };
+    void saveApiSecret(keyMap[aiProvider], aiProviderKey.trim());
+    setAIKeySaved(true);
+    setTimeout(() => setAIKeySaved(false), 2000);
+  }
+
+  function handleSaveAIModel() {
+    setActiveModel(aiModel.trim());
+    void saveApiSecret('cafezin-ai-model', aiModel.trim());
+    setAIModelSaved(true);
+    setTimeout(() => setAIModelSaved(false), 2000);
+  }
   // New button form state
   const [newBtnLabel, setNewBtnLabel] = useState('');
   const [newBtnCmd, setNewBtnCmd] = useState('');
@@ -268,8 +311,8 @@ export default function SettingsModal({
 
         {/* Header */}
         <div className="sm-header">
-          <span className="sm-title">⚙ Configurações</span>
-          <button className="sm-close" onClick={onClose} title="Fechar">✕</button>
+          <span className="sm-title"><GearSix size={15} weight="bold" /> Configurações</span>
+          <button className="sm-close" onClick={onClose} title="Fechar"><X size={14} /></button>
         </div>
 
         {/* Tabs */}
@@ -450,6 +493,100 @@ export default function SettingsModal({
                       onClick={handleSaveVercelToken}
                     >
                       {vercelTokenSaved ? '✓ Salvo' : 'Salvar'}
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">Assistente IA</h3>
+                <p className="sm-section-desc">
+                  Escolha o provedor de IA. Use o GitHub Copilot ou cadastre sua própria chave.
+                  Configurações sincronizadas entre dispositivos.
+                </p>
+
+                <div className="sm-row sm-row--col">
+                  <label className="sm-label">Provedor</label>
+                  <select
+                    className="sm-input"
+                    value={aiProvider}
+                    onChange={(e) => handleAIProviderChange(e.target.value as AIProviderType)}
+                  >
+                    {(Object.keys(PROVIDER_LABELS) as AIProviderType[]).map((p) => (
+                      <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {aiProvider !== 'copilot' && (
+                  <div className="sm-row sm-row--col">
+                    <label className="sm-label">
+                      Chave de API
+                      {aiProvider === 'openai' && (
+                        <span className="sm-row-desc"> —{' '}
+                          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">platform.openai.com/api-keys</a>
+                        </span>
+                      )}
+                      {aiProvider === 'anthropic' && (
+                        <span className="sm-row-desc"> —{' '}
+                          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>
+                        </span>
+                      )}
+                      {aiProvider === 'groq' && (
+                        <span className="sm-row-desc"> —{' '}
+                          <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>
+                        </span>
+                      )}
+                    </label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        className="sm-input"
+                        type="password"
+                        value={aiProviderKey}
+                        onChange={(e) => setAIProviderKey(e.target.value)}
+                        placeholder={aiProvider === 'openai' ? 'sk-...' : aiProvider === 'anthropic' ? 'sk-ant-...' : 'gsk_...'}
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        className={`sm-save-btn ${aiKeySaved ? 'saved' : ''}`}
+                        onClick={handleSaveAIKey}
+                      >
+                        {aiKeySaved ? '✓ Salvo' : 'Salvar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {aiProvider === 'copilot' && (
+                  <div className="sm-row">
+                    <span className="sm-row-desc">
+                      Usa o GitHub Copilot. Faça login pelo botão no chat do assistente.
+                    </span>
+                  </div>
+                )}
+
+                <div className="sm-row sm-row--col">
+                  <label className="sm-label">Modelo padrão</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      className="sm-input"
+                      type="text"
+                      list="ai-models-datalist"
+                      value={aiModel}
+                      onChange={(e) => setAIModel(e.target.value)}
+                      placeholder={PROVIDER_DEFAULT_MODELS[aiProvider]}
+                      style={{ flex: 1 }}
+                    />
+                    <datalist id="ai-models-datalist">
+                      {PROVIDER_MODELS[aiProvider].map((m) => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
+                    <button
+                      className={`sm-save-btn ${aiModelSaved ? 'saved' : ''}`}
+                      onClick={handleSaveAIModel}
+                    >
+                      {aiModelSaved ? '✓ Salvo' : 'Salvar'}
                     </button>
                   </div>
                 </div>
