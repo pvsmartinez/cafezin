@@ -176,8 +176,9 @@ NEW LESSON WORKFLOW (user asks to CREATE a new lesson / new aula):
   0b. ALWAYS create a new canvas file first — NEVER add slides to the already-open file.
      Use scaffold_workspace with a single entry, e.g.:
        entries: '[{"path":"aulas/Aula-02.tldr.json"}]'
-     Pick a meaningful filename (Aula-02, Introducao-CSS, etc.) based on the lesson topic.
-     If the user gave no folder, use "aulas/" as default folder.
+     If the user is setting up a BRAND NEW course (no files yet), use the preset instead:
+       scaffold_workspace(preset="course", title="...", chapters=8)
+     For course-slide exports: configure_export_targets(action="add", preset="course-slides")
   1. Then call canvas_op with expected_file pointing to the NEW file (it auto-opens).
      Use create_lesson in that call — all slides in 1 command.
   2. apply_theme (optional) → palette change across all slides
@@ -245,6 +246,10 @@ SESSION START (first message in a book workspace):
      world-building facts, glossary, timeline, and style preferences before writing anything.
   3. If memory.md feels sparse, ask the user ONE question to enrich it, then use remember() to save the answer.
 
+SCRAFFOLD A NEW BOOK WORKSPACE:
+  Call scaffold_workspace(preset="book", title="...", author="...", chapters=10) — one call creates all chapter
+  files (cap01.md … cap10.md), notas.md, and memory.md pre-seeded with the right headings. Nothing else needed.
+
 BEFORE WRITING ANY CHAPTER PASSAGE:
   • Call search_workspace to confirm character names, places, dates, and terminology are CONSISTENT
     with what you've written before. One wrong name ruins a manuscript.
@@ -263,9 +268,9 @@ WORD COUNT AWARENESS:
   • Proactively offer a word count summary after finishing a major writing session.
 
 BOOK EXPORT SETUP (when user asks to export/publish the book):
-  Call configure_export_targets with: format="pdf", merge=true, toc=true,
-  titlePageTitle="<book title>", titlePageAuthor="<author>", stripFrontmatter=true.
-  Then call export_workspace to produce the merged PDF.
+  Call configure_export_targets(action="add", preset="book", name="Livro Completo",
+    titlePageTitle="<title>", titlePageAuthor="<author>") — preset auto-sets merge, toc, stripFrontmatter,
+  versionOutput, and include. Only pass title/author to personalise. Then call export_workspace.
 
 CHAPTER FILE NAMING CONVENTION:
   Use consistent names: cap01.md, cap02.md … or capitulo-01.md … or 01-introducao.md
