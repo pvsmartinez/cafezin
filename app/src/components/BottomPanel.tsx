@@ -24,12 +24,14 @@ interface Props {
   requestRun?: string;
   /** Live file metrics shown in the always-visible status strip. */
   fileMeta?: FileMeta;
+  /** When false (default), hide the terminal UI — only show the file metrics strip. */
+  showTerminal?: boolean;
 }
 
 const MIN_HEIGHT = 100;
 const MAX_HEIGHT = 800;
 
-export default function BottomPanel({ workspacePath, open, height, onToggle, onHeightChange, requestCd, requestRun, fileMeta }: Props) {
+export default function BottomPanel({ workspacePath, open, height, onToggle, onHeightChange, requestCd, requestRun, fileMeta, showTerminal = false }: Props) {
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
   const [input, setInput] = useState('');
   const [running, setRunning] = useState(false);
@@ -187,6 +189,31 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
     return p;
   }
 
+  // ── When terminal is disabled: show only the file metrics strip ───────────
+  if (!showTerminal) {
+    const metrics = (() => {
+      if (!fileMeta) return null;
+      const { kind, wordCount, lines, slides, fileStat } = fileMeta;
+      let text: string | null = null;
+      if (fileStat && (kind === 'video' || kind === 'audio' || kind === 'image' || kind === 'pdf')) text = fileStat;
+      else if (kind === 'markdown') text = `${wordCount.toLocaleString()} words`;
+      else if (kind === 'canvas' && slides > 0) text = `${slides} slide${slides !== 1 ? 's' : ''}`;
+      else if (kind === 'code' && lines > 0) text = `${lines.toLocaleString()} lines`;
+      return text;
+    })();
+    if (!metrics) return null;
+    return (
+      <div className="bottom-panel" style={{ height: 36 }}>
+        <div className="bottom-panel-tabrow" style={{ cursor: 'default' }}>
+          <div className="bottom-panel-metrics" style={{ marginLeft: 'var(--space-3)' }}>
+            <span className="bottom-panel-metric">{metrics}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // showTerminal is true past this point
   const panelHeight = open ? height : 36;
 
   return (

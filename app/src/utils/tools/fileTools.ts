@@ -26,7 +26,25 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
       name: 'list_workspace_files',
       description:
         'List every file in the workspace with its size in KB. ' +
-        'Call this first to understand what exists and how large each file is before deciding whether to read or paginate.',
+        'Call this first to understand what exists and how large each file is before deciding whether to read or paginate. ' +
+        'For a richer view of what each file CONTAINS (headings, exports, tables) use outline_workspace instead.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'outline_workspace',
+      description:
+        'Return a structural outline of every file in the workspace — without reading their full content. ' +
+        'Far more useful than list_workspace_files when you need to understand WHAT each file contains: ' +
+        '• Markdown: YAML title, headings (H1‒H3), word count ' +
+        '• TypeScript/JavaScript: exported functions, classes, types, interfaces ' +
+        '• Python: top-level def and class names ' +
+        '• SQL: CREATE TABLE / FUNCTION / VIEW names ' +
+        '• Shell scripts: description comment ' +
+        '• JSON/YAML/TOML: top-level keys ' +
+        'Use this as your first call on an unfamiliar workspace — it tells you exactly which files to read next.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
   },
@@ -311,6 +329,134 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         }),
       );
       return `${files.length} file(s) in workspace:\n${withSizes.join('\n')}`;
+    }
+
+    // ── outline_workspace ──────────────────────────────────────────────
+    case 'outline_workspace': {
+      const allFiles = await walkFilesFlat(workspacePath);
+      const textFiles = allFiles.filter((f) => {
+        if (f.endsWith('.tldr.json')) return false;
+        const ext = f.split('.').pop()?.toLowerCase() ?? '';
+        return TEXT_EXTS.has(ext);
+      });
+      if (textFiles.length === 0) return 'No text files found in workspace.';
+
+      /** Extract structural outline from a file's text based on its extension. */
+      function extractOutline(rel: string, text: string): string {
+        const ext = rel.split('.').pop()?.toLowerCase() ?? '';
+        const lines: string[] = [];
+
+        if (ext === 'md' || ext === 'mdx') {
+          // YAML frontmatter title
+          if (text.startsWith('---')) {
+            const fmEnd = text.indexOf('\n---', 3);
+            if (fmEnd !== -1) {
+              const fm = text.slice(3, fmEnd);
+              const titleMatch = /^title:\s*["']?(.+?)["']?\s*$/m.exec(fm);
+              if (titleMatch) lines.push(`  title: "${titleMatch[1].trim()}"`);
+            }
+          }
+          // H1–H3 headings
+          const headingRe = /^(#{1,3})\s+(.+)$/gm;
+          let hm: RegExpExecArray | null;
+          while ((hm = headingRe.exec(text)) !== null) {
+            const indent = '  '.repeat(hm[1].length);
+            lines.push(`${indent}${hm[1]} ${hm[2].trim()}`);
+          }
+          // Word count
+          const words = text.replace(/<[^>]+>/g, '').split(/\s+/).filter(Boolean).length;
+          lines.push(`  (${words} words)`);
+
+        } else if (['ts', 'tsx', 'js', 'jsx'].includes(ext)) {
+          // Named exports: export function/class/const/type/interface/enum Name
+          const namedRe = /^export\s+(?:default\s+)?(?:async\s+)?(?:function\*?|class|const|let|var|type|interface|enum)\s+(\w+)/gm;
+          const names: string[] = [];
+          let nm: RegExpExecArray | null;
+          while ((nm = namedRe.exec(text)) !== null) names.push(nm[1]);
+          // Re-export blocks: export { A, B, C }
+          const reRe = /^export\s+\{([^}]+)\}/gm;
+          while ((nm = reRe.exec(text)) !== null) {
+            nm[1].split(',').map((s) => s.trim().split(/\s+/)[0]).filter(Boolean).forEach((n) => names.push(n));
+          }
+          if (names.length) lines.push(`  exports: ${[...new Set(names)].join(', ')}`);
+          else lines.push('  (no exports detected)');
+
+        } else if (ext === 'py') {
+          // Top-level def / class (no indentation)
+          const pyRe = /^(def|class)\s+(\w+)/gm;
+          const names: string[] = [];
+          let pm: RegExpExecArray | null;
+          while ((pm = pyRe.exec(text)) !== null) names.push(`${pm[1]} ${pm[2]}`);
+          if (names.length) lines.push(`  ${names.join(', ')}`);
+
+        } else if (ext === 'sql') {
+          // CREATE TABLE / VIEW / FUNCTION / INDEX / TRIGGER
+          const sqlRe = /CREATE\s+(?:OR\s+REPLACE\s+)?(?:TABLE|VIEW|FUNCTION|INDEX|TRIGGER|TYPE|SEQUENCE)\s+(?:IF\s+NOT\s+EXISTS\s+)?["'`]?(\w+)["'`]?/gi;
+          const names: string[] = [];
+          let sm: RegExpExecArray | null;
+          while ((sm = sqlRe.exec(text)) !== null) names.push(sm[1]);
+          // Also catch ALTER TABLE
+          const altRe = /ALTER\s+TABLE\s+["'`]?(\w+)["'`]?/gi;
+          const altered = new Set<string>();
+          while ((sm = altRe.exec(text)) !== null) altered.add(sm[1]);
+          if (names.length) lines.push(`  creates: ${names.join(', ')}`);
+          if (altered.size) lines.push(`  alters: ${[...altered].join(', ')}`);
+
+        } else if (ext === 'sh') {
+          // First meaningful comment (not shebang)
+          const shLines = text.split('\n');
+          for (const l of shLines) {
+            const m = /^#\s+(.+)/.exec(l);
+            if (m && !l.startsWith('#!/')) { lines.push(`  # ${m[1].trim()}`); break; }
+          }
+
+        } else if (['json', 'toml', 'yaml', 'yml'].includes(ext)) {
+          // Top-level keys
+          try {
+            if (ext === 'json') {
+              const obj = JSON.parse(text) as Record<string, unknown>;
+              if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+                const keys = Object.keys(obj).slice(0, 20);
+                lines.push(`  keys: ${keys.join(', ')}${Object.keys(obj).length > 20 ? ', …' : ''}`);
+              }
+            } else {
+              // YAML/TOML: just extract top-level key names with a simple regex
+              const keyRe = /^([a-zA-Z_][\w.-]*)\s*[=:]/gm;
+              const keys = new Set<string>();
+              let km: RegExpExecArray | null;
+              while ((km = keyRe.exec(text)) !== null) keys.add(km[1]);
+              if (keys.size) lines.push(`  keys: ${[...keys].slice(0, 20).join(', ')}`);
+            }
+          } catch { /* ignore parse errors */ }
+        }
+
+        return lines.join('\n');
+      }
+
+      // Read all text files in parallel batches and build per-file outlines
+      const BATCH = 12;
+      const outlines: string[] = [];
+      for (let b = 0; b < textFiles.length; b += BATCH) {
+        const batch = textFiles.slice(b, b + BATCH);
+        const results = await Promise.all(
+          batch.map(async (rel) => {
+            try {
+              const s = await stat(`${workspacePath}/${rel}`);
+              const kb = ((s.size ?? 0) / 1024).toFixed(1);
+              // Skip very large files — outline would be noisy and we'd hit the tool result cap
+              if ((s.size ?? 0) > 200_000) return `📄 ${rel}  (${kb} KB — too large to outline, use read_workspace_file with pagination)`;
+              const text = await readTextFile(`${workspacePath}/${rel}`);
+              const outline = extractOutline(rel, text);
+              return `📄 ${rel}  (${kb} KB)${outline ? '\n' + outline : ''}`;
+            } catch {
+              return `📄 ${rel}  (unreadable)`;
+            }
+          }),
+        );
+        outlines.push(...results);
+      }
+
+      return `Workspace outline — ${textFiles.length} file(s):\n\n${outlines.join('\n\n')}`;
     }
 
     // ── read_workspace_file ───────────────────────────────────────────────
