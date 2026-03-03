@@ -262,6 +262,11 @@ export default function App() {
   // Demo Hub publish status toast
   const [demoHubToast, setDemoHubToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const demoHubToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Clean up toast timers on unmount to avoid setState on unmounted component
+  useEffect(() => () => {
+    if (savedToastTimerRef.current)   clearTimeout(savedToastTimerRef.current);
+    if (demoHubToastTimerRef.current) clearTimeout(demoHubToastTimerRef.current);
+  }, []);
   // Save error — set on any failed write, cleared on next successful write
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -363,6 +368,8 @@ export default function App() {
   useEffect(() => {
     const unlisten = listen('menu-settings', () => openSettings());
     return () => { unlisten.then((fn) => fn()).catch(() => {}); };
+  // openSettings is stable (useCallback in useModals) — safe to omit from deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── OAuth deep-link callback (cafezin://auth/callback#access_token=...) ───
@@ -918,8 +925,12 @@ export default function App() {
           const blob = new Blob(dumpChunksRef.current, { type: mimeType });
           const arrayBuf = await blob.arrayBuffer();
           const uint8 = new Uint8Array(arrayBuf);
+          // Build base64 in 8 KB chunks to avoid call-stack overflow on large recordings
           let binary = '';
-          uint8.forEach((b) => (binary += String.fromCharCode(b)));
+          const CHUNK = 8192;
+          for (let i = 0; i < uint8.length; i += CHUNK) {
+            binary += String.fromCharCode(...uint8.subarray(i, i + CHUNK));
+          }
           const b64 = btoa(binary);
           const transcript = await invoke<string>('transcribe_audio', {
             audioBase64: b64,
@@ -1059,14 +1070,17 @@ export default function App() {
   }, [workspace, activeFile, scheduleAutosave]);
 
   // AI document context: for canvas, send live shape summary + command protocol
-  const aiDocumentContext = (() => {
+  // canvasEditorRef is a ref — intentionally not in deps (changes don't trigger re-render).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const aiDocumentContext = useMemo(() => {
     if (fileTypeInfo?.kind === 'canvas') {
       return canvasEditorRef.current
         ? canvasAIContext(canvasEditorRef.current, activeFile ?? '')
         : `Canvas file: ${activeFile ?? ''} (loading…)`;
     }
     return content;
-  })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileTypeInfo?.kind, activeFile, content]);
   // ── File deleted ────────────────────────────────────────
   function handleFileDeleted(relPath: string) {
     if (tabs.includes(relPath)) {
@@ -1116,26 +1130,27 @@ export default function App() {
       registerWorkspace(ws.path, ws.name, 'personal').catch(() => { /* not fatal */ });
     }
 
-    // Restore last session (open tabs + active file)
+    // Restore last session (open tabs + active file) — read all files in parallel
     const session = loadWorkspaceSession(ws.path);
     if (session.tabs.length > 0) {
-      const restored: string[] = [];
-      for (const filePath of session.tabs) {
-        const info = getFileTypeInfo(filePath);
-        if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image') {
-          tabContentsRef.current.set(filePath, '');
-          tabViewModeRef.current.set(filePath, info.defaultMode as 'edit' | 'preview');
-          restored.push(filePath);
-        } else {
+      const results = await Promise.all(
+        session.tabs.map(async (filePath) => {
+          const info = getFileTypeInfo(filePath);
+          if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image') {
+            tabContentsRef.current.set(filePath, '');
+            tabViewModeRef.current.set(filePath, info.defaultMode as 'edit' | 'preview');
+            return filePath;
+          }
           try {
             const text = await readFile(ws, filePath);
             savedContentRef.current.set(filePath, text);
             tabContentsRef.current.set(filePath, text);
             tabViewModeRef.current.set(filePath, info.defaultMode as 'edit' | 'preview');
-            restored.push(filePath);
-          } catch { /* file deleted since last session — skip */ }
-        }
-      }
+            return filePath;
+          } catch { return null; /* file deleted since last session — skip */ }
+        }),
+      );
+      const restored = results.filter((p): p is string => p !== null);
       if (restored.length > 0) {
         setTabs(restored);
         const preview = session.previewTabId && restored.includes(session.previewTabId)
@@ -1150,9 +1165,12 @@ export default function App() {
     }
   }
 
-  const title = activeFile
-    ? (content.match(/^#\s+(.+)$/m)?.[1] ?? activeFile)
-    : workspace?.name ?? 'Untitled';
+  const title = useMemo(
+    () => activeFile
+      ? (content.match(/^#\s+(.+)$/m)?.[1] ?? activeFile)
+      : workspace?.name ?? 'Untitled',
+    [activeFile, content, workspace?.name],
+  );
 
   // ── No workspace yet — show picker ──────────────────────────
   if (!workspace) {
@@ -1335,13 +1353,15 @@ export default function App() {
               ⚠ {pandocError.length > 45 ? pandocError.slice(0, 45) + '…' : pandocError}
             </span>
           )}
-          <button
-            className="app-devtools-btn"
-            onClick={() => invoke('open_devtools')}
-            title="Open DevTools console"
-          >
-            DevTools
-          </button>
+          {import.meta.env.DEV && (
+            <button
+              className="app-devtools-btn"
+              onClick={() => invoke('open_devtools')}
+              title="Open DevTools console"
+            >
+              DevTools
+            </button>
+          )}
           <button
             className={`app-ai-toggle ${aiOpen ? 'active' : ''}`}
             onClick={() => setAiOpen((v) => !v)}
