@@ -303,6 +303,29 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'word_count',
+      description:
+        'Count words in one Markdown file or across the entire workspace. ' +
+        'Returns per-file word counts sorted by filename, plus a grand total. ' +
+        'Useful for writers tracking chapter length, book progress, or meeting word-count goals. ' +
+        'Skips YAML front-matter, HTML tags, code fences, and canvas files when counting.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description:
+              'Relative path to a single file, e.g. "chapters/cap1.md". ' +
+              'Omit to count ALL Markdown files in the workspace.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 // ── Executor ─────────────────────────────────────────────────────────────────
@@ -810,6 +833,65 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
 
       if (issues.length === 0) return `✓ No issues found in ${relPath}.`;
       return `Found ${issues.length} issue(s) in ${relPath}:\n${issues.map((is, n) => `${n + 1}. ${is}`).join('\n')}`;
+    }
+
+    // ── word_count ────────────────────────────────────────────────────────
+    case 'word_count': {
+      /** Strip YAML front-matter, HTML, code fences, then count whitespace tokens. */
+      function countWords(text: string): number {
+        let t = text;
+        // Strip YAML front-matter
+        if (t.startsWith('---')) {
+          const end = t.indexOf('\n---', 3);
+          if (end !== -1) t = t.slice(end + 4);
+        }
+        // Strip fenced code blocks (``` or ~~~)
+        t = t.replace(/^```[\s\S]*?^```/gm, '').replace(/^~~~[\s\S]*?^~~~/gm, '');
+        // Strip inline code
+        t = t.replace(/`[^`]*`/g, '');
+        // Strip HTML tags
+        t = t.replace(/<[^>]+>/g, '');
+        // Strip Markdown image/link syntax
+        t = t.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+        return t.split(/\s+/).filter((w) => w.length > 0).length;
+      }
+
+      const singlePath = String(args.path ?? '').trim();
+
+      if (singlePath) {
+        let abs: string;
+        try { abs = safeResolvePath(workspacePath, singlePath); }
+        catch (e) { return String(e); }
+        if (!(await exists(abs))) return `File not found: ${singlePath}`;
+        let text: string;
+        try { text = await readTextFile(abs); } catch (e) { return `Error reading file: ${e}`; }
+        const count = countWords(text);
+        return `${singlePath}: ${count.toLocaleString()} words`;
+      }
+
+      // Whole-workspace count
+      const allFiles = await walkFilesFlat(workspacePath);
+      const mdFiles = allFiles
+        .filter((f) => f.endsWith('.md') || f.endsWith('.mdx'))
+        .sort();
+
+      if (mdFiles.length === 0) return 'No Markdown files found in workspace.';
+
+      const results = await Promise.all(
+        mdFiles.map(async (absPath) => {
+          try {
+            const text = await readTextFile(absPath);
+            const rel = absPath.replace(workspacePath + '/', '');
+            return { rel, count: countWords(text) };
+          } catch {
+            return { rel: absPath.replace(workspacePath + '/', ''), count: 0 };
+          }
+        }),
+      );
+
+      const total = results.reduce((s, r) => s + r.count, 0);
+      const lines = results.map((r) => `  ${r.rel.padEnd(50)} ${r.count.toLocaleString()} words`);
+      return `Word count across ${results.length} Markdown file(s):\n\n${lines.join('\n')}\n\n${'─'.repeat(60)}\n  TOTAL${' '.repeat(45)} ${total.toLocaleString()} words`;
     }
 
     // ── rename_workspace_file ─────────────────────────────────────────────
