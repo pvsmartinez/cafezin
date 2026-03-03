@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cafezin para iPhone — Em Breve</title>
+  <meta name="description" content="Cafezin está chegando para iPhone. Deixe seu e-mail para ser o primeiro a saber quando lançar." />
+  <link rel="icon" type="image/png" href="icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Vollkorn:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    html, body {
+      height: 100%;
+      overflow: auto;
+    }
+
+    .soon-page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Glows */
+    .soon-glow-1 {
+      position: absolute;
+      width: 560px;
+      height: 560px;
+      background: radial-gradient(ellipse at center, rgba(78, 207, 184, 0.07) 0%, transparent 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .soon-glow-2 {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(ellipse at center, rgba(218, 178, 110, 0.06) 0%, transparent 70%);
+      bottom: 0;
+      right: 5%;
+      pointer-events: none;
+    }
+
+    .soon-inner {
+      position: relative;
+      z-index: 1;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    /* App icon */
+    .soon-icon-wrap {
+      position: relative;
+      margin-bottom: 36px;
+    }
+    .soon-app-icon {
+      width: 96px;
+      height: 96px;
+      border-radius: 22px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 30px rgba(78, 207, 184, 0.12);
+    }
+    .soon-phone-badge {
+      position: absolute;
+      bottom: -6px;
+      right: -10px;
+      background: #231d15;
+      border: 1px solid #3f3426;
+      border-radius: 12px;
+      padding: 5px 9px;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    /* Badge */
+    .soon-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(78, 207, 184, 0.12);
+      border: 1px solid rgba(78, 207, 184, 0.28);
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #4ecfb8;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 28px;
+    }
+    .soon-badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #4ecfb8;
+      animation: pulse 2s infinite;
+    }
+
+    /* Title */
+    .soon-title {
+      font-family: 'Vollkorn', Georgia, serif;
+      font-size: clamp(32px, 6vw, 52px);
+      font-weight: 700;
+      color: #dcc9ac;
+      line-height: 1.15;
+      margin-bottom: 20px;
+    }
+    .soon-title em {
+      font-style: italic;
+      color: #4ecfb8;
+    }
+
+    .soon-sub {
+      font-size: 16px;
+      color: #856e53;
+      line-height: 1.7;
+      margin-bottom: 48px;
+      max-width: 400px;
+    }
+
+    /* Features preview */
+    .soon-features {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 52px;
+      width: 100%;
+      max-width: 360px;
+    }
+    .soon-feature-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #231d15;
+      border: 1px solid #3f3426;
+      border-radius: 12px;
+      padding: 14px 18px;
+      text-align: left;
+    }
+    .soon-feature-item span:first-child {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .soon-feature-text {
+      font-size: 14px;
+      color: #cdb89f;
+      line-height: 1.4;
+    }
+    .soon-feature-text strong {
+      display: block;
+      font-weight: 700;
+      color: #dcc9ac;
+      margin-bottom: 2px;
+    }
+
+    /* Back link */
+    .soon-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #856e53;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      transition: color 0.15s ease;
+    }
+    .soon-back:hover {
+      color: #4ecfb8;
+    }
+    .soon-back svg {
+      width: 16px;
+      height: 16px;
+      transition: transform 0.15s ease;
+    }
+    .soon-back:hover svg {
+      transform: translateX(-3px);
+    }
+
+    /* Nav simples */
+    .soon-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(28, 22, 16, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid #2c2519;
+    }
+    .soon-nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+    }
+    .soon-nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: #dcc9ac;
+      font-family: 'Vollkorn', Georgia, serif;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .soon-nav-logo img {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="soon-nav">
+    <div class="soon-nav-inner">
+      <a class="soon-nav-logo" href="/">
+        <img src="coffe.png" alt="Cafezin" />
+        Cafezin
+      </a>
+    </div>
+  </nav>
+
+  <main class="soon-page">
+    <div class="soon-glow-1"></div>
+    <div class="soon-glow-2"></div>
+
+    <div class="soon-inner">
+      <div class="soon-icon-wrap">
+        <img src="coffe.png" alt="Cafezin" class="soon-app-icon" />
+        <div class="soon-phone-badge">📱</div>
+      </div>
+
+      <div class="soon-badge">
+        <span class="soon-badge-dot"></span>
+        Em desenvolvimento
+      </div>
+
+      <h1 class="soon-title">
+        Cafezin para<br/><em>iPhone</em> está chegando
+      </h1>
+
+      <p class="soon-sub">
+        A versão iOS está sendo construída com todo o cuidado de quem
+        leva a sério o seu trabalho criativo. Em breve na App Store.
+      </p>
+
+      <div class="soon-features">
+        <div class="soon-feature-item">
+          <span>✍️</span>
+          <div class="soon-feature-text">
+            <strong>Editor Markdown nativo</strong>
+            Escreva e edite seus documentos diretamente no iPhone.
+          </div>
+        </div>
+        <div class="soon-feature-item">
+          <span>🤖</span>
+          <div class="soon-feature-text">
+            <strong>AI integrada</strong>
+            GitHub Copilot no bolso — escreva, revise e expanda com a AI.
+          </div>
+        </div>
+        <div class="soon-feature-item">
+          <span>🔄</span>
+          <div class="soon-feature-text">
+            <strong>Sincronizado com o desktop</strong>
+            Acesse todos os seus workspaces de onde estiver.
+          </div>
+        </div>
+      </div>
+
+      <a class="soon-back" href="/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Voltar para a página principal
+      </a>
+    </div>
+  </main>
+
+</body>
+</html>
