@@ -27,6 +27,7 @@ import ExportModal from './components/ExportModal';
 import ImageSearchPanel from './components/ImageSearchPanel';
 import FindReplaceBar from './components/FindReplaceBar';
 import AIMarkOverlay from './components/AIMarkOverlay';
+import { List, House, Sparkle } from '@phosphor-icons/react';
 
 import TabBar from './components/TabBar';
 import BottomPanel, { type FileMeta } from './components/BottomPanel';
@@ -365,6 +366,22 @@ export default function App() {
   // openSettings is stable (useCallback in useModals) — safe to omit from deps.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Listen for native File / View menu events
+  useEffect(() => {
+    const uns = [
+      listen('menu-new-file',       () => { setSidebarOpen(true); setTimeout(() => newFileRef.current?.(), 80); }),
+      listen('menu-export-pdf',     () => { if (fileTypeInfo?.kind === 'markdown') handleExportPDF(); }),
+      listen('menu-export-modal',   () => setExportModalOpen(true)),
+      listen('menu-toggle-sidebar', () => setSidebarOpen((v) => !v)),
+      listen('menu-toggle-copilot', () => setAiOpen((v) => !v)),
+      listen('menu-view-edit',      () => { setViewMode('edit');    if (activeTabId) tabViewModeRef.current.set(activeTabId, 'edit'); }),
+      listen('menu-view-preview',   () => { setViewMode('preview'); if (activeTabId) tabViewModeRef.current.set(activeTabId, 'preview'); }),
+      listen('menu-format-file',    () => { if (fileTypeInfo?.kind === 'code' && viewMode === 'edit') handleFormat(); }),
+    ];
+    return () => { uns.forEach((p) => p.then((fn) => fn()).catch(() => {})); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileTypeInfo?.kind, viewMode, activeTabId]);
 
   // ── OAuth deep-link callback (cafezin://auth/callback#access_token=...) ───
   // Delegated to useAuthSession. onAuthSuccess runs syncSecretsFromCloud and
@@ -1145,9 +1162,9 @@ export default function App() {
           <button
             className={`app-sidebar-toggle ${sidebarOpen ? 'active' : ''}`}
             onClick={() => setSidebarOpen((v) => !v)}
-            title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+            title={sidebarOpen ? 'Hide sidebar (⌘B)' : 'Show sidebar (⌘B)'}
           >
-            ☰
+            <List weight="thin" size={18} />
           </button>
           <span className="app-logo">✦</span>
           {/* Home button — deselects active tab, goes to home view */}
@@ -1157,7 +1174,7 @@ export default function App() {
               onClick={() => switchToTab(null)}
               title="Go to workspace home"
             >
-              ⌂
+              <House weight="thin" size={15} />
             </button>
           )}
           {activeFile ? (
@@ -1197,36 +1214,9 @@ export default function App() {
               </button>
             </div>
           )}
-          {/* Format — code files in edit mode only */}
-          {fileTypeInfo?.kind === 'code' && viewMode === 'edit' && (
-            <button
-              className="app-format-btn"
-              onClick={handleFormat}
-              title="Format file with Prettier (⌥F)"
-            >
-              ⌥ Format
-            </button>
-          )}
-          {/* Export to PDF via pandoc — markdown files only */}
-          {fileTypeInfo?.kind === 'markdown' && (
-            <button
-              className={`app-export-pdf-btn${pandocBusy ? ' busy' : ''}`}
-              onClick={handleExportPDF}
-              disabled={pandocBusy}
-              title="Export to PDF via pandoc (saves alongside source file)"
-            >
-              {pandocBusy ? 'Exporting…' : '↓ PDF'}
-            </button>
-          )}
-          {/* Export / Build Settings — always available when workspace open */}
-          {workspace && (
-            <button
-              className="app-export-btn"
-              onClick={() => setExportModalOpen(true)}
-              title="Export / Build Settings"
-            >
-              ⍈ Export
-            </button>
+          {/* pandoc busy indicator — shown while export is running */}
+          {pandocBusy && (
+            <span className="app-export-pdf-btn busy">Exporting…</span>
           )}
           {/* Save state indicators — shown only when a saveable file is active */}
           {activeTabId && fileTypeInfo && !['pdf','video','audio','image'].includes(fileTypeInfo.kind ?? '') && (
@@ -1276,7 +1266,8 @@ export default function App() {
             onClick={() => setAiOpen((v) => !v)}
             title="Toggle Copilot panel (⌘K)"
           >
-            ✦ Copilot
+            <Sparkle weight="thin" size={16} />
+            <span>Copilot</span>
           </button>
         </div>
       </header>

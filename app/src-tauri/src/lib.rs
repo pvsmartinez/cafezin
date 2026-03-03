@@ -1121,15 +1121,46 @@ pub fn run() {
                     &[&undo, &redo, &sep2, &cut, &copy, &paste, &select_all],
                 )?;
 
-                let menu = Menu::with_items(app, &[&app_menu, &edit_menu])?;
+                // File menu
+                let new_file_item    = MenuItem::with_id(app, "new_file",     "New File",                      true, Some("cmd+n"))?;
+                let export_pdf_item  = MenuItem::with_id(app, "export_pdf",   "Export to PDF\u{2026}",           true, None::<&str>)?;
+                let export_sep       = PredefinedMenuItem::separator(app)?;
+                let export_modal_item = MenuItem::with_id(app, "export_modal", "Export / Build Settings\u{2026}", true, None::<&str>)?;
+                let file_menu = Submenu::with_items(
+                    app, "File", true,
+                    &[&new_file_item, &export_sep, &export_pdf_item, &export_modal_item],
+                )?;
+
+                // View menu
+                let toggle_sidebar_item = MenuItem::with_id(app, "toggle_sidebar", "Toggle Sidebar",  true, Some("cmd+b"))?;
+                let toggle_copilot_item = MenuItem::with_id(app, "toggle_copilot", "Toggle Copilot",  true, Some("cmd+k"))?;
+                let view_sep1           = PredefinedMenuItem::separator(app)?;
+                let view_edit_item      = MenuItem::with_id(app, "view_edit",      "Edit Mode",        true, None::<&str>)?;
+                let view_preview_item   = MenuItem::with_id(app, "view_preview",   "Preview Mode",     true, None::<&str>)?;
+                let view_sep2_item      = PredefinedMenuItem::separator(app)?;
+                let format_item         = MenuItem::with_id(app, "format_file",    "Format File",      true, Some("alt+f"))?;
+                let view_menu = Submenu::with_items(
+                    app, "View", true,
+                    &[&toggle_sidebar_item, &toggle_copilot_item, &view_sep1, &view_edit_item, &view_preview_item, &view_sep2_item, &format_item],
+                )?;
+
+                let menu = Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu])?;
                 app.set_menu(menu)?;
 
                 // Emit to the webview so the frontend can respond
                 let handle = app.handle().clone();
                 app.on_menu_event(move |_app, event: tauri::menu::MenuEvent| {
                     match event.id().as_ref() {
-                        "update_app" => { let _ = handle.emit("menu-update-app", ()); }
-                        "settings"   => { let _ = handle.emit("menu-settings", ()); }
+                        "update_app"     => { let _ = handle.emit("menu-update-app", ()); }
+                        "settings"       => { let _ = handle.emit("menu-settings", ()); }
+                        "new_file"       => { let _ = handle.emit("menu-new-file", ()); }
+                        "export_pdf"     => { let _ = handle.emit("menu-export-pdf", ()); }
+                        "export_modal"   => { let _ = handle.emit("menu-export-modal", ()); }
+                        "toggle_sidebar" => { let _ = handle.emit("menu-toggle-sidebar", ()); }
+                        "toggle_copilot" => { let _ = handle.emit("menu-toggle-copilot", ()); }
+                        "view_edit"      => { let _ = handle.emit("menu-view-edit", ()); }
+                        "view_preview"   => { let _ = handle.emit("menu-view-preview", ()); }
+                        "format_file"    => { let _ = handle.emit("menu-format-file", ()); }
                         _ => {}
                     }
                 });

@@ -49,6 +49,16 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
         type: 'object',
         properties: {
           action: { type: 'string', enum: ['list', 'add', 'update', 'remove'], description: 'Operation to perform.' },
+          preset: {
+            type: 'string',
+            enum: ['book', 'course-slides', 'article'],
+            description:
+              'Opinionated export preset for action="add" — sets all required options automatically. ' +
+              '"book": merge all .md files → single PDF with TOC, title page, counter versioning, strip frontmatter. ' +
+              '"course-slides": export all .tldr.json canvases as PDFs. ' +
+              '"article": single clean PDF, timestamp versioning, no merge. ' +
+              'title, author, and outputDir can still be passed alongside preset to personalise.',
+          },
           id:          { type: 'string', description: 'Target id (for update/remove).' },
           name:        { type: 'string', description: 'Target name (required for add; used to find target in update/remove).' },
           description: { type: 'string', description: 'Human/AI readable description of what this target produces.' },
@@ -287,6 +297,45 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
       }
 
       if (action === 'add') {
+        // ── Opinionated presets ─────────────────────────────────────────
+        if (args.preset === 'book') {
+          // Merge all .md files into one PDF with TOC, title page, and clean rendering.
+          if (!args.name) args = { ...args, name: 'Livro Completo' };
+          args = {
+            ...args,
+            format: 'pdf',
+            include: ['md'],
+            outputDir: args.outputDir ?? 'export/',
+            merge: true,
+            mergeName: args.name ?? 'livro',
+            toc: true,
+            stripFrontmatter: true,
+            stripDraftSections: true,
+            versionOutput: 'counter',
+          };
+        } else if (args.preset === 'course-slides') {
+          // Export all canvas files as PDFs (one per slide deck).
+          if (!args.name) args = { ...args, name: 'Slides do Curso' };
+          args = {
+            ...args,
+            format: 'canvas-pdf',
+            include: ['tldr.json'],
+            outputDir: args.outputDir ?? 'export/',
+          };
+        } else if (args.preset === 'article') {
+          // Single clean PDF from the current MD file — no merge, no TOC.
+          if (!args.name) args = { ...args, name: 'Artigo PDF' };
+          args = {
+            ...args,
+            format: 'pdf',
+            include: ['md'],
+            outputDir: args.outputDir ?? 'export/',
+            toc: false,
+            stripFrontmatter: true,
+            versionOutput: 'timestamp',
+          };
+        }
+
         if (!args.name)   return 'Error: name is required for add.';
         if (!args.format) return 'Error: format is required for add.';
         const hasTitlePage = args.titlePageTitle || args.titlePageSubtitle || args.titlePageAuthor || args.titlePageVersion;

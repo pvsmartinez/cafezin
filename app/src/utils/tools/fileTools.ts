@@ -279,6 +279,7 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
       name: 'scaffold_workspace',
       description:
         'Create a folder structure and stub files in one atomic operation. ' +
+        'PREFERRED: use preset="book" or preset="course" for standard project types — no entries needed. ' +
         'Use when the user asks to set up a project layout, create a chapter structure, ' +
         'scaffold a course, or initialise any multi-file structure. ' +
         'Each entry can be a folder (path ending with /) or a file (with optional stub content). ' +
@@ -286,6 +287,27 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
       parameters: {
         type: 'object',
         properties: {
+          preset: {
+            type: 'string',
+            enum: ['book', 'course'],
+            description:
+              'Use instead of entries for standard project types. ' +
+              '"book" → zero-padded chapter files (cap01.md … capNN.md) + notas.md + memory.md pre-seeded with headings. ' +
+              '"course" → aulas/ folder with one .tldr.json canvas + one -notas.md per lesson, plus recursos/ folder. ' +
+              'Combine with title, author, chapters to personalise.',
+          },
+          title: {
+            type: 'string',
+            description: 'Book or course title, used in YAML frontmatter and memory.md. Used with preset only.',
+          },
+          author: {
+            type: 'string',
+            description: 'Author name. Used in YAML frontmatter and memory.md. Used with preset only.',
+          },
+          chapters: {
+            type: 'number',
+            description: 'Number of chapters (book) or aulas (course) to generate. Default: 5. Used with preset only.',
+          },
           entries: {
             type: 'string',
             description:
@@ -299,7 +321,7 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
             description: 'Brief human-readable description of the structure being created, e.g. "3-part book scaffold".',
           },
         },
-        required: ['entries'],
+        required: [],
       },
     },
   },
@@ -1102,13 +1124,122 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
 
     // ── scaffold_workspace ────────────────────────────────────────────────
     case 'scaffold_workspace': {
-      const raw = String(args.entries ?? '').trim();
-      if (!raw) return 'Error: entries is required.';
+      // ── Preset builder ─────────────────────────────────────────────────
+      const preset   = String(args.preset  ?? '').trim();
+      const projTitle = String(args.title  ?? '').trim();
+      const projAuthor = String(args.author ?? '').trim();
+      const numChapters = Math.max(1, Math.min(50, Number(args.chapters ?? 5)));
+
       let entries: Array<{ path: string; content?: string }>;
-      try {
-        entries = JSON.parse(raw);
-        if (!Array.isArray(entries)) return 'Error: entries must be a JSON array.';
-      } catch (e) { return `Error: entries is not valid JSON: ${e}`; }
+
+      if (preset === 'book') {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const titleLine = projTitle ? `title: "${projTitle}"
+` : '';
+        const authorLine = projAuthor ? `author: "${projAuthor}"
+` : '';
+        entries = [
+          ...Array.from({ length: numChapters }, (_, i) => ({
+            path: `cap${pad(i + 1)}.md`,
+            content: `---
+${titleLine}${authorLine}chapter: ${i + 1}
+title: "Capítulo ${i + 1}"
+draft: true
+---
+
+`,
+          })),
+          {
+            path: 'notas.md',
+            content: `# Notas e Pesquisa
+
+`,
+          },
+          {
+            path: '.cafezin/memory.md',
+            content: [
+              projTitle  ? `# Projeto
+
+Título: ${projTitle}${projAuthor ? `
+Autor: ${projAuthor}` : ''}
+` : '# Projeto
+
+',
+              '# Personagens
+
+',
+              '# Plot Notes
+
+',
+              '# World Building
+
+',
+              '# Glossário
+
+',
+              '# Style Preferences
+
+',
+            ].join('
+'),
+          },
+        ];
+      } else if (preset === 'course') {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const courseLabel = projTitle || 'Curso';
+        entries = [
+          { path: 'aulas/' },
+          { path: 'recursos/' },
+          ...Array.from({ length: numChapters }, (_, i) => {
+            const n = pad(i + 1);
+            return [
+              { path: `aulas/Aula-${n}.tldr.json` },
+              {
+                path: `aulas/Aula-${n}-notas.md`,
+                content: `---
+title: "${courseLabel} — Aula ${i + 1}"
+lesson: ${i + 1}
+draft: true
+---
+
+## Objetivos
+
+## Conteúdo
+
+## Exercícios
+
+`,
+              },
+            ];
+          }).flat(),
+          {
+            path: '.cafezin/memory.md',
+            content: [
+              projTitle ? `# Projeto
+
+Curso: ${projTitle}${projAuthor ? `
+Professor: ${projAuthor}` : ''}
+` : '# Projeto
+
+',
+              '# Course Structure
+
+',
+              '# Style Preferences
+
+',
+            ].join('
+'),
+          },
+        ];
+      } else {
+        const raw = String(args.entries ?? '').trim();
+        if (!raw) return 'Error: either preset ("book" or "course") or entries is required.';
+        try {
+          entries = JSON.parse(raw);
+          if (!Array.isArray(entries)) return 'Error: entries must be a JSON array.';
+        } catch (e) { return `Error: entries is not valid JSON: ${e}`; }
+      }
 
       const created: string[] = [];
       const skipped: string[] = [];
