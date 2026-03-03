@@ -25,7 +25,8 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'list_workspace_files',
       description:
-        'List every file in the workspace. Call this first when you need to know what documents exist before reading or searching.',
+        'List every file in the workspace with its size in KB. ' +
+        'Call this first to understand what exists and how large each file is before deciding whether to read or paginate.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
   },
@@ -34,9 +35,10 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'read_workspace_file',
       description:
-        'Read the content of a file. Returns the full text or a specific line range. ' +
-        'For files larger than 40 KB the response is truncated — call again with start_line/end_line to page through the rest. ' +
-        'NOTE: .tldr.json canvas files are BLOCKED — they contain base64 images and will overflow the context. Use list_canvas_shapes to inspect a canvas (it includes shape positions, asset IDs, and text).',
+        'Read the content of a single file. Returns the full text or a specific line range. ' +
+        'Files up to 80 KB are returned in full; larger files are truncated — call again with start_line/end_line to page through the rest. ' +
+        'To read several files at once use read_multiple_files. ' +
+        'NOTE: .tldr.json canvas files are BLOCKED — they contain base64 images that overflow the context. Use list_canvas_shapes instead.',
       parameters: {
         type: 'object',
         properties: {
@@ -50,10 +52,32 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
           },
           end_line: {
             type: 'number',
-            description: '1-based line number to stop reading at (inclusive). Omit to read to the end (up to the 40 KB cap).',
+            description: '1-based line number to stop reading at (inclusive). Omit to read to the end (up to the 80 KB cap).',
           },
         },
         required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_multiple_files',
+      description:
+        'Read up to 8 files in parallel in a single call. ' +
+        'Use this whenever you need to read more than one file — it is far faster than calling read_workspace_file repeatedly. ' +
+        'Each file is returned with a clear header and its content (up to 80 KB each). ' +
+        'NOTE: .tldr.json canvas files are BLOCKED — use list_canvas_shapes for those.',
+      parameters: {
+        type: 'object',
+        properties: {
+          paths: {
+            type: 'string',
+            description:
+              'JSON array of relative paths from workspace root, e.g. ["chapter1.md", "notes/ideas.md"]. Maximum 8 paths.',
+          },
+        },
+        required: ['paths'],
       },
     },
   },
@@ -117,7 +141,9 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'search_workspace',
       description:
-        'Search for a word or phrase across all text files in the workspace. Returns matching lines with file context. Good for finding where a topic is mentioned. ' +
+        'Search for a word or phrase across all text files in the workspace. ' +
+        'Returns up to 50 matches with 2 lines of context around each hit. ' +
+        'Supports plain text (case-insensitive) or a JavaScript regular expression when query starts and ends with /. ' +
         'Searches: .md, .txt, .ts, .tsx, .js, .jsx, .json, .css, .html, .rs, .toml, .yaml, .yml, .sh, .py, .sql and similar text formats.',
       parameters: {
         type: 'object',
@@ -272,7 +298,19 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
     case 'list_workspace_files': {
       const files = await walkFilesFlat(workspacePath);
       if (files.length === 0) return 'The workspace is empty.';
-      return `${files.length} file(s) in workspace:\n${files.join('\n')}`;
+      // Attach sizes in parallel so the AI knows what to paginate
+      const withSizes = await Promise.all(
+        files.map(async (rel) => {
+          try {
+            const s = await stat(`${workspacePath}/${rel}`);
+            const kb = ((s.size ?? 0) / 1024).toFixed(1);
+            return `${rel}  (${kb} KB)`;
+          } catch {
+            return rel;
+          }
+        }),
+      );
+      return `${files.length} file(s) in workspace:\n${withSizes.join('\n')}`;
     }
 
     // ── read_workspace_file ───────────────────────────────────────────────
@@ -303,19 +341,63 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
           return `[Lines ${startLine}–${endLine} of ${totalLines} in ${relPath}]\n${slice}`;
         }
 
-        const CAP = 40_000;
+        const CAP = 80_000;
         if (text.length > CAP) {
           const capText = text.slice(0, CAP);
           const capLines = capText.split('\n');
           const lastFullLine = capLines.length - 1;
           const truncated = capLines.slice(0, lastFullLine).join('\n');
-          return `${truncated}\n\n[… truncated after line ${lastFullLine} of ${totalLines} total. ` +
-            `Re-call with start_line=${lastFullLine + 1} to continue reading.]`;
+          const pct = Math.round((lastFullLine / totalLines) * 100);
+          return `${truncated}\n\n[… truncated — showed lines 1–${lastFullLine} of ${totalLines} (${pct}%). ` +
+            `Call again with start_line=${lastFullLine + 1} to read the next chunk.]`;
         }
         return text;
       } catch (e) {
         return `Error reading file: ${e}`;
       }
+    }
+
+    // ── read_multiple_files ───────────────────────────────────────────────
+    case 'read_multiple_files': {
+      let pathList: string[];
+      try {
+        const raw = String(args.paths ?? '');
+        pathList = JSON.parse(raw) as string[];
+        if (!Array.isArray(pathList)) throw new Error('not an array');
+      } catch {
+        return 'Error: paths must be a JSON array of strings, e.g. ["file1.md","file2.md"].';
+      }
+      pathList = pathList.slice(0, 8); // hard cap
+      if (pathList.length === 0) return 'Error: paths array is empty.';
+
+      const CAP = 80_000;
+      const results = await Promise.all(
+        pathList.map(async (relPath) => {
+          const label = `\n${'─'.repeat(60)}\n📄 ${relPath}\n${'─'.repeat(60)}`;
+          if (relPath.endsWith('.tldr.json')) {
+            return `${label}\n[BLOCKED: canvas file — use list_canvas_shapes instead.]`;
+          }
+          let abs: string;
+          try { abs = safeResolvePath(workspacePath, relPath); }
+          catch (e) { return `${label}\n[Error: ${e}]`; }
+          if (!(await exists(abs))) return `${label}\n[File not found]`;
+          try {
+            const text = await readTextFile(abs);
+            const lines = text.split('\n');
+            if (text.length > CAP) {
+              const capText = text.slice(0, CAP);
+              const capLines = capText.split('\n');
+              const lastFullLine = capLines.length - 1;
+              const pct = Math.round((lastFullLine / lines.length) * 100);
+              return `${label}\n${capLines.slice(0, lastFullLine).join('\n')}\n\n[… truncated — showed ${lastFullLine}/${lines.length} lines (${pct}%). Use read_workspace_file with start_line to continue.]`;
+            }
+            return `${label}\n${text}`;
+          } catch (e) {
+            return `${label}\n[Error reading: ${e}]`;
+          }
+        }),
+      );
+      return results.join('\n');
     }
 
     // ── patch_workspace_file ──────────────────────────────────────────────
@@ -459,9 +541,24 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         return TEXT_EXTS.has(ext);
       });
 
-      const needle = query.toLowerCase();
+      // Support optional JS regex: query wrapped in /.../ or /.../i
+      let matchLine: (line: string) => boolean;
+      const reMatch = /^\/(.+)\/([gi]*)$/.exec(query);
+      if (reMatch) {
+        try {
+          const re = new RegExp(reMatch[1], reMatch[2] || 'i');
+          matchLine = (line) => re.test(line);
+        } catch {
+          return `Error: invalid regular expression: ${query}`;
+        }
+      } else {
+        const needle = query.toLowerCase();
+        matchLine = (line) => line.toLowerCase().includes(needle);
+      }
+
       const hits: string[] = [];
-      const MAX_HITS = 30;
+      const MAX_HITS = 50;
+      const CONTEXT = 2; // lines before/after each hit
 
       // Read files in parallel batches of 10 — same behaviour, ~10× faster on large workspaces
       const BATCH = 10;
@@ -474,11 +571,12 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
               const lines = text.split('\n');
               const fileHits: string[] = [];
               for (let i = 0; i < lines.length; i++) {
-                if (lines[i].toLowerCase().includes(needle)) {
-                  const before = i > 0 ? `  ${lines[i - 1]}` : '';
-                  const after  = i < lines.length - 1 ? `  ${lines[i + 1]}` : '';
-                  fileHits.push(`${rel}:${i + 1}:\n${before}\n> ${lines[i]}\n${after}`);
+                if (!matchLine(lines[i])) continue;
+                const ctxLines: string[] = [];
+                for (let c = Math.max(0, i - CONTEXT); c <= Math.min(lines.length - 1, i + CONTEXT); c++) {
+                  ctxLines.push(c === i ? `> ${lines[c]}` : `  ${lines[c]}`);
                 }
+                fileHits.push(`${rel}:${i + 1}:\n${ctxLines.join('\n')}`);
               }
               return fileHits;
             } catch { return []; }
@@ -493,8 +591,10 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         }
       }
 
-      if (hits.length === 0) return `No matches found for "${query}" across ${textFiles.length} files.`;
-      return `Found ${hits.length} match(es) for "${query}":\n\n${hits.join('\n\n')}`;
+      const scanned = Math.min(textFiles.length, Math.ceil((hits.length > 0 ? textFiles.length : textFiles.length)));
+      if (hits.length === 0) return `No matches found for "${query}" across ${scanned} file(s).`;
+      const cap = hits.length >= MAX_HITS ? ` (showing first ${MAX_HITS} — refine query for more)` : '';
+      return `Found ${hits.length} match(es) for "${query}" across ${scanned} file(s)${cap}:\n\n${hits.join('\n\n')}`;
     }
 
     // ── check_file ────────────────────────────────────────────────────────
