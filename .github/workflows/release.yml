@@ -1,0 +1,214 @@
+name: Release — All Platforms
+
+# Triggers on version tags (v0.1.0, v1.0.0, etc.)
+# or manually via workflow_dispatch for testing.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag (e.g. v0.2.0) — creates a pre-release if provided'
+        required: false
+        default: ''
+
+env:
+  APP_NAME: Cafezin
+
+jobs:
+  # ── macOS — .dmg ─────────────────────────────────────────────────────────
+  build-macos:
+    name: macOS (.dmg)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Install npm dependencies
+        run: npm install --legacy-peer-deps
+        working-directory: app
+
+      - name: Build universal macOS app + DMG
+        run: npm run tauri build -- --target universal-apple-darwin --bundles dmg
+        working-directory: app
+
+      - name: Locate DMG
+        id: dmg
+        run: |
+          DMG=$(find app/src-tauri/target/universal-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
+          echo "path=$DMG" >> $GITHUB_OUTPUT
+
+      - name: Rename DMG
+        run: mv "${{ steps.dmg.outputs.path }}" Cafezin.dmg
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: Cafezin.dmg
+
+  # ── Windows — .msi + .exe ────────────────────────────────────────────────
+  build-windows:
+    name: Windows (.msi + .exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Install npm dependencies
+        run: npm install --legacy-peer-deps
+        working-directory: app
+
+      - name: Build Windows MSI + NSIS
+        run: npm run tauri build -- --bundles msi,nsis
+        working-directory: app
+
+      - name: Locate installers
+        id: installers
+        shell: bash
+        run: |
+          MSI=$(find app/src-tauri/target/release/bundle/msi -name "*.msi" | head -1)
+          EXE=$(find app/src-tauri/target/release/bundle/nsis -name "*.exe" | head -1)
+          echo "msi=$MSI" >> $GITHUB_OUTPUT
+          echo "exe=$EXE" >> $GITHUB_OUTPUT
+
+      - name: Rename installers
+        shell: bash
+        run: |
+          [ -f "${{ steps.installers.outputs.msi }}" ] && mv "${{ steps.installers.outputs.msi }}" Cafezin_setup.msi || true
+          [ -f "${{ steps.installers.outputs.exe }}" ] && mv "${{ steps.installers.outputs.exe }}" Cafezin_setup.exe || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: |
+            Cafezin_setup.msi
+            Cafezin_setup.exe
+
+  # ── Android — AAB + APK ──────────────────────────────────────────────────
+  build-android:
+    name: Android (.aab + .apk)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Install npm dependencies
+        run: npm install --legacy-peer-deps
+        working-directory: app
+
+      - name: Build Android APK + AAB
+        run: npm run tauri android build
+        working-directory: app
+        env:
+          NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+
+      - name: Locate APK/AAB
+        id: android
+        run: |
+          APK=$(find app/src-tauri/gen/android -name "*.apk" | head -1)
+          AAB=$(find app/src-tauri/gen/android -name "*.aab" | head -1)
+          echo "apk=$APK" >> $GITHUB_OUTPUT
+          echo "aab=$AAB" >> $GITHUB_OUTPUT
+
+      - name: Rename outputs
+        run: |
+          [ -f "${{ steps.android.outputs.apk }}" ] && mv "${{ steps.android.outputs.apk }}" Cafezin.apk || true
+          [ -f "${{ steps.android.outputs.aab }}" ] && mv "${{ steps.android.outputs.aab }}" Cafezin.aab || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-builds
+          path: |
+            Cafezin.apk
+            Cafezin.aab
+
+  # ── Publish GitHub Release ───────────────────────────────────────────────
+  release:
+    name: Publish GitHub Release
+    needs: [build-macos, build-windows, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: List artifacts
+        run: find . -type f | sort
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || inputs.tag }}
+          name: ${{ env.APP_NAME }} ${{ github.ref_name || inputs.tag }}
+          draft: false
+          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
+          generate_release_notes: true
+          files: |
+            macos-dmg/Cafezin.dmg
+            windows-installers/Cafezin_setup.msi
+            windows-installers/Cafezin_setup.exe
+            android-builds/Cafezin.apk
+            android-builds/Cafezin.aab
