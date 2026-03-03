@@ -346,11 +346,18 @@ export default function MobileCopilot({
         setIsRecording(false);
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
         const ab = await blob.arrayBuffer();
-        const bytes = Array.from(new Uint8Array(ab));
+        const uint8 = new Uint8Array(ab);
+        // Chunked btoa to avoid call-stack overflow on large audio files
+        const CHUNK = 8192;
+        let binary = '';
+        for (let i = 0; i < uint8.length; i += CHUNK) {
+          binary += String.fromCharCode(...uint8.subarray(i, i + CHUNK));
+        }
+        const audioBase64 = btoa(binary);
         setIsTranscribing(true);
         try {
           const transcript = await invoke<string>('transcribe_audio', {
-            audioData: bytes,
+            audioBase64,
             mimeType,
             apiKey: groqKey,
           });

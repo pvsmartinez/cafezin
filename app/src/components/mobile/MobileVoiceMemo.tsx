@@ -210,6 +210,12 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
 
   useEffect(() => { loadMemos(); }, [loadMemos]);
 
+  // Cancel timer + stop recorder if the component unmounts mid-recording
+  useEffect(() => () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    mediaRecorderRef.current?.stop();
+  }, []);
+
   // ── Recording ─────────────────────────────────────────────────────────────
   async function startRecording() {
     if (!groqKey) { setShowKeySetup(true); return; }
@@ -258,9 +264,12 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
       const arrayBuf = await blob.arrayBuffer();
       const uint8    = new Uint8Array(arrayBuf);
 
-      // Base64 encode for Tauri command
+      // Base64 encode for Tauri command — chunked to prevent call-stack overflow
+      const CHUNK = 8192;
       let binary = '';
-      uint8.forEach(b => (binary += String.fromCharCode(b)));
+      for (let i = 0; i < uint8.length; i += CHUNK) {
+        binary += String.fromCharCode(...uint8.subarray(i, i + CHUNK));
+      }
       const b64 = btoa(binary);
 
       // Transcribe via Groq Whisper
