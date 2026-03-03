@@ -287,7 +287,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       readFile(first).then((bytes) => {
         if (IMAGE_EXTS.has(ext)) {
           const mime = getMimeType(ext, 'image/png');
-          const b64 = btoa(Array.from(bytes).map((b) => String.fromCharCode(b)).join(''));
+          let binary = '';
+          const CHUNK = 8192;
+          for (let i = 0; i < bytes.length; i += CHUNK) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+          }
+          const b64 = btoa(binary);
           setPendingImage(`data:${mime};base64,${b64}`);
         } else {
           const content = new TextDecoder().decode(bytes).slice(0, 20000);
@@ -328,7 +333,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       const bytes = await readFile(selected);
       if (IMAGE_EXTS.has(ext)) {
         const mime = getMimeType(ext, 'image/png');
-        const b64 = btoa(Array.from(bytes).map((b) => String.fromCharCode(b)).join(''));
+        let binary = '';
+        const CHUNK = 8192;
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+        }
+        const b64 = btoa(binary);
         setPendingImage(`data:${mime};base64,${b64}`);
       } else {
         const content = new TextDecoder().decode(bytes).slice(0, 20000);

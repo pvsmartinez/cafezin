@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type {
   MutableRefObject,
   RefObject,
@@ -107,8 +107,9 @@ export function useAIMarks({
   const [aiHighlight, setAiHighlight] = useState(initHighlightDefault);
   const [aiNavIndex, setAiNavIndex] = useState(0);
 
-  const activeFileMarks = aiMarks.filter(
-    (m) => m.fileRelPath === activeFile && !m.reviewed,
+  const activeFileMarks = useMemo(
+    () => aiMarks.filter((m) => m.fileRelPath === activeFile && !m.reviewed),
+    [aiMarks, activeFile],
   );
 
   // Reset nav index on file change
@@ -225,25 +226,33 @@ export function useAIMarks({
   );
 
   // ── Auto-remove marks whose text was overwritten by the human ─────────────
+  // Debounced to 800ms — called on every keystroke from handleContentChange so
+  // we must not do a full O(content × marks) scan per character.
+  const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Clear pending cleanup timer on unmount to avoid setState on unmounted component.
+  useEffect(() => () => { if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current); }, []);
   const cleanupMarksForContent = useCallback(
     (file: string, newContent: string) => {
       if (!workspace) return;
-      setAiMarks((prev) => {
-        const fileMarks = prev.filter(
-          (m) => m.fileRelPath === file && !m.reviewed,
-        );
-        const toRemove = fileMarks
-          .filter((m) => !m.canvasShapeIds?.length && !newContent.includes(m.text))
-          .map((m) => m.id);
-        if (toRemove.length === 0) return prev;
-        const updated = prev.map((m) =>
-          toRemove.includes(m.id)
-            ? { ...m, reviewed: true, reviewedAt: new Date().toISOString() }
-            : m,
-        );
-        saveMarks(workspace, updated).catch(() => {});
-        return updated;
-      });
+      if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current);
+      cleanupTimerRef.current = setTimeout(() => {
+        setAiMarks((prev) => {
+          const fileMarks = prev.filter(
+            (m) => m.fileRelPath === file && !m.reviewed,
+          );
+          const toRemove = fileMarks
+            .filter((m) => !m.canvasShapeIds?.length && !newContent.includes(m.text))
+            .map((m) => m.id);
+          if (toRemove.length === 0) return prev;
+          const updated = prev.map((m) =>
+            toRemove.includes(m.id)
+              ? { ...m, reviewed: true, reviewedAt: new Date().toISOString() }
+              : m,
+          );
+          saveMarks(workspace, updated).catch(() => {});
+          return updated;
+        });
+      }, 800);
     },
     [workspace],
   );

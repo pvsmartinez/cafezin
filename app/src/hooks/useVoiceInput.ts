@@ -98,8 +98,12 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
           const blob = new Blob(audioChunksRef.current, { type: mimeType });
           const arrayBuf = await blob.arrayBuffer();
           const uint8 = new Uint8Array(arrayBuf);
+          // Build base64 in 8 KB chunks to avoid call-stack overflow on long recordings
           let binary = '';
-          uint8.forEach((b) => (binary += String.fromCharCode(b)));
+          const CHUNK = 8192;
+          for (let i = 0; i < uint8.length; i += CHUNK) {
+            binary += String.fromCharCode(...uint8.subarray(i, i + CHUNK));
+          }
           const b64 = btoa(binary);
           const transcript = await invoke<string>('transcribe_audio', {
             audioBase64: b64,

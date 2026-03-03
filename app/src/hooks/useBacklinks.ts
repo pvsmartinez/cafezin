@@ -123,34 +123,45 @@ export function useBacklinks(
     const mdFiles = collectMdFiles(workspace);
 
     async function scan() {
+      const wsPath = workspace!.path;
+
+      // Read all markdown files in parallel instead of sequentially.
+      const results = await Promise.all(
+        mdFiles.map(async (filePath) => {
+          if (cancelRef.current) return null;
+          try {
+            const absPath = `${wsPath}/${filePath}`;
+            if (!(await exists(absPath))) return null;
+            const text = await readTextFile(absPath);
+            return { filePath, text };
+          } catch {
+            return null; // file unreadable — skip
+          }
+        }),
+      );
+
+      if (cancelRef.current) return;
+
       const foundBacklinks: LinkRef[] = [];
       const foundOutlinks: LinkRef[] = [];
 
-      for (const filePath of mdFiles) {
-        if (cancelRef.current) return;
-        try {
-          const absPath = `${workspace!.path}/${filePath}`;
-          if (!(await exists(absPath))) continue;
-          const text = await readTextFile(absPath);
-          if (cancelRef.current) return;
+      for (const result of results) {
+        if (!result) continue;
+        const { filePath, text } = result;
+        const links = extractLinks(text, filePath);
 
-          const links = extractLinks(text, filePath);
-
-          if (filePath === activeFilePath) {
-            // outlinks: what this file points to
-            for (const target of links) {
-              if (target !== activeFilePath) {
-                foundOutlinks.push({ path: target, label: labelFromPath(target) });
-              }
-            }
-          } else {
-            // check if this file links to the active file
-            if (links.includes(activeFilePath)) {
-              foundBacklinks.push({ path: filePath, label: labelFromPath(filePath) });
+        if (filePath === activeFilePath) {
+          // outlinks: what this file points to
+          for (const target of links) {
+            if (target !== activeFilePath) {
+              foundOutlinks.push({ path: target, label: labelFromPath(target) });
             }
           }
-        } catch {
-          // file unreadable — skip
+        } else {
+          // check if this file links to the active file
+          if (links.includes(activeFilePath)) {
+            foundBacklinks.push({ path: filePath, label: labelFromPath(filePath) });
+          }
         }
       }
 

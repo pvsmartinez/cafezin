@@ -72,13 +72,16 @@ export function useAISession({ model, onInsert }: UseAISessionParams) {
   const sessionIdRef = useRef<string>(newSessionId());
   const sessionStartedAtRef = useRef<string>(new Date().toISOString());
 
-  // Auto-save conversation to localStorage whenever messages change
+  // Auto-save conversation to localStorage whenever user/assistant messages change.
+  // Compute a stable key from the user+assistant turn count so the effect only fires
+  // when conversational content actually changes (not on tool/system entries).
+  const conversationKey = messages.filter((m) => m.role === 'user' || m.role === 'assistant').length;
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (conversationKey === 0) return;
     persistSession(messages, model);
     setSavedSession(loadSavedSession());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]);
+  }, [conversationKey]);
 
   /** Resets messages and session refs. Caller is responsible for clearing stream state. */
   function handleNewChat() {
