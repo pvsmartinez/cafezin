@@ -64,11 +64,6 @@ export interface AgentSessionProps {
   onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
   activeFile?: string;
   rescanFramesRef?: React.MutableRefObject<(() => void) | null>;
-  aiMarks?: import('../types').AIEditMark[];
-  aiMarkIndex?: number;
-  onAIMarkPrev?: () => void;
-  onAIMarkNext?: () => void;
-  onAIMarkReview?: (id: string) => void;
   workspaceExportConfig?: WorkspaceExportConfig;
   onExportConfigChange?: (config: WorkspaceExportConfig) => void;
   onStreamingChange?: (streaming: boolean) => void;
@@ -110,11 +105,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   onCanvasMarkRecorded,
   activeFile,
   rescanFramesRef,
-  aiMarks: aiMarksForFile,
-  aiMarkIndex = 0,
-  onAIMarkPrev,
-  onAIMarkNext,
-  onAIMarkReview,
   workspaceExportConfig,
   onExportConfigChange,
   workspaceConfig,
@@ -388,24 +378,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
           </div>
         );
       })()}
-
-      {/* AI edit review bar */}
-      {aiMarksForFile && aiMarksForFile.length > 0 && (
-        <div className="ai-review-bar">
-          <span className="ai-review-bar-icon">✶</span>
-          <span className="ai-review-bar-label">
-            {aiMarksForFile.length} AI edit{aiMarksForFile.length !== 1 ? 's' : ''}
-          </span>
-          <button className="ai-review-bar-btn" onClick={onAIMarkPrev} disabled={aiMarksForFile.length < 2} title="Previous AI edit">‹</button>
-          <span className="ai-review-bar-count">{aiMarkIndex + 1}/{aiMarksForFile.length}</span>
-          <button className="ai-review-bar-btn" onClick={onAIMarkNext} disabled={aiMarksForFile.length < 2} title="Next AI edit">›</button>
-          <button
-            className="ai-review-bar-btn ai-review-bar-btn--accept"
-            onClick={() => onAIMarkReview?.(aiMarksForFile[aiMarkIndex]?.id)}
-            title="Mark as reviewed"
-          >✓ Accept</button>
-        </div>
-      )}
 
       {/* Messages */}
       <div className={`ai-messages${justDone ? ' ai-messages--done' : ''}`}>

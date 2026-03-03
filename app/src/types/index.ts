@@ -314,6 +314,8 @@ export interface AppSettings {
   sidebarOpenDefault: boolean;
   /** Run Prettier on manual save (Cmd/Ctrl+S) for JS/TS/JSON/CSS/HTML */
   formatOnSave: boolean;
+  /** Show the integrated terminal panel (advanced / power-user feature) */
+  showTerminal: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -324,6 +326,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   aiHighlightDefault: true,
   sidebarOpenDefault: true,
   formatOnSave: true,
+  showTerminal: false,
 };
 
 export const APP_SETTINGS_KEY = 'cafezin-app-settings';

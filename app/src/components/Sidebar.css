@@ -127,41 +127,73 @@
   opacity: 1;
 }
 
-/* ── AI Edits section ────────────────────────────────────────── */
-.sidebar-ai-section {
-  border-top: 1px solid var(--border);
-  padding: 6px 0 4px;
+/* -- AI Edits collapsible strip (footer) -------------------------------- */
+.sidebar-ai-edits-section {
+  margin-bottom: var(--space-2);
 }
 
-.sidebar-ai-section-label {
+.sidebar-ai-edits-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 12px;
-  font-size: var(--font-size-2xs);
+  gap: var(--space-3);
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--yellow);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
   font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  padding: 6px 10px;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+.sidebar-ai-edits-header:hover {
+  background: rgba(var(--yellow-rgb, 212,169,106), 0.08);
 }
 
-.sidebar-ai-label-right {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+.sidebar-ai-edits-label {
+  flex: 1;
+  text-align: left;
 }
 
-.sidebar-ai-total {
+.sidebar-ai-badge {
   background: rgba(var(--yellow-rgb, 212,169,106), 0.18);
   color: var(--yellow);
   font-size: var(--font-size-2xs);
   font-weight: 700;
   padding: 1px 6px;
   border-radius: var(--radius-lg);
+  flex-shrink: 0;
+  min-width: 16px;
+  text-align: center;
 }
 
-/* "Review all" ✓ button — hidden until the section header is hovered */
+.sidebar-ai-edits-caret {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.sidebar-ai-edits-body {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 4px;
+}
+
+.sidebar-ai-edits-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 2px;
+  margin-top: 2px;
+  border-top: 1px solid rgba(var(--yellow-rgb, 212,169,106), 0.12);
+}
+
+/* Review-all check button -- always visible in expanded actions row */
 .sidebar-ai-review-all {
-  display: none;
   background: none;
   border: 1px solid rgba(var(--green-rgb, 126,200,160), 0.5);
   border-radius: var(--radius-md);
@@ -172,9 +204,6 @@
   line-height: 1;
   padding: 1px 6px;
   transition: background var(--transition-fast), color var(--transition-fast);
-}
-.sidebar-ai-section-label:hover .sidebar-ai-review-all {
-  display: block;
 }
 .sidebar-ai-review-all:hover {
   background: rgba(var(--green-rgb, 126,200,160), 0.14);
@@ -706,47 +735,6 @@
   opacity: 1;
 }
 
-/* ── AI edit nav bar (sidebar footer) ──────────────────────────── */
-.sidebar-ai-nav-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 4px 8px;
-  background: rgba(var(--yellow-rgb, 212,169,106), 0.06);
-  border: 1px solid rgba(var(--yellow-rgb, 212,169,106), 0.18);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-2);
-}
-
-.sidebar-ai-nav-preview {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: none;
-  color: var(--yellow);
-  cursor: pointer;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 3px 4px;
-  border-radius: var(--radius-sm);
-  text-align: left;
-  transition: background var(--transition-fast);
-}
-.sidebar-ai-nav-preview:hover {
-  background: rgba(var(--yellow-rgb, 212,169,106), 0.1);
-}
-
-.sidebar-ai-nav-total {
-  background: rgba(var(--yellow-rgb, 212,169,106), 0.18);
-  color: var(--yellow);
-  font-size: var(--font-size-2xs);
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: var(--radius-lg);
-}
 
 .sidebar-ai-nav-arrows {
   display: flex;

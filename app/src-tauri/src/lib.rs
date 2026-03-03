@@ -1142,7 +1142,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_updater::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll])
         .run(tauri::generate_context!())

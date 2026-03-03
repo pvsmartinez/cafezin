@@ -390,6 +390,7 @@ export default function Sidebar({
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'done' | 'error'>('idle');
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [gitChangedCount, setGitChangedCount] = useState(0);
+  const [aiEditsOpen, setAiEditsOpen] = useState(false);
 
   // Wire the external new-file trigger ref so ⌘T/⌘N in App can open the creator
   useEffect(() => {
@@ -858,45 +859,6 @@ export default function Sidebar({
         ))}
       </div>
 
-      {/* AI Edits section */}
-      {(() => {
-        // Group unreviewed marks by file
-        const unreviewed = aiMarks.filter((m) => !m.reviewed);
-        if (unreviewed.length === 0) return null;
-        const byFile = new Map<string, number>();
-        for (const m of unreviewed) {
-          byFile.set(m.fileRelPath, (byFile.get(m.fileRelPath) ?? 0) + 1);
-        }
-        return (
-          <div className="sidebar-ai-section">
-            <div className="sidebar-ai-section-label">
-              <span>AI EDITS</span>
-              <div className="sidebar-ai-label-right">
-                <span className="sidebar-ai-total">{unreviewed.length}</span>
-                <button
-                  className="sidebar-ai-review-all"
-                  onClick={(e) => { e.stopPropagation(); onReviewAllMarks(); }}
-                  title="Mark all AI edits as reviewed"
-                ><Check weight="thin" size={13} /></button>
-              </div>
-            </div>
-            {Array.from(byFile.entries()).map(([file, count]) => (
-              <button
-                key={file}
-                className={`sidebar-ai-file-row ${activeFile === file ? 'active' : ''}`}
-                onClick={() => {
-                  onFileSelect(file);
-                }}
-                title={file}
-              >
-                <span className="sidebar-ai-file-name">{file.split('/').pop()}</span>
-                <span className="sidebar-ai-count">{count}</span>
-              </button>
-            ))}
-          </div>
-        );
-      })()}
-
       </>
       )} {/* end explorer mode */}
 
@@ -1006,36 +968,65 @@ export default function Sidebar({
             <span className="sidebar-sync-badge">{gitChangedCount}</span>
           )}
         </button>
-        {/* AI edit navigation — only shown when the active file has unreviewed marks */}
-        {aiNavCount > 0 && (
-          <div className="sidebar-ai-nav-bar">
-            <button
-              className="sidebar-ai-nav-preview"
-              title="AI edits pending in this file"
-            >
-              ✦ AI edits
-              <span className="sidebar-ai-nav-total">{aiNavCount}</span>
-            </button>
-            <div className="sidebar-ai-nav-arrows">
+        {/* AI edits — collapsible strip (like Sync) */}
+        {(() => {
+          const unreviewed = aiMarks.filter((m) => !m.reviewed);
+          if (unreviewed.length === 0) return null;
+          const byFile = new Map<string, number>();
+          for (const m of unreviewed) {
+            byFile.set(m.fileRelPath, (byFile.get(m.fileRelPath) ?? 0) + 1);
+          }
+          return (
+            <div className="sidebar-ai-edits-section">
               <button
-                className="sidebar-ai-nav-arrow"
-                onClick={onAIPrev}
-                disabled={aiNavCount < 2}
-                title="Previous AI edit"
-              ><CaretLeft weight="thin" size={14} /></button>
-              <span
-                className="sidebar-ai-nav-pos"
-                title="AI edit position"
-              >{aiNavIndex + 1}/{aiNavCount}</span>
-              <button
-                className="sidebar-ai-nav-arrow"
-                onClick={onAINext}
-                disabled={aiNavCount < 2}
-                title="Next AI edit"
-              ><CaretRight weight="thin" size={14} /></button>
+                className="sidebar-ai-edits-header"
+                onClick={() => setAiEditsOpen((v) => !v)}
+                title={aiEditsOpen ? 'Recolher' : 'Ver edições da IA pendentes'}
+              >
+                <span className="sidebar-ai-edits-label">✦ AI edits</span>
+                <span className="sidebar-ai-badge">{unreviewed.length}</span>
+                <span className="sidebar-ai-edits-caret">
+                  {aiEditsOpen
+                    ? <CaretDown weight="thin" size={12} />
+                    : <CaretRight weight="thin" size={12} />}
+                </span>
+              </button>
+              {aiEditsOpen && (
+                <div className="sidebar-ai-edits-body">
+                  {Array.from(byFile.entries()).map(([file, count]) => (
+                    <button
+                      key={file}
+                      className={`sidebar-ai-file-row ${activeFile === file ? 'active' : ''}`}
+                      onClick={() => onFileSelect(file)}
+                      title={file}
+                    >
+                      <span className="sidebar-ai-file-name">{file.split('/').pop()}</span>
+                      <span className="sidebar-ai-count">{count}</span>
+                    </button>
+                  ))}
+                  <div className="sidebar-ai-edits-actions">
+                    {aiNavCount > 0 && (
+                      <div className="sidebar-ai-nav-arrows">
+                        <button className="sidebar-ai-nav-arrow" onClick={onAIPrev} disabled={aiNavCount < 2} title="Anterior">
+                          <CaretLeft weight="thin" size={14} />
+                        </button>
+                        <span className="sidebar-ai-nav-pos">{aiNavIndex + 1}/{aiNavCount}</span>
+                        <button className="sidebar-ai-nav-arrow" onClick={onAINext} disabled={aiNavCount < 2} title="Próximo">
+                          <CaretRight weight="thin" size={14} />
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      className="sidebar-ai-review-all"
+                      onClick={(e) => { e.stopPropagation(); onReviewAllMarks(); }}
+                      title="Marcar todas como revisadas"
+                    ><Check weight="thin" size={13} /></button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
         {/* Custom workspace buttons */}
         {(workspace.config.sidebarButtons ?? []).map((btn: SidebarButton) => (
           <button

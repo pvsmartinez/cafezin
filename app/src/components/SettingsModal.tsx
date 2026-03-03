@@ -465,6 +465,21 @@ export default function SettingsModal({
                     <span className="sm-toggle-track" />
                   </label>
                 </div>
+
+                <div className="sm-row">
+                  <div className="sm-row-label">
+                    <span>Terminal integrado</span>
+                    <span className="sm-row-desc">Exibir painel de terminal na barra inferior (recurso avançado)</span>
+                  </div>
+                  <label className="sm-toggle">
+                    <input
+                      type="checkbox"
+                      checked={appSettings.showTerminal ?? false}
+                      onChange={(e) => setApp('showTerminal', e.target.checked)}
+                    />
+                    <span className="sm-toggle-track" />
+                  </label>
+                </div>
               </section>
 
               <section className="sm-section">

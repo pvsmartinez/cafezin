@@ -133,12 +133,6 @@ export default function App() {
   const [terminalRequestRun, setTerminalRequestRun] = useState<string | undefined>();
   /** Distraction-free writing mode — hides header/sidebar/panels */
   const [focusMode, setFocusMode] = useState(false);
-  /** Idea Dump — one-tap record → transcribe → append to inbox */
-  const [isDumping, setIsDumping] = useState(false);
-  const [isDumpTranscribing, setIsDumpTranscribing] = useState(false);
-  const [dumpError, setDumpError] = useState<string | null>(null);
-  const dumpRecorderRef = useRef<MediaRecorder | null>(null);
-  const dumpChunksRef = useRef<Blob[]>([]);
   const [lockedFiles, setLockedFiles] = useState<Set<string>>(() => getLockedFiles());
   const prevLockedRef = useRef<Set<string>>(getLockedFiles());
 
@@ -891,74 +885,6 @@ export default function App() {
       .catch((err) => setSaveError(String((err as Error)?.message ?? err)));
   }
 
-  // ── Idea Dump — voice record → transcribe → append to inbox file ──────────
-  async function handleToggleDump() {
-    if (isDumpTranscribing) return; // ignore while processing
-    setDumpError(null);
-
-    if (isDumping) {
-      // Stop recording — onstop handler will transcribe + save
-      dumpRecorderRef.current?.stop();
-      dumpRecorderRef.current = null;
-      return;
-    }
-
-    const groqKey = localStorage.getItem('cafezin-groq-key') ?? '';
-    if (!groqKey) {
-      setDumpError('Groq API key not set — configure it in the AI panel.');
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
-        : MediaRecorder.isTypeSupported('audio/ogg') ? 'audio/ogg'
-        : 'audio/mp4';
-      const recorder = new MediaRecorder(stream, { mimeType });
-      dumpChunksRef.current = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) dumpChunksRef.current.push(e.data); };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setIsDumping(false);
-        setIsDumpTranscribing(true);
-        try {
-          const blob = new Blob(dumpChunksRef.current, { type: mimeType });
-          const arrayBuf = await blob.arrayBuffer();
-          const uint8 = new Uint8Array(arrayBuf);
-          // Build base64 in 8 KB chunks to avoid call-stack overflow on large recordings
-          let binary = '';
-          const CHUNK = 8192;
-          for (let i = 0; i < uint8.length; i += CHUNK) {
-            binary += String.fromCharCode(...uint8.subarray(i, i + CHUNK));
-          }
-          const b64 = btoa(binary);
-          const transcript = await invoke<string>('transcribe_audio', {
-            audioBase64: b64,
-            mimeType,
-            apiKey: groqKey,
-          });
-          if (transcript.trim() && workspace) {
-            const inboxRel = workspace.config?.inboxFile ?? '00_Inbox/raw_transcripts.md';
-            const now = new Date();
-            const header = `\n\n## Voice dump: ${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}\n\n`;
-            let existing = '';
-            try { existing = await readFile(workspace, inboxRel); } catch { /* file may not exist yet */ }
-            await writeFile(workspace, inboxRel, existing + header + transcript.trim() + '\n');
-          }
-        } catch (err) {
-          setDumpError(`Dump failed: ${String((err as Error)?.message ?? err)}`);
-        } finally {
-          setIsDumpTranscribing(false);
-        }
-      };
-      dumpRecorderRef.current = recorder;
-      recorder.start();
-      setIsDumping(true);
-    } catch (err) {
-      setDumpError(`Mic access denied: ${String((err as Error)?.message ?? err)}`);
-    }
-  }
-
   // ── Export current markdown to PDF (pure-JS, no system deps) ────────────────
   async function handleExportPDF() {
     if (!workspace || !activeFile) return;
@@ -1302,23 +1228,6 @@ export default function App() {
               ⍈ Export
             </button>
           )}
-          {/* Idea Dump — voice record → transcribe → append to inbox */}
-          {workspace && (
-            <button
-              className={`app-dump-btn${isDumping ? ' recording' : ''}${isDumpTranscribing ? ' transcribing' : ''}`}
-              onClick={handleToggleDump}
-              disabled={isDumpTranscribing}
-              title={isDumping ? 'Stop recording and save to inbox' : isDumpTranscribing ? 'Transcribing…' : 'Record voice note → append to inbox file'}
-            >
-              {isDumping ? '⏹ Stop' : isDumpTranscribing ? '…' : '🎙 Dump'}
-            </button>
-          )}
-          {dumpError && (
-            <span className="app-save-error" title={dumpError} onClick={() => setDumpError(null)}>
-              ⚠ {dumpError.length > 40 ? dumpError.slice(0, 40) + '…' : dumpError}
-            </span>
-          )}
-
           {/* Save state indicators — shown only when a saveable file is active */}
           {activeTabId && fileTypeInfo && !['pdf','video','audio','image'].includes(fileTypeInfo.kind ?? '') && (
             saveError ? (
@@ -1615,11 +1524,6 @@ export default function App() {
           onCanvasMarkRecorded={handleCanvasMarkRecorded}
           activeFile={activeFile ?? undefined}
           rescanFramesRef={rescanFramesRef}
-          aiMarks={activeFileMarks}
-          aiMarkIndex={aiNavIndex}
-          onAIMarkPrev={handleAINavPrev}
-          onAIMarkNext={handleAINavNext}
-          onAIMarkReview={handleMarkReviewed}
           onStreamingChange={setIsAIStreaming}
           style={aiOpen ? { width: aiPanelWidth } : undefined}
           screenshotTargetRef={editorAreaRef}
@@ -1659,6 +1563,7 @@ export default function App() {
         requestCd={terminalRequestCd}
         requestRun={terminalRequestRun}
         fileMeta={fileMeta}
+        showTerminal={appSettings.showTerminal}
       />
       </div> {/* end app-workspace */}
 

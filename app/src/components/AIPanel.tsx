@@ -42,11 +42,6 @@ interface AIPanelProps {
   onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
   activeFile?: string;
   rescanFramesRef?: React.MutableRefObject<(() => void) | null>;
-  aiMarks?: import('../types').AIEditMark[];
-  aiMarkIndex?: number;
-  onAIMarkPrev?: () => void;
-  onAIMarkNext?: () => void;
-  onAIMarkReview?: (id: string) => void;
   workspaceExportConfig?: WorkspaceExportConfig;
   onExportConfigChange?: (config: WorkspaceExportConfig) => void;
   style?: React.CSSProperties;
@@ -89,11 +84,6 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   onCanvasMarkRecorded,
   activeFile,
   rescanFramesRef,
-  aiMarks,
-  aiMarkIndex,
-  onAIMarkPrev,
-  onAIMarkNext,
-  onAIMarkReview,
   workspaceExportConfig,
   onExportConfigChange,
   workspaceConfig,
@@ -260,11 +250,6 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           onCanvasMarkRecorded={onCanvasMarkRecorded}
           activeFile={activeFile}
           rescanFramesRef={rescanFramesRef}
-          aiMarks={aiMarks}
-          aiMarkIndex={aiMarkIndex}
-          onAIMarkPrev={onAIMarkPrev}
-          onAIMarkNext={onAIMarkNext}
-          onAIMarkReview={onAIMarkReview}
           workspaceExportConfig={workspaceExportConfig}
           onExportConfigChange={onExportConfigChange}
           onStreamingChange={onStreamingChange}
