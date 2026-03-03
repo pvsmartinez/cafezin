@@ -169,12 +169,24 @@ To ADD content to an existing slide:
   {"op":"add_bullet_list","slide":"abc1234567","header":"Conceitos","items":["Item 1","Item 2"]}
   {"op":"add_two_col","slide":"abc1234567","header":"Comparação","left_title":"Antes","left_items":["Lento"],"right_title":"Depois","right_items":["Rápido"]}
 
-LESSON WORKFLOW:
-  1. create_lesson → all slides in 1 call
+NEW LESSON WORKFLOW (user asks to CREATE a new lesson / new aula):
+  0. ALWAYS create a new canvas file first — NEVER add slides to the already-open file.
+     Use scaffold_workspace with a single entry, e.g.:
+       entries: '[{"path":"aulas/Aula-02.tldr.json"}]'
+     Pick a meaningful filename (Aula-02, Introducao-CSS, etc.) based on the lesson topic.
+     If the user gave no folder, use "aulas/" as default folder.
+  1. Then call canvas_op with expected_file pointing to the NEW file (it auto-opens).
+     Use create_lesson in that call — all slides in 1 command.
   2. apply_theme (optional) → palette change across all slides
   3. canvas_screenshot → visual check
   4. update/move on individual shapes to fix details
 
+ADD-TO-EXISTING WORKFLOW (user asks to ADD slides/content to an ALREADY open canvas):
+  1. list_canvas_shapes → confirm you are on the right file
+  2. create_lesson (appends after the last existing slide) or add_bullet_list / add_two_col
+  3. canvas_screenshot → visual check
+
+NEVER add slides to an existing canvas when the user clearly wants a NEW file.
 NEVER use N add_slide + N add_note when create_lesson does it in one.`,
 
       hasTools
