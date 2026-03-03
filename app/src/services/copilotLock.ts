@@ -63,3 +63,45 @@ export function onLockedFilesChange(fn: Listener): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
 }
+
+/**
+ * Wait until a file is no longer locked by another agent.
+ *
+ * - If the file is not locked (or locked by the same agent), resolves immediately.
+ * - Listens to pub/sub events and resolves as soon as the lock is released.
+ * - If the lock is not released within `maxWaitMs` (default 60 s), resolves with
+ *   `timedOut: true` so the caller can return a descriptive error to the AI.
+ *
+ * Returns `{ timedOut: false, waitedMs: number }` on success,
+ *         `{ timedOut: true,  owner: string }` on timeout.
+ */
+export function waitForUnlock(
+  path: string,
+  callerAgentId: string | undefined,
+  maxWaitMs = 60_000,
+): Promise<{ timedOut: false; waitedMs: number } | { timedOut: true; owner: string }> {
+  const caller = callerAgentId ?? 'agent-1';
+  const owner = lockedFiles.get(path);
+  // Not locked, or locked by the same agent — proceed immediately.
+  if (!owner || owner === caller) {
+    return Promise.resolve({ timedOut: false, waitedMs: 0 });
+  }
+
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    const timedOutOwner = owner; // capture at call time in case it changes
+
+    const timer = setTimeout(() => {
+      unsub();
+      resolve({ timedOut: true, owner: timedOutOwner });
+    }, maxWaitMs);
+
+    const unsub = onLockedFilesChange((locked) => {
+      if (!locked.has(path)) {
+        clearTimeout(timer);
+        unsub();
+        resolve({ timedOut: false, waitedMs: Date.now() - startedAt });
+      }
+    });
+  });
+}

@@ -22,7 +22,7 @@ import {
 import type { CanvasTheme, AnyFrame } from './canvas/canvasTypes';
 import {
   DEFAULT_THEME, PRESET_THEMES,
-  loadThemeFromDoc, applyThemeToSlides, enforceBgAtBack,
+  loadThemeFromDoc, applyThemeToSlides, enforceBgAtBack, syncDefaultStylesToTheme,
   SLIDE_LAYOUT_OPTIONS, applySlideLayout,
 } from './canvas/canvasTheme';
 import { tauriAssetsStore, clearAssetBlobCache } from './canvas/canvasAssets';
@@ -317,13 +317,13 @@ export default function CanvasEditor({
 
     try {
       editor.user.updateUserPreferences({ colorScheme: darkMode ? 'dark' : 'light', isSnapMode: true });
-      editor.updateInstanceState({ isGridMode: true });
-      // Professional flat defaults for new shapes.
+      editor.updateInstanceState({ isGridMode: false }); // grid off by default (like FigJam / Miro)
+      // Polished defaults for new shapes: solid stroke + semi-fill gives a modern card look.
       editor.setStyleForNextShapes(DefaultDashStyle,  'solid');
-      editor.setStyleForNextShapes(DefaultFillStyle,  'none');
+      editor.setStyleForNextShapes(DefaultFillStyle,  'semi');
       editor.setStyleForNextShapes(DefaultColorStyle, 'black');
       editor.setStyleForNextShapes(DefaultFontStyle,  'sans');
-      editor.setStyleForNextShapes(DefaultSizeStyle,  'm');
+      editor.setStyleForNextShapes(DefaultSizeStyle,  'l'); // 'l' is more readable on 1280×720 slides
     } catch (err) {
       console.warn('[CanvasEditor] handleMount: editor setup error (non-fatal):', err);
     }
@@ -332,6 +332,8 @@ export default function CanvasEditor({
       const savedTheme = loadThemeFromDoc(editor);
       setTheme(savedTheme);
       applyThemeToSlides(editor, savedTheme);
+      // Sync next-shape defaults so newly drawn shapes match the loaded theme
+      syncDefaultStylesToTheme(editor, savedTheme);
     } catch (err) {
       console.warn('[CanvasEditor] handleMount: theme load error (non-fatal):', err);
     }
@@ -441,6 +443,31 @@ export default function CanvasEditor({
         }, 900);
       },
       { scope: 'document' },
+    );
+
+    // ── New arrow default: elbow kind (like FigJam) ──────────────────────────
+    // tldraw creates arrows with kind:'arc' (straight/curved) by default.
+    // We patch newly created arrows to kind:'elbow' so connectors look cleaner.
+    editor.store.listen(
+      (changes) => {
+        const newArrowIds: string[] = [];
+        for (const record of Object.values(changes.changes.added ?? {})) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const r = record as any;
+          if (r?.typeName === 'shape' && r?.type === 'arrow' && r?.props?.kind !== 'elbow') {
+            newArrowIds.push(r.id);
+          }
+        }
+        if (newArrowIds.length === 0) return;
+        // Defer to next frame so we don't mutate inside the active store transaction
+        requestAnimationFrame(() => {
+          for (const id of newArrowIds) {
+            try { editor.updateShape({ id, type: 'arrow', props: { kind: 'elbow' } } as any); }
+            catch { /* non-fatal */ }
+          }
+        });
+      },
+      { scope: 'document', source: 'user' },
     );
 
     // ── AI mark user-edit detection ──

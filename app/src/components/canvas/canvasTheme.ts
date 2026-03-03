@@ -6,7 +6,7 @@ import type { Editor } from 'tldraw';
 import {
   createShapeId, toRichText,
   DefaultColorStyle, DefaultSizeStyle, DefaultFontStyle,
-  DefaultTextAlignStyle,
+  DefaultTextAlignStyle, DefaultDashStyle, DefaultFillStyle,
 } from 'tldraw';
 import type { CanvasTheme, TextStyle, AnyFrame } from './canvasTypes';
 import { SLIDE_W, SLIDE_H, TLDRAW_COLORS } from './canvasConstants';
@@ -16,18 +16,18 @@ export type { CanvasTheme, TextStyle };
 export const DEFAULT_THEME: CanvasTheme = {
   slideBg: 'white',
   heading: { font: 'sans', size: 'xl', color: 'black', align: 'start' },
-  body:    { font: 'sans', size: 'm',  color: 'black', align: 'start' },
+  body:    { font: 'sans', size: 'l',  color: 'grey',  align: 'start' },
   defaultLayout: 'title-body',
 };
 
 export const PRESET_THEMES: { label: string; theme: CanvasTheme }[] = [
-  { label: 'Light',  theme: { slideBg: 'white',        heading: { font: 'sans',  size: 'xl', color: 'black',     align: 'start' }, body: { font: 'sans',  size: 'm', color: 'grey',      align: 'start' } } },
-  { label: 'Dark',   theme: { slideBg: 'black',        heading: { font: 'sans',  size: 'xl', color: 'white',     align: 'start' }, body: { font: 'sans',  size: 'm', color: 'grey',      align: 'start' } } },
-  { label: 'Navy',   theme: { slideBg: 'blue',         heading: { font: 'sans',  size: 'xl', color: 'white',     align: 'start' }, body: { font: 'sans',  size: 'm', color: 'light-blue', align: 'start' } } },
-  { label: 'Violet', theme: { slideBg: 'light-violet', heading: { font: 'serif', size: 'xl', color: 'violet',    align: 'start' }, body: { font: 'serif', size: 'm', color: 'black',     align: 'start' } } },
-  { label: 'Warm',   theme: { slideBg: 'light-red',    heading: { font: 'sans',  size: 'xl', color: 'red',       align: 'start' }, body: { font: 'sans',  size: 'm', color: 'black',     align: 'start' } } },
-  { label: 'Forest', theme: { slideBg: 'light-green',  heading: { font: 'sans',  size: 'xl', color: 'green',     align: 'start' }, body: { font: 'sans',  size: 'm', color: 'black',     align: 'start' } } },
-  { label: 'Retro',  theme: { slideBg: 'yellow',       heading: { font: 'draw',  size: 'xl', color: 'orange',    align: 'start' }, body: { font: 'draw',  size: 'm', color: 'black',     align: 'start' } } },
+  { label: 'Light',  theme: { slideBg: 'white',        heading: { font: 'sans',  size: 'xl', color: 'black',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'grey',       align: 'start' }, defaultLayout: 'title-body' } },
+  { label: 'Dark',   theme: { slideBg: 'black',        heading: { font: 'sans',  size: 'xl', color: 'white',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'grey',       align: 'start' }, defaultLayout: 'title-body' } },
+  { label: 'Navy',   theme: { slideBg: 'blue',         heading: { font: 'sans',  size: 'xl', color: 'white',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'light-blue',  align: 'start' }, defaultLayout: 'title-body' } },
+  { label: 'Violet', theme: { slideBg: 'light-violet', heading: { font: 'serif', size: 'xl', color: 'violet',     align: 'start' }, body: { font: 'serif', size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
+  { label: 'Warm',   theme: { slideBg: 'light-red',    heading: { font: 'sans',  size: 'xl', color: 'red',        align: 'start' }, body: { font: 'sans',  size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
+  { label: 'Forest', theme: { slideBg: 'light-green',  heading: { font: 'sans',  size: 'xl', color: 'green',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
+  { label: 'Retro',  theme: { slideBg: 'yellow',       heading: { font: 'draw',  size: 'xl', color: 'orange',     align: 'start' }, body: { font: 'draw',  size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
 ];
 
 export function loadThemeFromDoc(editor: Editor): CanvasTheme {
@@ -131,6 +131,7 @@ export function applyThemeToSlides(editor: Editor, theme: CanvasTheme) {
     }
   });
   persistTheme(editor, theme);
+  syncDefaultStylesToTheme(editor, theme);
   // Re-style existing heading/body shapes so theme changes apply immediately
   const allShapes = editor.getCurrentPageShapes();
   for (const shape of allShapes) {
@@ -159,6 +160,26 @@ export function enforceBgAtBack(editor: Editor) {
     if (bgId && childIds[0] !== bgId) toSendBack.push(bgId as ReturnType<typeof createShapeId>);
   }
   if (toSendBack.length > 0) editor.sendToBack(toSendBack);
+}
+
+/**
+ * Sync tldraw's "next shape" style defaults to match the active theme's body style.
+ * Called after every theme change so any new shape drawn automatically inherits
+ * the correct font, size and colour — guaranteeing visual consistency.
+ */
+export function syncDefaultStylesToTheme(editor: Editor, theme: CanvasTheme) {
+  const s = theme.body;
+  try {
+    editor.setStyleForNextShapes(DefaultFontStyle,      s.font  as Parameters<typeof editor.setStyleForNextShapes>[1]);
+    editor.setStyleForNextShapes(DefaultSizeStyle,      s.size  as Parameters<typeof editor.setStyleForNextShapes>[1]);
+    editor.setStyleForNextShapes(DefaultColorStyle,     s.color as Parameters<typeof editor.setStyleForNextShapes>[1]);
+    editor.setStyleForNextShapes(DefaultTextAlignStyle, s.align as Parameters<typeof editor.setStyleForNextShapes>[1]);
+    // Solid outline + semi-transparent fill: modern 'card' look for new shapes
+    editor.setStyleForNextShapes(DefaultDashStyle,  'solid' as Parameters<typeof editor.setStyleForNextShapes>[1]);
+    editor.setStyleForNextShapes(DefaultFillStyle,  'semi'  as Parameters<typeof editor.setStyleForNextShapes>[1]);
+  } catch (err) {
+    console.warn('[canvasTheme] syncDefaultStylesToTheme error (non-fatal):', err);
+  }
 }
 
 /** Set next-shape pen styles to match a heading/body preset; also apply to current selection. */

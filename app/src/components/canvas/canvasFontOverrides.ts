@@ -12,6 +12,17 @@ import type { FontOverrides } from './canvasTypes';
 
 export type { FontOverrides };
 
+/**
+ * Cafezin's own UI fonts — applied as CSS defaults to tldraw's font slots
+ * when the user hasn't set a custom override for that slot.
+ * Matches the font stack defined in tokens.css.
+ */
+export const APP_FONT_DEFAULTS: FontOverrides = {
+  sans:  'Nunito Variable',
+  serif: 'Vollkorn',
+  mono:  'Maple Mono',
+};
+
 // Curated macOS/cross-platform system fonts for the picker
 export const SYSTEM_FONT_LIST = [
   // Sans-serif
@@ -54,10 +65,14 @@ export function saveFontOverrides(editor: Editor, overrides: FontOverrides) {
 
 export function applyFontOverridesToContainer(editor: Editor, overrides: FontOverrides) {
   const c = editor.getContainer();
-  if (overrides.sans) c.style.setProperty('--tl-font-sans', `"${overrides.sans}", sans-serif`);
-  else c.style.removeProperty('--tl-font-sans');
-  if (overrides.serif) c.style.setProperty('--tl-font-serif', `"${overrides.serif}", serif`);
-  else c.style.removeProperty('--tl-font-serif');
-  if (overrides.mono) c.style.setProperty('--tl-font-mono', `"${overrides.mono}", monospace`);
-  else c.style.removeProperty('--tl-font-mono');
+  // Priority: user override > cafezin app font (APP_FONT_DEFAULTS) > tldraw built-in
+  const sans  = overrides.sans  ?? APP_FONT_DEFAULTS.sans;
+  const serif = overrides.serif ?? APP_FONT_DEFAULTS.serif;
+  const mono  = overrides.mono  ?? APP_FONT_DEFAULTS.mono;
+  if (sans)  c.style.setProperty('--tl-font-sans',  `"${sans}", sans-serif`);
+  else       c.style.removeProperty('--tl-font-sans');
+  if (serif) c.style.setProperty('--tl-font-serif', `"${serif}", serif`);
+  else       c.style.removeProperty('--tl-font-serif');
+  if (mono)  c.style.setProperty('--tl-font-mono',  `"${mono}", monospace`);
+  else       c.style.removeProperty('--tl-font-mono');
 }

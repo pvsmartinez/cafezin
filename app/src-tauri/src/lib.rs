@@ -100,17 +100,51 @@ mod git_cli {
     }
 
     pub fn git_sync(path: String, message: String, _token: Option<String>) -> Result<String, String> {
-        let run = |args: &[&str]| -> Result<(), String> {
+        let run_out = |args: &[&str]| -> Result<String, String> {
             let out = Command::new("git").args(args).current_dir(&path)
                 .output().map_err(|e| e.to_string())?;
-            if out.status.success() { Ok(()) }
-            else { Err(String::from_utf8_lossy(&out.stderr).to_string()) }
+            if out.status.success() {
+                Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+            } else {
+                Err(String::from_utf8_lossy(&out.stderr).to_string())
+            }
         };
-        run(&["add", "-A"])?;
+
+        // Stage + commit local changes first
+        run_out(&["add", "-A"])?;
         let _ = Command::new("git")
             .args(["commit", "-m", &message, "--allow-empty"])
             .current_dir(&path).output();
-        run(&["push", "origin", "HEAD"]).unwrap_or(());
+
+        // Fetch remote changes (best-effort — skip if no remote or no network)
+        if run_out(&["fetch", "origin"]).is_ok() {
+            // How many commits remote HEAD has that we're missing
+            let branch = run_out(&["rev-parse", "--abbrev-ref", "HEAD"])
+                .unwrap_or_else(|_| "main".to_string());
+            let branch = branch.trim().to_string();
+            let remote_ref = format!("origin/{branch}");
+
+            if let Ok(behind_str) = run_out(&["rev-list", "--count",
+                                              &format!("HEAD..{remote_ref}")]) {
+                let behind: u32 = behind_str.trim().parse().unwrap_or(0);
+                if behind > 0 {
+                    // Pull with rebase to incorporate the remote commits cleanly
+                    if let Err(e) = run_out(&["pull", "--rebase", "origin", &branch]) {
+                        // Abort partial rebase so the repo stays clean
+                        let _ = run_out(&["rebase", "--abort"]);
+                        return Err(format!(
+                            "MERGE_CONFLICT: Remote branch '{}' has {} commit(s) that conflict \
+                             with your local changes. Pull and resolve conflicts manually before \
+                             syncing.\n{}",
+                            branch, behind, e
+                        ));
+                    }
+                }
+            }
+        }
+
+        // Push (best-effort — if no remote is configured, silently OK)
+        let _ = run_out(&["push", "origin", "HEAD"]);
         Ok("synced".into())
     }
 
@@ -380,6 +414,68 @@ mod git_native {
         let parents: Vec<&git2::Commit> = parent.iter().collect();
         repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &parents)
             .map_err(|e| e.to_string())?;
+
+        // ── Conflict detection: fetch + merge analysis before pushing ────────
+        // Fetch remote HEAD to discover divergence before pushing. If the remote
+        // has new commits we don't have (ANALYSIS_NORMAL), return a clear error
+        // instead of letting the push silently fail or corrupt history.
+        // If we're behind but can fast-forward (ANALYSIS_FASTFORWARD), advance
+        // our local ref first so the subsequent push succeeds cleanly.
+        let branch_for_fetch = repo
+            .head().ok()
+            .and_then(|h| h.shorthand().map(|s| s.to_string()))
+            .unwrap_or_else(|| "main".to_string());
+
+        // Only run if a remote exists
+        if let Ok(mut fetch_remote) = repo.find_remote("origin") {
+            let fetch_callbacks = if let Some(ref tok) = token {
+                token_callbacks(tok.clone())
+            } else {
+                let mut cb = RemoteCallbacks::new();
+                cb.certificate_check(|_cert, _valid| Ok(git2::CertificateCheckStatus::CertificateOk));
+                cb
+            };
+            let mut fetch_opts = git2::FetchOptions::new();
+            fetch_opts.remote_callbacks(fetch_callbacks);
+            let refspec = format!(
+                "refs/heads/{0}:refs/remotes/origin/{0}",
+                branch_for_fetch
+            );
+            // Fetch is best-effort; ignore errors (offline / no remote)
+            let _ = fetch_remote.fetch(&[&refspec], Some(&mut fetch_opts), None);
+            drop(fetch_remote);
+
+            // Analyse how our HEAD relates to the fetched remote ref
+            let remote_ref_name = format!("refs/remotes/origin/{branch_for_fetch}");
+            if let Ok(annotated) = repo
+                .find_reference(&remote_ref_name)
+                .and_then(|r| repo.reference_to_annotated_commit(&r))
+            {
+                if let Ok((analysis, _)) = repo.merge_analysis(&[&annotated]) {
+                    if analysis.contains(git2::MergeAnalysis::ANALYSIS_NORMAL) {
+                        // Diverged — cannot push without a merge
+                        return Err(format!(
+                            "MERGE_CONFLICT: Remote branch '{}' has commits that diverge from \
+                             your local history. Pull and resolve conflicts before syncing.",
+                            branch_for_fetch
+                        ));
+                    } else if analysis.contains(git2::MergeAnalysis::ANALYSIS_FASTFORWARD) {
+                        // We're behind — fast-forward local ref to remote HEAD
+                        let oid = annotated.id();
+                        let local_ref_name = format!("refs/heads/{branch_for_fetch}");
+                        if let Ok(mut local_ref) = repo.find_reference(&local_ref_name) {
+                            let msg = format!("fast-forward to {}", &oid.to_string()[..8]);
+                            let _ = local_ref.set_target(oid, &msg);
+                            let _ = repo.set_head(&local_ref_name);
+                            let _ = repo.checkout_head(
+                                Some(CheckoutBuilder::default().force()),
+                            );
+                        }
+                    }
+                    // ANALYSIS_UPTODATE: nothing to pull, proceed to push
+                }
+            }
+        }
 
         // Push: inject token into URL + provide credential callback fallback.
         if let Ok(origin_remote) = repo.find_remote("origin") {

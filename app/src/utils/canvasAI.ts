@@ -28,6 +28,45 @@ import type { Editor, TLRichText, TLShapeId, TLEditorSnapshot } from 'tldraw';
 import { createShapeId, renderPlaintextFromRichText, toRichText, createTLSchema } from 'tldraw';
 import type { TLNoteShape, TLGeoShape, TLTextShape, TLGeoShapeGeoStyle, TLArrowShape, TLFrameShape } from '@tldraw/tlschema';
 
+// ── Markdown-aware richText builder ─────────────────────────────────────────
+
+type _RichTextMark = { type: 'bold' } | { type: 'italic' } | { type: 'strike' };
+type _RichTextTextNode = { type: 'text'; text: string; marks?: _RichTextMark[] };
+
+function _parseInlineMd(line: string): _RichTextTextNode[] {
+  const result: _RichTextTextNode[] = [];
+  // order: ~~strike~~ before *italic* to avoid partial greedy match
+  const pattern = /(~~)([\s\S]*?)\1|((?:\*\*|__))([\s\S]*?)\3|((?:\*|_))([\s\S]*?)\5/g;
+  let lastIdx = 0;
+  let m: RegExpExecArray | null;
+  while ((m = pattern.exec(line)) !== null) {
+    if (m.index > lastIdx) result.push({ type: 'text', text: line.slice(lastIdx, m.index) });
+    if (m[1] !== undefined)      result.push({ type: 'text', text: m[2], marks: [{ type: 'strike'   }] });
+    else if (m[3] !== undefined) result.push({ type: 'text', text: m[4], marks: [{ type: 'bold'     }] });
+    else if (m[5] !== undefined) result.push({ type: 'text', text: m[6], marks: [{ type: 'italic'   }] });
+    lastIdx = m.index + m[0].length;
+  }
+  if (lastIdx < line.length) result.push({ type: 'text', text: line.slice(lastIdx) });
+  return result.length > 0 ? result : [{ type: 'text', text: '' }];
+}
+
+/**
+ * Like tldraw's `toRichText()` but also parses Markdown inline formatting:
+ *   **bold** / __bold__ → bold mark
+ *   *italic* / _italic_ → italic mark
+ *   ~~text~~            → strikethrough mark
+ * Use for all user-visible text coming from AI canvas commands.
+ */
+export function toRichTextMd(raw: string): TLRichText {
+  if (!raw) return toRichText('');
+  const paragraphs = raw.split('\n').map((line) =>
+    line
+      ? { type: 'paragraph', content: _parseInlineMd(line) }
+      : { type: 'paragraph' }
+  );
+  return { type: 'doc', content: paragraphs } as unknown as TLRichText;
+}
+
 // ── Lazy-cached current tldraw schema (sequences + versions) ────────────────
 // Used by sanitizeSnapshot to clamp out-of-range sequence versions in
 // AI-generated or externally-produced canvas files.
@@ -647,7 +686,7 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
       editor.updateShapes([{ id: target.id, type: 'frame', props: patch } as any]);
     } else if (RICH_TEXT_TYPES.has(target.type)) {
       const patch: Record<string, unknown> = {};
-      if (cmd.text  !== undefined) patch.richText = toRichText(String(cmd.text));
+      if (cmd.text  !== undefined) patch.richText = toRichTextMd(String(cmd.text));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (cmd.color !== undefined) patch.color = mapColor(cmd.color, (target.props as any).color);
       if (cmd.fill  !== undefined) patch.fill  = mapFill(cmd.fill);
@@ -683,6 +722,269 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
     // Return the shape ID so the parent can record it in an AI mark highlight.
     return { count: 1, shapeId: target.id };
   }
+
+  // ── create_lesson ─────────────────────────────────────────────────────────
+  // High-level op — builds an entire lesson from a structured spec in one call.
+  // The AI passes a slides array; each slide specifies a type and content.
+  // The engine calculates all x/y coordinates automatically.
+  //
+  // Slide types:
+  //   title       → large title + optional subtitle (centred vertically)
+  //   bullet-list → header + note cards stacked vertically
+  //   two-col     → header + two side-by-side columns of note cards
+  //   closing     → same as title (alias: summary, questions)
+  //
+  // Usage example:
+  //   {
+  //     "op": "create_lesson",
+  //     "slides": [
+  //       { "type": "title",       "title": "HTML Básico", "subtitle": "Aula 01" },
+  //       { "type": "bullet-list", "title": "O que é HTML?", "bullets": ["Marcação", "Semântica", "Browser"] },
+  //       { "type": "two-col",     "title": "Head vs Body", "left_title": "Head", "left_items": ["title","meta"], "right_title": "Body", "right_items": ["h1","div","p"] },
+  //       { "type": "closing",     "title": "Próxima Aula", "subtitle": "CSS e Estilos" }
+  //     ]
+  //   }
+  if (op === 'create_lesson') {
+    const slideSpecs = Array.isArray(cmd.slides)
+      ? (cmd.slides as Record<string, unknown>[])
+      : [];
+    if (slideSpecs.length === 0) throw new Error('create_lesson: "slides" array is required and must not be empty.');
+
+    const existingFrames = existing
+      .filter((s) => s.type === 'frame')
+      .sort((a, b) => (a as TLFrameShape).x - (b as TLFrameShape).x) as TLFrameShape[];
+    let nextX = existingFrames.length > 0
+      ? existingFrames[existingFrames.length - 1].x + SLIDE_W + SLIDE_GAP
+      : 0;
+    const baseY = existingFrames.length > 0
+      ? Math.min(...existingFrames.map((f) => f.y))
+      : 0;
+
+    let totalCount = 0;
+
+    for (const spec of slideSpecs) {
+      const slideType = String(spec.type ?? 'title');
+      const slideTitle = String(spec.title ?? 'Slide');
+      const frameId = createShapeId();
+
+      // Create the frame
+      editor.createShapes<TLFrameShape>([{
+        id: frameId,
+        type: 'frame',
+        x: nextX,
+        y: baseY,
+        props: { w: SLIDE_W, h: SLIDE_H, name: slideTitle },
+      }]);
+      nextX += SLIDE_W + SLIDE_GAP;
+      totalCount++;
+
+      const pid = frameId as TLShapeId;
+
+      if (slideType === 'title' || slideType === 'closing' || slideType === 'summary' || slideType === 'questions') {
+        const subtitle = String(spec.subtitle ?? '');
+        // Centered vertically: title at y=220, subtitle at y=370
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 100, y: 220, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1080 } as any }]);
+        totalCount++;
+        if (subtitle) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 100, y: 370, props: { richText: toRichTextMd(subtitle), color: 'grey', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 1080 } as any }]);
+          totalCount++;
+        }
+
+      } else if (slideType === 'bullet-list') {
+        const bullets = Array.isArray(spec.bullets) ? (spec.bullets as unknown[]).map(String) : [];
+        // Title at top
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: 40, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1100 } as any }]);
+        totalCount++;
+        // Bullets stacked — pitch 90px
+        const maxBullets = Math.min(bullets.length, 6);
+        for (let i = 0; i < maxBullets; i++) {
+          editor.createShapes<TLNoteShape>([{
+            id: createShapeId(), type: 'note', parentId: pid,
+            x: 80, y: 140 + i * 90,
+            props: { richText: toRichTextMd(bullets[i]), color: mapColor(spec.item_color, 'yellow'), size: 'm', font: 'sans', align: 'start' },
+          }]);
+          totalCount++;
+        }
+
+      } else if (slideType === 'two-col') {
+        const leftTitle  = String((spec as Record<string, unknown>).left_title  ?? 'Left');
+        const rightTitle = String((spec as Record<string, unknown>).right_title ?? 'Right');
+        const leftItems  = Array.isArray((spec as Record<string, unknown>).left_items)  ? ((spec as Record<string, unknown>).left_items  as unknown[]).map(String) : [];
+        const rightItems = Array.isArray((spec as Record<string, unknown>).right_items) ? ((spec as Record<string, unknown>).right_items as unknown[]).map(String) : [];
+        // Main title
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: 40, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1100 } as any }]);
+        totalCount++;
+        // Column headers
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80,  y: 130, props: { richText: toRichTextMd(leftTitle),  color: 'blue', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 520 } as any }]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 680, y: 130, props: { richText: toRichTextMd(rightTitle), color: 'blue', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 520 } as any }]);
+        totalCount += 2;
+        // Column items
+        const maxLeft  = Math.min(leftItems.length,  5);
+        const maxRight = Math.min(rightItems.length, 5);
+        for (let i = 0; i < maxLeft; i++) {
+          editor.createShapes<TLNoteShape>([{
+            id: createShapeId(), type: 'note', parentId: pid,
+            x: 80, y: 215 + i * 90,
+            props: { richText: toRichTextMd(leftItems[i]), color: 'yellow', size: 'm', font: 'sans', align: 'start' },
+          }]);
+          totalCount++;
+        }
+        for (let i = 0; i < maxRight; i++) {
+          editor.createShapes<TLNoteShape>([{
+            id: createShapeId(), type: 'note', parentId: pid,
+            x: 680, y: 215 + i * 90,
+            props: { richText: toRichTextMd(rightItems[i]), color: 'light-blue', size: 'm', font: 'sans', align: 'start' },
+          }]);
+          totalCount++;
+        }
+
+      } else if (slideType === 'timeline') {
+        const events = Array.isArray(spec.events) ? (spec.events as unknown[]).map(String) : [];
+        // Main title
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: 40, props: { richText: toRichTextMd(slideTitle), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1100 } as any }]);
+        totalCount++;
+        // Horizontal spine arrow
+        const arrowId = createShapeId();
+        editor.createShapes<TLArrowShape>([{
+          id: arrowId, type: 'arrow', parentId: pid, x: 80, y: 370,
+          props: { start: { x: 0, y: 0 }, end: { x: 1100, y: 0 }, richText: toRichTextMd(''), color: 'grey', arrowheadEnd: 'arrow', arrowheadStart: 'none' } as TLArrowShape['props'],
+        }]);
+        totalCount++;
+        // Events as geo nodes above the spine
+        const maxEvents = Math.min(events.length, 6);
+        const nodeW = 160;
+        const pitch = maxEvents > 0 ? Math.min(230, Math.floor(1100 / maxEvents)) : 230;
+        for (let i = 0; i < maxEvents; i++) {
+          const nx = 80 + i * pitch;
+          editor.createShapes<TLGeoShape>([{
+            id: createShapeId(), type: 'geo', parentId: pid, x: nx, y: 270,
+            props: { geo: 'rectangle', w: nodeW, h: 80, richText: toRichTextMd(events[i]), color: 'blue', fill: 'solid', size: 's', font: 'sans', align: 'middle', scale: 1 },
+          }]);
+          totalCount++;
+        }
+      }
+      // else → unknown type: slide is created empty, AI can populate manually
+    }
+
+    return { count: totalCount, shapeId: null };
+  }
+
+  // ── add_bullet_list ───────────────────────────────────────────────────────
+  // Adds a header + N auto-positioned bullet note cards to an existing slide.
+  // AI does NOT need to calculate y coordinates — just pass items and optional y_start.
+  //
+  // Usage:
+  //   {"op":"add_bullet_list","slide":"abc1234567","header":"Conceitos","items":["Marcação","Semântica","Browser"],"y_start":80,"item_color":"yellow"}
+  if (op === 'add_bullet_list') {
+    const suffix = cmd.slide ? String(cmd.slide) : '';
+    if (!suffix) throw new Error('add_bullet_list requires a "slide" field with a frame ID.');
+    const pid = existing.find((s) => s.type === 'frame' && s.id.endsWith(suffix))?.id as TLShapeId | undefined;
+    if (!pid) throw new Error(`add_bullet_list: frame not found for slide="${suffix}". Call list_canvas_shapes to get valid IDs.`);
+
+    const header    = String(cmd.header ?? '');
+    const items     = Array.isArray(cmd.items) ? (cmd.items as unknown[]).map(String) : [];
+    const yStart    = safeCoord(cmd.y_start, header ? 18 : 80);
+    const pitch     = safeCoord(cmd.pitch, 90);
+
+    let currentY = yStart;
+    let count = 0;
+
+    if (header) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: currentY,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        props: { richText: toRichTextMd(header), color: mapColor(cmd.header_color, 'black'), size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1120 } as any }]);
+      // thin rule under header
+      editor.createShapes<TLGeoShape>([{ id: createShapeId(), type: 'geo', parentId: pid, x: 80, y: currentY + 90,
+        props: { geo: 'rectangle', w: 1120, h: 2, richText: toRichText(''), color: 'grey', fill: 'solid', size: 's', font: 'sans', align: 'middle', scale: 1 } }]);
+      currentY += 100;
+      count += 2;
+    }
+    const maxItems = Math.min(items.length, 7);
+    for (let i = 0; i < maxItems; i++) {
+      editor.createShapes<TLGeoShape>([{
+        id: createShapeId(), type: 'geo', parentId: pid, x: 80, y: currentY,
+        props: { geo: 'rectangle', w: 1120, h: 78, richText: toRichTextMd(items[i]), color: mapColor(cmd.item_color, 'black'), fill: 'none', size: 'm', font: 'sans', align: 'start', scale: 1 },
+      }]);
+      currentY += pitch;
+      count++;
+    }
+    return { count, shapeId: null };
+  }
+
+  // ── add_two_col ───────────────────────────────────────────────────────────
+  // Adds a 2-column section (each with a title + note cards) to an existing slide.
+  // Useful for compare/contrast, pros/cons, before/after layouts.
+  //
+  // Usage:
+  //   {"op":"add_two_col","slide":"abc1234567","header":"Comparação","left_title":"Antes","left_items":["Lento","Manual"],"right_title":"Depois","right_items":["Rápido","Automático"],"y_start":40}
+  if (op === 'add_two_col') {
+    const suffix = cmd.slide ? String(cmd.slide) : '';
+    if (!suffix) throw new Error('add_two_col requires a "slide" field with a frame ID.');
+    const pid = existing.find((s) => s.type === 'frame' && s.id.endsWith(suffix))?.id as TLShapeId | undefined;
+    if (!pid) throw new Error(`add_two_col: frame not found for slide="${suffix}". Call list_canvas_shapes to get valid IDs.`);
+
+    const header     = String(cmd.header ?? '');
+    const leftTitle  = String((cmd as Record<string, unknown>).left_title  ?? 'Esquerda');
+    const rightTitle = String((cmd as Record<string, unknown>).right_title ?? 'Direita');
+    const leftItems  = Array.isArray((cmd as Record<string, unknown>).left_items)  ? ((cmd as Record<string, unknown>).left_items  as unknown[]).map(String) : [];
+    const rightItems = Array.isArray((cmd as Record<string, unknown>).right_items) ? ((cmd as Record<string, unknown>).right_items as unknown[]).map(String) : [];
+    const yStart     = safeCoord(cmd.y_start, 18);
+    const pitch      = safeCoord(cmd.pitch, 86);
+
+    let currentY = yStart;
+    let count = 0;
+
+    if (header) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: currentY,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        props: { richText: toRichTextMd(header), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1120 } as any }]);
+      // thin rule
+      editor.createShapes<TLGeoShape>([{ id: createShapeId(), type: 'geo', parentId: pid, x: 80, y: currentY + 90,
+        props: { geo: 'rectangle', w: 1120, h: 2, richText: toRichText(''), color: 'grey', fill: 'solid', size: 's', font: 'sans', align: 'middle', scale: 1 } }]);
+      currentY += 100;
+      count += 2;
+    }
+    // Column header texts (blue)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80,  y: currentY,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      props: { richText: toRichTextMd(leftTitle),  color: 'blue', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 540 } as any }]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 660, y: currentY,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      props: { richText: toRichTextMd(rightTitle), color: 'blue', size: 'l', font: 'sans', textAlign: 'start', autoSize: false, w: 540 } as any }]);
+    currentY += 68;
+    count += 2;
+
+    // Cards: left = black border, right = grey border
+    const maxLeft  = Math.min(leftItems.length,  5);
+    const maxRight = Math.min(rightItems.length, 5);
+    for (let i = 0; i < maxLeft; i++) {
+      editor.createShapes<TLGeoShape>([{
+        id: createShapeId(), type: 'geo', parentId: pid, x: 80, y: currentY + i * pitch,
+        props: { geo: 'rectangle', w: 540, h: 74, richText: toRichTextMd(leftItems[i]), color: 'black', fill: 'none', size: 'm', font: 'sans', align: 'start', scale: 1 },
+      }]);
+      count++;
+    }
+    for (let i = 0; i < maxRight; i++) {
+      editor.createShapes<TLGeoShape>([{
+        id: createShapeId(), type: 'geo', parentId: pid, x: 660, y: currentY + i * pitch,
+        props: { geo: 'rectangle', w: 540, h: 74, richText: toRichTextMd(rightItems[i]), color: 'grey', fill: 'none', size: 'm', font: 'sans', align: 'start', scale: 1 },
+      }]);
+      count++;
+    }
+    return { count, shapeId: null };
+  }
+
   // ── auto-position new shapes (cascade so they don't all stack at 0,0) ────
   // safeCoord guards against NaN/Infinity that the AI may accidentally emit.
   const idx = existing.length;
@@ -707,7 +1009,7 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
       x,
       y,
       props: {
-        richText: toRichText(String(cmd.text ?? '')),
+        richText: toRichTextMd(String(cmd.text ?? '')),
         color: mapColor(cmd.color, 'yellow'),
         size: mapSize(cmd.size, 'm'),
         font: mapFont(cmd.font, 'sans'),
@@ -727,7 +1029,7 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
       x,
       y,
       props: {
-        richText: toRichText(String(cmd.text ?? '')),
+        richText: toRichTextMd(String(cmd.text ?? '')),
         color: mapColor(cmd.color, 'black'),
         size: mapSize(cmd.size, 'm'),
         font: mapFont(cmd.font, 'sans'),
@@ -760,7 +1062,7 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
         geo: geoVal,
         w: safeCoord(cmd.w, 200),
         h: safeCoord(cmd.h, 120),
-        richText: toRichText(String(cmd.text ?? '')),
+        richText: toRichTextMd(String(cmd.text ?? '')),
         color: mapColor(cmd.color, 'blue'),
         fill: mapFill(cmd.fill),
         size: mapSize(cmd.size, 'm'),
@@ -791,7 +1093,7 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
       props: {
         start: { x: 0, y: 0 },
         end: { x: x2 - x1, y: y2 - y1 },
-        richText: toRichText(label),
+        richText: toRichTextMd(label),
         color: mapColor(cmd.color, 'grey'),
         arrowheadEnd: 'arrow',
         arrowheadStart: 'none',

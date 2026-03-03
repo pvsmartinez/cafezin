@@ -4,6 +4,7 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import type { ToolDefinition, ToolExecutor } from '../utils/workspaceTools';
 import { appendArchiveEntry } from './copilotLog';
+import { saveApiSecret } from './apiSecrets';
 
 const COPILOT_API_URL = 'https://api.githubcopilot.com/chat/completions';
 
@@ -424,6 +425,8 @@ export function clearOAuthToken(): void {
   localStorage.removeItem(OAUTH_TOKEN_KEY);
   _sessionToken = null;
   _sessionTokenExpiry = 0;
+  // Also remove from cloud so other devices lose access when you sign out
+  void saveApiSecret(OAUTH_TOKEN_KEY, '');
 }
 
 /**
@@ -457,7 +460,9 @@ export async function startDeviceFlow(
     }>('github_device_flow_poll', { deviceCode: d.device_code });
 
     if (poll.access_token) {
-      localStorage.setItem(OAUTH_TOKEN_KEY, poll.access_token);
+      // Persist via saveApiSecret so the token is encrypted and synced to
+      // Supabase — other devices pull it automatically on next login/startup.
+      void saveApiSecret(OAUTH_TOKEN_KEY, poll.access_token);
       _sessionToken = null;
       _sessionTokenExpiry = 0;
       return;

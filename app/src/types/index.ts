@@ -52,11 +52,24 @@ export interface ChatMessage {
   attachedFile?: string;
 }
 
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
 export interface CopilotStreamChunk {
   choices: Array<{
-    delta: { content?: string };
+    delta: { content?: string; tool_calls?: Array<{
+      index: number;
+      id?: string;
+      type?: string;
+      function?: { name?: string; arguments?: string };
+    }> };
     finish_reason: string | null;
   }>;
+  /** Present only in the final usage chunk when stream_options.include_usage is true */
+  usage?: TokenUsage;
 }
 
 // ── Export / Build config ─────────────────────────────────────────────────────

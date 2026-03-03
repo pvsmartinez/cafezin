@@ -2,9 +2,9 @@
  * Workspace tool definitions (OpenAI function calling format) + their executors.
  *
  * This module is now a thin aggregator. Each domain is implemented in:
- *   utils/tools/fileTools.ts    - list, read, write, patch, search, rename, delete, scaffold, check_file
+ *   utils/tools/fileTools.ts    - list, read, write, patch, multi_patch, search, rename, delete, scaffold, check_file
  *   utils/tools/canvasTools.ts  - list_canvas_shapes, canvas_op, canvas_screenshot, add_canvas_image, screenshot_preview
- *   utils/tools/webTools.ts     - web_search, search_stock_images, fetch_url, run_command, publish_vercel
+ *   utils/tools/webTools.ts     - web_search, search_images, fetch_url, run_command, publish_vercel
  *   utils/tools/configTools.ts  - export_workspace, configure_export_targets, configure_workspace, remember, ask_user
  *
  * Public API is unchanged: WORKSPACE_TOOLS, buildToolExecutor, ToolDefinition, ToolExecutor.
@@ -45,6 +45,9 @@ export function buildToolExecutor(
   workspaceConfig?: WorkspaceConfig,
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void,
   agentId?: string,
+  /** Current in-memory content of the active file. Used by patch tools to
+   *  base edits on unsaved editor content rather than stale disk content. */
+  activeFileContent?: string,
 ) {
   const ctx = {
     workspacePath,
@@ -62,6 +65,7 @@ export function buildToolExecutor(
     onAskUser,
     getActiveHtml,
     agentId,
+    activeFileContent,
   };
 
   const domains = [executeFileTools, executeCanvasTools, executeWebTools, executeConfigTools];

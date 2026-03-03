@@ -6,6 +6,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import {
   X, Check, ArrowUp, ArrowDown, Warning, Camera, Paperclip, Copy,
+  Microphone, Stop, ArrowCounterClockwise,
 } from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
@@ -199,6 +200,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     setMemoryContent,
     onNotAuthenticated,
     agentId,
+    activeFileContent: documentContext,
   });
 
   const voice = useVoiceInput({
@@ -730,17 +732,8 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             {voice.isTranscribing
               ? <span className="ai-mic-spinner" />
               : voice.isRecording
-              ? (
-                <svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor" aria-hidden="true">
-                  <rect x="1" y="1" width="9" height="9" rx="1.5" />
-                </svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <rect x="4.5" y="0.7" width="5" height="7.3" rx="2.5" stroke="currentColor" strokeWidth="1.4" />
-                  <path d="M2 7A5 5 0 0 0 12 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                  <line x1="7" y1="13" x2="7" y2="11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                </svg>
-              )
+              ? <Stop size={11} weight="fill" />
+              : <Microphone size={14} weight="thin" />
             }
           </button>
           <button
@@ -748,13 +741,11 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             className="ai-btn-new-chat"
             title="New chat"
             disabled={stream.isStreaming}
-          >↺</button>
+          ><ArrowCounterClockwise size={14} /></button>
 
           {stream.isStreaming && !input.trim() ? (
             <button onClick={stream.handleStop} className="ai-btn-send ai-btn-send--stop" title="Stop (Esc)">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
-                <rect x="1" y="1" width="8" height="8" rx="1" />
-              </svg>
+              <Stop size={10} weight="fill" />
             </button>
           ) : (
             <button
@@ -764,9 +755,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
               title={stream.isStreaming ? 'Interrupt and send (Enter)' : 'Send (Enter)'}
             >
               {stream.isStreaming
-                ? <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
-                    <polygon points="6,1 11,11 1,11" />
-                  </svg>
+                ? <ArrowUp weight="bold" size={12} />
                 : <ArrowUp weight="thin" size={16} />
               }
             </button>

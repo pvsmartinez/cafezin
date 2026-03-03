@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Coffee, Folders, Eye, Robot, Microphone, ArrowDown, ArrowClockwise, ArrowsClockwise, House, FolderSimple, SignOut, ArrowRight, GithubLogo, Copy, CheckCircle, Warning } from '@phosphor-icons/react';
+import { Coffee, Folders, Robot, Microphone, ArrowDown, ArrowClockwise, ArrowsClockwise, House, FolderSimple, SignOut, ArrowRight, GithubLogo, Copy, CheckCircle, Warning } from '@phosphor-icons/react';
 import { readTextFile, remapToCurrentDocDir } from './services/fs';
 import { loadWorkspace } from './services/workspace';
 import { useAuthSession } from './hooks/useAuthSession';
 import { gitClone, gitPull, gitSync, getGitAccountToken, setLocalClonedPath, startGitAccountFlow, type SyncDeviceFlowState } from './services/syncConfig';
 import { CONFIG_DIR } from './services/config';
 import type { Workspace } from './types';
+import { syncSecretsFromCloud } from './services/apiSecrets';
 import MobileFileBrowser from './components/mobile/MobileFileBrowser';
 import MobilePreview from './components/mobile/MobilePreview';
 import MobileCopilot from './components/mobile/MobileCopilot';
@@ -15,7 +16,7 @@ import { useToast } from './hooks/useToast';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import './mobile.css';
 
-type Tab = 'files' | 'preview' | 'copilot' | 'voice'
+type Tab = 'files' | 'copilot' | 'voice'
 
 const LAST_WS_KEY = 'mobile-last-workspace-path';
 
@@ -111,6 +112,8 @@ export default function MobileApp() {
   } = useAuthSession({
     onAuthSuccess: () => {
       toast({ message: 'Login realizado com sucesso!', type: 'success' });
+      // Pull all synced secrets (Groq key, Copilot token, etc.) right after login
+      void syncSecretsFromCloud();
     },
   });
 
@@ -119,6 +122,10 @@ export default function MobileApp() {
     if (isLoggedIn) void loadSyncedList();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
+
+  // Pull secrets from cloud on startup (covers the case where the session
+  // was already active from a previous launch — no login event fires)
+  useEffect(() => { void syncSecretsFromCloud(); }, []);
 
   // ── Bootstrap: load last workspace from localStorage ─────────────────────
   useEffect(() => {
@@ -363,7 +370,7 @@ export default function MobileApp() {
   // ── File select ───────────────────────────────────────────────────────────
   async function handleFileSelect(relPath: string) {
     setOpenFile(relPath);
-    setActiveTab('preview');
+    // Stay on 'files' tab — preview renders inline via push navigation
     // Pre-load content for Copilot context (text files only, max 8KB)
     if (workspace) {
       try {
@@ -716,31 +723,22 @@ export default function MobileApp() {
   function renderTab() {
     switch (activeTab) {
       case 'files':
+        // Push-navigation pattern: preview slides in when a file is open
+        if (openFile) {
+          return (
+            <MobilePreview
+              workspacePath={workspace!.path}
+              filePath={openFile}
+              onClear={() => setOpenFile(null)}
+            />
+          );
+        }
         return (
           <MobileFileBrowser
             fileTree={workspace!.fileTree}
             selectedPath={openFile ?? undefined}
             onFileSelect={handleFileSelect}
             onBack={() => { setWorkspace(null); setWsGitUrl(null); }}
-          />
-        );
-
-      case 'preview':
-        if (!openFile) {
-          return (
-            <div className="mb-preview-empty">
-              <div className="mb-preview-no-file"><Eye weight="thin" size={40} /></div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>
-                Select a file from Files to preview it here.
-              </div>
-            </div>
-          );
-        }
-        return (
-          <MobilePreview
-            workspacePath={workspace!.path}
-            filePath={openFile}
-            onClear={() => setOpenFile(null)}
           />
         );
 
@@ -813,17 +811,14 @@ export default function MobileApp() {
       <nav className="mb-tabbar">
         <button
           className={`mb-tab ${activeTab === 'files' ? 'active' : ''}`}
-          onClick={() => setActiveTab('files')}
+          onClick={() => {
+            // iOS-style: tapping the active tab while in preview goes back to file browser
+            if (activeTab === 'files' && openFile) { setOpenFile(null); return; }
+            setActiveTab('files');
+          }}
         >
           <span className="mb-tab-icon"><Folders weight="thin" size={22} /></span>
           <span className="mb-tab-label">Arquivos</span>
-        </button>
-        <button
-          className={`mb-tab ${activeTab === 'preview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('preview')}
-        >
-          <span className="mb-tab-icon"><Eye weight="thin" size={22} /></span>
-          <span className="mb-tab-label">Preview</span>
         </button>
         <button
           className={`mb-tab ${activeTab === 'copilot' ? 'active' : ''}`}

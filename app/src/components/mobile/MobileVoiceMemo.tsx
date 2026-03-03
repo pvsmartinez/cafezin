@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { CaretUp, CaretDown, Key, GearSix } from '@phosphor-icons/react';
+import { CaretUp, CaretDown, Key, GearSix, Microphone, Stop, Trash } from '@phosphor-icons/react';
 import { saveApiSecret } from '../../services/apiSecrets';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -21,6 +21,7 @@ interface MemoRecord {
   audioPath: string;
   transcriptPath: string;
   hasTranscript: boolean;
+  transcriptPreview: string | null;
   timestamp: Date;
 }
 
@@ -51,6 +52,7 @@ function VoiceMemoItem({ memo, onDelete }: { memo: MemoRecord; onDelete: () => v
   const [transcript,  setTranscript]  = useState<string | null>(null);
   const [audioSrc,    setAudioSrc]    = useState<string | null>(null);
   const [loadingBody, setLoadingBody] = useState(false);
+  const [deleting,    setDeleting]    = useState(false);
   const blobUrlRef = useRef<string | null>(null);
 
   // Revoke blob URL on unmount to avoid memory leaks
@@ -92,11 +94,13 @@ function VoiceMemoItem({ memo, onDelete }: { memo: MemoRecord; onDelete: () => v
   const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className="mb-memo-item">
+    <div className={`mb-memo-item${expanded ? ' expanded' : ''}`}>
       <button className="mb-memo-header" onClick={toggleExpand}>
         <div className="mb-memo-meta">
-          <span className="mb-memo-date">{dateStr}</span>
-          <span className="mb-memo-time">{timeStr}</span>
+          <span className="mb-memo-date">{dateStr} · {timeStr}</span>
+          {memo.transcriptPreview && !expanded && (
+            <span className="mb-memo-preview">{memo.transcriptPreview}</span>
+          )}
         </div>
         <span className="mb-memo-chevron">{expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}</span>
       </button>
@@ -118,8 +122,14 @@ function VoiceMemoItem({ memo, onDelete }: { memo: MemoRecord; onDelete: () => v
               )}
             </>
           )}
-          <button className="mb-memo-delete" onClick={onDelete} title="Delete memo">
-            🗑 Delete
+          <button
+            className="mb-memo-delete"
+            onClick={() => { setDeleting(true); onDelete(); }}
+            disabled={deleting}
+            title="Apagar memo"
+          >
+            <Trash size={14} />
+            {deleting ? 'Apagando…' : 'Apagar'}
           </button>
         </div>
       )}
@@ -174,13 +184,21 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
       const list: MemoRecord[] = [];
       for (const [stem, info] of map) {
         if (!info.audioExt) continue;
+        let preview: string | null = null;
+        if (info.hasTranscript) {
+          try {
+            const txt = await readTextFile(`${memoDir}/${stem}.txt`);
+            preview = txt.trim().slice(0, 80) + (txt.trim().length > 80 ? '…' : '');
+          } catch { /* no preview */ }
+        }
         list.push({
           stem,
-          audioExt:       info.audioExt,
-          audioPath:      `${memoDir}/${stem}.${info.audioExt}`,
-          transcriptPath: `${memoDir}/${stem}.txt`,
-          hasTranscript:  info.hasTranscript,
-          timestamp:      parseStemDate(stem),
+          audioExt:          info.audioExt,
+          audioPath:         `${memoDir}/${stem}.${info.audioExt}`,
+          transcriptPath:    `${memoDir}/${stem}.txt`,
+          hasTranscript:     info.hasTranscript,
+          transcriptPreview: preview,
+          timestamp:         parseStemDate(stem),
         });
       }
       list.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -297,118 +315,127 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
   return (
     <>
       <div className="mb-header">
-        <span className="mb-header-title">Voice Memos</span>
+        <span className="mb-header-title">Memos de Voz</span>
         <button
           className="mb-icon-btn"
           onClick={() => setShowKeySetup(v => !v)}
-          title="Groq API key settings"
+          title={groqKey ? 'Configurações da chave Groq' : 'Configurar chave Groq'}
         >
-          {groqKey ? <Key size={18} /> : <GearSix size={18} />}
+          {groqKey ? <GearSix size={18} /> : <Key size={18} />}
         </button>
       </div>
 
-      <div className="mb-voice-scroll">
-        {/* ── Groq key setup ── */}
-        {(showKeySetup || !groqKey) && (
-          <div className="mb-voice-key-setup">
-            <p className="mb-voice-key-hint">
-              Voice transcription uses{' '}
-              <a
-                href="https://console.groq.com/keys"
-                style={{ color: 'var(--mb-accent)' }}
-                onClick={e => {
-                  e.preventDefault();
-                  import('@tauri-apps/plugin-opener').then(m => m.openUrl('https://console.groq.com/keys'));
-                }}
-              >
-                Groq Whisper
-              </a>
-              . Enter your free API key:
-            </p>
-            <div className="mb-voice-key-row">
-              <input
-                type="password"
-                className="mb-input"
-                value={groqInput}
-                onChange={e => setGroqInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && saveGroqKey()}
-                placeholder="gsk_…"
-              />
-              <button
-                className="mb-btn mb-btn-primary"
-                onClick={saveGroqKey}
-                disabled={!groqInput.trim()}
-              >
-                Save
-              </button>
+      <div className="mb-voice-container">
+        {/* ── Scroll area: key setup + memo list ── */}
+        <div className="mb-voice-scroll">
+          {/* Groq key setup */}
+          {(showKeySetup || !groqKey) && (
+            <div className="mb-voice-key-setup">
+              <p className="mb-voice-key-hint">
+                A transcrição usa{' '}
+                <a
+                  href="https://console.groq.com/keys"
+                  style={{ color: 'var(--mb-accent)' }}
+                  onClick={e => {
+                    e.preventDefault();
+                    import('@tauri-apps/plugin-opener').then(m => m.openUrl('https://console.groq.com/keys'));
+                  }}
+                >
+                  Groq Whisper
+                </a>
+                {' '}— cole sua chave gratuita abaixo:
+              </p>
+              <div className="mb-voice-key-row">
+                <input
+                  type="password"
+                  className="mb-input"
+                  value={groqInput}
+                  onChange={e => setGroqInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && saveGroqKey()}
+                  placeholder="gsk_…"
+                />
+                <button
+                  className="mb-btn mb-btn-primary"
+                  onClick={saveGroqKey}
+                  disabled={!groqInput.trim()}
+                >
+                  Salvar
+                </button>
+              </div>
+              {groqKey && (
+                <button
+                  className="mb-btn mb-btn-ghost"
+                  onClick={() => setShowKeySetup(false)}
+                  style={{ fontSize: 12 }}
+                >
+                  Cancelar
+                </button>
+              )}
             </div>
-            {groqKey && (
-              <button
-                className="mb-btn mb-btn-ghost"
-                onClick={() => setShowKeySetup(false)}
-                style={{ fontSize: 12 }}
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-        )}
+          )}
 
-        {/* ── Record area ── */}
-        {groqKey && !showKeySetup && (
-          <div className="mb-voice-record-area">
-            {transcribing ? (
-              <div className="mb-voice-transcribing">
-                <div className="mb-spinner" />
-                <span>Transcribing with Whisper…</span>
-              </div>
-            ) : (
-              <button
-                className={`mb-record-btn${recording ? ' recording' : ''}`}
-                onClick={recording ? stopRecording : startRecording}
-                aria-label={recording ? 'Stop recording' : 'Start recording'}
-              >
-                {recording ? '⏹' : '🎙'}
-              </button>
-            )}
+          {/* Memo list */}
+          {loadingMemos && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
+              <div className="mb-spinner" />
+            </div>
+          )}
 
-            {recording && (
+          {!loadingMemos && memos.length === 0 && groqKey && !showKeySetup && (
+            <div className="mb-voice-empty">
+              <Microphone size={40} weight="thin" />
+              <span>Sem memos ainda</span>
+              <span className="mb-voice-empty-sub">Toque no botão abaixo para começar a gravar.</span>
+            </div>
+          )}
+
+          {memos.map(memo => (
+            <VoiceMemoItem
+              key={memo.stem}
+              memo={memo}
+              onDelete={() => deleteMemo(memo)}
+            />
+          ))}
+        </div>
+
+        {/* ── Record bar — fixed bottom, behind tab bar ── */}
+        <div className="mb-voice-record-bar">
+          {transcribing ? (
+            <div className="mb-voice-transcribing">
+              <div className="mb-spinner" />
+              <span>Transcrevendo com Whisper…</span>
+            </div>
+          ) : recording ? (
+            <div className="mb-voice-recording-state">
               <div className="mb-record-timer">{formatDuration(recordSeconds)}</div>
-            )}
-
-            {!recording && !transcribing && (
-              <div className="mb-voice-hint">
-                {error ? (
-                  <span style={{ color: 'var(--mb-danger)' }}>{error}</span>
-                ) : (
-                  <span>Tap to record</span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Memo list ── */}
-        {loadingMemos && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
-            <div className="mb-spinner" />
-          </div>
-        )}
-
-        {!loadingMemos && memos.length === 0 && groqKey && !showKeySetup && (
-          <div className="mb-empty" style={{ paddingTop: 24 }}>
-            <div className="mb-empty-icon">🎙</div>
-            <div className="mb-empty-desc">No memos yet — tap the button to record.</div>
-          </div>
-        )}
-
-        {memos.map(memo => (
-          <VoiceMemoItem
-            key={memo.stem}
-            memo={memo}
-            onDelete={() => deleteMemo(memo)}
-          />
-        ))}
+              <button
+                className="mb-record-btn recording"
+                onClick={stopRecording}
+                aria-label="Parar gravação"
+              >
+                <Stop size={28} weight="fill" />
+              </button>
+              <span className="mb-voice-record-label">Gravando…</span>
+            </div>
+          ) : (
+            <div className="mb-voice-idle-state">
+              {error && (
+                <span className="mb-voice-error">{error}</span>
+              )}
+              <button
+                className="mb-record-btn"
+                onClick={startRecording}
+                aria-label="Começar a gravar"
+                disabled={!groqKey}
+              >
+                <Microphone size={32} weight="thin" />
+              </button>
+              <span className="mb-voice-record-label">
+                {groqKey ? 'Toque para gravar' : 'Configure a chave Groq'}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

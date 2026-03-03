@@ -60,6 +60,12 @@ export interface UseAIStreamParams {
   setMemoryContent: (v: string) => void;
   /** Identifier for this agent instance — used to release only this agent's file locks. */
   agentId?: string;
+  /**
+   * Current in-memory content of the active file (unsaved editor state).
+   * Passed to patch tools so they operate on the live editor content rather
+   * than potentially stale disk content.
+   */
+  activeFileContent?: string;
 }
 
 // ── useAIStream ───────────────────────────────────────────────────────────────
@@ -88,6 +94,7 @@ export function useAIStream({
   setMemoryContent,
   onNotAuthenticated,
   agentId = 'agent-1',
+  activeFileContent,
 }: UseAIStreamParams) {
   const [isStreaming, setIsStreamingState] = useState(false);
   const [agentExhausted, setAgentExhausted] = useState(false);
@@ -360,6 +367,7 @@ export function useAIStream({
         workspaceConfig,
         onWorkspaceConfigChange,
         agentId,
+        activeFileContent,
       );
 
       const CANVAS_TOOL_NAMES = new Set(['list_canvas_shapes', 'canvas_op', 'canvas_screenshot', 'add_canvas_image']);

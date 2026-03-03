@@ -57,6 +57,12 @@ export interface ToolContext {
   getActiveHtml?: () => { html: string; absPath: string } | null;
   /** Agent that owns locks created by this executor call. */
   agentId?: string;
+  /**
+   * Current in-memory content of the active file (from the editor, not disk).
+   * Supplied so patch tools can base diffs on unsaved user edits rather than
+   * stale on-disk content, preventing silent overwrite of in-progress work.
+   */
+  activeFileContent?: string;
 }
 
 // ── Shared utilities ─────────────────────────────────────────────────────────

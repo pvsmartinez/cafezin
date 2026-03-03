@@ -25,6 +25,16 @@
   height: 100% !important;
 }
 
+/* ── Canvas board background — override tldraw's default near-white / near-black ────
+   Warm dark matches cafezin's colour palette; warm off-white mirrors Miro's feel.
+   Increasing visual separation between the infinite canvas and the white slides. */
+.canvas-editor-main .tl-container.tl-theme__dark {
+  --tl-color-background: #1e1c19; /* warm dark, slightly lighter than cafezin's #1c1610 */
+}
+.canvas-editor-main .tl-container.tl-theme__light {
+  --tl-color-background: #f4f2ee; /* warm off-white, like Miro's board background */
+}
+
 /* ── Add-image button (floating top-right) ──────────────────── */
 /* ── Floating canvas action buttons (top-right group) ────────────── */
 .canvas-action-btns {

@@ -7,6 +7,8 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import { emitTerminalEntry } from '../../services/terminalBus';
 import { deployToVercel, pollDeployment, resolveVercelToken } from '../../services/publishVercel';
+import { writeTextFile, mkdir, exists } from '../../services/fs';
+import { safeResolvePath } from './shared';
 import type { ToolDefinition, DomainExecutor } from './shared';
 
 // ── Tool definitions ─────────────────────────────────────────────────────────
@@ -34,24 +36,44 @@ export const WEB_TOOL_DEFS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
-      name: 'search_stock_images',
+      name: 'search_images',
       description:
-        'Search Pexels for free high-quality stock photos. Returns up to 6 results with image URLs, sizes, and photographer credits. ' +
-        'Use this when the user asks to find, search, or add a photo/image to a slide or canvas. ' +
+        'Search for images or icons to place on the canvas. Choose the service based on what the user needs:\n' +
+        '• service="photo" → Pexels: real high-quality stock photos (landscapes, people, objects). No transparency. Requires API key.\n' +
+        '• service="icon" → Iconify: 200 000+ SVG icons with transparent background. Perfect for UI icons, game assets, clipart, arrows, symbols, emojis. No API key needed. Return color via the color param.\n' +
         'After getting results, pick the most relevant URL and call add_canvas_image to place it on the canvas.',
       parameters: {
         type: 'object',
         properties: {
+          service: {
+            type: 'string',
+            enum: ['photo', 'icon'],
+            description:
+              '"photo" — real stock photos from Pexels (no transparency). ' +
+              '"icon" — SVG icons/clipart from Iconify with transparent background (game-icons, noto-emoji, mdi, phosphor, etc.).',
+          },
           query: {
             type: 'string',
-            description: 'Keywords to search for, e.g. "mountain landscape", "team meeting", "abstract blue technology"',
+            description:
+              'Keywords to search for. For icons, be specific: "coffee cup", "sword", "leopard", "left arrow". ' +
+              'For photos: "mountain landscape", "team meeting", "abstract blue technology".',
           },
           count: {
             type: 'number',
-            description: 'Number of results to return (1–6, default 4).',
+            description: 'Number of results to return (1–10, default 6).',
+          },
+          color: {
+            type: 'string',
+            description:
+              '(icon only) Fill color for the SVG icon, e.g. "black", "white", "#3b82f6". Defaults to black.',
+          },
+          size: {
+            type: 'number',
+            description:
+              '(icon only) Pixel size for the rendered SVG (width = height), e.g. 256 or 512. Defaults to 256.',
           },
         },
-        required: ['query'],
+        required: ['service', 'query'],
       },
     },
   },
@@ -111,18 +133,30 @@ export const WEB_TOOL_DEFS: ToolDefinition[] = [
         'When the user asks to publish or deploy to Vercel, ALWAYS use this tool with action="deploy". ' +
         'NEVER use run_command to call the vercel CLI — the CLI requires committed git history and will fail on uncommitted changes. ' +
         'The Vercel API token is read from localStorage key "cafezin-vercel-token" (global) or the token argument. ' +
-        'Use action="deploy" to create or update a deployment (waits until READY or ERROR, max ~90s). ' +
-        'Use action="check" to get the current state of a deployment by ID — use this if deploy timed out or to verify a past deploy. ' +
-        'Use action="assign_domain" to link a custom domain (e.g. santacruz.pmatz.com) to an existing project — ' +
-        'this only adds the domain to the project in Vercel; DNS must be configured separately. ' +
-        'Use action="set_token" to save the Vercel API token for future deploys.',
+        '\n' +
+        'Actions:\n' +
+        '• setup — scaffold vercel.json and .vercelignore for a project type. Do this BEFORE the first deploy.\n' +
+        '• deploy — deploy files to Vercel. If buildCommand is provided, runs the build first then deploys buildOutputDir.\n' +
+        '• check — get state of a past deployment by ID.\n' +
+        '• assign_domain — link a custom domain to an existing project.\n' +
+        '• set_token — save the Vercel API token for future deploys.',
       parameters: {
         type: 'object',
         properties: {
           action: {
             type: 'string',
-            enum: ['deploy', 'check', 'assign_domain', 'set_token'],
-            description: 'Operation: deploy files (waits for READY), check deployment state, assign a custom domain, or save the API token.',
+            enum: ['setup', 'deploy', 'check', 'assign_domain', 'set_token'],
+            description: 'Operation to perform.',
+          },
+          projectType: {
+            type: 'string',
+            enum: ['static', 'spa', 'demos', 'node'],
+            description:
+              '(setup only) Type of project being deployed:\n' +
+              '• static — plain HTML/CSS/JS site (multi-page OK). Enables cleanUrls + trailingSlash:false.\n' +
+              '• spa — single-page app (React/Vite/Vue). Adds rewrites so all routes serve index.html.\n' +
+              '• demos — subfolder-per-demo structure (same as static but documented purpose).\n' +
+              '• node — Node.js API / serverless functions.',
           },
           token: {
             type: 'string',
@@ -138,7 +172,19 @@ export const WEB_TOOL_DEFS: ToolDefinition[] = [
           },
           sourceDir: {
             type: 'string',
-            description: 'Workspace-relative folder to deploy, e.g. "demos" or "dist". Defaults to workspace root.',
+            description: 'Workspace-relative folder to deploy, e.g. "demos" or "dist". Defaults to workspace root. Also used by setup to know where to write vercel.json.',
+          },
+          buildCommand: {
+            type: 'string',
+            description:
+              '(deploy only) Shell command to run BEFORE deploying, e.g. "npm run build". ' +
+              'Runs with the workspace root as cwd. Only needed when the deploy folder is produced by a build step.',
+          },
+          buildOutputDir: {
+            type: 'string',
+            description:
+              '(deploy only) Workspace-relative folder produced by buildCommand to deploy, e.g. "dist". ' +
+              'If buildCommand is set and this is omitted, defaults to "dist".',
           },
           teamId: {
             type: 'string',
@@ -231,11 +277,44 @@ export const executeWebTools: DomainExecutor = async (name, args, ctx) => {
       }
     }
 
-    // ── search_stock_images ──────────────────────────────────────────────
-    case 'search_stock_images': {
+    // ── search_images ────────────────────────────────────────────────────
+    case 'search_images': {
       const query = String(args.query ?? '').trim();
       if (!query) return 'Error: query is required.';
+      const service = String(args.service ?? 'photo');
 
+      // ── Iconify (SVG icons, no API key needed) ─────────────────────────
+      if (service === 'icon') {
+        const count  = Math.min(20, Math.max(1, typeof args.count === 'number' ? args.count : 8));
+        const color  = encodeURIComponent(String(args.color ?? 'black'));
+        const size   = typeof args.size === 'number' ? args.size : 256;
+        const apiUrl = `https://api.iconify.design/search?query=${encodeURIComponent(query)}&limit=${count}`;
+        try {
+          const res = await tauriFetch(apiUrl, { method: 'GET' });
+          if (!res.ok) return `Iconify search error: HTTP ${res.status}.`;
+          const data = await res.json() as {
+            icons: string[];
+            total: number;
+            collections?: Record<string, { name: string }>;
+          };
+          if (!data.icons?.length) return `No icons found for "${query}" on Iconify. Try different keywords (e.g. "spoon", "sword", "leopard", "arrow right").`;
+          const lines: string[] = [
+            `Found ${data.total} icons for "${query}" on Iconify. Top ${data.icons.length}:\n`,
+          ];
+          for (const icon of data.icons) {
+            const [prefix, name] = icon.split(':');
+            const svgUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${color}&width=${size}&height=${size}`;
+            lines.push(`**${icon}**\n  SVG: ${svgUrl}`);
+          }
+          lines.push(`\nColor: ${decodeURIComponent(color)} | Size: ${size}px (transparent background).`);
+          lines.push('Call add_canvas_image with any SVG URL above to place on canvas.');
+          return lines.join('\n');
+        } catch (e) {
+          return `Iconify search failed: ${e}`;
+        }
+      }
+
+      // ── Pexels (stock photos) ──────────────────────────────────────────
       const pexelsKey = typeof window !== 'undefined'
         ? (window.localStorage.getItem('cafezin_pexels_key') ?? '')
         : '';
@@ -244,11 +323,11 @@ export const executeWebTools: DomainExecutor = async (name, args, ctx) => {
         return (
           'No Pexels API key configured. ' +
           'Ask the user to click the "🖼 Images" button in the sidebar, then enter their free API key from pexels.com/api (takes ~30 seconds to get one). ' +
-          'Once set, you can search for images automatically.'
+          'Once set, you can search for photos automatically.'
         );
       }
 
-      const count = Math.min(6, Math.max(1, typeof args.count === 'number' ? args.count : 4));
+      const count = Math.min(10, Math.max(1, typeof args.count === 'number' ? args.count : 6));
       const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${count}&orientation=landscape`;
 
       try {
@@ -285,7 +364,7 @@ export const executeWebTools: DomainExecutor = async (name, args, ctx) => {
         lines.push('\nTo place an image on the canvas, call add_canvas_image with one of the URLs above.');
         return lines.join('\n');
       } catch (e) {
-        return `Stock image search failed: ${e}`;
+        return `Pexels search failed: ${e}`;
       }
     }
 
@@ -396,6 +475,86 @@ export const executeWebTools: DomainExecutor = async (name, args, ctx) => {
         return 'Vercel API token saved. Future deploys in this browser will use it automatically.';
       }
 
+      // ── setup — write vercel.json + .vercelignore ─────────────────────
+      if (action === 'setup') {
+        const projectType = String(args.projectType ?? 'static');
+        const trimmedDir  = String(args.sourceDir ?? '').replace(/^\/+|\/+$/g, '');
+        let targetDir: string;
+        try {
+          targetDir = trimmedDir ? safeResolvePath(workspacePath, trimmedDir) : workspacePath;
+        } catch (e) {
+          return String(e);
+        }
+        const relDir = trimmedDir || '.';
+
+        // Build vercel.json content per project type
+        let vercelJson: Record<string, unknown>;
+        if (projectType === 'spa') {
+          vercelJson = {
+            rewrites: [{ source: '/(.*)', destination: '/index.html' }],
+          };
+        } else if (projectType === 'node') {
+          vercelJson = {};  // Vercel auto-detects Node; user can extend as needed
+        } else {
+          // static, demos, or unknown — enable clean URLs
+          vercelJson = {
+            cleanUrls: true,
+            trailingSlash: false,
+          };
+        }
+
+        const vercelIgnore = [
+          '.git',
+          'node_modules',
+          '.cafezin',
+          'target',
+          '.DS_Store',
+          '*.log',
+          '.env',
+          '.env.*',
+        ].join('\n');
+
+        const vercelJsonPath    = `${targetDir}/vercel.json`;
+        const vercelIgnorePath  = `${targetDir}/.vercelignore`;
+
+        const created: string[] = [];
+        const skipped: string[] = [];
+
+        // vercel.json — only write if it doesn't exist already
+        if (await exists(vercelJsonPath)) {
+          skipped.push(`${relDir}/vercel.json (already exists — not overwritten)`);
+        } else {
+          if (!(await exists(targetDir))) {
+            await mkdir(targetDir, { recursive: true });
+          }
+          await writeTextFile(vercelJsonPath, JSON.stringify(vercelJson, null, 2) + '\n');
+          created.push(`${relDir}/vercel.json`);
+        }
+
+        // .vercelignore — only write if it doesn't exist
+        if (await exists(vercelIgnorePath)) {
+          skipped.push(`${relDir}/.vercelignore (already exists — not overwritten)`);
+        } else {
+          await writeTextFile(vercelIgnorePath, vercelIgnore + '\n');
+          created.push(`${relDir}/.vercelignore`);
+        }
+
+        const lines: string[] = [`Vercel setup complete (project type: ${projectType}).`];
+        if (created.length) lines.push(`Created:\n  • ${created.join('\n  • ')}`);
+        if (skipped.length) lines.push(`Skipped:\n  • ${skipped.join('\n  • ')}`);
+
+        lines.push('');
+        if (projectType === 'spa') {
+          lines.push('vercel.json configured with rewrites → all routes serve index.html (standard for React/Vite SPAs).');
+          lines.push('Next step: run your build (e.g. "npm run build"), then call publish_vercel with action="deploy" and sourceDir="dist".');
+        } else {
+          lines.push('vercel.json configured with cleanUrls=true so /aula1/index.html is accessible as /aula1.');
+          lines.push('Next step: call publish_vercel with action="deploy" to publish.');
+        }
+
+        return lines.join('\n');
+      }
+
       const token = resolveVercelToken(args.token ? String(args.token) : undefined);
       if (!token) {
         return (
@@ -456,8 +615,46 @@ export const executeWebTools: DomainExecutor = async (name, args, ctx) => {
       }
 
       // action === 'deploy'
-      const trimmedDir = String(args.sourceDir ?? '').replace(/^\/+|\/+$/g, '');
-      const dirPath = trimmedDir ? `${workspacePath}/${trimmedDir}` : workspacePath;
+      const buildCommand    = args.buildCommand    ? String(args.buildCommand).trim()    : '';
+      const buildOutputDir  = args.buildOutputDir  ? String(args.buildOutputDir).trim()  : '';
+
+      // Optional build step — run before determining the deploy dir
+      if (buildCommand) {
+        if (import.meta.env.VITE_TAURI_MOBILE === 'true') {
+          return 'Error: buildCommand is not supported on iOS — shell execution is unavailable on mobile.';
+        }
+        try {
+          const buildResult = await invoke<{ stdout: string; stderr: string; exit_code: number }>(
+            'shell_run',
+            { cmd: buildCommand, cwd: workspacePath },
+          );
+          emitTerminalEntry({
+            source: 'ai',
+            command: buildCommand,
+            cwd: workspacePath,
+            stdout: buildResult.stdout,
+            stderr: buildResult.stderr,
+            exitCode: buildResult.exit_code,
+            ts: Date.now(),
+          });
+          if (buildResult.exit_code !== 0) {
+            return [
+              `Build command failed (exit ${buildResult.exit_code}) — deploy aborted.`,
+              `$ ${buildCommand}`,
+              buildResult.stdout.trim() ? `stdout:\n${buildResult.stdout.trim()}` : '',
+              buildResult.stderr.trim() ? `stderr:\n${buildResult.stderr.trim()}` : '',
+            ].filter(Boolean).join('\n');
+          }
+        } catch (e) {
+          return `Error running build command: ${e} — deploy aborted.`;
+        }
+      }
+
+      // Determine deploy source dir: prefer explicit sourceDir, then buildOutputDir fallback
+      const rawSourceDir = args.sourceDir
+        ? String(args.sourceDir).replace(/^\/+|\/+$/g, '')
+        : buildCommand ? (buildOutputDir || 'dist') : '';
+      const dirPath = rawSourceDir ? `${workspacePath}/${rawSourceDir}` : workspacePath;
       const production = args.production !== false;
 
       try {
@@ -467,6 +664,7 @@ export const executeWebTools: DomainExecutor = async (name, args, ctx) => {
                          : result.state === 'TIMEOUT' ? '⏳ still building (timed out waiting)'
                          : (result.state ?? 'unknown');
         const lines = [
+          buildCommand ? `Built with: ${buildCommand}` : '',
           `Deployed "${projectName}" to Vercel — ${stateLabel}`,
           `  URL: ${result.url}`,
           `  Deployment ID: ${result.id}`,

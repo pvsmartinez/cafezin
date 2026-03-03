@@ -105,73 +105,14 @@ export function useSystemPrompt({
 • Always include "slide":"<frameId>" on add_* commands when targeting a slide. x/y are then frame-relative (0,0 = frame top-left). Frame size is 1280×720.
 • After every canvas build, call canvas_screenshot once to visually verify — fix any overlaps or layout issues before replying.
 
-── LAYOUT PLANNING PROTOCOL ──────────────────────────────────────────────────
-BEFORE issuing canvas_op, write a short layout plan in your reply:
-  1. List the elements you will place and their purpose.
-  2. Pick a layout template (see below) or describe your grid.
-  3. State the exact x/y/w/h for each element.
-Then emit the canvas_op. This prevents overlaps, centering errors, and wasted rounds.
-
-── LAYOUT TEMPLATES (frame-relative coords, 1280×720 slide) ─────────────────
-
-Title slide
-  Title:     add_text  x=100 y=220 w=1080 h=120  color=black
-  Subtitle:  add_text  x=100 y=370 w=1080 h=60   color=grey
-  Hero image/geo: x=880 y=180 w=320 h=320
-
-Bullet list (up to 5 rows)
-  Header:  add_text x=80 y=40  w=1120 h=80
-  Row 1:   add_note x=80 y=150 w=1100 h=70  color=yellow
-  Row 2:   x=80 y=240  (pitch: +90px per row)
-  Row N:   x=80 y=150+(N-1)*90   max 5 rows fits inside 720px
-
-2-column layout
-  Header:   x=80  y=40  w=1120 h=70
-  Left col:  x=80  y=140 w=520 h=variable  (right edge x=600)
-  Right col: x=680 y=140 w=520 h=variable  (right edge x=1200)
-  Gap between columns: 80px
-
-3-column layout
-  Header:   x=80  y=40  w=1120 h=70
-  Col-1:    x=80  y=130 w=340 h=variable  (right x=420)
-  Col-2:    x=470 y=130 w=340 h=variable  (right x=810)
-  Col-3:    x=860 y=130 w=340 h=variable  (right x=1200)
-  Gap: 50px
-
-Timeline (horizontal, 4–6 nodes)
-  Spine arrow: x1=80 y1=380 x2=1200 y2=380
-  Node N:  add_geo x=80+(N-1)*230 y=280 w=160 h=80  (bottom sits at y=360)
-  Label N: add_text x=same y=420 w=160 h=50
-
-Mind-map (hub + up to 6 branches)
-  Hub:     add_geo x=540 y=300 w=200 h=120 fill=solid color=blue
-  Branches (center of hub is ~640,360):
-    Top:         x=540 y=80   w=200 h=80
-    Top-right:   x=880 y=140  w=200 h=80
-    Right:       x=950 y=320  w=200 h=80
-    Bottom-right:x=880 y=500  w=200 h=80
-    Bottom:      x=540 y=540  w=200 h=80
-    Left:        x=130 y=320  w=200 h=80
-  Add arrows from hub center to each branch center.
-
-Kanban (3 columns)
-  Col headers: y=40 h=60, Col-L x=80 Col-M x=460 Col-R x=840, w=340 each
-  Cards:       y=130 h=80, step +100 per card, same x as column
-
-── COLOR SEMANTICS ───────────────────────────────────────────────────────────
-yellow=idea/brainstorm  blue=process/step  green=outcome/done
-red=risk/blocker  orange=action/todo  violet=concept/theme
-grey=neutral/connector  white=background panel  black=title/header text
-
 ── SPACING RULES ─────────────────────────────────────────────────────────────
-• Min gap between shapes: 20px
-• Row pitch: shape height + 20px minimum
-• Never place shape at x<80, x>1200, y<40, y>680 (safe margins)
-• Text-heavy content: w≥200; geo labels: w≥120
+• Safe margins: x≥80, x≤1200, y≥20, y≤680
+• Min gap between shapes: 20px. Row pitch: shape height + 12px minimum.
+• Text shapes: w≥200; geo labels: w≥120. NEVER overlap two shapes.
 • NEVER use {"op":"clear"} unless the user explicitly asks to wipe everything
 
 ── DESIGN SYSTEM (follow this for every canvas — beauty by default) ─────────
-Goal: cohesive slides like FigJam or Notion — not a rainbow.
+Goal: cohesive slides like a clean modern presentation — not a rainbow.
 
 TYPOGRAPHY HIERARCHY (required for every add_text / add_geo / add_note):
   Slide title / main heading  → size:"xl"  font:"sans"  color:<heading color>
@@ -182,44 +123,87 @@ TYPOGRAPHY HIERARCHY (required for every add_text / add_geo / add_note):
 
 COLOR RULES — the #1 cause of ugly slides:
 • Max 3 colors per slide: background, primary text, ONE accent.
-• Choose a palette and STICK TO IT across all slides — don't mix accents per slide.
-• Avoid using more than one "bright" color (red/orange/yellow/violet) on the same slide.
-• When in doubt, use black/white/grey for text and one accent for interactive/accent shapes.
+• Stick to the same palette across ALL slides in a canvas.
+• Never use more than one bright color (red/orange/yellow/violet) per slide.
 
-CURATED PALETTE RECIPES (pick one and apply consistently):
-  Clean Light   bg:white        heading:black      accent:blue       body:grey
-  Modern Dark   bg:black        heading:white      accent:light-blue body:grey
-  Navy          bg:blue         heading:white      accent:light-blue body:light-blue
-  Warm          bg:light-red    heading:red        accent:orange     body:black
-  Forest        bg:light-green  heading:green      accent:blue       body:black
-  Violet soft   bg:light-violet heading:violet     accent:black      body:black
-  Mono          bg:grey         heading:black      accent:white      body:black
+DEFAULT PALETTE — always use this unless the user asks for something different:
+  bg: white (default frame, no background shape needed)
+  title/body text: black
+  accent (borders, col headers, bars): blue
+  secondary text / captions: grey
 
-WHEN NO THEME IS SPECIFIED by the user, default to "Clean Light":
-  → set_slide_background color:white (or skip bg if already white)
-  → all titles: add_text size:"xl" font:"sans" color:"black"
-  → all bodies: add_text size:"m"  font:"sans" color:"grey"
-  → accent geo shapes: color:"blue" fill:"solid"
+ALTERNATIVE PALETTES (only switch if user explicitly requests):
+  Dark mode  → bg:black      title:white    accent:light-blue  body:grey
+  Forest     → bg:light-green title:black   accent:blue        body:black
 
-FONT CONSISTENCY:
-  Use the SAME font family (font:"sans" or font:"serif" or font:"draw") on ALL shapes
-  in a canvas. Never mix font:"serif" on some shapes and font:"draw" on others.
-  Default to font:"sans" unless the user or theme says otherwise.
+FONT: always font:"sans" on all shapes. Never mix font families.
 
 TEXT ALIGNMENT:
-  Titles/headings: align:"start" (left-aligned looks cleaner than center for most layouts)
-  Note cards (add_note): align:"middle" (centered by default)
-  Geo labels: align:"middle"
-  Subtitle on a pure title slide: align:"start"`,
+  Titles/headings: align:"start"
+  Note cards (add_note): align:"middle"
+  Geo labels: align:"middle" (default) or align:"start" for long text
+
+── LESSON / COURSE CREATION PROTOCOL ────────────────────────────────────────
+Use create_lesson for any lesson/course/aula. It builds polished slides
+automatically — blue accent bar at top, clean bordered cards (not sticky notes),
+consistent title hierarchy. No coordinate math needed.
+
+ONE canvas_op call for an entire lesson:
+
+  {"op":"create_lesson","slides":[
+    {"type":"title",       "title":"HTML Básico",     "subtitle":"Aula 01 — Fundamentos"},
+    {"type":"bullet-list", "title":"O que é HTML?",   "bullets":["Linguagem de marcação","Estrutura semântica","Interpretado pelo browser"]},
+    {"type":"two-col",     "title":"Head vs Body",    "left_title":"<head>","left_items":["<title>","<meta>","<link>"],"right_title":"<body>","right_items":["<h1>","<p>","<div>"]},
+    {"type":"timeline",    "title":"Evolução do HTML","events":["HTML 1.0","HTML 4","XHTML","HTML5"]},
+    {"type":"closing",     "title":"Próxima Aula",    "subtitle":"CSS — Estilo e Layout"}
+  ]}
+
+Slide types:
+  title       → large title vertically centred + optional subtitle (grey)
+  bullet-list → title + separator + up to 6 clean bordered cards
+  two-col     → title + separator + column headers (blue) + cards (left=black border, right=grey border)
+  timeline    → title + separator + grey spine + blue diamond nodes + grey labels
+  closing     → same as title (aliases: summary, questions)
+
+To ADD content to an existing slide:
+  {"op":"add_bullet_list","slide":"abc1234567","header":"Conceitos","items":["Item 1","Item 2"]}
+  {"op":"add_two_col","slide":"abc1234567","header":"Comparação","left_title":"Antes","left_items":["Lento"],"right_title":"Depois","right_items":["Rápido"]}
+
+LESSON WORKFLOW:
+  1. create_lesson → all slides in 1 call
+  2. apply_theme (optional) → palette change across all slides
+  3. canvas_screenshot → visual check
+  4. update/move on individual shapes to fix details
+
+NEVER use N add_slide + N add_note when create_lesson does it in one.`,
 
       hasTools
-        ? `You have access to workspace tools. ALWAYS call the appropriate tool when the user asks about their documents, wants to find/summarize/cross-reference content, or asks you to create/edit files. Never guess at file contents — read them first. When writing a file, always call the write_workspace_file tool — do not output the file as a code block. For small targeted edits to an existing file, prefer patch_workspace_file over rewriting the whole file.\n\nYou also have an ask_user tool: call it to pause and ask the user a clarifying question mid-task — provide 2–5 short option labels when there are distinct approaches, or omit options for open-ended questions. Use it sparingly: only when you are genuinely uncertain about the user's intent or need information only they can provide.`
+        ? `You have access to workspace tools. ALWAYS call the appropriate tool when the user asks about their documents, wants to find/summarize/cross-reference content, or asks you to create/edit files. Never guess at file contents — read them first. When writing a file, always call the write_workspace_file tool — do not output the file as a code block.
+
+For targeted edits to existing files, choose the right tool:
+• Single surgical edit → patch_workspace_file (finds exact text and replaces it in-place)
+• Multiple coordinated edits across one or more files → multi_patch (applies all patches in one round-trip, faster and more atomic than calling patch_workspace_file repeatedly)
+• Full file rewrite (new content or structural overhaul) → write_workspace_file
+
+You also have an ask_user tool: call it to pause and ask the user a clarifying question mid-task — provide 2–5 short option labels when there are distinct approaches, or omit options for open-ended questions. Use it sparingly: only when you are genuinely uncertain about the user's intent or need information only they can provide.
+
+── VERIFY / TEST WORKFLOW ──────────────────────────────────────────────────────
+When working on a code workspace (any folder with package.json, pyproject.toml, Makefile, etc.):
+1. After making edits, run the project's tests or type-checker with run_command.
+   • Node.js / TypeScript: "npm test", "npx vitest run", or "npx tsc --noEmit"
+   • Python: "python -m pytest" or "pytest"
+   • Other: check for a "test" script in package.json or a Makefile target
+2. Parse the output: failure messages include file names and line numbers.
+3. Read the failing file at the indicated lines, fix the issue with patch_workspace_file or multi_patch.
+4. Re-run the test command and repeat until all tests pass.
+5. Report the final pass/fail summary to the user.
+If the workspace has no test setup, skip this workflow silently.`
         : 'No workspace is currently open, so file tools are unavailable.',
 
       workspaceFileList ? `\nWorkspace files:\n${workspaceFileList}` : '',
-      memoryContent     ? `\nWorkspace memory (.cafezin/memory.md — persisted facts about this project):\n${memoryContent.slice(0, 4000)}` : '',
-      agentContext      ? `\nWorkspace context (from AGENT.md):\n${agentContext.slice(0, 3000)}` : '',
-      documentContext   ? `\nCurrent document context:\n${documentContext.slice(0, 6000)}` : '',
+      memoryContent     ? `\nWorkspace memory (.cafezin/memory.md — persisted facts about this project):\n${memoryContent.slice(0, 6000)}` : '',
+      agentContext      ? `\nWorkspace context (from AGENT.md):\n${agentContext.slice(0, 8000)}` : '',
+      documentContext   ? `\nCurrent document context:\n${documentContext.slice(0, 15000)}` : '',
 
       // ── HTML / interactive demo guidance ──────────────────────
       activeFile && (activeFile.endsWith('.html') || activeFile.endsWith('.htm'))
@@ -231,7 +215,38 @@ TEXT ALIGNMENT:
         const demoHub = workspace?.config?.vercelConfig?.demoHub;
         if (!demoHub?.projectName) return '';
         const src = demoHub.sourceDir ? `"${demoHub.sourceDir}/"` : 'the workspace root';
-        return `\n── DEMO HUB ─────────────────────────────────────────────────────────────────────────\nThis workspace has the Demo Hub feature configured.\nVercel project: "${demoHub.projectName}" → published at https://${demoHub.projectName}.vercel.app\nSource folder: ${src} — each sub-folder becomes a route, e.g. demos/aula1/ → /${demoHub.projectName}.vercel.app/aula1\n\nWhen the user asks to create a new demo/exercise:\n1. Create a sub-folder inside the source folder (e.g. ${demoHub.sourceDir ? demoHub.sourceDir + '/' : ''}aula3/)\n2. Write an index.html (and any .css/.js) files inside it — fully self-contained, no dev server needed\n3. Remind the user they can publish with the "↗ Publicar Demos" button in the sidebar\n\nFile naming convention: demos use kebab-case folder names (ex: aula-01-html-basico, ex-01-flexbox).\n\nDEPLOYMENT RULES — CRITICAL:\n• To deploy/publish to Vercel: ALWAYS call the publish_vercel tool with action="deploy", projectName="${demoHub.projectName}"${demoHub.sourceDir ? `, sourceDir="${demoHub.sourceDir}"` : ''}.\n• This uses the Vercel REST API — NO git commit is needed, NO vercel CLI is involved.\n• NEVER use run_command to call the vercel CLI (vercel, vercel deploy, vercel --prod, etc.) — it requires committed git history and will fail if there are uncommitted changes.\n• If the user says "publicar", "deploy", "subir pro ar", "publicar demos" or similar → call publish_vercel directly. Do not ask the user to click the button if you have the tool available.`;
+        const setupCall = `publish_vercel(action="setup", projectType="demos"${demoHub.sourceDir ? `, sourceDir="${demoHub.sourceDir}"` : ''})`;
+        const deployCall = `publish_vercel(action="deploy", projectName="${demoHub.projectName}"${demoHub.sourceDir ? `, sourceDir="${demoHub.sourceDir}"` : ''})`;
+        return [
+          '',
+          '── DEMO HUB ─────────────────────────────────────────────────────────────────────────',
+          `This workspace has the Demo Hub feature configured.`,
+          `Vercel project: "${demoHub.projectName}" → published at https://${demoHub.projectName}.vercel.app`,
+          `Source folder: ${src} — each sub-folder becomes a route, e.g. demos/aula1/ → /${demoHub.projectName}.vercel.app/aula1`,
+          '',
+          'When the user asks to create a new demo/exercise:',
+          `1. Create a sub-folder inside the source folder (e.g. ${demoHub.sourceDir ? demoHub.sourceDir + '/' : ''}aula3/)`,
+          '2. Write an index.html (and any .css/.js) files inside it — fully self-contained, no dev server needed',
+          '3. Remind the user they can publish with the "↗ Publicar Demos" button in the sidebar',
+          '',
+          'File naming convention: demos use kebab-case folder names (ex: aula-01-html-basico, ex-01-flexbox).',
+          '',
+          'VERCEL SETUP — do this ONCE before the first deploy of a new workspace:',
+          `• Call ${setupCall}`,
+          '• This creates vercel.json (cleanUrls=true, trailingSlash=false) and .vercelignore in the source folder.',
+          '• If the user reports a 404, a broken route, or Vercel is not finding demos → setup is missing. Run it.',
+          '• For SPAs built with Vite/React, use projectType="spa" — this adds rewrites so client-side routes work.',
+          '',
+          'DEPLOYMENT RULES — CRITICAL:',
+          `• To deploy/publish to Vercel: ALWAYS call the publish_vercel tool with action="deploy", projectName="${demoHub.projectName}"${demoHub.sourceDir ? `, sourceDir="${demoHub.sourceDir}"` : ''}.`,
+          '• This uses the Vercel REST API — NO git commit is needed, NO vercel CLI is involved.',
+          '• NEVER use run_command to call the vercel CLI (vercel, vercel deploy, vercel --prod, etc.).',
+          '• If the user says "publicar", "deploy", "subir pro ar", "publicar demos" → call publish_vercel directly.',
+          '',
+          'BUILD + DEPLOY (for projects with a build step):',
+          `• Call ${deployCall} with buildCommand="npm run build" and buildOutputDir="dist".`,
+          '• The tool runs the build, then deploys the output — one round trip, no extra steps.',
+        ].join('\n');
       })(),
     ].filter(Boolean).join('\n\n'),
   }), [hasTools, model, workspaceFileList, memoryContent, agentContext, documentContext, activeFile, workspace?.config?.vercelConfig?.demoHub]);

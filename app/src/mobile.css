@@ -358,25 +358,6 @@ html, body, #root {
   -webkit-overflow-scrolling: touch;
 }
 
-.mb-preview-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 32px;
-  text-align: center;
-}
-
-.mb-preview-no-file {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.25;
-  color: var(--text-muted);
-}
-
 /* Canvas slide preview */
 .mb-slide-viewer {
   height: 100%;
@@ -932,6 +913,16 @@ html, body, #root {
 .mb-input::placeholder { color: var(--text-muted); }
 
 /* ── Voice memo screen ─────────────────────────────────────────────────────── */
+
+/* Outer container — flex column fills remaining space between header and tabbar */
+.mb-voice-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .mb-voice-scroll {
   flex: 1;
   overflow-y: auto;
@@ -955,7 +946,7 @@ html, body, #root {
   font-size: 13px;
   color: var(--text-muted);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .mb-voice-key-row {
@@ -970,57 +961,105 @@ html, body, #root {
   padding: 10px 16px;
 }
 
-/* Record area */
-.mb-voice-record-area {
+/* Empty state */
+.mb-voice-empty {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 28px 24px;
-  border-bottom: 1px solid var(--border);
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 24px;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 500;
 }
 
+.mb-voice-empty-sub {
+  font-size: 13px;
+  font-weight: 400;
+  text-align: center;
+  color: var(--text-muted);
+  opacity: 0.75;
+  max-width: 240px;
+  line-height: 1.5;
+}
+
+/* ── Record bar — fixed bottom strip above tabbar ───────────────────────────── */
+.mb-voice-record-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.mb-voice-idle-state,
+.mb-voice-recording-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.mb-voice-record-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+.mb-voice-error {
+  font-size: 12px;
+  color: var(--mb-danger, #e06060);
+  text-align: center;
+  max-width: 260px;
+  line-height: 1.4;
+}
+
+/* Big mic button */
 .mb-record-btn {
-  width: 80px;
-  height: 80px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
-  border: 3px solid var(--accent);
+  border: 2px solid var(--accent);
   background: var(--surface2);
-  color: var(--text);
-  font-size: 32px;
+  color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  transition: transform 0.12s, background 0.15s, border-color 0.15s, box-shadow 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
 
-.mb-record-btn:active { transform: scale(0.94); }
+.mb-record-btn:active { transform: scale(0.93); }
+
+.mb-record-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 .mb-record-btn.recording {
   border-color: #e06060;
-  background: rgba(224, 96, 96, 0.15);
-  animation: mb-record-pulse 1.2s ease-in-out infinite;
+  background: rgba(224, 96, 96, 0.12);
+  color: #e06060;
+  animation: mb-record-pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes mb-record-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(224, 96, 96, 0.4); }
-  50%       { box-shadow: 0 0 0 12px rgba(224, 96, 96, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(224, 96, 96, 0.35); }
+  50%       { box-shadow: 0 0 0 14px rgba(224, 96, 96, 0); }
 }
 
 .mb-record-timer {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: #e06060;
-  letter-spacing: 2px;
-}
-
-.mb-voice-hint {
-  font-size: 13px;
-  color: var(--text-muted);
-  text-align: center;
+  letter-spacing: 3px;
+  line-height: 1;
 }
 
 .mb-voice-transcribing {
@@ -1032,7 +1071,7 @@ html, body, #root {
   font-size: 13px;
 }
 
-/* Memo list */
+/* ── Memo list ────────────────────────────────────────────────────────────── */
 .mb-memo-item {
   border-bottom: 1px solid var(--border);
 }
@@ -1041,7 +1080,7 @@ html, body, #root {
   width: 100%;
   background: none;
   border: none;
-  padding: 14px 16px;
+  padding: 13px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1056,25 +1095,31 @@ html, body, #root {
 .mb-memo-meta {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
   text-align: left;
 }
 
 .mb-memo-date {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
+  color: var(--text);
 }
 
-.mb-memo-time {
-  font-size: 12px;
+.mb-memo-preview {
+  font-size: 13px;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+  line-height: 1.4;
 }
 
 .mb-memo-chevron {
-  font-size: 12px;
   color: var(--text-muted);
   flex-shrink: 0;
+  opacity: 0.6;
 }
 
 .mb-memo-body {
@@ -1103,14 +1148,21 @@ html, body, #root {
 
 .mb-memo-delete {
   background: none;
-  border: 1px solid rgba(var(--red-rgb),0.3);
-  color: var(--red);
+  border: 1px solid rgba(var(--red-rgb, 224, 96, 96), 0.3);
+  color: var(--red, #e06060);
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 12px;
   cursor: pointer;
   align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   -webkit-tap-highlight-color: transparent;
+}
+
+.mb-memo-delete:disabled {
+  opacity: 0.5;
 }
 
 /* ── Audio file preview ─────────────────────────────────────────────────────── */
