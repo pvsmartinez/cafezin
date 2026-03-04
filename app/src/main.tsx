@@ -11,42 +11,6 @@ import './tokens.css';                         /* Design tokens — compartilhad
 import App from "./App";
 import MobileApp from "./MobileApp";
 
-// ── Debug ErrorBoundary — catches render errors and shows them on screen ─────
-// TEMPORARY — remove after blank screen is diagnosed
-class DebugErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { error: Error | null }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { error: null };
-  }
-  static getDerivedStateFromError(error: Error) {
-    return { error };
-  }
-  override componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('[DebugErrorBoundary]', error, info.componentStack);
-  }
-  override render() {
-    if (this.state.error) {
-      return (
-        <div style={{
-          position: 'fixed', inset: 0, background: '#1a0000', color: '#ff6b6b',
-          padding: 24, fontFamily: 'monospace', fontSize: 13, overflowY: 'auto',
-          zIndex: 99999, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-        }}>
-          <strong style={{ fontSize: 16, color: '#ff9o9o' }}>🔴 RENDER ERROR</strong>
-          {'\n\n'}
-          <strong>{this.state.error.name}: {this.state.error.message}</strong>
-          {'\n\n'}
-          {this.state.error.stack}
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
 // Detect mobile platform.
 // Primary: TAURI_ENV_PLATFORM is automatically injected by Tauri for every build
 // (ios / android / darwin / linux / windows) — no manual export needed.
@@ -61,8 +25,6 @@ const isMobile =
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <DebugErrorBoundary>
-      {isMobile ? <MobileApp /> : <App />}
-    </DebugErrorBoundary>
+    {isMobile ? <MobileApp /> : <App />}
   </React.StrictMode>,
 );
