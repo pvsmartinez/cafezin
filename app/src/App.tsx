@@ -430,6 +430,7 @@ export default function App() {
       listen('menu-new-file',       () => { setSidebarOpen(true); setTimeout(() => newFileRef.current?.(), 80); }),
       listen('menu-export-pdf',     () => { if (fileTypeInfo?.kind === 'markdown') handleExportPDF(); }),
       listen('menu-export-modal',   () => setExportModalOpen(true)),
+      listen('menu-switch-workspace', () => handleSwitchWorkspace()),
       listen('menu-toggle-sidebar', () => setSidebarOpen((v) => !v)),
       listen('menu-toggle-copilot', () => setAiOpen((v) => !v)),
       listen('menu-view-edit',      () => { setViewMode('edit');    if (activeTabId) tabViewModeRef.current.set(activeTabId, 'edit'); }),
@@ -1235,22 +1236,13 @@ export default function App() {
               <House weight="thin" size={15} />
             </button>
           )}
-          {activeFile ? (
-            <nav className="app-breadcrumb" title={activeFile}>
-              {activeFile.split('/').map((seg, i, arr) => (
-                <span key={i} className="app-breadcrumb-seg">
-                  {i > 0 && <span className="app-breadcrumb-sep">›</span>}
-                  <span className={i === arr.length - 1 ? 'app-breadcrumb-file' : 'app-breadcrumb-dir'}>
-                    {seg}
-                  </span>
-                </span>
-              ))}
-            </nav>
-          ) : (
-            <span className="app-title">{title}</span>
-          )}
-          {workspace.config.name && !activeFile && (
-            <span className="app-workspace-name">{workspace.config.name}</span>
+          {!activeFile && (
+            <>
+              <span className="app-title">{title}</span>
+              {workspace.config.name && (
+                <span className="app-workspace-name">{workspace.config.name}</span>
+              )}
+            </>
           )}
         </div>
         <div className="app-header-right">
@@ -1384,7 +1376,6 @@ export default function App() {
               }}
               onAIPrev={handleAINavPrev}
               onAINext={handleAINavNext}
-              onSwitchWorkspace={handleSwitchWorkspace}
               onFileDeleted={handleFileDeleted}
               onSearchFileOpen={handleSearchFileOpen}
               lockedFiles={lockedFiles}
@@ -1492,6 +1483,7 @@ export default function App() {
             onOpenFile={handleOpenFile}
             aiMarks={aiMarks}
             onOpenAIReview={() => { setAiHighlight(true); setAiNavIndex(0); }}
+            onSwitchWorkspace={handleSwitchWorkspace}
           />
         ) : viewMode === 'preview' && fileTypeInfo?.kind === 'markdown' ? (
           <MarkdownPreview

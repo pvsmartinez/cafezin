@@ -1122,13 +1122,15 @@ pub fn run() {
                 )?;
 
                 // File menu
-                let new_file_item    = MenuItem::with_id(app, "new_file",     "New File",                      true, Some("cmd+n"))?;
-                let export_pdf_item  = MenuItem::with_id(app, "export_pdf",   "Export to PDF\u{2026}",           true, None::<&str>)?;
-                let export_sep       = PredefinedMenuItem::separator(app)?;
-                let export_modal_item = MenuItem::with_id(app, "export_modal", "Export / Build Settings\u{2026}", true, None::<&str>)?;
+                let switch_workspace_item = MenuItem::with_id(app, "switch_workspace", "Switch Workspace\u{2026}", true, Some("cmd+shift+w"))?;
+                let switch_sep           = PredefinedMenuItem::separator(app)?;
+                let new_file_item        = MenuItem::with_id(app, "new_file",     "New File",                      true, Some("cmd+n"))?;
+                let export_pdf_item      = MenuItem::with_id(app, "export_pdf",   "Export to PDF\u{2026}",           true, None::<&str>)?;
+                let export_sep           = PredefinedMenuItem::separator(app)?;
+                let export_modal_item    = MenuItem::with_id(app, "export_modal", "Export / Build Settings\u{2026}", true, None::<&str>)?;
                 let file_menu = Submenu::with_items(
                     app, "File", true,
-                    &[&new_file_item, &export_sep, &export_pdf_item, &export_modal_item],
+                    &[&switch_workspace_item, &switch_sep, &new_file_item, &export_sep, &export_pdf_item, &export_modal_item],
                 )?;
 
                 // View menu
@@ -1151,16 +1153,17 @@ pub fn run() {
                 let handle = app.handle().clone();
                 app.on_menu_event(move |_app, event: tauri::menu::MenuEvent| {
                     match event.id().as_ref() {
-                        "update_app"     => { let _ = handle.emit("menu-update-app", ()); }
-                        "settings"       => { let _ = handle.emit("menu-settings", ()); }
-                        "new_file"       => { let _ = handle.emit("menu-new-file", ()); }
-                        "export_pdf"     => { let _ = handle.emit("menu-export-pdf", ()); }
-                        "export_modal"   => { let _ = handle.emit("menu-export-modal", ()); }
-                        "toggle_sidebar" => { let _ = handle.emit("menu-toggle-sidebar", ()); }
-                        "toggle_copilot" => { let _ = handle.emit("menu-toggle-copilot", ()); }
-                        "view_edit"      => { let _ = handle.emit("menu-view-edit", ()); }
-                        "view_preview"   => { let _ = handle.emit("menu-view-preview", ()); }
-                        "format_file"    => { let _ = handle.emit("menu-format-file", ()); }
+                        "update_app"         => { let _ = handle.emit("menu-update-app", ()); }
+                        "settings"           => { let _ = handle.emit("menu-settings", ()); }
+                        "switch_workspace"   => { let _ = handle.emit("menu-switch-workspace", ()); }
+                        "new_file"           => { let _ = handle.emit("menu-new-file", ()); }
+                        "export_pdf"         => { let _ = handle.emit("menu-export-pdf", ()); }
+                        "export_modal"       => { let _ = handle.emit("menu-export-modal", ()); }
+                        "toggle_sidebar"     => { let _ = handle.emit("menu-toggle-sidebar", ()); }
+                        "toggle_copilot"     => { let _ = handle.emit("menu-toggle-copilot", ()); }
+                        "view_edit"          => { let _ = handle.emit("menu-view-edit", ()); }
+                        "view_preview"       => { let _ = handle.emit("menu-view-preview", ()); }
+                        "format_file"        => { let _ = handle.emit("menu-format-file", ()); }
                         _ => {}
                     }
                 });

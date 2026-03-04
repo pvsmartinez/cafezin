@@ -10,6 +10,7 @@ interface WorkspaceHomeProps {
   onOpenFile: (filename: string) => void;
   aiMarks?: AIEditMark[];
   onOpenAIReview?: () => void;
+  onSwitchWorkspace?: () => void;
 }
 
 interface SyncState {
@@ -54,7 +55,7 @@ function fileIcon(name: string): React.ReactNode {
   return '·';
 }
 
-export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: WorkspaceHomeProps) {
+export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [], onSwitchWorkspace }: WorkspaceHomeProps) {
   const { t } = useTranslation();
   const [sync, setSync] = useState<SyncState>({ loading: true, changedCount: 0, error: false });
 
@@ -84,6 +85,11 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [] }: W
         <div className="wh-greeting">{greeting}</div>
         <h1 className="wh-project-name">{workspace.name}</h1>
         <div className="wh-path">{workspace.path}</div>
+        {onSwitchWorkspace && (
+          <button className="wh-switch-btn" onClick={onSwitchWorkspace}>
+            ⊘ {t('wh.switchWorkspace')}
+          </button>
+        )}
 
         {/* Local-only warning — shown when workspace has no git remote */}
         {!workspace.hasGit && (

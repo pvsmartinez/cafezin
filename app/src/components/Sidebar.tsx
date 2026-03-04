@@ -328,8 +328,6 @@ interface SidebarProps {
   onReviewAllMarks: () => void;
   onAIPrev: () => void;
   onAINext: () => void;
-  /** Called when user clicks Switch Workspace — parent handles confirmation + navigation */
-  onSwitchWorkspace: () => void;
   onImageSearch: () => void;
   /** Called after a file is deleted — parent should clear it from active state */
   onFileDeleted: (relPath: string) => void;
@@ -366,7 +364,6 @@ export default function Sidebar({
   onReviewAllMarks,
   onAIPrev,
   onAINext,
-  onSwitchWorkspace,
   onImageSearch,
   onFileDeleted,
   onSearchFileOpen,
@@ -730,11 +727,6 @@ export default function Sidebar({
     setTimeout(() => setSyncStatus('idle'), 2500);
   }
 
-
-  function handleOpenWorkspace() {
-    onSwitchWorkspace();
-  }
-
   return (
     <>
     <aside className="sidebar" style={style}>
@@ -1052,9 +1044,6 @@ export default function Sidebar({
         )}
         <button className="sidebar-btn sidebar-btn-images" onClick={onImageSearch}>
           ⊡ Images
-        </button>
-        <button className="sidebar-btn sidebar-btn-folder" onClick={handleOpenWorkspace}>
-          ⊘ Switch workspace
         </button>
       </div>
     </aside>
