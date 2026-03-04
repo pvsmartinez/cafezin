@@ -12,6 +12,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
+
+/** True when running inside a Tauri WebView (not a plain browser). */
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 import {
   signIn, signUp, signOut, getSession,
   signInWithGoogle, signInWithApple,
@@ -92,6 +95,7 @@ export function useAuthSession(options?: UseAuthSessionOptions): AuthSessionStat
   // Registered once on mount; both App.tsx and MobileApp.tsx previously
   // duplicated this listener — the hook centralises it.
   useEffect(() => {
+    if (!isTauri) return; // no-op in plain browser / tests
     const unlistenPromise = listen<string>('auth-callback', async (event) => {
       try {
         const user = await handleAuthCallbackUrl(event.payload);
@@ -115,6 +119,7 @@ export function useAuthSession(options?: UseAuthSessionOptions): AuthSessionStat
     return () => { unlistenPromise.then((u) => u()); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // register once on mount — refs track latest values without re-registering
+
 
   // ── Synced workspace list ─────────────────────────────────────────────────
   const loadSyncedList = useCallback(async () => {

@@ -81,6 +81,9 @@ setupI18n(loadAppSettings().locale);
 
 const FORCE_UPDATE_URL = 'https://raw.githubusercontent.com/pvsmartinez/cafezin/main/update/latest.json';
 
+/** True when running inside a Tauri WebView (not a plain browser). */
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
 /** Returns negative if a < b, 0 if equal, positive if a > b */
 function compareVersions(a: string, b: string): number {
   const pa = a.split('.').map(Number);
@@ -405,6 +408,7 @@ export default function App() {
 
   // Listen for the native menu "Update Cafezin…" event
   useEffect(() => {
+    if (!isTauri) return;
     const unlisten = listen('menu-update-app', () => handleUpdate());
     return () => { unlisten.then((fn) => fn()).catch(() => {}); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -412,6 +416,7 @@ export default function App() {
 
   // Listen for the native menu "Settings…" event (⌘,)
   useEffect(() => {
+    if (!isTauri) return;
     const unlisten = listen('menu-settings', () => openSettings());
     return () => { unlisten.then((fn) => fn()).catch(() => {}); };
   // openSettings is stable (useCallback in useModals) — safe to omit from deps.
@@ -420,6 +425,7 @@ export default function App() {
 
   // Listen for native File / View menu events
   useEffect(() => {
+    if (!isTauri) return;
     const uns = [
       listen('menu-new-file',       () => { setSidebarOpen(true); setTimeout(() => newFileRef.current?.(), 80); }),
       listen('menu-export-pdf',     () => { if (fileTypeInfo?.kind === 'markdown') handleExportPDF(); }),
@@ -477,6 +483,7 @@ export default function App() {
 
   // ── Drag-and-drop from Finder ─────────────────────────────────
   useEffect(() => {
+    if (!isTauri) return;
     let unlisten: (() => void) | undefined;
     getCurrentWindow().onDragDropEvent((event) => {
       const type = event.payload.type;
