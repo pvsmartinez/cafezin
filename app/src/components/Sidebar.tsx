@@ -328,7 +328,6 @@ interface SidebarProps {
   onReviewAllMarks: () => void;
   onAIPrev: () => void;
   onAINext: () => void;
-  onImageSearch: () => void;
   /** Called after a file is deleted — parent should clear it from active state */
   onFileDeleted: (relPath: string) => void;
   /** Called when a search result line is clicked */
@@ -364,7 +363,6 @@ export default function Sidebar({
   onReviewAllMarks,
   onAIPrev,
   onAINext,
-  onImageSearch,
   onFileDeleted,
   onSearchFileOpen,
   lockedFiles,
@@ -1042,9 +1040,6 @@ export default function Sidebar({
             ⇗ Publicar Demos
           </button>
         )}
-        <button className="sidebar-btn sidebar-btn-images" onClick={onImageSearch}>
-          ⊡ Images
-        </button>
       </div>
     </aside>
 

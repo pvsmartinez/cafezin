@@ -1123,14 +1123,22 @@ pub fn run() {
 
                 // File menu
                 let switch_workspace_item = MenuItem::with_id(app, "switch_workspace", "Switch Workspace\u{2026}", true, Some("cmd+shift+w"))?;
-                let switch_sep           = PredefinedMenuItem::separator(app)?;
-                let new_file_item        = MenuItem::with_id(app, "new_file",     "New File",                      true, Some("cmd+n"))?;
-                let export_pdf_item      = MenuItem::with_id(app, "export_pdf",   "Export to PDF\u{2026}",           true, None::<&str>)?;
-                let export_sep           = PredefinedMenuItem::separator(app)?;
-                let export_modal_item    = MenuItem::with_id(app, "export_modal", "Export / Build Settings\u{2026}", true, None::<&str>)?;
+                let switch_sep            = PredefinedMenuItem::separator(app)?;
+                let new_file_item         = MenuItem::with_id(app, "new_file", "New File", true, Some("cmd+n"))?;
                 let file_menu = Submenu::with_items(
                     app, "File", true,
-                    &[&switch_workspace_item, &switch_sep, &new_file_item, &export_sep, &export_pdf_item, &export_modal_item],
+                    &[&switch_workspace_item, &switch_sep, &new_file_item],
+                )?;
+
+                // Tools menu
+                let image_search_item  = MenuItem::with_id(app, "image_search",  "Image Search\u{2026}",            true, Some("cmd+i"))?;
+                let tools_sep1         = PredefinedMenuItem::separator(app)?;
+                let export_pdf_item    = MenuItem::with_id(app, "export_pdf",    "Export to PDF\u{2026}",           true, None::<&str>)?;
+                let export_sep         = PredefinedMenuItem::separator(app)?;
+                let export_modal_item  = MenuItem::with_id(app, "export_modal",  "Export / Build Settings\u{2026}", true, None::<&str>)?;
+                let tools_menu = Submenu::with_items(
+                    app, "Tools", true,
+                    &[&image_search_item, &tools_sep1, &export_pdf_item, &export_sep, &export_modal_item],
                 )?;
 
                 // View menu
@@ -1146,7 +1154,7 @@ pub fn run() {
                     &[&toggle_sidebar_item, &toggle_copilot_item, &view_sep1, &view_edit_item, &view_preview_item, &view_sep2_item, &format_item],
                 )?;
 
-                let menu = Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu])?;
+                let menu = Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu, &tools_menu])?;
                 app.set_menu(menu)?;
 
                 // Emit to the webview so the frontend can respond
@@ -1157,6 +1165,7 @@ pub fn run() {
                         "settings"           => { let _ = handle.emit("menu-settings", ()); }
                         "switch_workspace"   => { let _ = handle.emit("menu-switch-workspace", ()); }
                         "new_file"           => { let _ = handle.emit("menu-new-file", ()); }
+                        "image_search"       => { let _ = handle.emit("menu-image-search", ()); }
                         "export_pdf"         => { let _ = handle.emit("menu-export-pdf", ()); }
                         "export_modal"       => { let _ = handle.emit("menu-export-modal", ()); }
                         "toggle_sidebar"     => { let _ = handle.emit("menu-toggle-sidebar", ()); }

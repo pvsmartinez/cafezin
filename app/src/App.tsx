@@ -432,6 +432,7 @@ export default function App() {
       listen('menu-export-modal',   () => setExportModalOpen(true)),
       listen('menu-switch-workspace', () => handleSwitchWorkspace()),
       listen('menu-toggle-sidebar', () => setSidebarOpen((v) => !v)),
+      listen('menu-image-search',   () => setImgSearchOpen(true)),
       listen('menu-toggle-copilot', () => setAiOpen((v) => !v)),
       listen('menu-view-edit',      () => { setViewMode('edit');    if (activeTabId) tabViewModeRef.current.set(activeTabId, 'edit'); }),
       listen('menu-view-preview',   () => { setViewMode('preview'); if (activeTabId) tabViewModeRef.current.set(activeTabId, 'preview'); }),
@@ -1357,7 +1358,6 @@ export default function App() {
               onWorkspaceChange={handleWorkspaceChange}
               onUpdate={handleUpdate}
               onSyncComplete={handleSyncComplete}
-              onImageSearch={() => setImgSearchOpen(true)}
               sidebarMode={sidebarMode}
               onSidebarModeChange={setSidebarMode}
               onReviewAllMarks={handleReviewAllMarks}
