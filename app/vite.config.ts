@@ -40,22 +40,29 @@ export default defineConfig(async () => ({
       output: {
         manualChunks(id) {
           // tldraw — largest single dep (~1.5 MB unminified)
+          // NOTE: React is intentionally NOT given its own chunk — it must be
+          // bundled into the main entry so it's always available before any
+          // vendor chunk that calls React.createContext / React.forwardRef.
           if (id.includes('node_modules/tldraw') ||
               id.includes('node_modules/@tldraw')) {
             return 'vendor-tldraw';
           }
-          // CodeMirror editor stack
-          if (id.includes('node_modules/@codemirror') ||
-              id.includes('node_modules/@uiw/react-codemirror') ||
-              id.includes('node_modules/@lezer')) {
+          // CodeMirror editor stack — @uiw/react-codemirror must NOT be here
+          // because it depends on React; mixing it into vendor-codemirror causes
+          // the chunk to execute before vendor-react, leaving React undefined.
+          if ((id.includes('node_modules/@codemirror') ||
+               id.includes('node_modules/@lezer')) &&
+              !id.includes('node_modules/@uiw')) {
             return 'vendor-codemirror';
           }
-          // React core
-          if (id.includes('node_modules/react') ||
-              id.includes('node_modules/react-dom') ||
-              id.includes('node_modules/scheduler')) {
-            return 'vendor-react';
+          // React-CodeMirror wrapper (depends on both vendor-react + vendor-codemirror)
+          if (id.includes('node_modules/@uiw')) {
+            return 'vendor-codemirror-react';
           }
+          // React core — NOT split into its own chunk.
+          // Keeping React in the main entry bundle guarantees it executes
+          // before any vendor chunk that calls React.createContext / forwardRef.
+          // (Splitting it into vendor-react caused load-order crashes in WebKit.)
           // Tauri plugins
           if (id.includes('node_modules/@tauri-apps')) {
             return 'vendor-tauri';

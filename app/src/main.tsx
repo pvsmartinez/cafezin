@@ -1,5 +1,30 @@
-import React from "react";
+import React, { Component, type ErrorInfo, type ReactNode } from "react";
 import ReactDOM from "react-dom/client";
+
+// ── DEBUG: remove before release ─────────────────────────────────────────────
+class DebugErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('🔴 RENDER ERROR', error, info);
+    const existing = document.getElementById('__debug_overlay');
+    const d = existing ?? document.createElement('div');
+    if (!existing) {
+      d.id = '__debug_overlay';
+      d.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#1a0000;color:#ff6b6b;font-family:monospace;font-size:13px;padding:24px;overflow:auto;z-index:99999;white-space:pre-wrap;word-break:break-all';
+    }
+    d.textContent = '🔴 RENDER ERROR\n\n' + error.message + '\n\n' + (error.stack ?? '') + '\n\nComponent Stack:\n' + info.componentStack;
+    if (!existing) document.body.appendChild(d);
+  }
+  render() {
+    if (this.state.error) return null;
+    return this.props.children;
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 /* ── Bundled fonts (no network required in Tauri) ── */
 import '@fontsource-variable/nunito';          /* UI: 300–900, wght axis */
 import '@fontsource/vollkorn/400.css';         /* Serif: regular */
