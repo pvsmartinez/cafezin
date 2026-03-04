@@ -316,6 +316,26 @@ All three open the same **inline creator panel** in the sidebar footer:
 
 ---
 
+## Supabase — RLS Policy Authoring Rules
+
+**Sempre** envolva chamadas a `auth.uid()`, `auth.email()`, `auth.jwt()` e `current_setting()` em `(select ...)` dentro de cláusulas `USING` / `WITH CHECK` de policies RLS.
+
+```sql
+-- ✅ CORRETO
+CREATE POLICY "example" ON my_table
+  FOR ALL
+  USING ((select auth.uid()) = user_id);
+
+-- ❌ ERRADO — reavaliado por linha, gera lint warning "Auth RLS Initialization Plan"
+CREATE POLICY "example" ON my_table
+  FOR ALL
+  USING (auth.uid() = user_id);
+```
+
+Corrigido em março/2026 via `supabase/migrations/0003_fix_rls_auth_init_plan.sql`.
+
+---
+
 ## Dev Commands
 
 ```bash
