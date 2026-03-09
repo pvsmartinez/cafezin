@@ -2,11 +2,11 @@ import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } fro
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
-import { copyFile, writeFile as writeBinaryFile, mkdir, exists } from './services/fs';
+import { copyFile, writeFile as writeBinaryFile, mkdir, exists, readDir } from './services/fs';
 import Editor from './components/Editor';
 import type { EditorHandle } from './components/Editor';
 import AIPanel from './components/AIPanel';
-import type { AIPanelHandle } from './components/AIPanel';
+import type { AIPanelHandle, PendingVoiceMemo } from './components/AIPanel';
 import { CanvasErrorBoundary } from './components/CanvasErrorBoundary';
 import { EditorErrorBoundary } from './components/EditorErrorBoundary';
 import WorkspacePicker from './components/WorkspacePicker';
@@ -236,6 +236,9 @@ export default function App() {
   const [forceUpdateRequired, setForceUpdateRequired] = useState('');
   const [forceUpdateChannel, setForceUpdateChannel] = useState('release');
   const [showMobilePending, setShowMobilePending] = useState(false);
+
+  // Voice memos recorded on mobile without transcripts
+  const [pendingVoiceMemos, setPendingVoiceMemos] = useState<PendingVoiceMemo[]>([]);
   const [mobilePendingTasks, setMobilePendingTasks] = useState<MobilePendingTask[]>([]);
   // ── Canvas refs + transient state ───────────────────────────────────────
   const {
@@ -939,10 +942,55 @@ export default function App() {
     localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(settings));
   }
 
+  // ── Scan workspace for voice memos without transcripts (desktop only) ──────
+  async function scanVoiceMemos(wsPath: string) {
+    function parseStemDate(stem: string): Date {
+      const body = stem.replace(/^memo_/, '');
+      const iso  = body.replace(/_([0-9]{2})-([0-9]{2})-([0-9]{2})$/, 'T$1:$2:$3');
+      const d = new Date(iso);
+      return isNaN(d.getTime()) ? new Date(0) : d;
+    }
+    const dir = `${wsPath}/.cafezin/voice-memos`;
+    const entries = await readDir(dir).catch(() => []);
+    const stems = new Map<string, { audioExt?: string; hasTxt: boolean }>();
+    for (const e of entries) {
+      if (!e.name) continue;
+      const dot  = e.name.lastIndexOf('.');
+      if (dot < 0) continue;
+      const stem = e.name.slice(0, dot);
+      const ext  = e.name.slice(dot + 1).toLowerCase();
+      if (!stems.has(stem)) stems.set(stem, { hasTxt: false });
+      const rec = stems.get(stem)!;
+      if (['webm','ogg','m4a','mp4'].includes(ext)) rec.audioExt = ext;
+      if (ext === 'txt') rec.hasTxt = true;
+    }
+    const result: PendingVoiceMemo[] = [];
+    for (const [stem, info] of stems) {
+      if (!info.audioExt || info.hasTxt) continue;
+      result.push({
+        stem,
+        audioExt:       info.audioExt,
+        audioPath:      `${dir}/${stem}.${info.audioExt}`,
+        transcriptPath: `${dir}/${stem}.txt`,
+        timestamp:      parseStemDate(stem),
+      });
+    }
+    result.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    setPendingVoiceMemos(result);
+  }
+
+  // Scan when workspace first loads
+  useEffect(() => {
+    if (workspace?.path) void scanVoiceMemos(workspace.path);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace?.path]);
+
   // ── Clear dirty state after a successful sync ─────────────────
   const handleSyncComplete = useCallback(() => {
     setDirtyFiles(new Set());
-  }, []);
+    if (workspace) void scanVoiceMemos(workspace.path);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace]);
 
   // ── Retry a failed save — invoked by the ⚠ banner in the header ─────────────
   function handleRetrySave() {
@@ -1578,6 +1626,10 @@ export default function App() {
           onExportConfigChange={handleExportConfigChange}
           workspaceConfig={workspace.config}
           onWorkspaceConfigChange={handleWorkspaceConfigChange}
+          pendingVoiceMemos={pendingVoiceMemos}
+          onVoiceMemoHandled={(stem) =>
+            setPendingVoiceMemos((prev) => prev.filter((m) => m.stem !== stem))
+          }
         />
 
         {/* Drag-and-drop overlay — shown while dragging files from Finder */}

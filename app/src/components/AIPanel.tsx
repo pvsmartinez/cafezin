@@ -3,7 +3,8 @@
  * The per-session logic lives in AgentSession.tsx.
  */
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Snowflake } from '@phosphor-icons/react';
+import { Snowflake, Microphone, CaretDown, CaretUp } from '@phosphor-icons/react';
+import { invoke } from '@tauri-apps/api/core';
 
 import {
   fetchCopilotModels,
@@ -12,6 +13,8 @@ import {
   clearOAuthToken,
 } from '../services/copilot';
 import type { DeviceFlowState } from '../services/copilot';
+import { readFile, writeFile } from '../services/fs';
+import { getGroqKey } from '../hooks/useVoiceInput';
 import { FALLBACK_MODELS } from '../types';
 import type { CopilotModelInfo } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
@@ -24,7 +27,17 @@ import type { AgentSessionHandle } from './AgentSession';
 import './AIPanel.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
+/**
+ * A voice memo recorded on mobile that doesn't yet have a transcript (.txt).
+ * `audioPath` and `transcriptPath` are absolute filesystem paths.
+ */
+export interface PendingVoiceMemo {
+  stem: string;
+  audioExt: string;
+  audioPath: string;
+  transcriptPath: string;
+  timestamp: Date;
+}
 interface AIPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -51,6 +64,10 @@ interface AIPanelProps {
   getActiveHtml?: () => { html: string; absPath: string } | null;
   workspaceConfig?: WorkspaceConfig;
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
+  /** Voice memos from mobile that have audio but no transcript yet */
+  pendingVoiceMemos?: PendingVoiceMemo[];
+  /** Called after a memo is transcribed — parent should remove it from the list */
+  onVoiceMemoHandled?: (stem: string) => void;
 }
 
 export interface AIPanelHandle {
@@ -93,6 +110,8 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   screenshotTargetRef,
   webPreviewRef,
   getActiveHtml,
+  pendingVoiceMemos,
+  onVoiceMemoHandled,
 }, ref) {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -145,6 +164,46 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   // ── Tabs ──────────────────────────────────────────────────────────────────
   const [tabs, setTabs] = useState<AgentTab[]>([{ id: 'agent-1', label: 'Agente 1', status: 'idle' }]);
   const [activeTabId, setActiveTabId] = useState('agent-1');
+
+  // ── Voice memo panel ─────────────────────────────────────────────────────
+  const [voicePanelOpen, setVoicePanelOpen] = useState(false);
+  const [processingMemo, setProcessingMemo] = useState<string | null>(null);
+  const [memoError,      setMemoError]      = useState<string | null>(null);
+
+  async function handleTranscribeAndSend(memo: PendingVoiceMemo) {
+    const groqKey = getGroqKey();
+    if (!groqKey) { setMemoError('Chave Groq não configurada.'); return; }
+    setProcessingMemo(memo.stem);
+    setMemoError(null);
+    try {
+      const bytes = await readFile(memo.audioPath);
+      const mimeMap: Record<string, string> = {
+        webm: 'audio/webm', ogg: 'audio/ogg', m4a: 'audio/mp4', mp4: 'audio/mp4',
+      };
+      const mimeType = mimeMap[memo.audioExt] ?? 'audio/webm';
+      const CHUNK = 8192;
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+      }
+      const b64 = btoa(binary);
+      const transcript = await invoke<string>('transcribe_audio', {
+        audioBase64: b64,
+        mimeType,
+        apiKey: groqKey,
+      });
+      // Save transcript to disk so it shows up on the mobile side too
+      await writeFile(memo.transcriptPath, new TextEncoder().encode(transcript));
+      // Inject text into the active agent session input
+      agentRefs.current.get(activeTabId)?.injectText(transcript);
+      onVoiceMemoHandled?.(memo.stem);
+      if (pendingVoiceMemos && pendingVoiceMemos.length <= 1) setVoicePanelOpen(false);
+    } catch (err) {
+      setMemoError(`Erro: ${err}`);
+    } finally {
+      setProcessingMemo(null);
+    }
+  }
 
   function addTab() {
     const n = tabs.length + 1;
@@ -222,6 +281,43 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           +
         </button>
       </div>
+
+      {/* Voice memo banner — shown when mobile memos arrive without transcripts */}
+      {pendingVoiceMemos && pendingVoiceMemos.length > 0 && (
+        <div className="ai-voice-banner">
+          <button
+            className="ai-voice-banner-btn"
+            onClick={() => setVoicePanelOpen((v) => !v)}
+          >
+            <Microphone size={12} weight="fill" />
+            <span>
+              {pendingVoiceMemos.length} memo{pendingVoiceMemos.length > 1 ? 's' : ''} de voz pendente{pendingVoiceMemos.length > 1 ? 's' : ''}
+            </span>
+            {voicePanelOpen ? <CaretUp size={10} /> : <CaretDown size={10} />}
+          </button>
+          {voicePanelOpen && (
+            <div className="ai-voice-panel">
+              {memoError && <p className="ai-voice-error">{memoError}</p>}
+              {pendingVoiceMemos.map((memo) => {
+                const dateStr = memo.timestamp.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                const timeStr = memo.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return (
+                  <div key={memo.stem} className="ai-voice-row">
+                    <span className="ai-voice-date">{dateStr} · {timeStr}</span>
+                    <button
+                      className="ai-voice-transcribe-btn"
+                      onClick={() => handleTranscribeAndSend(memo)}
+                      disabled={!!processingMemo}
+                    >
+                      {processingMemo === memo.stem ? 'Transcrevendo…' : 'Transcrever & Enviar'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* One AgentSession per tab — all mounted, only active visible */}
       {tabs.map((tab) => (

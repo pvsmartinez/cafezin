@@ -1718,6 +1718,71 @@
   background: var(--border2);
 }
 
+/* ── Voice memo banner ──────────────────────────────────────────────────────── */
+.ai-voice-banner {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border2);
+  background: rgba(var(--accent-rgb), 0.06);
+}
+
+.ai-voice-banner-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: var(--font-size-sm);
+  padding: 6px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ai-voice-banner-btn:hover { background: rgba(var(--accent-rgb), 0.06); }
+
+.ai-voice-panel {
+  padding: 4px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-voice-error { font-size: var(--font-size-sm); color: var(--red); margin: 0 0 4px; }
+
+.ai-voice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border2);
+}
+.ai-voice-row:last-child { border-bottom: none; }
+
+.ai-voice-date {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-voice-transcribe-btn {
+  background: none;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  color: var(--accent);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.ai-voice-transcribe-btn:hover:not(:disabled) { background: rgba(var(--accent-rgb), 0.1); }
+.ai-voice-transcribe-btn:disabled { opacity: 0.5; cursor: default; }
+
 /* ── Agent tab status dot ─────────────────────────────────────────────────── */
 .ai-tab-dot {
   display: inline-block;

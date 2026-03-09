@@ -78,6 +78,8 @@ export interface AgentSessionProps {
 
 export interface AgentSessionHandle {
   receiveFinderFiles(paths: string[]): void;
+  /** Puts text into the agent input box and focuses it */
+  injectText(text: string): void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -269,6 +271,10 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
   // ── Finder drop ───────────────────────────────────────────────────────────
   useImperativeHandle(ref, () => ({
+    injectText(text: string) {
+      setInput(text);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    },
     receiveFinderFiles(paths: string[]) {
       const first = paths[0];
       if (!first) return;

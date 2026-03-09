@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { CaretUp, CaretDown, Key, GearSix, Microphone, Stop, Trash } from '@phosphor-icons/react';
+import { CaretUp, CaretDown, Key, GearSix, Microphone, Stop, Trash, ArrowClockwise } from '@phosphor-icons/react';
 import { saveApiSecret } from '../../services/apiSecrets';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -47,12 +47,22 @@ function formatDuration(s: number): string {
 }
 
 // ── VoiceMemoItem ─────────────────────────────────────────────────────────────
-function VoiceMemoItem({ memo, onDelete }: { memo: MemoRecord; onDelete: () => void }) {
-  const [expanded,    setExpanded]    = useState(false);
-  const [transcript,  setTranscript]  = useState<string | null>(null);
-  const [audioSrc,    setAudioSrc]    = useState<string | null>(null);
-  const [loadingBody, setLoadingBody] = useState(false);
-  const [deleting,    setDeleting]    = useState(false);
+interface VoiceMemoItemProps {
+  memo: MemoRecord;
+  groqKey: string;
+  onDelete: () => void;
+  onTranscribed: () => void;
+}
+
+function VoiceMemoItem({ memo, groqKey, onDelete, onTranscribed }: VoiceMemoItemProps) {
+  const [expanded,       setExpanded]       = useState(false);
+  const [transcript,     setTranscript]     = useState<string | null>(null);
+  const [audioSrc,       setAudioSrc]       = useState<string | null>(null);
+  const [loadingBody,    setLoadingBody]    = useState(false);
+  const [deleting,       setDeleting]       = useState(false);
+  const [retrying,       setRetrying]       = useState(false);
+  const [retryError,     setRetryError]     = useState<string | null>(null);
+  const [hasTranscript,  setHasTranscript]  = useState(memo.hasTranscript);
   const blobUrlRef = useRef<string | null>(null);
 
   // Revoke blob URL on unmount to avoid memory leaks
@@ -60,12 +70,44 @@ function VoiceMemoItem({ memo, onDelete }: { memo: MemoRecord; onDelete: () => v
     if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
   }, []);
 
+  async function retryTranscription() {
+    if (!groqKey || retrying) return;
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      const bytes = await readFile(memo.audioPath);
+      const mimeMap: Record<string, string> = {
+        webm: 'audio/webm', ogg: 'audio/ogg', m4a: 'audio/mp4', mp4: 'audio/mp4',
+      };
+      const mimeType = mimeMap[memo.audioExt] ?? 'audio/webm';
+      const CHUNK = 8192;
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+      }
+      const b64 = btoa(binary);
+      const transcriptText = await invoke<string>('transcribe_audio', {
+        audioBase64: b64,
+        mimeType,
+        apiKey: groqKey,
+      });
+      await writeFile(memo.transcriptPath, new TextEncoder().encode(transcriptText));
+      setTranscript(transcriptText);
+      setHasTranscript(true);
+      onTranscribed();
+    } catch (err) {
+      setRetryError(`Falhou: ${err}`);
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   async function toggleExpand() {
     if (!expanded) {
       setLoadingBody(true);
       try {
         // Load transcript
-        if (memo.hasTranscript && transcript === null) {
+        if (hasTranscript && transcript === null) {
           try { setTranscript(await readTextFile(memo.transcriptPath)); }
           catch { setTranscript('(transcript unavailable)'); }
         }
@@ -101,6 +143,11 @@ function VoiceMemoItem({ memo, onDelete }: { memo: MemoRecord; onDelete: () => v
           {memo.transcriptPreview && !expanded && (
             <span className="mb-memo-preview">{memo.transcriptPreview}</span>
           )}
+          {!memo.transcriptPreview && !expanded && (
+            <span className="mb-memo-preview" style={{ fontStyle: 'italic', opacity: 0.5 }}>
+              sem transcrição — toque para transcrever
+            </span>
+          )}
         </div>
         <span className="mb-memo-chevron">{expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}</span>
       </button>
@@ -119,6 +166,22 @@ function VoiceMemoItem({ memo, onDelete }: { memo: MemoRecord; onDelete: () => v
               )}
               {transcript !== null && (
                 <p className="mb-memo-transcript">{transcript}</p>
+              )}
+              {!hasTranscript && transcript === null && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <button
+                    className="mb-btn mb-btn-primary"
+                    onClick={retryTranscription}
+                    disabled={retrying || !groqKey}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}
+                  >
+                    <ArrowClockwise size={14} weight={retrying ? 'thin' : 'bold'}
+                      style={retrying ? { animation: 'mb-spin 0.8s linear infinite' } : undefined}
+                    />
+                    {retrying ? 'Transcrevendo…' : 'Transcrever agora'}
+                  </button>
+                  {retryError && <span className="mb-voice-error">{retryError}</span>}
+                </div>
               )}
             </>
           )}
@@ -264,6 +327,10 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
       const arrayBuf = await blob.arrayBuffer();
       const uint8    = new Uint8Array(arrayBuf);
 
+      // Ensure directory exists and save audio FIRST — always, even if transcription fails
+      await mkdir(memoDir, { recursive: true }).catch(() => {});
+      await writeFile(`${memoDir}/${stem}.${ext}`, uint8);
+
       // Base64 encode for Tauri command — chunked to prevent call-stack overflow
       const CHUNK = 8192;
       let binary = '';
@@ -272,25 +339,22 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
       }
       const b64 = btoa(binary);
 
-      // Transcribe via Groq Whisper
-      const transcript = await invoke<string>('transcribe_audio', {
-        audioBase64: b64,
-        mimeType,
-        apiKey: groqKey,
-      });
-
-      // Ensure directory exists
-      await mkdir(memoDir, { recursive: true }).catch(() => {});
-
-      // Save audio bytes
-      await writeFile(`${memoDir}/${stem}.${ext}`, uint8);
-
-      // Save transcript
-      await writeFile(`${memoDir}/${stem}.txt`, new TextEncoder().encode(transcript));
+      // Transcribe via Groq Whisper — optional, may fail offline
+      try {
+        const transcript = await invoke<string>('transcribe_audio', {
+          audioBase64: b64,
+          mimeType,
+          apiKey: groqKey,
+        });
+        await writeFile(`${memoDir}/${stem}.txt`, new TextEncoder().encode(transcript));
+      } catch {
+        // No internet or API error — audio is saved, transcript can be done later
+        setError('Áudio salvo. Transcrição falhou (sem conexão?) — use o botão \"Transcrever agora\" quando tiver internet.');
+      }
 
       await loadMemos();
     } catch (err) {
-      setError(`Recording failed: ${err}`);
+      setError(`Erro ao salvar gravação: ${err}`);
     } finally {
       setTranscribing(false);
     }
@@ -402,7 +466,9 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
             <VoiceMemoItem
               key={memo.stem}
               memo={memo}
+              groqKey={groqKey}
               onDelete={() => deleteMemo(memo)}
+              onTranscribed={loadMemos}
             />
           ))}
         </div>
