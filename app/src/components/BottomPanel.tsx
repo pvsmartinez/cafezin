@@ -10,6 +10,9 @@ export interface FileMeta {
   lines: number;
   slides: number;
   fileStat: string | null;
+  /** TypeScript/JS error count from tsc (undefined = not a TS/JS file) */
+  tsErrors?: number;
+  tsWarnings?: number;
 }
 
 interface Props {
@@ -201,12 +204,25 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
       else if (kind === 'code' && lines > 0) text = `${lines.toLocaleString()} lines`;
       return text;
     })();
-    if (!metrics) return null;
+    const hasTsDiags = fileMeta && fileMeta.tsErrors !== undefined;
+    if (!metrics && !hasTsDiags) return null;
     return (
       <div className="bottom-panel" style={{ height: 36 }}>
         <div className="bottom-panel-tabrow" style={{ cursor: 'default' }}>
           <div className="bottom-panel-metrics" style={{ marginLeft: 'var(--space-3)' }}>
-            <span className="bottom-panel-metric">{metrics}</span>
+            {metrics && <span className="bottom-panel-metric">{metrics}</span>}
+            {hasTsDiags && (
+              <span className={`bottom-panel-metric bottom-panel-ts-diag${
+                (fileMeta!.tsErrors ?? 0) > 0 ? ' ts-has-errors' : ''
+              }`}>
+                {(fileMeta!.tsErrors ?? 0) > 0
+                  ? `✕ ${fileMeta!.tsErrors} error${fileMeta!.tsErrors !== 1 ? 's' : ''}`
+                  : `✓ no errors`}
+                {(fileMeta!.tsWarnings ?? 0) > 0 && (
+                  <span className="ts-warnings"> ▲ {fileMeta!.tsWarnings}</span>
+                )}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -257,6 +273,18 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
           return (
             <div className="bottom-panel-metrics" onClick={(e) => e.stopPropagation()}>
               <span className="bottom-panel-metric">{text}</span>
+              {fileMeta.tsErrors !== undefined && (
+                <span className={`bottom-panel-metric bottom-panel-ts-diag${
+                  (fileMeta.tsErrors ?? 0) > 0 ? ' ts-has-errors' : ''
+                }`}>
+                  {(fileMeta.tsErrors ?? 0) > 0
+                    ? `✕ ${fileMeta.tsErrors} error${fileMeta.tsErrors !== 1 ? 's' : ''}`
+                    : `✓ no errors`}
+                  {(fileMeta.tsWarnings ?? 0) > 0 && (
+                    <span className="ts-warnings"> ▲ {fileMeta.tsWarnings}</span>
+                  )}
+                </span>
+              )}
             </div>
           );
         })()}

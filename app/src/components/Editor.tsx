@@ -31,6 +31,8 @@ import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirro
 import { StateField, RangeSetBuilder, Compartment } from '@codemirror/state';
 import { Decoration, DecorationSet } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
+import { linter, setDiagnostics } from '@codemirror/lint';
+import type { Diagnostic } from '@codemirror/lint';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import './Editor.css';
 
@@ -85,6 +87,11 @@ interface EditorProps {
    * The callback receives the current content and should return the formatted string.
    */
   onFormat?: () => void;
+  /**
+   * CodeMirror diagnostics (errors/warnings) to display as inline squiggles.
+   * Typically produced by `useTsDiagnostics` for TypeScript/JavaScript files.
+   */
+  diagnostics?: Diagnostic[];
 }
 
 // ── AI-mark decoration helpers ────────────────────────────────────────────────
@@ -290,12 +297,13 @@ function applyMdToolbar(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 const Editor = forwardRef<EditorHandle, EditorProps>(
-  ({ content, onChange, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat }, ref) => {
+  ({ content, onChange, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics }, ref) => {
     const codeMode = !!language && language !== 'markdown';
     const viewRef = useRef<EditorView | null>(null);
     const compartmentRef = useRef(new Compartment());
     const fontCompartmentRef = useRef(new Compartment());
     const editableCompartmentRef = useRef(new Compartment());
+    const lintCompartmentRef = useRef(new Compartment());
 
     // Stable refs so the single update-listener always sees the latest values
     // without needing to be recreated on every render.
@@ -403,6 +411,12 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       });
     }, [isLocked]);
 
+    // Push TypeScript / JS diagnostics as inline squiggles
+    useEffect(() => {
+      if (!viewRef.current) return;
+      viewRef.current.dispatch(setDiagnostics(viewRef.current.state, diagnostics ?? []));
+    }, [diagnostics]);
+
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -475,6 +489,8 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       ...(codeMode ? [] : [EditorView.lineWrapping]),
       compartmentRef.current.of(makeAIMarkField((aiMarks ?? []).map((m) => m.text))),
       aiMarkEditListener,
+      // Lint state field — active in code mode; provides squiggles for TS/JS errors
+      lintCompartmentRef.current.of(codeMode ? linter(() => []) : []),
     ];
 
     return (

@@ -65,6 +65,7 @@ import { useBacklinks } from './hooks/useBacklinks';
 import { useModals } from './hooks/useModals';
 import { useCanvasState } from './hooks/useCanvasState';
 import { useAIMarks, makeCanvasMark } from './hooks/useAIMarks';
+import { useTsDiagnostics } from './hooks/useTsDiagnostics';
 import BacklinksPanel from './components/BacklinksPanel';
 import './App.css';
 
@@ -379,13 +380,23 @@ export default function App() {
     workspace,
     fileTypeInfo?.kind === 'markdown',
   );
+  // TypeScript/JS diagnostics — run tsc on the active file when it's a code file
+  const tsEnabled = fileTypeInfo?.language === 'typescript' || fileTypeInfo?.language === 'javascript';
+  const tsDiags = useTsDiagnostics(
+    content,
+    activeFile ?? null,
+    workspace?.path ?? null,
+    tsEnabled,
+  );
   const fileMeta = useMemo<FileMeta>(() => ({
     kind: fileTypeInfo?.kind ?? null,
     wordCount,
     lines: content.split('\n').length,
     slides: canvasSlideCount,
     fileStat,
-  }), [fileTypeInfo?.kind, wordCount, content, canvasSlideCount, fileStat]);
+    tsErrors: tsDiags.errorCount > 0 || tsDiags.warningCount > 0 || tsEnabled ? tsDiags.errorCount : undefined,
+    tsWarnings: tsEnabled ? tsDiags.warningCount : undefined,
+  }), [fileTypeInfo?.kind, wordCount, content, canvasSlideCount, fileStat, tsDiags, tsEnabled]);
 
   // ── In-app update ───────────────────────────────────────────
   // dev  → open UpdateModal (runs build script)
@@ -1562,6 +1573,7 @@ export default function App() {
             isDark={appSettings.theme === 'dark'}
             isLocked={activeFile ? lockedFiles.has(activeFile) : false}
             onFormat={fileTypeInfo?.kind === 'code' ? handleFormat : undefined}
+            diagnostics={tsDiags.diagnostics}
           />
         )}
         </EditorErrorBoundary>

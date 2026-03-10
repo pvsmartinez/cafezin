@@ -91,6 +91,18 @@
   white-space: nowrap;
 }
 
+/* TypeScript diagnostics badge */
+.bottom-panel-ts-diag {
+  opacity: 0.85;
+}
+.bottom-panel-ts-diag.ts-has-errors {
+  color: #f87171; /* red-400 */
+  opacity: 1;
+}
+.bottom-panel-ts-diag .ts-warnings {
+  color: #fbbf24; /* amber-400 */
+}
+
 /* Last-line preview shown when the panel is collapsed */
 .bottom-panel-preview {
   display: flex;
