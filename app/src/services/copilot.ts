@@ -713,7 +713,7 @@ export async function copilotComplete(
 /**
  * Inline ghost-text completion for the editor.
  * Returns the predicted continuation at the cursor position, or '' on any error.
- * Uses `gpt-4.1-mini` for speed; abortable via `signal`.
+ * Uses `gpt-5-mini` for speed (free tier, multiplier 0); abortable via `signal`.
  */
 export async function fetchGhostCompletion(
   prefix: string,
@@ -731,7 +731,7 @@ export async function fetchGhostCompletion(
   const userContent = `<file${langHint}>${prefixSnip}<CURSOR>${suffixSnip}</file>\nComplete from <CURSOR>. Output the completion text only, no markdown fences, no explanations.`;
 
   const body = JSON.stringify({
-    model: 'gpt-4.1-mini',
+    model: 'gpt-5-mini',
     messages: [
       {
         role: 'system',

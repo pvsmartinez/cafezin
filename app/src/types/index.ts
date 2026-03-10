@@ -339,20 +339,24 @@ export const DEFAULT_MODEL: CopilotModel = 'gpt-4.1';
  * IDs must match what GitHub Copilot's /models endpoint returns.
  * Keep in sync with: https://docs.github.com/en/copilot/reference/ai-models/supported-models
  * Rule: only keep the latest minor version per model family.
+ * Last updated: 2026-03-09
  */
 export const FALLBACK_MODELS: CopilotModelInfo[] = [
-  // Free / 0× tier
-  { id: 'gpt-4o-mini',          name: 'GPT-4o mini',          multiplier: 0,    isPremium: false, vendor: 'OpenAI',    supportsVision: true  },
-  { id: 'gpt-4.1-mini',         name: 'GPT-4.1 mini',         multiplier: 0,    isPremium: false, vendor: 'OpenAI',    supportsVision: true  },
-  { id: 'claude-haiku-4-5',     name: 'Claude Haiku 4.5',     multiplier: 0,    isPremium: false, vendor: 'Anthropic', supportsVision: true  },
+  // Free / 0× tier (multiplier 0)
+  { id: 'gpt-4o',               name: 'GPT-4o',               multiplier: 0,    isPremium: false, vendor: 'OpenAI',    supportsVision: true  },
+  { id: 'gpt-4.1',              name: 'GPT-4.1',              multiplier: 0,    isPremium: false, vendor: 'OpenAI',    supportsVision: true  },
+  { id: 'gpt-5-mini',           name: 'GPT-5 mini',           multiplier: 0,    isPremium: false, vendor: 'OpenAI',    supportsVision: true  },
+  // Low cost (0.25–0.33× tier)
+  { id: 'claude-haiku-4-5',     name: 'Claude Haiku 4.5',     multiplier: 0.33, isPremium: false, vendor: 'Anthropic', supportsVision: true  },
+  { id: 'gemini-3-flash',       name: 'Gemini 3 Flash',       multiplier: 0.33, isPremium: false, vendor: 'Google',    supportsVision: true  },
+  { id: 'gpt-5.1-codex-mini',   name: 'GPT-5.1-Codex-Mini',   multiplier: 0.33, isPremium: false, vendor: 'OpenAI',    supportsVision: false },
   // Standard / 1× tier
-  { id: 'gpt-4.1',              name: 'GPT-4.1',              multiplier: 1,    isPremium: false, vendor: 'OpenAI',    supportsVision: true  },
-  { id: 'gpt-4o',               name: 'GPT-4o',               multiplier: 1,    isPremium: false, vendor: 'OpenAI',    supportsVision: true  },
-  { id: 'claude-sonnet-4-5',    name: 'Claude Sonnet 4.5',    multiplier: 1,    isPremium: false, vendor: 'Anthropic', supportsVision: true  },
-  { id: 'gemini-2.5-pro',       name: 'Gemini 2.5 Pro',       multiplier: 1,    isPremium: false, vendor: 'Google',    supportsVision: true  },
-  { id: 'o3-mini',              name: 'o3-mini',              multiplier: 1,    isPremium: false, vendor: 'OpenAI',    supportsVision: false },
+  { id: 'gpt-5.1',              name: 'GPT-5.1',              multiplier: 1,    isPremium: false, vendor: 'OpenAI',    supportsVision: true  },
+  { id: 'claude-sonnet-4-6',    name: 'Claude Sonnet 4.6',    multiplier: 1,    isPremium: false, vendor: 'Anthropic', supportsVision: true  },
+  { id: 'gemini-3-pro',         name: 'Gemini 3 Pro',         multiplier: 1,    isPremium: false, vendor: 'Google',    supportsVision: true  },
+  { id: 'gpt-5.2-codex',        name: 'GPT-5.2-Codex',        multiplier: 1,    isPremium: false, vendor: 'OpenAI',    supportsVision: false },
   // Premium / >1× tier
-  { id: 'claude-opus-4-5',      name: 'Claude Opus 4.5',      multiplier: 3,    isPremium: true,  vendor: 'Anthropic', supportsVision: true  },
-  { id: 'o3',                   name: 'o3',                   multiplier: 2,    isPremium: true,  vendor: 'OpenAI',    supportsVision: false },
+  { id: 'claude-opus-4-6',      name: 'Claude Opus 4.6',      multiplier: 3,    isPremium: true,  vendor: 'Anthropic', supportsVision: true  },
+  { id: 'gpt-5.4',              name: 'GPT-5.4',              multiplier: 1,    isPremium: true,  vendor: 'OpenAI',    supportsVision: true  },
 ];
 
