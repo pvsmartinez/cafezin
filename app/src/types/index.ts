@@ -333,7 +333,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 
 export const APP_SETTINGS_KEY = 'cafezin-app-settings';
 
-export const DEFAULT_MODEL: CopilotModel = 'gpt-4.1';
+export const DEFAULT_MODEL: CopilotModel = 'gpt-5-mini';
 
 /** Static fallback shown before the API responds (or if it fails).
  * IDs must match what GitHub Copilot's /models endpoint returns.
