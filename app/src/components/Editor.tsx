@@ -33,6 +33,7 @@ import { Decoration, DecorationSet } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 import { linter, setDiagnostics } from '@codemirror/lint';
 import type { Diagnostic } from '@codemirror/lint';
+import { makeGhostTextExtension, type GhostCompleteFn } from '../utils/ghostText';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import './Editor.css';
 
@@ -92,6 +93,11 @@ interface EditorProps {
    * Typically produced by `useTsDiagnostics` for TypeScript/JavaScript files.
    */
   diagnostics?: Diagnostic[];
+  /**
+   * Async function that returns a ghost-text completion for the current cursor context.
+   * When provided, ghost text (Tab to accept, Escape to dismiss) is active in all modes.
+   */
+  onGhostComplete?: GhostCompleteFn;
 }
 
 // ── AI-mark decoration helpers ────────────────────────────────────────────────
@@ -297,7 +303,7 @@ function applyMdToolbar(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 const Editor = forwardRef<EditorHandle, EditorProps>(
-  ({ content, onChange, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics }, ref) => {
+  ({ content, onChange, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics, onGhostComplete }, ref) => {
     const codeMode = !!language && language !== 'markdown';
     const viewRef = useRef<EditorView | null>(null);
     const compartmentRef = useRef(new Compartment());
@@ -311,6 +317,16 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
     const onAIMarkEditedRef = useRef<((id: string) => void) | undefined>(undefined);
     aiMarksRef.current = aiMarks ?? [];
     onAIMarkEditedRef.current = onAIMarkEdited;
+
+    // Ghost text completion fn ref — stable getter to avoid recreating the extension
+    const ghostCompleteFnRef = useRef<GhostCompleteFn | null>(null);
+    ghostCompleteFnRef.current = onGhostComplete ?? null;
+    // Ghost text extension is created once per Editor mount (keyed on language)
+    const ghostTextExtension = useMemo(
+      () => makeGhostTextExtension(() => ghostCompleteFnRef.current, language ?? 'markdown'),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [], // intentionally stable — language is fixed per Editor mount (key=activeFile)
+    );
 
     // Created once – reads from refs so it stays live without cycling extensions.
     const aiMarkEditListener = useMemo(
@@ -491,6 +507,8 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       aiMarkEditListener,
       // Lint state field — active in code mode; provides squiggles for TS/JS errors
       lintCompartmentRef.current.of(codeMode ? linter(() => []) : []),
+      // Ghost text inline completions (all modes)
+      ghostTextExtension,
     ];
 
     return (

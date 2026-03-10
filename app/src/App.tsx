@@ -55,6 +55,7 @@ import {
 import { registerWorkspace } from './services/syncConfig';
 import { useAuthSession } from './hooks/useAuthSession';
 import { onLockedFilesChange, getLockedFiles } from './services/copilotLock';
+import { fetchGhostCompletion } from './services/copilot';
 import { loadWorkspaceSession, saveWorkspaceSession } from './services/workspaceSession';
 import { getFileTypeInfo } from './utils/fileType';
 import { generateId } from './utils/generateId';
@@ -1574,6 +1575,7 @@ export default function App() {
             isLocked={activeFile ? lockedFiles.has(activeFile) : false}
             onFormat={fileTypeInfo?.kind === 'code' ? handleFormat : undefined}
             diagnostics={tsDiags.diagnostics}
+            onGhostComplete={fetchGhostCompletion}
           />
         )}
         </EditorErrorBoundary>

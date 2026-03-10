@@ -710,6 +710,58 @@ export async function copilotComplete(
   });
 }
 
+/**
+ * Inline ghost-text completion for the editor.
+ * Returns the predicted continuation at the cursor position, or '' on any error.
+ * Uses `gpt-4.1-mini` for speed; abortable via `signal`.
+ */
+export async function fetchGhostCompletion(
+  prefix: string,
+  suffix: string,
+  language: string,
+  signal: AbortSignal,
+): Promise<string> {
+  const sessionToken = await getCopilotSessionToken();
+
+  // Truncate context to keep the request lean and fast
+  const prefixSnip = prefix.slice(-1500);
+  const suffixSnip = suffix.slice(0, 400);
+
+  const langHint = language && language !== 'markdown' ? ` language="${language}"` : '';
+  const userContent = `<file${langHint}>${prefixSnip}<CURSOR>${suffixSnip}</file>\nComplete from <CURSOR>. Output the completion text only, no markdown fences, no explanations.`;
+
+  const body = JSON.stringify({
+    model: 'gpt-4.1-mini',
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are an inline code/text completion assistant. Given a file snippet with a <CURSOR> marker, output the most natural continuation. Output ONLY the completion text — no markdown fences, no explanations, no introductory phrases. If no useful completion exists, output nothing.',
+      },
+      { role: 'user', content: userContent },
+    ],
+    stream: false,
+    temperature: 0,
+    max_tokens: 100,
+    stop: ['\n\n\n'],
+  });
+
+  const res = await fetch(COPILOT_API_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+      'Content-Type': 'application/json',
+      ...EDITOR_HEADERS,
+    },
+    signal,
+    body,
+  });
+
+  if (!res.ok) return '';
+  const data = await res.json() as { choices?: { message?: { content?: string } }[] };
+  return data.choices?.[0]?.message?.content?.trimEnd() ?? '';
+}
+
 // ── Vision capability detection ────────────────────────────────────────────
 // OpenAI o-series reasoning models (o1, o3, o3-mini, o4-mini, …) do not
 // accept image_url content — the API returns 400.  Everything else (GPT-4o,
