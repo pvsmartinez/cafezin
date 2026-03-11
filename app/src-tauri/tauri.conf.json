@@ -29,6 +29,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "iOS": {
       "developmentTeam": "8VV48629P3"
@@ -46,7 +47,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI1NTQ5MDM0NTkxNzkyRUEKUldUcWtoZFpOSkJVSlliRUxlajVta1gyOG1KM201Q2ZoZzZkWTZyN3VvaXVtb0dleXlVRHRSRVEK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENDQjNCOUIyNzk4RDg0OEIKUldTTGhJMTVzcm16ektmUUxKeGJVQmVuYVlnbUFJTkJydUZtTHJFZDFnZythR2YyRTZXajAxZHcK",
       "endpoints": [
         "https://raw.githubusercontent.com/pvsmartinez/cafezin/main/update/latest.json"
       ]

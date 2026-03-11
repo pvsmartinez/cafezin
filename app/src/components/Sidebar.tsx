@@ -81,7 +81,7 @@ interface TreeNodeProps {
   expandedDirs: Set<string>;
   onToggleDir: (path: string) => void;
   onFileSelect: (path: string) => void;
-  onStartCreate: (inPath: string) => void;
+  onStartCreate: (inPath: string, kind?: 'file' | 'folder') => void;
   onContextMenu: (e: React.MouseEvent, path: string, isDir: boolean) => void;
   onDeleteFile: (path: string) => void;
   onDuplicateFile: (path: string) => void;
@@ -167,8 +167,14 @@ function TreeNodeItem({
             className="sidebar-tree-action"
             role="button"
             title={`New file in ${node.name}`}
-            onClick={(e) => { e.stopPropagation(); onStartCreate(node.path); }}
+            onClick={(e) => { e.stopPropagation(); onStartCreate(node.path, 'file'); }}
           >+</span>
+          <span
+            className="sidebar-tree-action"
+            role="button"
+            title={`New folder in ${node.name}`}
+            onClick={(e) => { e.stopPropagation(); onStartCreate(node.path, 'folder'); }}
+          ><FolderPlus weight="thin" size={12} /></span>
         </button>
         {isExpanded && node.children?.map((child) => (
           <TreeNodeItem

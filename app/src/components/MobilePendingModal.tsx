@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MobilePendingTask } from '../services/mobilePendingTasks';
 import { deletePendingTask } from '../services/mobilePendingTasks';
+import { formatDateTime } from '@pvsmartinez/shared';
 import './MobilePendingModal.css';
 
 interface MobilePendingModalProps {
@@ -43,15 +44,6 @@ export default function MobilePendingModal({
     void handleDelete(task.id);
   }
 
-  function formatDate(iso: string) {
-    try {
-      return new Date(iso).toLocaleString('pt-BR', {
-        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-      });
-    } catch {
-      return iso;
-    }
-  }
 
   return createPortal(
     <div className="mpm-overlay" onClick={onClose}>
@@ -75,7 +67,7 @@ export default function MobilePendingModal({
                 {task.context && (
                   <pre className="mpm-task-ctx">{task.context}</pre>
                 )}
-                <div className="mpm-task-date">{formatDate(task.createdAt)}</div>
+                <div className="mpm-task-date">{formatDateTime(task.createdAt)}</div>
               </div>
               <div className="mpm-task-actions">
                 <button

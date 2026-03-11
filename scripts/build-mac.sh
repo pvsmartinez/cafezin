@@ -46,7 +46,9 @@ if [[ "$DO_RELEASE" == "true" ]]; then
   if [[ -f "$SIGNING_KEY_FILE" ]]; then
     export TAURI_SIGNING_PRIVATE_KEY
     TAURI_SIGNING_PRIVATE_KEY="$(cat "$SIGNING_KEY_FILE")"
-    export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+    # Do NOT set TAURI_SIGNING_PRIVATE_KEY_PASSWORD when empty — Tauri handles
+    # no-password keys better when the var is UNSET (None) vs set to "" (Some(""))
+    unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
     echo "▸ Signing key loaded from $SIGNING_KEY_FILE"
   else
     echo "⚠  No signing key at $SIGNING_KEY_FILE — build will not be signed."
@@ -68,7 +70,20 @@ npm install --legacy-peer-deps
 echo ""
 BUNDLES="app"
 [[ "$BUILD_DMG" == "true" ]] && BUNDLES="dmg"
-echo "▸ Running Tauri production build (bundles: $BUNDLES)…"
+# For release, also produce the updater bundle (.tar.gz + .sig for auto-update)
+if [[ "$DO_RELEASE" == "true" ]]; then
+  BUNDLES="app,dmg"
+  # Load signing key if not already set
+  if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+    SIGNING_KEY_FILE="$HOME/.tauri/cafezin.key"
+    if [[ -f "$SIGNING_KEY_FILE" ]]; then
+      export TAURI_SIGNING_PRIVATE_KEY="$(cat "$SIGNING_KEY_FILE")"
+      unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+      echo "✓ Loaded signing key from $SIGNING_KEY_FILE"
+    fi
+  fi
+fi
+echo "▸ Running Tauri production build (bundles: $BUNDLES)..."
 npm run tauri build -- --bundles "$BUNDLES"
 
 # ── Locate the built bundle ──────────────────────────────────────────────────
@@ -136,11 +151,37 @@ if [[ "$DO_RELEASE" == "true" && -n "$DMG_PATH" ]]; then
     cp "$DMG_PATH" "$ROOT_DIR/$DMG_DEST"
     FILES="$ROOT_DIR/$DMG_DEST"
 
-    [[ -n "$TARGZ_PATH" ]]    && { cp "$TARGZ_PATH"     "$ROOT_DIR/$TARGZ_DEST"; FILES="$FILES $ROOT_DIR/$TARGZ_DEST"; }
-    [[ -n "$TARGZ_SIG_PATH" ]] && { cp "$TARGZ_SIG_PATH" "$ROOT_DIR/$SIG_DEST";  FILES="$FILES $ROOT_DIR/$SIG_DEST"; }
+    # ── Fallback: if tauri build didn't produce .sig, sign the .tar.gz manually ──
+    # With createUpdaterArtifacts:true, tauri build should handle this automatically.
+    # This block covers edge cases where the auto-sign failed.
+    if [[ -z "$TARGZ_SIG_PATH" && -n "$TARGZ_PATH" && -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+      echo ""
+      echo "▸ Signing updater archive (fallback)..."
+      TARGZ_SIG_PATH="${TARGZ_PATH}.sig"
+      # Use Python script to sign (handles rsign2 key format with no password)
+      python3 "$ROOT_DIR/scripts/sign-updater.py" "$TARGZ_PATH" "" 2>&1 \
+        && echo "✓  Signed ${TARGZ_PATH##*/}" \
+        || { echo "⚠  Signing failed — update/latest.json will not be updated."; TARGZ_SIG_PATH=""; }
+    fi
+
+    # ── If still no .tar.gz, create one from the .app and sign it ──
+    if [[ -z "$TARGZ_PATH" && -n "$APP_PATH" && -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+      echo ""
+      echo "▸ Creating updater archive..."
+      APP_BASENAME="$(basename "$APP_PATH")"
+      TARGZ_PATH="$BUNDLE_DIR/macos/${APP_BASENAME}.tar.gz"
+      TARGZ_SIG_PATH="${TARGZ_PATH}.sig"
+      (cd "$BUNDLE_DIR/macos" && tar czf "$TARGZ_PATH" "$APP_BASENAME")
+      python3 "$ROOT_DIR/scripts/sign-updater.py" "$TARGZ_PATH" "" 2>&1 \
+        && echo "✓  Created ${TARGZ_PATH##*/} + .sig" \
+        || { echo "⚠  Signing failed — update/latest.json will not be updated."; TARGZ_SIG_PATH=""; }
+    fi
+
+    [[ -n "$TARGZ_PATH" ]]     && { cp "$TARGZ_PATH"     "$ROOT_DIR/$TARGZ_DEST"; FILES="$FILES $ROOT_DIR/$TARGZ_DEST"; }
+    [[ -n "$TARGZ_SIG_PATH" ]]  && { cp "$TARGZ_SIG_PATH" "$ROOT_DIR/$SIG_DEST";  FILES="$FILES $ROOT_DIR/$SIG_DEST"; }
 
     echo ""
-    echo "▸ Uploading to GitHub release $TAG…"
+    echo "▸ Uploading to GitHub release ${TAG}..."
     cd "$ROOT_DIR"
     gh release upload "$TAG" $FILES --clobber 2>/dev/null || \
       gh release create "$TAG" $FILES \

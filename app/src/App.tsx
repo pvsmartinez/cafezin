@@ -1307,7 +1307,7 @@ export default function App() {
           )}
         </div>
         <div className="app-header-right">
-          {(fileTypeInfo?.kind === 'markdown' || fileTypeInfo?.kind === 'canvas' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && (
+          {(fileTypeInfo?.kind === 'markdown' || fileTypeInfo?.kind === 'canvas' || fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && (
             <div className="app-view-toggle">
               <button
                 className={`app-view-btn ${viewMode === 'edit' ? 'active' : ''}`}
@@ -1319,11 +1319,44 @@ export default function App() {
               <button
                 className={`app-view-btn ${viewMode === 'preview' ? 'active' : ''}`}
                 onClick={() => { setViewMode('preview'); if (activeTabId) tabViewModeRef.current.set(activeTabId, 'preview'); }}
-                title={fileTypeInfo?.kind === 'canvas' ? 'Present — keyboard: ←→ to navigate, Esc to exit' : fileTypeInfo?.kind === 'code' ? 'Preview in browser (⌘⇧P to toggle)' : 'Preview rendered markdown (⌘⇧P to toggle)'}
+                title={fileTypeInfo?.kind === 'canvas' ? 'Present — keyboard: ←→ to navigate, Esc to exit' : fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview) ? 'Preview in browser (⌘⇧P to toggle)' : 'Preview rendered markdown (⌘⇧P to toggle)'}
               >
                 {fileTypeInfo?.kind === 'canvas' ? 'Present' : 'Preview'}
               </button>
             </div>
+          )}
+          {/* Open in browser — shown for HTML files */}
+          {fileTypeInfo?.kind === 'html' && activeFile && workspace && (
+            <>
+              <button
+                className="app-view-btn"
+                title="Abrir no navegador (file://)"
+                onClick={async () => {
+                  const { openUrl } = await import('@tauri-apps/plugin-opener');
+                  openUrl(`file://${workspace.path}/${activeFile}`);
+                }}
+              >
+                ⊕ Browser
+              </button>
+              {workspace.config.vercelConfig?.demoHub?.projectName && (
+                <button
+                  className="app-view-btn"
+                  title={`Abrir URL publicada: ${workspace.config.vercelConfig.demoHub.projectName}.vercel.app`}
+                  onClick={async () => {
+                    const { openUrl } = await import('@tauri-apps/plugin-opener');
+                    const base = `https://${workspace.config.vercelConfig!.demoHub!.projectName}.vercel.app`;
+                    // Map file path relative to sourceDir if configured
+                    const sourceDir = workspace.config.vercelConfig?.demoHub?.sourceDir ?? '';
+                    const relToSource = sourceDir
+                      ? activeFile.replace(new RegExp(`^${sourceDir}/?`), '')
+                      : activeFile;
+                    openUrl(`${base}/${relToSource}`);
+                  }}
+                >
+                  ⊕ Vercel
+                </button>
+              )}
+            </>
           )}
           {/* pandoc busy indicator — shown while export is running */}
           {pandocBusy && (
@@ -1551,7 +1584,7 @@ export default function App() {
             onNavigate={handleOpenFile}
             currentFilePath={activeFile ?? undefined}
           />
-        ) : viewMode === 'preview' && fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview && activeFile && workspace ? (
+        ) : viewMode === 'preview' && (fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && activeFile && workspace ? (
           <WebPreview
             ref={webPreviewRef}
             content={content}

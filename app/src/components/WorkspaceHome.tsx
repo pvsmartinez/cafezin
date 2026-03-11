@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import type { Workspace, AIEditMark, FileTreeNode } from '../types';
 import './WorkspaceHome.css';
+import { timeAgo } from '../utils/timeAgo';
 
 interface WorkspaceHomeProps {
   workspace: Workspace;
@@ -22,20 +23,6 @@ interface SyncState {
 // Count all non-directory nodes in the file tree
 function countFiles(nodes: FileTreeNode[]): number {
   return nodes.reduce((sum, n) => sum + (n.isDirectory ? countFiles(n.children ?? []) : 1), 0);
-}
-
-// Human-readable relative time
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return 'just now';
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 // File-type icon (same logic as Sidebar)
@@ -108,7 +95,7 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [], onS
           <div className="wh-stat">
             <span className="wh-stat-label">{t('wh.lastEdited')}</span>
             <span className="wh-stat-value">
-              {lastEditedAt ? relativeTime(lastEditedAt) : '—'}
+              {lastEditedAt ? timeAgo(lastEditedAt) : '—'}
             </span>
           </div>
 

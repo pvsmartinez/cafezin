@@ -1,6 +1,7 @@
 # Supabase CLI project config for cafezin
-# Generated: 2026-02-28
+# Supabase project: pmatz (renomeado de cafezin em mar/2026)
 # Run `supabase link --project-ref dxxwlnvemqgpdrnkzrcr` to link the remote project.
+# Nota: este projeto agora hospeda múltiplos apps — cafezin (schema public) e apostin (schema apostin).
 
 project_id = "dxxwlnvemqgpdrnkzrcr"
 

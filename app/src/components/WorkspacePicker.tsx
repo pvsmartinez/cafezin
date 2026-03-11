@@ -13,19 +13,7 @@ import {
 } from '../services/syncConfig';
 import type { Workspace, RecentWorkspace } from '../types';
 import './WorkspacePicker.css';
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return 'just now';
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
+import { timeAgo } from '../utils/timeAgo';
 
 /** Normalize a git URL for comparison: strip protocol/host, trailing .git, lowercase */
 function normalizeGitUrl(url: string): string {
@@ -403,7 +391,7 @@ export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
                     </div>
                     <div className="wp-recent-bottom">
                       <span className="wp-recent-path">{r.path}</span>
-                      {r.lastEditedAt && <span className="wp-recent-time">{relativeTime(r.lastEditedAt)}</span>}
+                      {r.lastEditedAt && <span className="wp-recent-time">{timeAgo(r.lastEditedAt)}</span>}
                     </div>
                   </button>
                 );
@@ -419,7 +407,7 @@ export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
                     </div>
                     <div className="wp-recent-bottom">
                       <span className="wp-recent-path">{cw.gitUrl}</span>
-                      <span className="wp-recent-time">{relativeTime(cw.addedAt)}</span>
+                      <span className="wp-recent-time">{timeAgo(cw.addedAt)}</span>
                     </div>
                     <button
                       className="wp-action-btn"
@@ -453,7 +441,7 @@ export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
                       </div>
                       <div className="wp-recent-bottom">
                         <span className="wp-recent-path">{r.path}</span>
-                        {r.lastEditedAt && <span className="wp-recent-time">{relativeTime(r.lastEditedAt)}</span>}
+                        {r.lastEditedAt && <span className="wp-recent-time">{timeAgo(r.lastEditedAt)}</span>}
                       </div>
                     </button>
                     {userEmail && (
@@ -493,7 +481,7 @@ export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
                     </div>
                     <div className="wp-recent-bottom">
                       <span className="wp-recent-path">{r.path}</span>
-                      {r.lastEditedAt && <span className="wp-recent-time">{relativeTime(r.lastEditedAt)}</span>}
+                      {r.lastEditedAt && <span className="wp-recent-time">{timeAgo(r.lastEditedAt)}</span>}
                     </div>
                   </button>
                   {userEmail && (
