@@ -10,6 +10,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import type { AIEditMark } from '../types';
 import { generateSlidePreviews } from '../utils/slidePreviews';
 import { sanitizeSnapshot } from '../utils/canvasAI';
+import { getMimeType } from '../utils/mime';
 import 'tldraw/tldraw.css';
 import './CanvasEditor.css';
 
@@ -60,7 +61,7 @@ function TlErrorFallback({ error }: { error: unknown }) {
         Something went wrong in the canvas renderer. Check the browser console for details.<br />
         Try pressing <kbd>Ctrl+Z</kbd> to undo, or close and reopen the file.
       </div>
-      <pre style={{ fontSize: 10, maxWidth: 400, overflow: 'auto', textAlign: 'left', color: '#f88', marginTop: 8, opacity: 0.7 }}>
+      <pre style={{ fontSize: 10, maxWidth: 400, overflow: 'auto', textAlign: 'left', color: 'var(--red)', marginTop: 8, opacity: 0.7 }}>
         {error instanceof Error ? `${error.name}: ${error.message}` : String(error)}
       </pre>
     </div>
@@ -737,13 +738,7 @@ export default function CanvasEditor({
                           title={relPath}
                           onClick={async () => {
                             const absPath = `${workspacePath}/${relPath}`;
-                            const ext = relPath.split('.').pop()?.toLowerCase() ?? 'jpg';
-                            const MIME_MAP: Record<string, string> = {
-                              jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-                              gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
-                              avif: 'image/avif', bmp: 'image/bmp',
-                            };
-                            const mimeType = MIME_MAP[ext] ?? 'image/jpeg';
+                            const mimeType = getMimeType(relPath, 'image/jpeg');
                             try {
                               const bytes = await readFile(absPath);
                               const blob = new Blob([bytes], { type: mimeType });

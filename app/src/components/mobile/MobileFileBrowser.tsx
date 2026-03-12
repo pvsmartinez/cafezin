@@ -41,6 +41,8 @@ interface TreeNodeProps {
 function TreeNode({ node, depth, selectedPath, onSelect }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(depth < 2);
 
+  const nodeBase = 'flex items-center gap-1.5 py-[9px] cursor-pointer transition-colors duration-100 active:bg-white/[0.04]';
+
   if (node.isDirectory) {
     // Folder that contains an index.html → treat as a renderable webpage
     const webpageChild = node.children?.find(c => c.name === 'index.html');
@@ -48,14 +50,14 @@ function TreeNode({ node, depth, selectedPath, onSelect }: TreeNodeProps) {
       const selected = webpageChild.path === selectedPath;
       return (
         <div
-          className={`mb-filenode file previewable ${selected ? 'selected' : ''}`}
-          style={{ paddingLeft: `${16 + depth * 18}px` }}
+          className={`${nodeBase} ${selected ? 'bg-[rgba(var(--accent-rgb),0.12)]' : ''}`}
+          style={{ paddingLeft: `${16 + depth * 18}px`, paddingRight: 16 }}
           onClick={() => onSelect(webpageChild.path)}
         >
-          <span className="mb-filenode-chevron" />
-          <span className="mb-filenode-icon"><GlobeSimple weight="thin" size={16} /></span>
-          <span className="mb-filenode-name">{node.name}</span>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, letterSpacing: '0.3px', textTransform: 'uppercase' }}>webpage</span>
+          <span className="w-3.5 shrink-0" />
+          <span className="text-base shrink-0"><GlobeSimple weight="thin" size={16} /></span>
+          <span className="flex-1 text-sm leading-[1.3] truncate text-app-text">{node.name}</span>
+          <span className="text-[10px] text-muted shrink-0 tracking-[0.3px] uppercase">webpage</span>
         </div>
       );
     }
@@ -63,13 +65,15 @@ function TreeNode({ node, depth, selectedPath, onSelect }: TreeNodeProps) {
     return (
       <>
         <div
-          className="mb-filenode dir"
-          style={{ paddingLeft: `${16 + depth * 18}px` }}
+          className={`${nodeBase}`}
+          style={{ paddingLeft: `${16 + depth * 18}px`, paddingRight: 16 }}
           onClick={() => setExpanded(v => !v)}
         >
-          <span className="mb-filenode-chevron">{expanded ? '▾' : '▸'}</span>
-          <span className="mb-filenode-icon"><FolderSimple weight="thin" size={16} /></span>
-          <span className="mb-filenode-name">{node.name}</span>
+          <span className="text-[11px] text-muted w-3.5 shrink-0 flex items-center justify-center">
+            {expanded ? '▾' : '▸'}
+          </span>
+          <span className="text-base shrink-0"><FolderSimple weight="thin" size={16} /></span>
+          <span className="flex-1 text-sm leading-[1.3] truncate font-medium text-app-text">{node.name}</span>
         </div>
         {expanded && node.children?.map(child => (
           <TreeNode
@@ -89,12 +93,14 @@ function TreeNode({ node, depth, selectedPath, onSelect }: TreeNodeProps) {
 
   return (
     <div
-      className={`mb-filenode file ${previewa ? 'previewable' : ''} ${selected ? 'selected' : ''}`}
-      style={{ paddingLeft: `${16 + depth * 18 + 14}px` }}
+      className={`${nodeBase} ${selected ? 'bg-[rgba(var(--accent-rgb),0.12)]' : ''} ${!previewa ? 'cursor-default' : ''}`}
+      style={{ paddingLeft: `${16 + depth * 18 + 14}px`, paddingRight: 16 }}
       onClick={() => previewa && onSelect(node.path)}
     >
-      <span className="mb-filenode-icon"><FileIcon name={node.name} isDir={false} /></span>
-      <span className="mb-filenode-name">{node.name}</span>
+      <span className="text-base shrink-0"><FileIcon name={node.name} isDir={false} /></span>
+      <span className={`flex-1 text-sm leading-[1.3] truncate ${previewa ? 'text-app-text' : 'text-muted'}`}>
+        {node.name}
+      </span>
     </div>
   );
 }
@@ -115,18 +121,17 @@ export default function MobileFileBrowser({
 }: MobileFileBrowserProps) {
   return (
     <>
-      <div className="mb-filebrowser">
-        <div className="mb-filebrowser-scroll">
+      <div className="flex-1 overflow-y-auto scroll-touch">
+        <div className="py-1 pb-6">
           {fileTree.length === 0 ? (
-            <div className="mb-empty" style={{ padding: '48px 24px' }}>
-              <div className="mb-empty-icon"><FolderSimple weight="thin" size={48} /></div>
-              <div className="mb-empty-desc">
+            <div className="flex flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+              <div className="opacity-40 text-muted"><FolderSimple weight="thin" size={48} /></div>
+              <div className="text-sm text-muted max-w-[280px] leading-[1.5]">
                 Nenhum arquivo encontrado. O repositório pode não estar sincronizado neste dispositivo.
               </div>
               {onBack && (
                 <button
-                  className="mb-btn mb-btn-secondary"
-                  style={{ marginTop: 8, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}
+                  className="btn-secondary mt-2 text-sm gap-2"
                   onClick={onBack}
                 >
                   <House weight="thin" size={16} /> Voltar e sincronizar
@@ -149,3 +154,4 @@ export default function MobileFileBrowser({
     </>
   );
 }
+

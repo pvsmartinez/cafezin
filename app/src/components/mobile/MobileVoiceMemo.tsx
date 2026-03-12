@@ -136,57 +136,63 @@ function VoiceMemoItem({ memo, groqKey, onDelete, onTranscribed }: VoiceMemoItem
   const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className={`mb-memo-item${expanded ? ' expanded' : ''}`}>
-      <button className="mb-memo-header" onClick={toggleExpand}>
-        <div className="mb-memo-meta">
-          <span className="mb-memo-date">{dateStr} · {timeStr}</span>
+    <div className={`border-b border-app-border ${expanded ? 'bg-surface-2/50' : ''}`}>
+      <button
+        className="w-full flex items-center gap-3 px-4 py-[11px] bg-transparent border-0 text-left cursor-pointer active:bg-white/[0.03]"
+        onClick={toggleExpand}
+      >
+        <div className="flex-1 flex flex-col gap-0.5 min-w-0">
+          <span className="text-xs text-muted">{dateStr} · {timeStr}</span>
           {memo.transcriptPreview && !expanded && (
-            <span className="mb-memo-preview">{memo.transcriptPreview}</span>
+            <span className="text-sm text-app-text truncate">{memo.transcriptPreview}</span>
           )}
           {!memo.transcriptPreview && !expanded && (
-            <span className="mb-memo-preview" style={{ fontStyle: 'italic', opacity: 0.5 }}>
+            <span className="text-sm italic opacity-50 truncate text-muted">
               sem transcrição — toque para transcrever
             </span>
           )}
         </div>
-        <span className="mb-memo-chevron">{expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}</span>
+        <span className="text-muted shrink-0">
+          {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
+        </span>
       </button>
 
       {expanded && (
-        <div className="mb-memo-body">
+        <div className="flex flex-col gap-2 px-4 pb-3 pt-1">
           {loadingBody ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 12 }}>
-              <div className="mb-spinner" />
+            <div className="flex justify-center py-3">
+              <div className="spinner" />
             </div>
           ) : (
             <>
               {audioSrc && (
                 /* eslint-disable-next-line jsx-a11y/media-has-caption */
-                <audio controls src={audioSrc} className="mb-memo-audio" />
+                <audio controls src={audioSrc} className="w-full rounded-lg" />
               )}
               {transcript !== null && (
-                <p className="mb-memo-transcript">{transcript}</p>
+                <p className="memo-transcript m-0 text-sm text-app-text leading-[1.55]">{transcript}</p>
               )}
               {!hasTranscript && transcript === null && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div className="flex flex-col gap-1.5">
                   <button
-                    className="mb-btn mb-btn-primary"
+                    className="btn-primary flex items-center gap-2 justify-center text-sm py-2"
                     onClick={retryTranscription}
                     disabled={retrying || !groqKey}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}
                   >
-                    <ArrowClockwise size={14} weight={retrying ? 'thin' : 'bold'}
-                      style={retrying ? { animation: 'mb-spin 0.8s linear infinite' } : undefined}
+                    <ArrowClockwise
+                      size={14}
+                      weight={retrying ? 'thin' : 'bold'}
+                      className={retrying ? 'animate-mb-spin' : undefined}
                     />
                     {retrying ? 'Transcrevendo…' : 'Transcrever agora'}
                   </button>
-                  {retryError && <span className="mb-voice-error">{retryError}</span>}
+                  {retryError && <span className="text-xs text-danger">{retryError}</span>}
                 </div>
               )}
             </>
           )}
           <button
-            className="mb-memo-delete"
+            className="flex items-center gap-1.5 text-xs text-muted border-0 bg-transparent cursor-pointer mt-1 self-start py-1 active:text-danger disabled:opacity-40"
             onClick={() => { setDeleting(true); onDelete(); }}
             disabled={deleting}
             title="Apagar memo"
@@ -387,10 +393,11 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="mb-header">
-        <span className="mb-header-title">Memos de Voz</span>
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 pt-3 pb-[10px] border-b border-app-border bg-surface shrink-0">
+        <span className="flex-1 text-[17px] font-semibold truncate">Memos de Voz</span>
         <button
-          className="mb-icon-btn"
+          className="icon-btn"
           onClick={() => setShowKeySetup(v => !v)}
           title={groqKey ? 'Configurações da chave Groq' : 'Configurar chave Groq'}
         >
@@ -398,17 +405,18 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
         </button>
       </div>
 
-      <div className="mb-voice-container">
-        {/* ── Scroll area: key setup + memo list ── */}
-        <div className="mb-voice-scroll">
+      {/* Body: scroll area + record bar */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Scroll area: key setup + memo list */}
+        <div className="flex-1 overflow-y-auto scroll-touch">
           {/* Groq key setup */}
           {(showKeySetup || !groqKey) && (
-            <div className="mb-voice-key-setup">
-              <p className="mb-voice-key-hint">
+            <div className="m-4 bg-surface-2 border border-app-border rounded-[10px] px-4 py-3 flex flex-col gap-2">
+              <p className="m-0 text-sm text-muted leading-snug">
                 A transcrição usa{' '}
                 <a
                   href="https://console.groq.com/keys"
-                  style={{ color: 'var(--mb-accent)' }}
+                  className="text-accent"
                   onClick={e => {
                     e.preventDefault();
                     import('@tauri-apps/plugin-opener').then(m => m.openUrl('https://console.groq.com/keys'));
@@ -418,29 +426,21 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
                 </a>
                 {' '}— cole sua chave gratuita abaixo:
               </p>
-              <div className="mb-voice-key-row">
+              <div className="flex gap-2">
                 <input
                   type="password"
-                  className="mb-input"
+                  className="flex-1 bg-surface border border-app-border rounded-lg px-[10px] py-2 text-app-text text-sm outline-none"
                   value={groqInput}
                   onChange={e => setGroqInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && saveGroqKey()}
                   placeholder="gsk_…"
                 />
-                <button
-                  className="mb-btn mb-btn-primary"
-                  onClick={saveGroqKey}
-                  disabled={!groqInput.trim()}
-                >
+                <button className="btn-primary" onClick={saveGroqKey} disabled={!groqInput.trim()}>
                   Salvar
                 </button>
               </div>
               {groqKey && (
-                <button
-                  className="mb-btn mb-btn-ghost"
-                  onClick={() => setShowKeySetup(false)}
-                  style={{ fontSize: 12 }}
-                >
+                <button className="btn-ghost text-xs py-1" onClick={() => setShowKeySetup(false)}>
                   Cancelar
                 </button>
               )}
@@ -449,16 +449,16 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
 
           {/* Memo list */}
           {loadingMemos && (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
-              <div className="mb-spinner" />
+            <div className="flex justify-center py-8">
+              <div className="spinner" />
             </div>
           )}
 
           {!loadingMemos && memos.length === 0 && groqKey && !showKeySetup && (
-            <div className="mb-voice-empty">
+            <div className="flex flex-col items-center gap-2 text-center py-12 opacity-40">
               <Microphone size={40} weight="thin" />
-              <span>Sem memos ainda</span>
-              <span className="mb-voice-empty-sub">Toque no botão abaixo para começar a gravar.</span>
+              <span className="text-sm font-medium">Sem memos ainda</span>
+              <span className="text-xs text-muted">Toque no botão abaixo para começar a gravar.</span>
             </div>
           )}
 
@@ -473,39 +473,44 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
           ))}
         </div>
 
-        {/* ── Record bar — fixed bottom, behind tab bar ── */}
-        <div className="mb-voice-record-bar">
+        {/* Record bar */}
+        <div
+          className="shrink-0 flex items-center justify-center border-t border-app-border bg-surface px-4 py-4"
+          style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
+        >
           {transcribing ? (
-            <div className="mb-voice-transcribing">
-              <div className="mb-spinner" />
+            <div className="flex items-center gap-3 text-sm text-muted">
+              <div className="spinner w-5 h-5" />
               <span>Transcrevendo com Whisper…</span>
             </div>
           ) : recording ? (
-            <div className="mb-voice-recording-state">
-              <div className="mb-record-timer">{formatDuration(recordSeconds)}</div>
+            <div className="flex items-center gap-4">
+              <span className="text-[17px] font-semibold font-mono tabular-nums w-[52px] text-center text-app-text">
+                {formatDuration(recordSeconds)}
+              </span>
               <button
-                className="mb-record-btn recording"
+                className="w-[64px] h-[64px] bg-danger rounded-full border-0 text-white flex items-center justify-center cursor-pointer active:opacity-80 animate-mb-record-pulse"
                 onClick={stopRecording}
                 aria-label="Parar gravação"
               >
                 <Stop size={28} weight="fill" />
               </button>
-              <span className="mb-voice-record-label">Gravando…</span>
+              <span className="text-xs text-muted w-[52px]">Gravando…</span>
             </div>
           ) : (
-            <div className="mb-voice-idle-state">
+            <div className="flex flex-col items-center gap-1">
               {error && (
-                <span className="mb-voice-error">{error}</span>
+                <span className="text-xs text-danger mb-2 text-center max-w-[260px]">{error}</span>
               )}
               <button
-                className="mb-record-btn"
+                className="w-[72px] h-[72px] bg-accent rounded-full border-0 text-white flex items-center justify-center cursor-pointer active:opacity-75 disabled:opacity-40"
                 onClick={startRecording}
                 aria-label="Começar a gravar"
                 disabled={!groqKey}
               >
                 <Microphone size={32} weight="thin" />
               </button>
-              <span className="mb-voice-record-label">
+              <span className="text-xs text-muted mt-1">
                 {groqKey ? 'Toque para gravar' : 'Configure a chave Groq'}
               </span>
             </div>

@@ -136,6 +136,23 @@
 
   /* Shadow */
   --shadow:        rgba(0, 0, 0, 0.40);
+
+  /* ── Aliases — legacy / alternate naming conventions ── */
+  --font-sans:      var(--font-ui);          /* files using --font-sans */
+  --surface-2:      var(--surface2);         /* files using hyphenated form */
+  --bg-primary:     var(--bg);
+  --bg-secondary:   var(--surface);
+  --bg-tertiary:    var(--surface2);
+  --bg-hover:       var(--surface2);
+  --bg-active:      var(--border2);
+  --border-subtle:  var(--border2);
+  --text-primary:   var(--text-bright);
+  --text-secondary: var(--text-muted);
+  --hover-bg:       var(--surface2);
+  --hover:          var(--surface2);
+  --hover2:         var(--border2);
+  --mb-danger:      var(--red);
+  --text-rgb:       205, 184, 159;           /* rgb() components of --text (dark) */
 }
 
 /* ── Light theme (warm cream + aqua-green) ───────────────────────────────── */
@@ -208,4 +225,7 @@ body.theme-light {
 
   /* Shadow */
   --shadow:        rgba(35, 22, 8, 0.22);
+
+  /* ── Alias overrides for light theme ── */
+  --text-rgb:  56, 44, 28;                   /* rgb() components of --text (light) */
 }

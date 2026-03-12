@@ -32,39 +32,41 @@ function SlideViewer({ workspacePath, filePath }: { workspacePath: string; fileP
 
   if (loading) {
     return (
-      <div className="mb-slide-viewer">
-        <div className="mb-spinner" />
+      <div className="h-full flex flex-col items-center justify-center bg-[#0d0f11]">
+        <div className="spinner" />
       </div>
     );
   }
 
   if (urls.length === 0) {
     return (
-      <div className="mb-slide-viewer">
-        <div className="mb-empty">
-          <div className="mb-empty-desc">Sem slides gerados. Abra este canvas no desktop para gerar as imagens.</div>
+      <div className="h-full flex flex-col items-center justify-center bg-[#0d0f11]">
+        <div className="flex flex-col items-center justify-center gap-4 px-6 py-8 text-center">
+          <div className="text-sm text-muted max-w-[280px] leading-[1.5]">
+            Sem slides gerados. Abra este canvas no desktop para gerar as imagens.
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mb-slide-viewer">
+    <div className="h-full flex flex-col items-center justify-center bg-[#0d0f11] relative">
       <img
         key={urls[idx]}
         src={urls[idx]}
         alt={`Slide ${idx + 1}`}
-        className="mb-slide-img"
+        className="w-full max-h-[calc(100%-60px)] object-contain"
       />
-      <div className="mb-slide-nav">
+      <div className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-4 px-4 py-3 bg-black/40">
         <button
-          className="mb-slide-btn"
+          className="bg-white/[0.12] border-0 rounded-lg text-white text-lg w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-30 active:opacity-50"
           disabled={idx === 0}
           onClick={() => setIdx(i => i - 1)}
         >‹</button>
-        <span className="mb-slide-counter">{idx + 1} / {urls.length}</span>
+        <span className="text-[13px] text-white/60 min-w-[60px] text-center">{idx + 1} / {urls.length}</span>
         <button
-          className="mb-slide-btn"
+          className="bg-white/[0.12] border-0 rounded-lg text-white text-lg w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-30 active:opacity-50"
           disabled={idx === urls.length - 1}
           onClick={() => setIdx(i => i + 1)}
         >›</button>
@@ -81,7 +83,7 @@ function HtmlViewer({ absPath }: { absPath: string }) {
     <iframe
       src={src}
       title="webpage preview"
-      className="mb-html-frame"
+      className="w-full flex-1 border-0 block min-h-0"
       sandbox="allow-scripts allow-same-origin"
     />
   );
@@ -101,11 +103,11 @@ function MarkdownViewer({ absPath }: { absPath: string }) {
   }, [absPath]);
 
   if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><div className="mb-spinner" /></div>;
+    return <div className="flex justify-center p-8"><div className="spinner" /></div>;
   }
 
   return (
-    <div className="mb-md-wrap">
+    <div className="px-5 pt-5 pb-10">
       <MarkdownPreview content={content} />
     </div>
   );
@@ -123,8 +125,8 @@ function ImageViewer({ absPath }: { absPath: string }) {
 
   if (!src) return null;
   return (
-    <div className="mb-image-wrap">
-      <img src={src} alt="" />
+    <div className="flex items-start justify-center p-4 min-h-[200px]">
+      <img src={src} alt="" className="max-w-full h-auto rounded-lg" />
     </div>
   );
 }
@@ -145,11 +147,11 @@ function VideoViewer({ absPath }: { absPath: string }) {
     return () => { if (url) URL.revokeObjectURL(url); };
   }, [absPath]);
 
-  if (!src) return <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><div className="mb-spinner" /></div>;
+  if (!src) return <div className="flex justify-center p-8"><div className="spinner" /></div>;
   return (
-    <div style={{ padding: 12 }}>
+    <div className="p-3">
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video src={src} controls style={{ width: '100%', borderRadius: 8 }} />
+      <video src={src} controls className="w-full rounded-lg" />
     </div>
   );
 }
@@ -179,18 +181,18 @@ function AudioViewer({ absPath }: { absPath: string }) {
 
   if (!src) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
-        <div className="mb-spinner" />
+      <div className="flex justify-center p-8">
+        <div className="spinner" />
       </div>
     );
   }
 
   return (
-    <div className="mb-audio-wrap">
-      <div className="mb-audio-icon"><SpeakerSimpleHigh weight="thin" size={56} /></div>
-      <div className="mb-audio-filename">{absPath.split('/').pop()}</div>
+    <div className="flex flex-col items-center gap-3 px-6 py-10">
+      <div className="opacity-50 text-muted"><SpeakerSimpleHigh weight="thin" size={56} /></div>
+      <div className="text-[13px] text-muted text-center break-all">{absPath.split('/').pop()}</div>
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <audio controls src={src} className="mb-audio-player" />
+      <audio controls src={src} className="w-full max-w-[360px] rounded-lg" />
     </div>
   );
 }
@@ -200,7 +202,7 @@ function AudioViewer({ absPath }: { absPath: string }) {
 function PDFViewer({ absPath }: { absPath: string }) {
   const src = convertFileSrc(absPath);
   return (
-    <embed src={src} type="application/pdf" className="mb-pdf-embed" />
+    <embed src={src} type="application/pdf" className="w-full h-full border-0" />
   );
 }
 
@@ -215,8 +217,8 @@ function TextViewer({ absPath }: { absPath: string }) {
       .catch(() => setText('(Could not read file)'));
   }, [absPath]);
 
-  if (text === null) return <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><div className="mb-spinner" /></div>;
-  return <pre className="mb-text-preview">{text}</pre>;
+  if (text === null) return <div className="flex justify-center p-8"><div className="spinner" /></div>;
+  return <pre className="m-0 px-[18px] py-4 pb-10 text-xs font-mono text-app-text whitespace-pre-wrap break-all leading-[1.6] overflow-wrap-anywhere">{text}</pre>;
 }
 
 // ── Main preview ──────────────────────────────────────────────────────────
@@ -246,8 +248,8 @@ export default function MobilePreview({ workspacePath, filePath, onClear }: Mobi
         return <TextViewer absPath={absPath} />;
       default:
         return (
-          <div className="mb-empty">
-            <div className="mb-empty-desc">Sem preview disponível para este tipo de arquivo.</div>
+          <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
+            <div className="text-sm text-muted max-w-[280px] leading-[1.5]">Sem preview disponível para este tipo de arquivo.</div>
           </div>
         );
     }
@@ -255,14 +257,16 @@ export default function MobilePreview({ workspacePath, filePath, onClear }: Mobi
 
   return (
     <>
-      <div className="mb-header">
-        <button className="mb-icon-btn" onClick={onClear} title="Voltar">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-[10px] border-b border-app-border bg-surface shrink-0">
+        <button className="icon-btn" onClick={onClear} title="Voltar">
           <CaretLeft weight="bold" size={18} />
         </button>
-        <span className="mb-header-title">{filename === 'index.html' ? (filePath.split('/').slice(-2)[0] ?? filename) : filename}</span>
+        <span className="flex-1 text-[17px] font-semibold truncate">
+          {filename === 'index.html' ? (filePath.split('/').slice(-2)[0] ?? filename) : filename}
+        </span>
       </div>
 
-      <div className={`mb-preview-body${kind === 'html' ? ' mb-html' : ''}`}>
+      <div className={`flex-1 overflow-y-auto scroll-touch${kind === 'html' ? ' overflow-hidden flex flex-col' : ''}`}>
         {renderBody()}
       </div>
     </>

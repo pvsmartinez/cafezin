@@ -48,8 +48,8 @@
   letter-spacing: 0.03em;
 }
 .backlinks-badge--in {
-  background: var(--accent-bg, rgba(212, 169, 106, 0.12));
-  color: var(--accent, #d4a96a);
+  background: var(--accent-bg);
+  color: var(--accent);
 }
 .backlinks-badge--out {
   background: var(--surface2);

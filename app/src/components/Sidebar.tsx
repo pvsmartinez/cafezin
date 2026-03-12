@@ -133,7 +133,7 @@ function TreeNodeItem({
             e.dataTransfer.setData('text/x-workspace-file', node.path);
             const ghost = document.createElement('div');
             ghost.textContent = `⊟ ${node.name}`;
-            ghost.style.cssText = 'position:fixed;top:-200px;background:#261f16;color:#c4b49a;font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid #3b3026;pointer-events:none';
+            ghost.style.cssText = 'position:fixed;top:-200px;background:var(--surface);color:var(--text);font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);pointer-events:none';
             document.body.appendChild(ghost);
             e.dataTransfer.setDragImage(ghost, 0, 0);
             requestAnimationFrame(() => document.body.removeChild(ghost));
@@ -226,7 +226,7 @@ function TreeNodeItem({
     (e.currentTarget as HTMLButtonElement).dataset.dragging = '1';
     const ghost = document.createElement('div');
     ghost.textContent = node.name;
-    ghost.style.cssText = 'position:fixed;top:-200px;background:#261f16;color:#c4b49a;font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid #3b3026;pointer-events:none';
+    ghost.style.cssText = 'position:fixed;top:-200px;background:var(--surface);color:var(--text);font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);pointer-events:none';
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 0, 0);
     requestAnimationFrame(() => document.body.removeChild(ghost));

@@ -1713,17 +1713,17 @@
   height: 10px;
   border-radius: 50%;
   background: #fff;
-  border: 2px solid #2b83f6;
+  border: 2px solid var(--blue);
   box-shadow: 0 1px 4px rgba(0,0,0,0.35);
   cursor: ew-resize;
   transition: background 0.1s;
 }
 .canvas-cr-handle:hover {
-  background: #2b83f6;
+  background: var(--blue);
 }
 .canvas-cr-label {
   background: rgba(26,21,16,0.88);
-  color: #4ec9b0;
+  color: var(--accent);
   font-size: 10px;
   padding: 2px 6px;
   border-radius: 4px;

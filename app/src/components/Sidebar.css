@@ -781,7 +781,7 @@
 /* ── Creator panel ─────────────────────────────────────────────── */
 .sidebar-creator {
   background: var(--surface);
-  border: 1px solid #3a3f4b;
+  border: 1px solid var(--border2);
   border-radius: var(--radius-lg);
   padding: 10px 10px 8px;
   display: flex;

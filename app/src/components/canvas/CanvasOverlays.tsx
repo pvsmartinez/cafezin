@@ -210,7 +210,7 @@ function CanvasAIMarkOverlay() {
                 <button
                   onClick={onPrev}
                   disabled={aiMarks.length < 2}
-                  style={{ background: 'none', border: 'none', color: '#c4b49a', cursor: 'pointer', fontSize: 16, padding: '3px 8px', lineHeight: 1 }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 16, padding: '3px 8px', lineHeight: 1 }}
                   title="Previous AI edit"
                 >‹</button>
                 <span
@@ -237,7 +237,7 @@ function CanvasAIMarkOverlay() {
                 <button
                   onClick={onNext}
                   disabled={aiMarks.length < 2}
-                  style={{ background: 'none', border: 'none', color: '#c4b49a', cursor: 'pointer', fontSize: 16, padding: '3px 8px', lineHeight: 1 }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 16, padding: '3px 8px', lineHeight: 1 }}
                   title="Next AI edit"
                 >›</button>
               </div>

@@ -96,11 +96,11 @@
   opacity: 0.85;
 }
 .bottom-panel-ts-diag.ts-has-errors {
-  color: #f87171; /* red-400 */
+  color: var(--red);
   opacity: 1;
 }
 .bottom-panel-ts-diag .ts-warnings {
-  color: #fbbf24; /* amber-400 */
+  color: var(--yellow);
 }
 
 /* Last-line preview shown when the panel is collapsed */

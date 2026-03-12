@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { ErrorBoundary } from "@pvsmartinez/shared";
 
 /* ── Bundled fonts (no network required in Tauri) ── */
 import '@fontsource-variable/nunito';          /* UI: 300–900, wght axis */
@@ -26,6 +27,8 @@ const isMobile =
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {isMobile ? <MobileApp /> : <App />}
+    <ErrorBoundary>
+      {isMobile ? <MobileApp /> : <App />}
+    </ErrorBoundary>
   </React.StrictMode>,
 );

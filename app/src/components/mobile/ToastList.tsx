@@ -1,6 +1,5 @@
 import { Check, X, Info } from '@phosphor-icons/react';
 import type { Toast } from '../../hooks/useToast';
-import './Toast.css';
 
 interface ToastListProps {
   toasts: Toast[];
@@ -13,24 +12,42 @@ const ICONS: Record<string, React.ReactNode> = {
   info:    <Info  size={14} />,
 };
 
+const TYPE_CLASSES: Record<string, string> = {
+  success: 'bg-[rgba(86,207,178,0.18)] border border-[rgba(86,207,178,0.35)] text-accent',
+  error:   'bg-[rgba(201,117,112,0.18)] border border-[rgba(201,117,112,0.35)] text-danger',
+  info:    'bg-[rgba(79,163,224,0.18)]  border border-[rgba(79,163,224,0.35)]  text-[var(--blue)]',
+};
+
+const ICON_BG: Record<string, string> = {
+  success: 'bg-[rgba(86,207,178,0.2)]',
+  error:   'bg-[rgba(201,117,112,0.2)]',
+  info:    'bg-[rgba(79,163,224,0.2)]',
+};
+
 export default function ToastList({ toasts, onDismiss }: ToastListProps) {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="toast-container" aria-live="polite" aria-atomic="false">
+    <div
+      className="fixed left-1/2 -translate-x-1/2 z-[99999] flex flex-col items-center gap-2 w-[min(calc(100vw-32px),360px)] pointer-events-none"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+      aria-live="polite"
+      aria-atomic="false"
+    >
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`toast toast--${t.type}${t.exiting ? ' toast--exit' : ''}`}
+          className={`flex items-center gap-[10px] px-4 py-3 rounded-xl text-sm font-medium leading-[1.4] w-full pointer-events-auto cursor-pointer backdrop-glass shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-toast-in ${TYPE_CLASSES[t.type] ?? TYPE_CLASSES.info}`}
           role="alert"
           onClick={() => onDismiss(t.id)}
         >
-          <span className="toast-icon">{ICONS[t.type]}</span>
-          <span className="toast-msg">{t.message}</span>
-          {/* Botão X explícito para erros (toque mais preciso) */}
+          <span className={`shrink-0 w-5 h-5 flex items-center justify-center text-[13px] font-bold rounded-full ${ICON_BG[t.type] ?? ''}`}>
+            {ICONS[t.type]}
+          </span>
+          <span className="flex-1 break-words">{t.message}</span>
           {t.type === 'error' && (
             <button
-              className="toast-close"
+              className="shrink-0 bg-transparent border-0 text-inherit opacity-60 text-sm font-bold p-[0_2px] cursor-pointer"
               onClick={(e) => { e.stopPropagation(); onDismiss(t.id); }}
               aria-label="Fechar"
             ><X size={14} weight="bold" /></button>
@@ -40,3 +57,4 @@ export default function ToastList({ toasts, onDismiss }: ToastListProps) {
     </div>
   );
 }
+

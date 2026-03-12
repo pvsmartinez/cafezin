@@ -165,7 +165,7 @@
 .sm-flag--modified  { color: var(--yellow); }
 .sm-flag--added     { color: var(--green); }
 .sm-flag--deleted   { color: var(--red); }
-.sm-flag--untracked { color: #56b6c2; }
+.sm-flag--untracked { color: var(--blue); }
 .sm-flag--renamed   { color: var(--purple); }
 .sm-flag--other     { color: var(--text-muted); }
 

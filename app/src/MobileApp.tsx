@@ -386,10 +386,10 @@ export default function MobileApp() {
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loadingWs) {
     return (
-      <div className="mb-shell">
-        <div className="mb-screen" style={{ alignItems: 'center', justifyContent: 'center' }}>
-          <div className="mb-spinner" />
-          <div style={{ marginTop: 16, color: 'var(--mb-muted)', fontSize: 14 }}>Loading workspace…</div>
+      <div className="mb-shell fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <div className="spinner" />
+          <div className="text-sm text-muted">Loading workspace…</div>
         </div>
       </div>
     );
@@ -400,61 +400,59 @@ export default function MobileApp() {
     // ── Not signed in — email + password form ────────────────────────────
     if (!isLoggedIn) {
       return (
-        <div className="mb-shell">
+        <div className="mb-shell fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
           <ToastList toasts={toasts} onDismiss={dismiss} />
-          <div className="mb-screen">
-            <div className="mb-empty" style={{ flex: 1, gap: 20 }}>
-              <div className="mb-empty-icon"><Coffee weight="thin" size={48} /></div>
-              <div className="mb-empty-title">Bem-vindo ao Cafezin</div>
-              <div className="mb-empty-desc">Entre com sua conta para acessar seus workspaces.</div>
+          <div className="flex-1 overflow-y-auto scroll-touch flex flex-col">
+            <div className="flex flex-col items-center gap-5 px-6 py-10 text-center flex-1">
+              <div className="opacity-30"><Coffee weight="thin" size={48} /></div>
+              <div className="text-xl font-semibold">Bem-vindo ao Cafezin</div>
+              <div className="text-sm text-muted max-w-[280px] leading-[1.55]">
+                Entre com sua conta para acessar seus workspaces.
+              </div>
 
               {/* ── OAuth providers ── */}
-              <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 300 }}>
+              <div className="flex gap-2.5 w-full max-w-[300px]">
                 <button
-                  className="mb-btn mb-btn-secondary"
-                  style={{ flex: 1, gap: 8, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  className="btn-secondary flex-1 text-sm"
                   onClick={() => void handleOAuth('google')}
                   disabled={oauthBusy !== null}
                 >
                   {oauthBusy === 'google'
-                    ? <><div className="mb-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> Aguarde</>  
+                    ? <><div className="spinner w-4 h-4" /> Aguarde</>
                     : 'Google'
                   }
                 </button>
                 <button
-                  className="mb-btn mb-btn-secondary"
-                  style={{ flex: 1, gap: 8, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  className="btn-secondary flex-1 text-sm"
                   onClick={() => void handleOAuth('apple')}
                   disabled={oauthBusy !== null}
                 >
                   {oauthBusy === 'apple'
-                    ? <><div className="mb-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> Aguarde</>
+                    ? <><div className="spinner w-4 h-4" /> Aguarde</>
                     : '\u{F8FF} Apple'
                   }
                 </button>
               </div>
 
               {oauthBusy !== null && (
-                <div style={{ fontSize: 12, color: 'var(--mb-muted)', textAlign: 'center', maxWidth: 300 }}>
+                <div className="text-xs text-muted text-center max-w-[300px]">
                   Aguardando autorização no navegador…
                 </div>
               )}
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'rgba(255,255,255,0.3)', fontSize: 12, width: '100%', maxWidth: 300 }}>
-                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
+              <div className="flex items-center gap-2.5 text-white/30 text-xs w-full max-w-[300px]">
+                <div className="flex-1 h-px bg-white/[0.1]" />
                 ou
-                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
+                <div className="flex-1 h-px bg-white/[0.1]" />
               </div>
 
-              <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', width: '100%', maxWidth: 300 }}>
+              <div className="flex rounded-lg overflow-hidden border border-white/[0.12] w-full max-w-[300px]">
                 <button
-                  className={`mb-btn ${authMode === 'login' ? 'mb-btn-primary' : 'mb-btn-ghost'}`}
-                  style={{ flex: 1, borderRadius: 0, fontSize: 14 }}
+                  className={`flex-1 py-2.5 text-sm font-semibold border-0 cursor-pointer transition-opacity active:opacity-75 ${authMode === 'login' ? 'bg-accent text-white' : 'bg-transparent text-muted'}`}
                   onClick={() => { setAuthMode('login') }}
                 >Entrar</button>
                 <button
-                  className={`mb-btn ${authMode === 'signup' ? 'mb-btn-primary' : 'mb-btn-ghost'}`}
-                  style={{ flex: 1, borderRadius: 0, fontSize: 14 }}
+                  className={`flex-1 py-2.5 text-sm font-semibold border-0 cursor-pointer transition-opacity active:opacity-75 ${authMode === 'signup' ? 'bg-accent text-white' : 'bg-transparent text-muted'}`}
                   onClick={() => { setAuthMode('signup') }}
                 >Criar conta</button>
               </div>
@@ -464,11 +462,7 @@ export default function MobileApp() {
                 placeholder="seu@email.com"
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
-                style={{
-                  width: '100%', maxWidth: 300, padding: '10px 14px',
-                  background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: 8, color: '#fff', fontSize: 15, outline: 'none',
-                }}
+                className="w-full max-w-[300px] px-[14px] py-[10px] bg-white/[0.08] border border-white/[0.15] rounded-lg text-white text-[15px] outline-none placeholder:text-white/40"
               />
               <input
                 type="password"
@@ -476,27 +470,20 @@ export default function MobileApp() {
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') void handleAuth() }}
-                style={{
-                  width: '100%', maxWidth: 300, padding: '10px 14px',
-                  background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: 8, color: '#fff', fontSize: 15, outline: 'none',
-                }}
+                className="w-full max-w-[300px] px-[14px] py-[10px] bg-white/[0.08] border border-white/[0.15] rounded-lg text-white text-[15px] outline-none placeholder:text-white/40"
               />
 
               {authBusy && (
-                <div style={{ fontSize: 12, color: 'var(--mb-muted)', textAlign: 'center', maxWidth: 300 }}>
-                  Conectando…
-                </div>
+                <div className="text-xs text-muted">Conectando…</div>
               )}
 
               <button
-                className="mb-btn mb-btn-primary"
-                style={{ width: '100%', maxWidth: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                className="btn-primary w-full max-w-[300px]"
                 onClick={() => void handleAuth()}
                 disabled={authBusy || !emailInput.trim() || !passwordInput.trim()}
               >
                 {authBusy
-                  ? <><div className="mb-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> Aguarde…</>
+                  ? <><div className="spinner w-4 h-4" /> Aguarde…</>
                   : authMode === 'login' ? 'Entrar com e-mail' : 'Criar conta'
                 }
               </button>
@@ -512,114 +499,86 @@ export default function MobileApp() {
     const labelsNeedingAuth = uniqueLabels.filter(l => !getGitAccountToken(l));
 
     return (
-      <div className="mb-shell">
+      <div className="mb-shell fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
         <ToastList toasts={toasts} onDismiss={dismiss} />
 
         {/* ── GitHub Device Flow modal ── */}
         {gitAuthModal && (
-          <div style={{
-            position: 'fixed', inset: 0, zIndex: 999,
-            background: 'rgba(0,0,0,0.85)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '0 24px',
-          }}>
-            <div style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 16,
-              padding: '28px 24px',
-              maxWidth: 360,
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-              alignItems: 'center',
-            }}>
-              <GithubLogo size={40} weight="thin" style={{ opacity: 0.8 }} />
-              <div style={{ fontSize: 18, fontWeight: 700, textAlign: 'center' }}>
-                Conectar GitHub
+          <div className="fixed inset-0 z-[999] bg-black/85 flex items-center justify-center px-6">
+            <div className="bg-surface border border-app-border rounded-2xl py-7 px-6 max-w-[360px] w-full flex flex-col gap-4 items-center">
+              <GithubLogo size={40} weight="thin" className="opacity-80" />
+              <div className="text-lg font-bold text-center">Conectar GitHub</div>
+              <div className="text-[13px] text-muted text-center">
+                Acesse <strong className="text-app-text">github.com/login/device</strong> e insira o código abaixo:
               </div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>
-                Acesse <strong style={{ color: 'var(--text)' }}>github.com/login/device</strong> e insira o código abaixo:
-              </div>
-              <div style={{
-                fontFamily: 'monospace', fontSize: 32, fontWeight: 700,
-                letterSpacing: '0.25em', color: 'var(--accent)',
-                padding: '12px 20px',
-                background: 'rgba(255,255,255,0.06)',
-                borderRadius: 10,
-                border: '1px solid rgba(255,255,255,0.12)',
-              }}>
+              <div className="font-mono text-[32px] font-bold tracking-[0.25em] text-accent px-5 py-3 bg-white/[0.06] rounded-[10px] border border-white/[0.12]">
                 {gitAuthModal.userCode}
               </div>
-              <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+              <div className="flex gap-2 w-full">
                 <button
-                  className="mb-btn mb-btn-primary"
-                  style={{ flex: 1, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  className="btn-primary flex-1 text-sm"
                   onClick={() => void openUrl(gitAuthModal.verificationUri)}
                 >
                   <GithubLogo size={16} /> Abrir GitHub
                 </button>
                 <button
-                  className="mb-btn mb-btn-secondary"
-                  style={{ fontSize: 14, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 6 }}
+                  className="btn-secondary text-sm px-[14px]"
                   onClick={() => handleCopyCode(gitAuthModal.userCode)}
                 >
                   {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
                 </button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 12 }}>
-                <div className="mb-spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
+              <div className="flex items-center gap-2 text-muted text-xs">
+                <div className="spinner w-3 h-3" />
                 Aguardando autorização…
               </div>
             </div>
           </div>
         )}
 
-        <div className="mb-screen">
-          <div className="mb-empty" style={{ flex: 1 }}>
-            <div className="mb-empty-icon"><Folders weight="thin" size={48} /></div>
-            <div className="mb-empty-title">Workspaces</div>
+        <div className="flex-1 overflow-y-auto scroll-touch flex flex-col">
+          <div className="flex flex-col items-center gap-4 px-6 py-10 text-center flex-1">
+            <div className="opacity-30"><Folders weight="thin" size={48} /></div>
+            <div className="text-xl font-semibold">Workspaces</div>
 
             {wsError && (
-              <div style={{ background: 'rgba(224,108,117,0.15)', border: '1px solid rgba(224,108,117,0.3)', color: 'var(--mb-danger)', borderRadius: 8, padding: '10px 14px', fontSize: 13, maxWidth: 300 }}>
+              <div className="bg-[rgba(var(--red-rgb),0.15)] border border-[rgba(var(--red-rgb),0.3)] text-danger rounded-lg px-[14px] py-[10px] text-[13px] max-w-[300px] text-left">
                 {wsError}
               </div>
             )}
 
             {syncError && (
-              <div style={{ background: 'rgba(224,108,117,0.15)', border: '1px solid rgba(224,108,117,0.3)', color: 'var(--mb-danger)', borderRadius: 8, padding: '10px 14px', fontSize: 13, maxWidth: 300 }}>
+              <div className="bg-[rgba(var(--red-rgb),0.15)] border border-[rgba(var(--red-rgb),0.3)] text-danger rounded-lg px-[14px] py-[10px] text-[13px] max-w-[300px] text-left">
                 Could not load workspaces: {syncError}
               </div>
             )}
 
             {loadingSynced && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--mb-muted)', fontSize: 13 }}>
-                <div className="mb-spinner" style={{ width: 16, height: 16 }} />
+              <div className="flex items-center gap-2.5 text-muted text-[13px]">
+                <div className="spinner w-4 h-4" />
                 Loading workspaces…
               </div>
             )}
 
             {/* ── GitHub accounts that need authentication ── */}
             {!loadingSynced && labelsNeedingAuth.length > 0 && (
-              <div style={{ width: '100%', maxWidth: 360, background: 'rgba(255,165,0,0.08)', border: '1px solid rgba(255,165,0,0.25)', borderRadius: 12, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
+              <div className="w-full max-w-[360px] bg-[rgba(255,165,0,0.08)] border border-[rgba(255,165,0,0.25)] rounded-xl px-[14px] py-3 flex flex-col gap-2.5">
+                <div className="flex items-center gap-2 text-[13px] font-semibold">
                   <Warning size={16} color="var(--mb-warning, #e8a020)" />
                   Conta GitHub não conectada
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                <div className="text-xs text-muted text-left">
                   Para clonar e sincronizar repositórios privados, conecte sua conta GitHub a este dispositivo.
                 </div>
                 {labelsNeedingAuth.map(label => (
                   <button
                     key={label}
-                    className="mb-btn mb-btn-secondary"
-                    style={{ fontSize: 13, padding: '7px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                    className="btn-secondary text-[13px] py-[7px]"
                     onClick={() => void handleGitAuth(label)}
                     disabled={gitAuthBusy !== null}
                   >
                     {gitAuthBusy === label
-                      ? <><div className="mb-spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Aguarde…</>
+                      ? <><div className="spinner w-3.5 h-3.5" /> Aguarde…</>
                       : <><GithubLogo size={16} /> Conectar conta "{label}"</>
                     }
                   </button>
@@ -628,7 +587,7 @@ export default function MobileApp() {
             )}
 
             {!loadingSynced && syncedWorkspaces.length > 0 && (
-              <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="w-full max-w-[360px] flex flex-col gap-2.5">
                 {syncedWorkspaces.map(ws => {
                   const canOpen = !!ws.localPath;
                   const busy = gitBusy[ws.gitUrl];
@@ -636,54 +595,43 @@ export default function MobileApp() {
                   return (
                     <div
                       key={ws.gitUrl}
-                      style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        border: `1px solid ${!hasToken ? 'rgba(255,165,0,0.3)' : 'rgba(255,255,255,0.1)'}`,
-                        borderRadius: 12,
-                        padding: '12px 14px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 4,
-                      }}
+                      className={`bg-white/[0.05] rounded-xl px-[14px] py-3 flex flex-col gap-1 border ${!hasToken ? 'border-[rgba(255,165,0,0.3)]' : 'border-white/[0.1]'}`}
                     >
-                      <div style={{ fontWeight: 600, fontSize: 15 }}>{ws.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--mb-muted)', wordBreak: 'break-all' }}>{ws.gitUrl}</div>
+                      <div className="font-semibold text-[15px]">{ws.name}</div>
+                      <div className="text-[11px] text-muted break-all">{ws.gitUrl}</div>
                       {!hasToken && (
-                        <div style={{ fontSize: 11, color: 'var(--mb-warning, #e8a020)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                        <div className="text-[11px] text-[#e8a020] flex items-center gap-1 mt-0.5">
                           <Warning size={12} /> Token GitHub não configurado — conecte a conta acima
                         </div>
                       )}
                       {canOpen ? (
-                        <div style={{ marginTop: 6, display: 'flex', gap: 8 }}>
+                        <div className="mt-1.5 flex gap-2">
                           <button
-                            className="mb-btn mb-btn-primary"
-                            style={{ flex: 1, fontSize: 13, padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                            className="btn-primary flex-1 text-[13px] py-1.5"
                             onClick={() => void openWorkspacePath(ws.localPath!, ws.gitUrl)}
                             disabled={!!busy}
                           >
                             <ArrowRight size={14} /> Abrir
                           </button>
                           <button
-                            className="mb-btn mb-btn-secondary"
-                            style={{ fontSize: 13, padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                            className="btn-secondary text-[13px] py-1.5 px-[14px]"
                             onClick={() => void handlePull(ws.gitUrl, ws.localPath!, ws.gitAccountLabel)}
                             disabled={!!busy}
                           >
                             {busy === 'pull'
-                              ? <><div className="mb-spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Pull…</>
+                              ? <><div className="spinner w-3 h-3" /> Pull…</>
                               : <><ArrowDown size={14} /> Pull</>
                             }
                           </button>
                         </div>
                       ) : (
                         <button
-                          className="mb-btn mb-btn-secondary"
-                          style={{ marginTop: 6, fontSize: 13, padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                          className="btn-secondary mt-1.5 text-[13px] py-1.5"
                           onClick={() => void handleClone(ws.gitUrl, ws.gitAccountLabel, ws.branch)}
                           disabled={!!busy || !hasToken}
                         >
                           {busy === 'clone'
-                            ? <><div className="mb-spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Clonando…</>
+                            ? <><div className="spinner w-3 h-3" /> Clonando…</>
                             : <><ArrowDown size={14} /> Clonar</>
                           }
                         </button>
@@ -695,20 +643,20 @@ export default function MobileApp() {
             )}
 
             {!loadingSynced && syncedWorkspaces.length === 0 && !syncError && (
-              <div className="mb-empty-desc">No workspaces registered yet. Open Settings → Sync on your desktop to register one.</div>
+              <div className="text-sm text-muted max-w-[280px] leading-[1.55]">
+                No workspaces registered yet. Open Settings → Sync on your desktop to register one.
+              </div>
             )}
 
             <button
-              className="mb-btn mb-btn-ghost"
-              style={{ marginTop: 4, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}
+              className="btn-ghost mt-1 text-sm"
               onClick={loadSyncedList}
             >
               <ArrowClockwise size={15} /> Atualizar
             </button>
 
             <button
-              className="mb-btn mb-btn-ghost"
-              style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}
+              className="btn-ghost text-[13px] text-muted"
               onClick={() => void handleSignOut()}
             >
               <SignOut size={14} /> Sair da conta
@@ -758,40 +706,45 @@ export default function MobileApp() {
   }
 
   return (
-    <div className="mb-shell">
+    <div className="mb-shell fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
       <ToastList toasts={toasts} onDismiss={dismiss} />
 
       {/* Shell-level workspace topbar — overlay (Safari-style), always on top */}
       {workspace && (
-        <div className={`mb-topbar${headerHidden ? ' mb-topbar--hidden' : ''}`}>
+        <div
+          className={`fixed left-0 right-0 z-50 flex items-center gap-2 px-4 backdrop-glass border-b border-app-border bg-surface/80 transition-transform duration-300 ${headerHidden ? '-translate-y-full' : 'translate-y-0'}`}
+          style={{
+            top: 0,
+            height: 'calc(var(--mb-topbar-h) + env(safe-area-inset-top, 0px))',
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+          }}
+        >
           <button
-            className="mb-icon-btn"
+            className="icon-btn"
             onClick={() => { setWorkspace(null); setWsGitUrl(null); }}
             title="Trocar workspace"
-            style={{ marginRight: 2 }}
           >
             <House weight="thin" size={18} />
           </button>
-          <span style={{ display: 'flex', color: 'var(--text-muted)' }}>
+          <span className="text-muted flex">
             <FolderSimple weight="thin" size={20} />
           </span>
-          <span className="mb-header-title">{workspace.name}</span>
+          <span className="flex-1 text-[15px] font-semibold truncate text-app-text">{workspace.name}</span>
           {workspace.hasGit && (
             <button
-              className="mb-icon-btn"
+              className="icon-btn flex items-center gap-1 text-[13px] px-[10px] py-1 rounded-md"
               onClick={() => void handleSync()}
               disabled={isSyncing}
               title="Sincronizar (pull + push)"
-              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, padding: '4px 10px', borderRadius: 6 }}
             >
               {isSyncing
-                ? <><div className="mb-spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Sincronizando…</>
+                ? <><div className="spinner w-3 h-3" /> Sincronizando…</>
                 : <><ArrowsClockwise weight="thin" size={16} /> Sync</>
               }
             </button>
           )}
           <button
-            className="mb-icon-btn"
+            className="icon-btn"
             onClick={refreshWorkspace}
             title="Atualizar"
             disabled={isSyncing}
@@ -802,37 +755,40 @@ export default function MobileApp() {
       )}
 
       <div
-        className={`mb-screen${workspace ? ' has-topbar' : ''}`}
+        className="flex-1 overflow-hidden flex flex-col"
         ref={screenRef}
+        style={workspace ? { paddingTop: 'calc(var(--mb-topbar-h) + env(safe-area-inset-top, 0px))' } : undefined}
       >
         {renderTab()}
       </div>
 
-      <nav className="mb-tabbar">
+      <nav
+        className="shrink-0 flex bg-surface border-t border-app-border"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
         <button
-          className={`mb-tab ${activeTab === 'files' ? 'active' : ''}`}
+          className={`flex flex-col items-center justify-center flex-1 gap-0.5 py-2 border-0 bg-transparent cursor-pointer transition-colors ${activeTab === 'files' ? 'text-accent' : 'text-muted'}`}
           onClick={() => {
-            // iOS-style: tapping the active tab while in preview goes back to file browser
             if (activeTab === 'files' && openFile) { setOpenFile(null); return; }
             setActiveTab('files');
           }}
         >
-          <span className="mb-tab-icon"><Folders weight="thin" size={22} /></span>
-          <span className="mb-tab-label">Arquivos</span>
+          <span className="leading-none"><Folders weight="thin" size={22} /></span>
+          <span className="text-[10px] font-medium">Arquivos</span>
         </button>
         <button
-          className={`mb-tab ${activeTab === 'copilot' ? 'active' : ''}`}
+          className={`flex flex-col items-center justify-center flex-1 gap-0.5 py-2 border-0 bg-transparent cursor-pointer transition-colors ${activeTab === 'copilot' ? 'text-accent' : 'text-muted'}`}
           onClick={() => setActiveTab('copilot')}
         >
-          <span className="mb-tab-icon"><Robot weight="thin" size={22} /></span>
-          <span className="mb-tab-label">Copilot</span>
+          <span className="leading-none"><Robot weight="thin" size={22} /></span>
+          <span className="text-[10px] font-medium">Copilot</span>
         </button>
         <button
-          className={`mb-tab ${activeTab === 'voice' ? 'active' : ''}`}
+          className={`flex flex-col items-center justify-center flex-1 gap-0.5 py-2 border-0 bg-transparent cursor-pointer transition-colors ${activeTab === 'voice' ? 'text-accent' : 'text-muted'}`}
           onClick={() => setActiveTab('voice')}
         >
-          <span className="mb-tab-icon"><Microphone weight="thin" size={22} /></span>
-          <span className="mb-tab-label">Voz</span>
+          <span className="leading-none"><Microphone weight="thin" size={22} /></span>
+          <span className="text-[10px] font-medium">Voz</span>
         </button>
       </nav>
     </div>

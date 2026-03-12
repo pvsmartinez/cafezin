@@ -41,15 +41,15 @@
 
 /* Light mode overrides */
 body.theme-light .editor-md-toolbar {
-  background: #f5f5f5;
-  border-bottom-color: #ddd;
+  background: var(--surface2);
+  border-bottom-color: var(--border);
 }
 body.theme-light .editor-md-toolbar-btn {
-  color: #666;
+  color: var(--text-muted);
 }
 body.theme-light .editor-md-toolbar-btn:hover {
-  background: #e8e8e8;
-  color: #333;
+  background: var(--surface-deep);
+  color: var(--text-bright);
 }
 
 /* KaTeX block math in markdown preview */
@@ -59,7 +59,7 @@ body.theme-light .editor-md-toolbar-btn:hover {
   text-align: center;
 }
 .katex-error {
-  color: #c97570;
+  color: var(--red);
   font-style: italic;
 }
 

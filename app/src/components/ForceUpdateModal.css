@@ -10,8 +10,8 @@
 }
 
 .fu-modal {
-  background: var(--bg-2, #1a1a1a);
-  border: 1px solid var(--border, #333);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 40px 36px 32px;
   width: 360px;
@@ -32,25 +32,25 @@
 .fu-title {
   font-size: 17px;
   font-weight: 600;
-  color: var(--text-1, #f0f0f0);
+  color: var(--text-bright);
   margin: 0;
 }
 
 .fu-desc {
   font-size: 13px;
-  color: var(--text-2, #aaa);
+  color: var(--text-muted);
   margin: 0;
   line-height: 1.5;
 }
 
 .fu-version {
   font-size: 12px;
-  color: var(--text-3, #666);
+  color: var(--text-dim);
   margin: 0;
 }
 
 .fu-version strong {
-  color: var(--text-2, #aaa);
+  color: var(--text-muted);
   font-family: monospace;
 }
 

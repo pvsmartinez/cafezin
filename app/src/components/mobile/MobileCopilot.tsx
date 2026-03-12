@@ -76,7 +76,7 @@ function MobileMdMessage({ content }: { content: string }) {
   }, [content]);
   return (
     <div
-      className="mb-msg-md-body"
+      className="prose-content"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
@@ -119,12 +119,15 @@ function ToolChip({ activity }: { activity: ToolActivity }) {
   else if (args.url)     argHint = String(args.url).replace(/^https?:\/\//, '').slice(0, 28);
 
   return (
-    <div className={`mb-tool-chip ${isDone ? (isError ? 'error' : 'done') : 'running'}`}>
-      <span className="mb-tool-icon">{icon}</span>
-      <span className="mb-tool-label">{label}</span>
-      {argHint && <span className="mb-tool-hint">{argHint}</span>}
-      <span className="mb-tool-status">
-        {!isDone ? <span className="mb-tool-spinner" /> : isError ? <X size={12} /> : <Check size={12} />}
+    <div className={`flex items-center gap-1.5 bg-surface-2 border rounded-[20px] py-[5px] px-[10px] pl-2 text-xs max-w-[260px] overflow-hidden
+      ${!isDone ? 'border-[rgba(var(--accent-rgb),0.3)] text-app-text' : isError ? 'border-[rgba(var(--red-rgb),0.4)] text-danger' : 'opacity-60 border-app-border text-muted'}`}>
+      <span className="text-[13px] shrink-0">{icon}</span>
+      <span className="font-medium whitespace-nowrap overflow-hidden text-ellipsis shrink-0">{label}</span>
+      {argHint && <span className="text-muted whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-0 italic">{argHint}</span>}
+      <span className="text-xs shrink-0 ml-auto">
+        {!isDone
+          ? <span className="inline-block w-[10px] h-[10px] border-[1.5px] border-[rgba(var(--accent-rgb),0.3)] border-t-accent rounded-full animate-mb-spin align-middle" />
+          : isError ? <X size={12} /> : <Check size={12} />}
       </span>
     </div>
   );
@@ -396,37 +399,37 @@ export default function MobileCopilot({
   // ── Auth screen ──────────────────────────────────────────────────────────
   if (authStatus === 'unauthenticated' || authStatus === 'connecting') {
     return (
-      <div className="mb-chat">
-        <div className="mb-header">
-          <span className="mb-header-title">Copilot</span>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex items-center gap-2 px-4 pt-3 pb-[10px] border-b border-app-border bg-surface shrink-0">
+          <span className="flex-1 text-[17px] font-semibold truncate">Copilot</span>
         </div>
-        <div className="mb-chat-auth">
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 py-8 text-center">
           {authStatus === 'connecting' && deviceFlow ? (
             <>
-              <div className="mb-empty-icon"><Key size={32} weight="light" /></div>
-              <div className="mb-chat-auth-title">Sign in to GitHub</div>
-              <div className="mb-chat-auth-desc">
+              <div className="opacity-40 text-muted"><Key size={32} weight="light" /></div>
+              <div className="text-lg font-semibold">Sign in to GitHub</div>
+              <div className="text-sm text-muted max-w-[260px] leading-[1.5]">
                 Go to the URL below and enter the code to authorize.
               </div>
               <button
-                className="mb-device-flow-url"
+                className="text-sm text-muted underline cursor-pointer device-flow-url"
                 onClick={() => { if (deviceFlow.verificationUri) openUrl(deviceFlow.verificationUri); }}
               >
                 {deviceFlow.verificationUri}
               </button>
-              <div className="mb-device-flow-code">{deviceFlow.userCode}</div>
-              <div className="mb-chat-auth-desc" style={{ fontSize: 12 }}>
-                Waiting for authorization…
+              <div className="text-[28px] font-bold tracking-[4px] font-mono text-accent bg-surface-2 border border-app-border rounded-[10px] px-5 py-3 device-flow-code">
+                {deviceFlow.userCode}
               </div>
+              <div className="text-xs text-muted">Waiting for authorization…</div>
             </>
           ) : (
             <>
-              <div className="mb-empty-icon"><Robot size={32} /></div>
-              <div className="mb-chat-auth-title">Sign in to use Copilot</div>
-              <div className="mb-chat-auth-desc">
+              <div className="opacity-40 text-muted"><Robot size={32} /></div>
+              <div className="text-lg font-semibold">Sign in to use Copilot</div>
+              <div className="text-sm text-muted max-w-[260px] leading-[1.5]">
                 Connect your GitHub Copilot account to start chatting.
               </div>
-              <button className="mb-btn" onClick={handleSignIn}>
+              <button className="btn-primary" onClick={handleSignIn}>
                 Sign in with GitHub
               </button>
             </>
@@ -440,39 +443,39 @@ export default function MobileCopilot({
   const currentModel = models.find(m => m.id === model) ?? { name: model };
 
   return (
-    <div className="mb-chat">
+    <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="mb-header">
-        <span className="mb-header-title">{PROVIDER_LABELS[activeProvider]}</span>
+      <div className="flex items-center gap-2 px-4 pt-3 pb-[10px] border-b border-app-border bg-surface shrink-0">
+        <span className="flex-1 text-[17px] font-semibold truncate">{PROVIDER_LABELS[activeProvider]}</span>
         <button
-          className="mb-icon-btn mb-model-btn"
+          className="icon-btn text-xs px-[10px] py-1 rounded-lg bg-surface-2 text-muted"
           onClick={() => setShowModelPicker(v => !v)}
           title="Switch model"
         >
           {currentModel.name} ▾
         </button>
         {messages.length > 0 && (
-          <button className="mb-icon-btn" onClick={handleClear} title="New chat">
+          <button className="icon-btn" onClick={handleClear} title="New chat">
             <X size={14} />
           </button>
         )}
-        <button className="mb-icon-btn" onClick={handleSignOut} title="Sign out" style={{ color: 'var(--mb-muted)' }}>
+        <button className="icon-btn text-muted" onClick={handleSignOut} title="Sign out">
           <SignOut size={14} />
         </button>
       </div>
 
       {/* Model picker */}
       {showModelPicker && (
-        <div className="mb-model-picker">
+        <div className="bg-surface border border-app-border rounded-[10px] mx-3 py-1 z-20 max-h-[220px] overflow-y-auto shrink-0">
           {models.map(m => (
             <button
               key={m.id}
-              className={`mb-model-option ${m.id === model ? 'active' : ''}`}
+              className={`flex items-center w-full px-4 py-[9px] bg-transparent border-0 text-left cursor-pointer text-app-text text-sm gap-2 active:bg-white/[0.04] ${m.id === model ? 'bg-[rgba(var(--accent-rgb),0.12)]' : ''}`}
               onClick={() => { setModel(m.id); setShowModelPicker(false); }}
             >
-              <span className="mb-model-name">{m.name}</span>
-              {m.multiplier === 0 && <span className="mb-model-badge free">free</span>}
-              {(m.multiplier ?? 1) > 1 && <span className="mb-model-badge premium">{m.multiplier}×</span>}
+              <span className="flex-1">{m.name}</span>
+              {m.multiplier === 0 && <span className="text-[11px] px-1.5 py-px rounded font-semibold text-success bg-[rgba(var(--accent-rgb),0.1)]">free</span>}
+              {(m.multiplier ?? 1) > 1 && <span className="text-[11px] px-1.5 py-px rounded font-semibold text-muted bg-[rgba(var(--accent-rgb),0.06)]">{m.multiplier}×</span>}
             </button>
           ))}
         </div>
@@ -480,23 +483,21 @@ export default function MobileCopilot({
 
       {/* Context pill */}
       {contextFilePath && (
-        <div className="mb-context-pill">
-          <span className="mb-context-pill-dot" />
+        <div className="flex items-center gap-1.5 text-xs text-muted bg-surface-2 border-b border-app-border px-3 py-1.5 shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
           <span>Context: {contextFilePath.split('/').pop()}</span>
           {workspace && (
-            <span style={{ marginLeft: 'auto', color: 'var(--mb-accent2)', fontSize: 11 }}>
-              agent enabled
-            </span>
+            <span className="ml-auto text-[11px] text-accent">agent enabled</span>
           )}
         </div>
       )}
 
       {/* Messages */}
-      <div className="mb-chat-messages">
+      <div className="flex-1 overflow-y-auto scroll-touch px-3 pt-3 pb-2 flex flex-col gap-2">
         {messages.length === 0 && !streaming && (
-          <div className="mb-chat-empty">
-            <div className="mb-chat-empty-icon"><Robot size={32} /></div>
-            <div className="mb-chat-empty-text">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3.5 px-6 py-10 text-center">
+            <div className="text-[40px] opacity-25"><Robot size={32} /></div>
+            <div className="text-sm text-muted max-w-[280px] leading-[1.55]">
               {workspace
                 ? `I can read, search, and edit files in "${workspace.name}". What would you like to do?`
                 : 'Ask anything. Open a workspace on desktop to unlock file editing.'}
@@ -506,11 +507,11 @@ export default function MobileCopilot({
 
         {messages.map((msg, i) => (
           msg.role === 'user' ? (
-            <div key={i} className="mb-msg mb-msg-user">
+            <div key={i} className="max-w-[86%] px-[13px] py-[10px] rounded-2xl text-sm leading-[1.5] break-words self-end bg-accent text-white rounded-br-[4px]">
               {contentToString(msg.content)}
             </div>
           ) : (
-            <div key={i} className="mb-msg mb-msg-assistant">
+            <div key={i} className="max-w-[86%] px-[13px] py-[10px] rounded-2xl text-sm leading-[1.5] break-words self-start bg-surface-2 text-app-text rounded-bl-[4px]">
               <MobileMdMessage content={contentToString(msg.content)} />
             </div>
           )
@@ -518,7 +519,7 @@ export default function MobileCopilot({
 
         {/* Live tool activity chips */}
         {liveActivities.length > 0 && (
-          <div className="mb-tool-chips">
+          <div className="flex flex-col gap-1 pb-1 self-start max-w-full">
             {liveActivities.map((a) => (
               <ToolChip key={a.callId} activity={a} />
             ))}
@@ -527,44 +528,48 @@ export default function MobileCopilot({
 
         {/* Streaming text */}
         {streaming && streamingText && (
-          <div className="mb-msg mb-msg-assistant mb-msg-streaming">
+          <div className="max-w-[86%] px-[13px] py-[10px] rounded-2xl text-sm leading-[1.5] break-words self-start bg-surface-2 text-app-text rounded-bl-[4px] msg-streaming">
             <MobileMdMessage content={streamingText} />
           </div>
         )}
         {streaming && !streamingText && liveActivities.length === 0 && (
-          <div style={{ display: 'flex', padding: '4px 8px' }}>
-            <div className="mb-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
+          <div className="flex px-2 py-1">
+            <div className="spinner w-5 h-5" />
           </div>
         )}
 
         {error && (
-          <div className="mb-chat-error">{error}</div>
+          <div className="chat-error bg-[rgba(var(--red-rgb),0.15)] border border-[rgba(var(--red-rgb),0.3)] text-danger rounded-[10px] px-[13px] py-[10px] text-[13px] mx-3">
+            {error}
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Groq key setup */}
       {showGroqSetup && (
-        <div className="mb-groq-setup">
-          <p>Enter your <a href="https://console.groq.com" style={{ color: 'var(--mb-accent)' }}>Groq API key</a> for voice input:</p>
-          <div className="mb-groq-row">
+        <div className="bg-surface border-t border-app-border px-3 pt-3 flex flex-col gap-2" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
+          <p className="m-0 text-[13px] text-muted">
+            Enter your <a href="https://console.groq.com" className="text-accent">Groq API key</a> for voice input:
+          </p>
+          <div className="flex gap-2">
             <input
-              className="mb-groq-input"
+              className="flex-1 bg-surface-2 border border-app-border rounded-lg px-[10px] py-2 text-app-text text-sm outline-none"
               type="password"
               placeholder="gsk_..."
               value={groqKeyInput}
               onChange={e => setGroqKeyInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && saveGroq()}
             />
-            <button className="mb-btn" style={{ padding: '8px 14px', fontSize: 13 }} onClick={saveGroq}>Save</button>
+            <button className="btn-primary px-[14px] py-2 text-[13px]" onClick={saveGroq}>Save</button>
           </div>
         </div>
       )}
 
       {/* Input area */}
-      <div className="mb-chat-input-area">
+      <div className="shrink-0 px-3 pt-2 flex items-end gap-2 bg-surface border-t border-app-border" style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}>
         <button
-          className={`mb-chat-voice ${isRecording ? 'recording' : ''}`}
+          className={`w-[38px] h-[38px] border rounded-full text-lg flex items-center justify-center shrink-0 cursor-pointer transition-[background,color] duration-150 ${isRecording ? 'bg-[rgba(var(--red-rgb),0.2)] text-danger border-danger animate-mb-pulse' : 'bg-surface-2 border-app-border text-muted'}`}
           onClick={handleVoice}
           title={isRecording ? 'Stop recording' : 'Voice input'}
           disabled={isTranscribing}
@@ -573,7 +578,7 @@ export default function MobileCopilot({
         </button>
         <textarea
           ref={textareaRef}
-          className="mb-chat-textarea"
+          className="flex-1 bg-surface-2 border border-app-border rounded-xl px-3 py-[10px] text-app-text text-[15px] font-[inherit] resize-none outline-none leading-[1.4] max-h-[140px] overflow-y-auto placeholder:text-muted"
           rows={1}
           placeholder="Message Copilot…"
           value={input}
@@ -582,10 +587,10 @@ export default function MobileCopilot({
           disabled={streaming}
         />
         <button
-          className="mb-chat-send"
+          className="w-[38px] h-[38px] border-0 rounded-full text-lg flex items-center justify-center shrink-0 cursor-pointer transition-opacity text-white disabled:opacity-35 active:opacity-65"
+          style={{ background: streaming ? 'var(--red)' : 'var(--accent)' }}
           onClick={streaming ? handleStop : handleSend}
           disabled={!streaming && !input.trim()}
-          style={streaming ? { background: 'var(--mb-danger)' } : undefined}
           title={streaming ? 'Stop' : 'Send'}
         >
           {streaming ? '■' : '↑'}
