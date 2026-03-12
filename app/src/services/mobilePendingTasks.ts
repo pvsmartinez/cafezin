@@ -10,6 +10,7 @@
 
 import { readTextFile, writeTextFile, exists, mkdir } from './fs';
 import { CONFIG_DIR } from './config';
+import { generateId } from '../utils/generateId';
 
 export interface MobilePendingTask {
   id: string;
@@ -56,7 +57,7 @@ export async function appendPendingTask(
 ): Promise<MobilePendingTask> {
   const current = await loadPendingTasks(workspacePath);
   const newTask: MobilePendingTask = {
-    id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id: generateId(),
     createdAt: new Date().toISOString(),
     ...task,
   };

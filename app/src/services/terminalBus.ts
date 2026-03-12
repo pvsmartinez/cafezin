@@ -4,6 +4,7 @@
  * Any part of the app that runs a shell command (AI tools, the user) publishes
  * an entry here.  The BottomPanel subscribes and displays them in real-time.
  */
+import { generateId } from '../utils/generateId';
 
 export interface TerminalEntry {
   id: string;
@@ -28,7 +29,7 @@ export function onTerminalEntry(fn: Listener): () => void {
 export function emitTerminalEntry(entry: Omit<TerminalEntry, 'id'>): void {
   const full: TerminalEntry = {
     ...entry,
-    id: `te-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id: generateId(),
   };
   listeners.forEach((l) => l(full));
 }
