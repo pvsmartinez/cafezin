@@ -66,44 +66,66 @@
   --shadow-lg: 0 24px 64px var(--shadow);  /* modals, full dialogs       */
 }
 
-/* ── Dark theme — default (warm brown + aqua-green) ─────────────────────── */
+/* ╔══════════════════════════════════════════════════════════════════╗
+   ║  DARK THEME — default                                            ║
+   ║                                                                  ║
+   ║  To re-theme: edit the PALETTE block only (section below ↓).    ║
+   ║  Semantic tokens are auto-derived — do not edit them directly.   ║
+   ╚══════════════════════════════════════════════════════════════════╝ */
+
+/* ── ☕ Espresso palette — edit these ~13 values to re-theme dark mode ─── */
+:root {
+  --pal-dark:       #0f0b07;   /* darkest point — page & canvas bg     */
+  --pal-card:       #161009;   /* panels, cards                        */
+  --pal-inset:      #1e180f;   /* inset areas, hover bg, subtle border */
+  --pal-deep:       #0b0806;   /* deep inputs, dropdowns               */
+  --pal-code-bg:    #13181d;   /* code blocks (intentionally cool-hue) */
+  --pal-line:       #2e2418;   /* visible borders                      */
+  --pal-code-line:  #1f252d;   /* code area borders                    */
+  --pal-hi:         #eeddbf;   /* headings / brightest text            */
+  --pal-text:       #e0c9a4;   /* body text                            */
+  --pal-muted:      #9e8060;   /* secondary / subdued text             */
+  --pal-ghost:      #6a5742;   /* placeholders / disabled              */
+  --pal-accent:     #4ecfb8;   /* brand / interactive colour (teal)    */
+  --pal-accent-rgb: 78, 207, 184;
+}
+
+/* ── Semantic tokens — derived from palette, do not edit here ─────────── */
 :root {
   /* Backgrounds */
-  --bg:            #1c1610;   /* page / canvas  */
-  --surface:       #231d15;   /* panels, cards  */
-  --surface2:      #2c2519;   /* inset areas, hover bg  */
-  --surface-deep:  #191410;   /* deep inputs, dropdowns  */
-  --surface-code:  #171b1f;   /* code blocks, tool items (neutral-cool) */
+  --bg:            var(--pal-dark);
+  --surface:       var(--pal-card);
+  --surface2:      var(--pal-inset);
+  --surface-deep:  var(--pal-deep);
+  --surface-code:  var(--pal-code-bg);
 
   /* Borders */
-  --border:        #2c2519;   /* subtle dividers  */
-  --border2:       #3f3426;   /* visible borders  */
-  --border-code:   #262b32;   /* borders inside code/tool areas  */
+  --border:        var(--pal-inset);
+  --border2:       var(--pal-line);
+  --border-code:   var(--pal-code-line);
 
   /* Text */
-  --text:          #cdb89f;   /* body text  */
-  --text-bright:   #dcc9ac;   /* headings, strong, highlighted  */
-  --text-muted:    #856e53;   /* secondary text  */
-  --text-dim:      #5e4d38;   /* disabled, placeholders  */
+  --text:          var(--pal-text);
+  --text-bright:   var(--pal-hi);
+  --text-muted:    var(--pal-muted);
+  --text-dim:      var(--pal-ghost);
 
-  /* Accent (teal) */
-  --accent:        #4ecfb8;
-  --accent-rgb:    78, 207, 184;
+  /* Accent */
+  --accent:        var(--pal-accent);
+  --accent-rgb:    var(--pal-accent-rgb);
   --accent-bg:     rgba(var(--accent-rgb), 0.12);
   --accent-border: rgba(var(--accent-rgb), 0.38);
 
-  /* Semantic colours */
+  /* Semantic colours — fixed across palettes */
   --green:         #82cfa5;
   --green-rgb:     130, 207, 165;
   --yellow:        #dab26e;
   --yellow-rgb:    218, 178, 110;
   --red:           #cf7b76;
   --red-rgb:       207, 123, 118;
-
-  /* Extended semantic colours */
   --purple:        #9d7cd8;   /* AI thinking, italic text  */
   --purple-rgb:    157, 124, 216;
-  --purple-dim:    #7a6e9f;   /* secondary purple  */
+  --purple-dim:    #7a6e9f;
   --purple-bg:     rgba(var(--purple-rgb), 0.1);
   --blue:          #528bbc;   /* send hover, interactive  */
   --blue-rgb:      82, 139, 188;
@@ -111,17 +133,17 @@
   --orange-rgb:    229, 137, 42;
 
   /* Canvas format panel / active-state */
-  --fmt-bg:          var(--surface-code);            /* panel cell bg  */
-  --fmt-border:      var(--border-code);             /* panel cell border  */
-  --fmt-hover-bg:    rgba(var(--blue-rgb), 0.08);   /* hovered cell  */
-  --fmt-hover-br:    rgba(var(--blue-rgb), 0.28);   /* hovered cell border  */
-  --fmt-on-bg:       rgba(var(--blue-rgb), 0.14);   /* active/on state bg  */
-  --fmt-on-border:   rgba(var(--blue-rgb), 0.52);   /* active/on border  */
-  --fmt-on-text:     rgba(var(--blue-rgb), 0.9);    /* active/on text  */
-  --fmt-green-bg:    rgba(var(--green-rgb), 0.1);   /* make-slide btn  */
-  --fmt-green-br:    rgba(var(--green-rgb), 0.4);   /* make-slide border  */
-  --fmt-green-hbg:   rgba(var(--green-rgb), 0.16);  /* make-slide hover  */
-  --fmt-green-hbr:   rgba(var(--green-rgb), 0.55);  /* make-slide hover border  */
+  --fmt-bg:          var(--surface-code);
+  --fmt-border:      var(--border-code);
+  --fmt-hover-bg:    rgba(var(--blue-rgb), 0.08);
+  --fmt-hover-br:    rgba(var(--blue-rgb), 0.28);
+  --fmt-on-bg:       rgba(var(--blue-rgb), 0.14);
+  --fmt-on-border:   rgba(var(--blue-rgb), 0.52);
+  --fmt-on-text:     rgba(var(--blue-rgb), 0.9);
+  --fmt-green-bg:    rgba(var(--green-rgb), 0.1);
+  --fmt-green-br:    rgba(var(--green-rgb), 0.4);
+  --fmt-green-hbg:   rgba(var(--green-rgb), 0.16);
+  --fmt-green-hbr:   rgba(var(--green-rgb), 0.55);
 
   /* Glass HUD (zoom indicator, hover overlays) */
   --hud-bg:        rgba(20, 22, 28, 0.88);
@@ -131,15 +153,15 @@
   --hud-text-hi:   #e8eaf0;
 
   /* Editor */
-  --editor-selection:  #372e22;          /* CM selection bg — dark        */
-  --editor-active-ln:  rgba(255,255,255,0.025);
+  --editor-selection:  #2e2318;
+  --editor-active-ln:  rgba(255,255,255,0.03);
 
   /* Shadow */
   --shadow:        rgba(0, 0, 0, 0.40);
 
   /* ── Aliases — legacy / alternate naming conventions ── */
-  --font-sans:      var(--font-ui);          /* files using --font-sans */
-  --surface-2:      var(--surface2);         /* files using hyphenated form */
+  --font-sans:      var(--font-ui);
+  --surface-2:      var(--surface2);
   --bg-primary:     var(--bg);
   --bg-secondary:   var(--surface);
   --bg-tertiary:    var(--surface2);
@@ -152,44 +174,43 @@
   --hover:          var(--surface2);
   --hover2:         var(--border2);
   --mb-danger:      var(--red);
-  --text-rgb:       205, 184, 159;           /* rgb() components of --text (dark) */
+  --text-rgb:       224, 201, 164;   /* rgb() of --pal-text, keep in sync */
 }
 
-/* ── Light theme (warm cream + aqua-green) ───────────────────────────────── */
+/* ╔══════════════════════════════════════════════════════════════════╗
+   ║  LIGHT THEME                                                     ║
+   ║  To re-theme: edit the PALETTE block only (section below ↓).    ║
+   ╚══════════════════════════════════════════════════════════════════╝ */
+
+/* ── 🥛 Cream palette — edit these ~13 values to re-theme light mode ───── */
 body.theme-light {
-  /* Backgrounds */
-  --bg:            #f5f0e7;
-  --surface:       #fdf8f2;
-  --surface2:      #ece7db;
-  --surface-deep:  #e4ddd2;
-  --surface-code:  #e9e4db;
+  --pal-dark:       #f5f0e7;   /* page bg (lightest)    */
+  --pal-card:       #fdf8f2;   /* panels, cards         */
+  --pal-inset:      #ece7db;   /* inset, hover          */
+  --pal-deep:       #e4ddd2;   /* deep inputs           */
+  --pal-code-bg:    #e9e4db;   /* code blocks           */
+  --pal-line:       #c9c0ae;   /* visible borders       */
+  --pal-code-line:  #cdc4b0;   /* code area borders     */
+  --pal-hi:         #251a0c;   /* headings (darkest)    */
+  --pal-text:       #382c1c;   /* body text             */
+  --pal-muted:      #7a6a52;   /* secondary text        */
+  --pal-ghost:      #a89880;   /* placeholders          */
+  --pal-accent:     #1f9e8a;   /* brand / interactive   */
+  --pal-accent-rgb: 31, 158, 138;
+}
 
-  /* Borders */
+/* ── Semantic overrides for light — derived from palette ──────────────── */
+body.theme-light {
+  /* --border in light has its own value (midpoint between surface2 and border2) */
   --border:        #ddd5c5;
-  --border2:       #c9c0ae;
-  --border-code:   #cdc4b0;
 
-  /* Text */
-  --text:          #382c1c;
-  --text-bright:   #251a0c;
-  --text-muted:    #7a6a52;
-  --text-dim:      #a89880;
-
-  /* Accent (teal) */
-  --accent:        #1f9e8a;
-  --accent-rgb:    31, 158, 138;
-  --accent-bg:     rgba(31, 158, 138, 0.1);
-  --accent-border: rgba(31, 158, 138, 0.35);
-
-  /* Semantic colours */
+  /* Semantic colours — adjusted for light */
   --green:         #2d9e5e;
   --green-rgb:     45, 158, 94;
   --yellow:        #a57428;
   --yellow-rgb:    165, 116, 40;
   --red:           #bf3c3c;
   --red-rgb:       191, 60, 60;
-
-  /* Extended semantic colours */
   --purple:        #7340c8;
   --purple-rgb:    115, 64, 200;
   --purple-dim:    #9468d4;
@@ -200,19 +221,19 @@ body.theme-light {
   --orange-rgb:    185, 120, 32;
 
   /* Canvas format panel / active-state */
-  --fmt-bg:          var(--surface2);                /* panel cell bg  */
-  --fmt-border:      var(--border2);                 /* panel cell border  */
-  --fmt-hover-bg:    rgba(var(--blue-rgb), 0.1);    /* hovered cell  */
-  --fmt-hover-br:    rgba(var(--blue-rgb), 0.4);    /* hovered cell border  */
-  --fmt-on-bg:       rgba(var(--blue-rgb), 0.12);   /* active/on state bg  */
-  --fmt-on-border:   rgba(var(--blue-rgb), 0.45);   /* active/on border  */
-  --fmt-on-text:     var(--blue);                   /* active/on text  */
-  --fmt-green-bg:    rgba(var(--green-rgb), 0.1);   /* make-slide btn  */
-  --fmt-green-br:    rgba(var(--green-rgb), 0.45);  /* make-slide border  */
-  --fmt-green-hbg:   rgba(var(--green-rgb), 0.18);  /* make-slide hover  */
-  --fmt-green-hbr:   rgba(var(--green-rgb), 0.6);   /* make-slide hover border  */
+  --fmt-bg:          var(--surface2);
+  --fmt-border:      var(--border2);
+  --fmt-hover-bg:    rgba(var(--blue-rgb), 0.1);
+  --fmt-hover-br:    rgba(var(--blue-rgb), 0.4);
+  --fmt-on-bg:       rgba(var(--blue-rgb), 0.12);
+  --fmt-on-border:   rgba(var(--blue-rgb), 0.45);
+  --fmt-on-text:     var(--blue);
+  --fmt-green-bg:    rgba(var(--green-rgb), 0.1);
+  --fmt-green-br:    rgba(var(--green-rgb), 0.45);
+  --fmt-green-hbg:   rgba(var(--green-rgb), 0.18);
+  --fmt-green-hbr:   rgba(var(--green-rgb), 0.6);
 
-  /* Glass HUD (zoom indicator, hover overlays) */
+  /* Glass HUD */
   --hud-bg:        rgba(248, 244, 236, 0.92);
   --hud-border:    rgba(0, 0, 0, 0.14);
   --hud-text:      #4a3e2e;
@@ -220,12 +241,11 @@ body.theme-light {
   --hud-text-hi:   #251a0c;
 
   /* Editor */
-  --editor-selection:  rgba(31, 158, 138, 0.13); /* CM selection bg — light  */
+  --editor-selection:  rgba(31, 158, 138, 0.13);
   --editor-active-ln:  rgba(0,0,0,0.03);
 
   /* Shadow */
   --shadow:        rgba(35, 22, 8, 0.22);
 
-  /* ── Alias overrides for light theme ── */
-  --text-rgb:  56, 44, 28;                   /* rgb() components of --text (light) */
+  --text-rgb:  56, 44, 28;   /* rgb() of --pal-text, keep in sync */
 }

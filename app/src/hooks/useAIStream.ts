@@ -216,6 +216,7 @@ export function useAIStream({
       ...(capturedImage    ? { attachedImage: capturedImage }         : {}),
       ...(capturedFileRef  ? { attachedFile: capturedFileRef.name }   : {}),
     };
+    setMessages((prev) => [...prev, userMsg]); // show user message immediately
     setIsStreaming(true);
     setAgentExhausted(false);
 
@@ -252,7 +253,6 @@ export function useAIStream({
     }
 
     const newMessages: ChatMessage[] = [...messages, finalUserMsg];
-    setMessages((prev) => [...prev, userMsg]); // UI shows plain-text version
 
     let fullResponse = '';
 
