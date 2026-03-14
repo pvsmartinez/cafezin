@@ -481,14 +481,14 @@
   border: none;
   cursor: pointer;
   text-align: left;
-  padding-top: 3px;
-  padding-bottom: 3px;
+  padding-top: 4px;
+  padding-bottom: 4px;
   padding-right: var(--space-2);
   white-space: nowrap;
   overflow: hidden;
   transition: background 0.1s, color 0.1s;
   border-radius: 0;
-  min-height: 24px;
+  min-height: 26px;
 }
 
 .sidebar-tree-row:hover {
@@ -539,7 +539,7 @@
 
 /* File rows */
 .sidebar-tree-file {
-  color: var(--text-muted);
+  color: var(--text);
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
@@ -571,7 +571,7 @@
 .sidebar-tree-icon {
   font-size: var(--font-size-2xs);
   flex-shrink: 0;
-  color: var(--text-dim);
+  color: var(--text-muted);
   width: 16px;
   text-align: center;
   font-weight: 600;

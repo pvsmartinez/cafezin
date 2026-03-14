@@ -86,8 +86,8 @@
   --pal-text:       #e0c9a4;   /* body text                            */
   --pal-muted:      #9e8060;   /* secondary / subdued text             */
   --pal-ghost:      #6a5742;   /* placeholders / disabled              */
-  --pal-accent:     #4ecfb8;   /* brand / interactive colour (teal)    */
-  --pal-accent-rgb: 78, 207, 184;
+  --pal-accent:     #41b8a3;   /* brand / interactive colour (teal)    */
+  --pal-accent-rgb: 65, 184, 163;
 }
 
 /* ── Semantic tokens — derived from palette, do not edit here ─────────── */
