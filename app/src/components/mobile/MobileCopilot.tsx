@@ -12,6 +12,7 @@ import {
   startDeviceFlow,
   clearOAuthToken,
   fetchCopilotModels,
+  resolveCopilotModelForChatCompletions,
 } from '../../services/copilot';
 import type { DeviceFlowState } from '../../services/copilot';
 import {
@@ -179,14 +180,17 @@ export default function MobileCopilot({
 
   // ── Models ───────────────────────────────────────────────────────────────
   const [models, setModels] = useState<CopilotModelInfo[]>(FALLBACK_MODELS);
-  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [model, setModel] = useState(() => resolveCopilotModelForChatCompletions(DEFAULT_MODEL, FALLBACK_MODELS));
   const [showModelPicker, setShowModelPicker] = useState(false);
   const modelsLoadedRef = useRef(false);
 
   useEffect(() => {
     if (authStatus !== 'authenticated' || modelsLoadedRef.current) return;
     modelsLoadedRef.current = true;
-    fetchCopilotModels().then(m => setModels(m)).catch(() => {});
+    fetchCopilotModels().then(m => {
+      setModels(m);
+      setModel((current) => resolveCopilotModelForChatCompletions(current, m));
+    }).catch(() => {});
   }, [authStatus]);
 
   // ── Messages ─────────────────────────────────────────────────────────────
@@ -471,7 +475,10 @@ export default function MobileCopilot({
             <button
               key={m.id}
               className={`flex items-center w-full px-4 py-[9px] bg-transparent border-0 text-left cursor-pointer text-app-text text-sm gap-2 active:bg-white/[0.04] ${m.id === model ? 'bg-[rgba(var(--accent-rgb),0.12)]' : ''}`}
-              onClick={() => { setModel(m.id); setShowModelPicker(false); }}
+              onClick={() => {
+                setModel(resolveCopilotModelForChatCompletions(m.id, models));
+                setShowModelPicker(false);
+              }}
             >
               <span className="flex-1">{m.name}</span>
               {m.multiplier === 0 && <span className="text-[11px] px-1.5 py-px rounded font-semibold text-success bg-[rgba(var(--accent-rgb),0.1)]">free</span>}

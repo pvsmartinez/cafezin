@@ -94,9 +94,9 @@ export default function FindReplaceBar({
 
   // Focus search input when bar opens
   useEffect(() => {
-    if (open) {
-      setTimeout(() => searchInputRef.current?.focus(), 30);
-    }
+    if (!open) return;
+    const t = setTimeout(() => searchInputRef.current?.focus(), 30);
+    return () => clearTimeout(t);
   }, [open]);
 
   // Build and apply CodeMirror SearchQuery whenever query/options change

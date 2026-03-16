@@ -7,6 +7,7 @@ import { readTextFile, writeTextFile, mkdir, exists } from '../../services/fs';
 import { runExportTarget } from '../exportWorkspace';
 import { safeResolvePath } from './shared';
 import { appendPendingTask } from '../../services/mobilePendingTasks';
+import { resolveCopilotModelForChatCompletions } from '../../services/copilot';
 import type { ToolDefinition, DomainExecutor } from './shared';
 import type { ExportTarget, ExportFormat, WorkspaceExportConfig, SidebarButton } from '../../types';
 
@@ -511,8 +512,11 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
       if (action === 'set_model') {
         const model = args.model ? String(args.model).trim() : '';
         if (!model) return 'Error: model is required for set_model.';
-        onWorkspaceConfigChange({ preferredModel: model });
-        return `Preferred model set to "${model}".`;
+        const resolved = resolveCopilotModelForChatCompletions(model);
+        onWorkspaceConfigChange({ preferredModel: resolved });
+        return resolved === model
+          ? `Preferred model set to "${resolved}".`
+          : `Preferred model set to "${resolved}". "${model}" is not accessible via /chat/completions.`;
       }
 
       if (action === 'set_language') {

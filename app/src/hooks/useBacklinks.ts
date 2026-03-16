@@ -13,7 +13,7 @@
  *   [[dir/filename]]
  */
 import { useEffect, useRef, useState } from 'react';
-import { readTextFile, exists } from '../services/fs';
+import { readTextFile } from '../services/fs';
 import type { Workspace } from '../types';
 
 export interface LinkRef {
@@ -117,25 +117,23 @@ export function useBacklinks(
     }
 
     cancelRef.current = false;
-    setLoading(true);
 
-    const activeFilePath = activeFile; // narrowed: string (not null) — checked above
+    const activeFilePath = activeFile;
     const mdFiles = collectMdFiles(workspace);
 
     async function scan() {
       const wsPath = workspace!.path;
 
-      // Read all markdown files in parallel instead of sequentially.
+      // Read all markdown files in parallel — skip exists() check, readTextFile
+      // already throws on missing files (saving one IPC round-trip per file).
       const results = await Promise.all(
         mdFiles.map(async (filePath) => {
           if (cancelRef.current) return null;
           try {
-            const absPath = `${wsPath}/${filePath}`;
-            if (!(await exists(absPath))) return null;
-            const text = await readTextFile(absPath);
+            const text = await readTextFile(`${wsPath}/${filePath}`);
             return { filePath, text };
           } catch {
-            return null; // file unreadable — skip
+            return null; // file unreadable or deleted — skip
           }
         }),
       );
@@ -172,8 +170,13 @@ export function useBacklinks(
       }
     }
 
-    scan();
-    return () => { cancelRef.current = true; };
+    // Small debounce so rapid tab switches don't trigger bursts of parallel reads
+    setLoading(true);
+    const timer = setTimeout(() => { scan(); }, 250);
+    return () => {
+      cancelRef.current = true;
+      clearTimeout(timer);
+    };
   // Re-scan only when file or workspace tree changes (not on every keystroke)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFile, workspace?.path, workspace?.fileTree, enabled]);

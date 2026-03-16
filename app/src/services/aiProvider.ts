@@ -15,7 +15,7 @@
 import type { ChatMessage } from '../types';
 import { DEFAULT_MODEL } from '../types';
 import { fetch } from '@tauri-apps/plugin-http';
-import { streamCopilotChat } from './copilot';
+import { resolveCopilotModelForChatCompletions, streamCopilotChat } from './copilot';
 import type { CopilotModel } from '../types';
 
 // ── Provider types ────────────────────────────────────────────────────────────
@@ -66,11 +66,19 @@ export function setActiveProvider(p: AIProviderType): void {
 }
 
 export function getActiveModel(): string {
-  return localStorage.getItem(MODEL_STORAGE_KEY) || PROVIDER_DEFAULT_MODELS[getActiveProvider()];
+  const provider = getActiveProvider();
+  const stored = localStorage.getItem(MODEL_STORAGE_KEY) || PROVIDER_DEFAULT_MODELS[provider];
+  return provider === 'copilot'
+    ? resolveCopilotModelForChatCompletions(stored)
+    : stored;
 }
 
 export function setActiveModel(m: string): void {
-  localStorage.setItem(MODEL_STORAGE_KEY, m);
+  const provider = getActiveProvider();
+  const value = provider === 'copilot'
+    ? resolveCopilotModelForChatCompletions(m)
+    : m;
+  localStorage.setItem(MODEL_STORAGE_KEY, value);
 }
 
 /** Returns the stored API key for a non-Copilot provider. */
@@ -259,7 +267,9 @@ export async function streamChat(
   signal?: AbortSignal,
 ): Promise<void> {
   const provider = getActiveProvider();
-  const resolvedModel = model || getActiveModel();
+  const resolvedModel = provider === 'copilot'
+    ? resolveCopilotModelForChatCompletions(model || getActiveModel())
+    : (model || getActiveModel());
 
   if (provider === 'copilot') {
     return streamCopilotChat(

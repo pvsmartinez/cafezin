@@ -15,6 +15,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(dirname "$SCRIPT_DIR")/app"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 APP_NAME="Cafezin"
 INSTALL_DIR="$HOME/Applications"
 INSTALL_PATH="${INSTALL_DIR}/${APP_NAME}.app"
@@ -31,6 +32,25 @@ done
 if ! command -v rustc &>/dev/null; then
   echo "Error: rustc not found. Install Rust from https://rustup.rs" >&2
   exit 1
+fi
+
+# ── Load .env.local ──────────────────────────────────────────────────────────
+if [[ -f "$ROOT_DIR/.env.local" ]]; then
+  set -a; source "$ROOT_DIR/.env.local"; set +a
+fi
+
+# ── Tauri signing key ─────────────────────────────────────────────────────────
+SIGNING_KEY_FILE="$HOME/.tauri/cafezin.key"
+if [[ -f "$SIGNING_KEY_FILE" ]]; then
+  export TAURI_SIGNING_PRIVATE_KEY="$(cat "$SIGNING_KEY_FILE")"
+  echo "▸ Signing key loaded from $SIGNING_KEY_FILE"
+  if [[ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
+    echo "▸ Signing key password loaded from environment"
+  else
+    unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+  fi
+else
+  echo "⚠  No signing key at $SIGNING_KEY_FILE — updater bundle will not be signed"
 fi
 
 echo ""

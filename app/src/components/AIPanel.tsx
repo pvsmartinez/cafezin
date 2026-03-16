@@ -3,8 +3,9 @@
  * The per-session logic lives in AgentSession.tsx.
  */
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Snowflake, Microphone, CaretDown, CaretUp } from '@phosphor-icons/react';
+import { Snowflake, Microphone, CaretDown, CaretUp, CaretRight, CaretLeft } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
 
 import {
   fetchCopilotModels,
@@ -80,7 +81,11 @@ interface AgentTab {
   id: string;
   label: string;
   status: AgentStatus;
+  unread: boolean;
 }
+
+/** True when running inside a Tauri WebView. */
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
@@ -162,8 +167,29 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   }, [isOpen, authStatus]);
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
-  const [tabs, setTabs] = useState<AgentTab[]>([{ id: 'agent-1', label: 'Agente 1', status: 'idle' }]);
+  const [tabs, setTabs] = useState<AgentTab[]>([{ id: 'agent-1', label: 'Agente 1', status: 'idle', unread: false }]);
   const [activeTabId, setActiveTabId] = useState('agent-1');
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Track previous status per tab so we can detect thinking→idle transition
+  const prevStatusRef = useRef<Map<string, AgentStatus>>(new Map());
+
+  // Track whether the native window is focused (for dock bounce)
+  const windowFocusedRef = useRef(true);
+
+  // Reset collapsed when panel is re-opened
+  useEffect(() => { if (isOpen) setCollapsed(false); }, [isOpen]);
+
+  // Subscribe to window focus changes for dock bounce (macOS desktop only)
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    getCurrentWindow()
+      .onFocusChanged(({ payload: focused }) => { windowFocusedRef.current = focused; })
+      .then((fn) => { unlisten = fn; })
+      .catch(() => {});
+    return () => { unlisten?.(); };
+  }, []);
 
   // ── Voice memo panel ─────────────────────────────────────────────────────
   const [voicePanelOpen, setVoicePanelOpen] = useState(false);
@@ -209,8 +235,13 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     const n = tabs.length + 1;
     const id = `agent-${n}-${Date.now()}`;
     const label = `Agente ${n}`;
-    setTabs((prev) => [...prev, { id, label, status: 'idle' }]);
+    setTabs((prev) => [...prev, { id, label, status: 'idle', unread: false }]);
     setActiveTabId(id);
+    setCollapsed(false);
+  }
+
+  function clearUnread(id: string) {
+    setTabs((prev) => prev.map((t) => t.id === id ? { ...t, unread: false } : t));
   }
 
   function closeTab(id: string) {
@@ -233,7 +264,6 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
   // ── Early returns ─────────────────────────────────────────────────────────
   if (!isOpen) return null;
-
   if (authStatus === 'unauthenticated' || authStatus === 'connecting') {
     return (
       <AIAuthScreen
@@ -248,21 +278,60 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
   if (authStatus === 'checking') return null;
 
+  // ── Collapsed icon strip ─────────────────────────────────────────────────
+  if (collapsed) {
+    return (
+      <div className="ai-panel ai-panel--collapsed" data-panel="ai">
+        <button
+          className="ai-panel-expand-btn"
+          onClick={() => setCollapsed(false)}
+          title="Expandir painel"
+        >
+          <CaretLeft weight="thin" size={14} />
+        </button>
+        <div className="ai-panel-icon-strip">
+          {tabs.map((tab, i) => {
+            const dotCls = tab.status === 'thinking' ? 'thinking'
+              : tab.status === 'error' ? 'error'
+              : tab.unread ? 'unread'
+              : 'idle';
+            return (
+              <button
+                key={tab.id}
+                className={`ai-panel-icon-btn${activeTabId === tab.id ? ' ai-panel-icon-btn--active' : ''}`}
+                onClick={() => { setCollapsed(false); setActiveTabId(tab.id); }}
+                title={tab.label + (tab.unread ? ' — não lido' : '')}
+              >
+                <span className={`ai-panel-icon-dot ai-panel-icon-dot--${dotCls}`} />
+                <span className="ai-panel-icon-num">{i + 1}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="ai-panel" data-panel="ai" style={style}>
       {/* Tab bar */}
       <div className="ai-tab-bar">
-        {tabs.map((tab) => (
-          <div key={tab.id} className={`ai-tab${activeTabId === tab.id ? ' ai-tab--active' : ''} ai-tab--${tab.status}`}>
+        {tabs.map((tab) => {
+          const dotCls = tab.status === 'thinking' ? 'thinking'
+            : tab.status === 'error' ? 'error'
+            : tab.unread ? 'unread'
+            : 'idle';
+          return (
+          <div key={tab.id} className={`ai-tab${activeTabId === tab.id ? ' ai-tab--active' : ''}${tab.unread ? ' ai-tab--unread' : ''}`}>
             <button
               className="ai-tab-label"
               onClick={() => setActiveTabId(tab.id)}
               title={tab.label}
             >
               <span
-                className={`ai-tab-dot ai-tab-dot--${tab.status}`}
-                aria-label={tab.status === 'thinking' ? 'a trabalhar' : tab.status === 'error' ? 'erro' : 'pronto'}
+                className={`ai-tab-dot ai-tab-dot--${dotCls}`}
+                aria-label={tab.status === 'thinking' ? 'a trabalhar' : tab.status === 'error' ? 'erro' : tab.unread ? 'não lido' : 'pronto'}
               />
               {tab.label}
             </button>
@@ -276,9 +345,17 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
               </button>
             )}
           </div>
-        ))}
+          );
+        })}
         <button className="ai-tab-add" onClick={addTab} title="Novo agente">
           +
+        </button>
+        <button
+          className="ai-tab-collapse"
+          onClick={() => setCollapsed(true)}
+          title="Minimizar painel"
+        >
+          <CaretRight weight="thin" size={12} />
         </button>
       </div>
 
@@ -349,9 +426,25 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           workspaceExportConfig={workspaceExportConfig}
           onExportConfigChange={onExportConfigChange}
           onStreamingChange={onStreamingChange}
-          onStatusChange={(status) =>
-            setTabs((prev) => prev.map((t) => t.id === tab.id ? { ...t, status } : t))
-          }
+          onStatusChange={(status) => {
+            const prevStatus = prevStatusRef.current.get(tab.id) ?? 'idle';
+            prevStatusRef.current.set(tab.id, status);
+            setTabs((tabs) => tabs.map((t) => {
+              if (t.id !== tab.id) return t;
+              // Mark unread when a background tab finishes a response
+              const justDone = status === 'idle' && prevStatus === 'thinking';
+              const isBackground = tab.id !== activeTabId;
+              const unread = t.unread || (justDone && isBackground);
+              // Bounce dock when window is not focused
+              if (justDone && isBackground && !windowFocusedRef.current && isTauri) {
+                getCurrentWindow()
+                  .requestUserAttention(UserAttentionType.Informational)
+                  .catch(() => {});
+              }
+              return { ...t, status, unread };
+            }));
+          }}
+          onMessagesSeen={() => clearUnread(tab.id)}
           screenshotTargetRef={screenshotTargetRef}
           webPreviewRef={webPreviewRef}
           getActiveHtml={getActiveHtml}

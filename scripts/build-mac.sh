@@ -46,10 +46,14 @@ if [[ "$DO_RELEASE" == "true" ]]; then
   if [[ -f "$SIGNING_KEY_FILE" ]]; then
     export TAURI_SIGNING_PRIVATE_KEY
     TAURI_SIGNING_PRIVATE_KEY="$(cat "$SIGNING_KEY_FILE")"
-    # Do NOT set TAURI_SIGNING_PRIVATE_KEY_PASSWORD when empty — Tauri handles
-    # no-password keys better when the var is UNSET (None) vs set to "" (Some(""))
-    unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
     echo "▸ Signing key loaded from $SIGNING_KEY_FILE"
+    if [[ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
+      echo "▸ Signing key password loaded from environment"
+    else
+      # Do NOT set TAURI_SIGNING_PRIVATE_KEY_PASSWORD when empty — Tauri handles
+      # no-password keys better when the var is UNSET (None) vs set to "" (Some(""))
+      unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+    fi
   else
     echo "⚠  No signing key at $SIGNING_KEY_FILE — build will not be signed."
     echo "   Generate one with: npx tauri signer generate -w $SIGNING_KEY_FILE"
@@ -78,8 +82,12 @@ if [[ "$DO_RELEASE" == "true" ]]; then
     SIGNING_KEY_FILE="$HOME/.tauri/cafezin.key"
     if [[ -f "$SIGNING_KEY_FILE" ]]; then
       export TAURI_SIGNING_PRIVATE_KEY="$(cat "$SIGNING_KEY_FILE")"
-      unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
       echo "✓ Loaded signing key from $SIGNING_KEY_FILE"
+      if [[ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
+        echo "✓ Loaded signing key password from environment"
+      else
+        unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+      fi
     fi
   fi
 fi

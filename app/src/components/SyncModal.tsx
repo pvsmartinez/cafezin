@@ -14,6 +14,7 @@ interface SyncModalProps {
 interface DiffResult {
   files: string[];
   diff: string;
+  diff_truncated?: boolean;
 }
 
 // Parse a "git status --short" line into flag + filename
@@ -72,6 +73,8 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
   const [result, setResult] = useState<DiffResult | null>(null);
   const [commitMsg, setCommitMsg] = useState('');
   const [reverting, setReverting] = useState<Set<string>>(new Set());
+  // Diff is collapsed by default — avoids rendering thousands of lines on open
+  const [diffExpanded, setDiffExpanded] = useState(false);
 
   function fetchDiff() {
     setResult(null);
@@ -88,6 +91,7 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
     if (!open) return;
     setSyncing(false);
     setReverting(new Set());
+    setDiffExpanded(false);
     const ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
     setCommitMsg(`sync: ${ts}`);
     fetchDiff();
@@ -180,11 +184,23 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
                 </div>
               )}
 
-              {/* Diff */}
+              {/* Diff — collapsed by default to avoid rendering thousands of lines on open */}
               {result.diff.trim() && (
                 <div className="sm-diff-section">
-                  <div className="sm-section-label">Diff</div>
-                  <DiffView diff={result.diff} />
+                  <button
+                    className="sm-section-label sm-section-label--toggle"
+                    onClick={() => setDiffExpanded((v) => !v)}
+                    type="button"
+                  >
+                    <span className="sm-section-label-arrow">{diffExpanded ? '▾' : '▸'}</span>
+                    Diff
+                    {result.diff_truncated && (
+                      <span className="sm-diff-truncated-badge" title="Diff is larger than 100 KB — showing first 100 KB only">
+                        truncated
+                      </span>
+                    )}
+                  </button>
+                  {diffExpanded && <DiffView diff={result.diff} />}
                 </div>
               )}
             </>

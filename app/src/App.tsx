@@ -35,6 +35,7 @@ import BottomPanel, { type FileMeta } from './components/BottomPanel';
 import { useDragResize } from './hooks/useDragResize';
 import { syncSecretsFromCloud } from './services/apiSecrets';
 import { deployDemoHub, resolveVercelToken } from './services/publishVercel';
+import { resolveCopilotModelForChatCompletions } from './services/copilot';
 import { useTabManager } from './hooks/useTabManager';
 import { useAutosave } from './hooks/useAutosave';
 import { useFileWatcher } from './hooks/useFileWatcher';
@@ -153,6 +154,10 @@ export default function App() {
   }, []);
 
   const [isAIStreaming, setIsAIStreaming] = useState(false);
+  // Always-fresh ref so Tauri menu listeners (registered with stale closure) can
+  // read the latest streaming state without re-registering on every change.
+  const isAIStreamingRef = useRef(false);
+  isAIStreamingRef.current = isAIStreaming;
 
   // ── Tab management (open files, switching, close, reorder) ───────────────
   const {
@@ -164,7 +169,16 @@ export default function App() {
     switchToTab, addTab, closeTab, closeAllTabs, closeOthers, closeToRight, reorderTabs,
     promoteTab, clearAll,
   } = useTabManager({ fallbackContent: FALLBACK_CONTENT });
-  const wordCount = useMemo(() => content.trim().split(/\s+/).filter(Boolean).length, [content]);
+  // Debounce word/line count so the status bar doesn't update on every keystroke.
+  const [wordCount, setWordCount] = useState(() => content.trim().split(/\s+/).filter(Boolean).length);
+  const [lineCount, setLineCount] = useState(() => content.split('\n').length);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setWordCount(content.trim().split(/\s+/).filter(Boolean).length);
+      setLineCount(content.split('\n').length);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [content]);
   const [fileStat, setFileStat] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(() => initSettings);
 
@@ -181,6 +195,8 @@ export default function App() {
   // Sidebar / panel visibility, mode and widths
   const [sidebarMode, setSidebarMode] = useState<'explorer' | 'search'>('explorer');
   const [sidebarOpen, setSidebarOpen] = useState(initSettings.sidebarOpenDefault);
+  /** Whether the workspace home panel is visible (can be closed to reveal empty state) */
+  const [homeVisible, setHomeVisible] = useState(true);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalHeight, setTerminalHeight] = useState(240);
   /** Changing this value tells BottomPanel to cd to the given absolute path. */
@@ -275,7 +291,10 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // ── Panel resize (sidebar ↔ editor ↔ AI panel) ───────────────────────────
-  const { sidebarWidth, aiPanelWidth, startSidebarDrag, startAiDrag } = useDragResize();
+  const { sidebarWidth, setSidebarWidth, aiPanelWidth, startSidebarDrag, startAiDrag } = useDragResize();
+  // Keep a stable ref so keyboard-shortcut closures can read the latest width
+  const sidebarWidthRef = useRef(sidebarWidth);
+  sidebarWidthRef.current = sidebarWidth;
   const { autosaveDelayRef, scheduleAutosave, cancelAutosave } = useAutosave({
     savedContentRef,
     setDirtyFiles,
@@ -392,12 +411,12 @@ export default function App() {
   const fileMeta = useMemo<FileMeta>(() => ({
     kind: fileTypeInfo?.kind ?? null,
     wordCount,
-    lines: content.split('\n').length,
+    lines: lineCount,
     slides: canvasSlideCount,
     fileStat,
     tsErrors: tsDiags.errorCount > 0 || tsDiags.warningCount > 0 || tsEnabled ? tsDiags.errorCount : undefined,
     tsWarnings: tsEnabled ? tsDiags.warningCount : undefined,
-  }), [fileTypeInfo?.kind, wordCount, content, canvasSlideCount, fileStat, tsDiags, tsEnabled]);
+  }), [fileTypeInfo?.kind, wordCount, lineCount, canvasSlideCount, fileStat, tsDiags, tsEnabled]);
 
   // ── In-app update ───────────────────────────────────────────
   // dev  → open UpdateModal (runs build script)
@@ -516,7 +535,8 @@ export default function App() {
       } else if (type === 'drop') {
         setDragOver(false);
         const paths: string[] = (event.payload as { paths?: string[] }).paths ?? [];
-        if (paths.length > 0 && workspace) {
+        // Use workspaceRef so this callback doesn't re-register on every file open
+        if (paths.length > 0 && workspaceRef.current) {
           // Route to AI panel if the drop landed over it, otherwise open as file
           const pos = (event.payload as { position?: { x: number; y: number } }).position;
           const hitEl = pos ? document.elementFromPoint(pos.x, pos.y) : null;
@@ -533,8 +553,10 @@ export default function App() {
       }
     }).then((fn) => { unlisten = fn; });
     return () => { unlisten?.(); };
+  // Use workspace?.path (not the full object) so this only re-registers when the
+  // workspace actually changes, not on every file open (which creates a new object).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace]);
+  }, [workspace?.path]);
 
   // ── Keep a stable ref to workspace so watcher callback always sees latest ───
   const workspaceRef = useRef<typeof workspace>(workspace);
@@ -576,7 +598,11 @@ export default function App() {
     onCloseAI:       () => setAiOpen(false),
     onCloseTab:      handleCloseTab,
     onOpenSettings:  () => openSettings(),
-    onToggleSidebar: () => setSidebarOpen((v) => !v),
+    onToggleSidebar: () => setSidebarOpen((v) => {
+      // When opening from icon-mode (width < 80 px), snap sidebar back to normal
+      if (!v && sidebarWidthRef.current < 80) setSidebarWidth(220);
+      return !v;
+    }),
     onSave: async () => {
       const kind = fileTypeInfo?.kind;
       if (activeTabId && workspace && kind !== 'pdf' && kind !== 'video' && kind !== 'image') {
@@ -1074,7 +1100,8 @@ export default function App() {
   // ── Preferred model persistence ──────────────────────────────
   const handleModelChange = useCallback(async (newModel: string) => {
     if (!workspace) return;
-    const updated = { ...workspace, config: { ...workspace.config, preferredModel: newModel } };
+    const resolvedModel = resolveCopilotModelForChatCompletions(newModel);
+    const updated = { ...workspace, config: { ...workspace.config, preferredModel: resolvedModel } };
     setWorkspace(updated);
     try { await saveWorkspaceConfig(updated); } catch (err) { console.error('Failed to save model pref:', err); }
   }, [workspace]);
@@ -1152,14 +1179,17 @@ export default function App() {
   }
   // ── Switch workspace ────────────────────────────────────
   function handleSwitchWorkspace() {
-    const hasDirty = dirtyFiles.size > 0;
-    if (isAIStreaming) {
+    // Use refs to read latest state — this function is called from a Tauri menu
+    // listener that may hold a stale closure (registered when deps were different).
+    const dirty = dirtyFilesRef.current;
+    const hasDirty = dirty.size > 0;
+    if (isAIStreamingRef.current) {
       const ok = window.confirm(
         'Copilot is currently running. Close the workspace anyway?'
       );
       if (!ok) return;
     } else if (hasDirty) {
-      const unsavedList = Array.from(dirtyFiles).join(', ');
+      const unsavedList = Array.from(dirty).join(', ');
       const ok = window.confirm(
         `You have unsaved changes in: ${unsavedList}\n\nClose the workspace anyway?`
       );
@@ -1172,12 +1202,14 @@ export default function App() {
     setDirtyFiles(new Set());
     setAiMarks([]);
     setIsAIStreaming(false);
+    setHomeVisible(true);
   }
   // ── Workspace loaded ─────────────────────────────────────────
   async function handleWorkspaceLoaded(ws: Workspace) {
     // Clear any previous workspace state
     clearAll();
     setWorkspace(ws);
+    setHomeVisible(true);
     // Load AI edit marks for this workspace
     loadMarksForWorkspace(ws);
     // Check for pending tasks queued from mobile
@@ -1483,6 +1515,8 @@ export default function App() {
                 setTerminalRequestRun(command + '|' + Date.now());
               }}
               onPublishDemoHub={handlePublishDemoHub}
+              onExportOpen={() => setExportModalOpen(true)}
+              onExpandSidebar={() => { if (sidebarWidthRef.current < 80) setSidebarWidth(220); }}
             />
             {/* Sidebar resize handle */}
             <div className="resize-divider" onMouseDown={startSidebarDrag} />
@@ -1570,14 +1604,27 @@ export default function App() {
           />
           </Suspense>
           </CanvasErrorBoundary>
-        ) : !activeFile ? (
+        ) : !activeFile && homeVisible ? (
           <WorkspaceHome
             workspace={workspace}
             onOpenFile={handleOpenFile}
             aiMarks={aiMarks}
             onOpenAIReview={() => { setAiHighlight(true); setAiNavIndex(0); }}
             onSwitchWorkspace={handleSwitchWorkspace}
+            onClose={() => setHomeVisible(false)}
           />
+        ) : !activeFile ? (
+          <div
+            className="ws-empty"
+            onClick={() => setHomeVisible(true)}
+            title="Abrir workspace home"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && setHomeVisible(true)}
+          >
+            <span className="ws-empty-logo">✦</span>
+            <span className="ws-empty-name">cafezin</span>
+          </div>
         ) : viewMode === 'preview' && fileTypeInfo?.kind === 'markdown' ? (
           <MarkdownPreview
             content={content}

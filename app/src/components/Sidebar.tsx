@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Check, CaretLeft, CaretRight, CaretDown, Play, FolderSimple, Copy, Warning, FolderPlus, Minus } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
@@ -105,7 +105,7 @@ interface TreeNodeProps {
 
 const DRAGGABLE_IMAGE_EXTS = new Set(['png','jpg','jpeg','gif','webp','svg','avif','bmp','ico','tiff','tif']);
 
-function TreeNodeItem({
+function _TreeNodeItem({
   node, depth, activeFile, dirtyFiles, unseenAiFiles, lockedFiles, expandedDirs,
   onToggleDir, onFileSelect, onStartCreate, onContextMenu, onDeleteFile, onDuplicateFile,
   renamingPath, renameValue, renameInputRef, onRenameStart, onRenameChange, onRenameConfirm, onRenameCancel,
@@ -314,6 +314,8 @@ function TreeNodeItem({
   );
 }
 
+const TreeNodeItem = memo(_TreeNodeItem);
+
 // ── Sidebar ─────────────────────────────────────────────────────────────────
 interface SidebarProps {
   workspace: Workspace;
@@ -349,6 +351,10 @@ interface SidebarProps {
   onRunButtonCommand?: (command: string, label: string) => void;
   /** Called when user clicks "Publicar Demos" — only shown when demoHub is configured */
   onPublishDemoHub?: () => void;
+  /** Open the Export / Build modal */
+  onExportOpen: () => void;
+  /** Called when tapping any tab/button in icon mode — expands sidebar to full width */
+  onExpandSidebar?: () => void;
   /** If provided, assigned to startCreating('','file') so parent can trigger new-file via ⌘T/⌘N */
   newFileRef?: { current: (() => void) | null };
 }
@@ -377,6 +383,8 @@ export default function Sidebar({
   onOpenTerminalAt,
   onRunButtonCommand,
   onPublishDemoHub,
+  onExportOpen,
+  onExpandSidebar,
   newFileRef,
 }: SidebarProps) {
   // ── Creator state ──────────────────────────────────────────────────────────
@@ -750,14 +758,14 @@ export default function Sidebar({
       <div className="sidebar-tabs">
         <button
           className={`sidebar-tab${sidebarMode === 'explorer' ? ' active' : ''}`}
-          onClick={() => onSidebarModeChange('explorer')}
+          onClick={() => { onSidebarModeChange('explorer'); onExpandSidebar?.(); }}
           title="Explorer"
-        >⋟ Files</button>
+        >⋟<span className="sidebar-label"> Files</span></button>
         <button
           className={`sidebar-tab${sidebarMode === 'search' ? ' active' : ''}`}
-          onClick={() => onSidebarModeChange('search')}
+          onClick={() => { onSidebarModeChange('search'); onExpandSidebar?.(); }}
           title={t('sidebar.searchTitle')}
-        >⌕ Search</button>
+        >⌕<span className="sidebar-label"> Search</span></button>
       </div>
 
       {/* ── SEARCH MODE ─────────────────────────────────────────── */}
@@ -949,6 +957,18 @@ export default function Sidebar({
             </div>
           </div>
         )}
+        {/* Export / Build */}
+        <button
+          className="sidebar-btn sidebar-btn-export"
+          onClick={onExportOpen}
+          title="Export / Build"
+        >
+          <span className="sidebar-export-label">
+            <span className="sidebar-sync-icon-narrow">↑</span>
+            <span className="sidebar-label">↑ Export</span>
+          </span>
+          <span className="sidebar-export-config" aria-hidden>⚙</span>
+        </button>
         <button
           className={`sidebar-btn sidebar-btn-sync${syncStatus !== 'idle' ? ` ${syncStatus}` : ''}${syncStatus === 'idle' && gitChangedCount > 0 ? ' has-changes' : ''}${!workspace.hasGit ? ' disabled-no-git' : ''}`}
           onClick={() => { if (workspace.hasGit) { setShowSyncModal(true); fetchGitCount(); } }}
@@ -956,11 +976,14 @@ export default function Sidebar({
           title={workspace.hasGit ? t('sidebar.syncTitle') : t('sidebar.syncNoGitTitle')}
         >
           <span className="sidebar-sync-label">
-            {!workspace.hasGit     && t('sidebar.syncLocal')}
-            {workspace.hasGit && syncStatus === 'idle'    && t('sidebar.syncIdle')}
-            {workspace.hasGit && syncStatus === 'syncing' && t('sidebar.syncSyncing')}
-            {workspace.hasGit && syncStatus === 'done'    && <><Check weight="thin" size={13} />{t('sidebar.syncDone')}</>}
-            {workspace.hasGit && syncStatus === 'error'   && <><Warning weight="thin" size={13} />{t('sidebar.syncError')}</>}
+            <span className="sidebar-sync-icon-narrow">⇅</span>
+            <span className="sidebar-label">
+              {!workspace.hasGit     && t('sidebar.syncLocal')}
+              {workspace.hasGit && syncStatus === 'idle'    && t('sidebar.syncIdle')}
+              {workspace.hasGit && syncStatus === 'syncing' && t('sidebar.syncSyncing')}
+              {workspace.hasGit && syncStatus === 'done'    && <><Check weight="thin" size={13} />{t('sidebar.syncDone')}</>}
+              {workspace.hasGit && syncStatus === 'error'   && <><Warning weight="thin" size={13} />{t('sidebar.syncError')}</>}
+            </span>
           </span>
           {syncStatus === 'idle' && gitChangedCount > 0 && (
             <span className="sidebar-sync-badge">{gitChangedCount}</span>

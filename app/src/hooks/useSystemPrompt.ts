@@ -340,5 +340,5 @@ CHAPTER FILE NAMING CONVENTION:
         ].join('\n');
       })(),
     ].filter(Boolean).join('\n\n'),
-  }), [hasTools, model, workspaceFileList, memoryContent, agentContext, documentContext, activeFile, workspace?.config?.vercelConfig?.demoHub]);
+  }), [hasTools, model, workspaceFileList, memoryContent, agentContext, documentContext, activeFile, workspace?.config?.preferredLanguage, workspace?.config?.vercelConfig?.demoHub]);
 }

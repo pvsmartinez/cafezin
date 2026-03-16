@@ -7,6 +7,28 @@
   background: var(--bg);
   overflow-y: auto;
   padding: 48px 32px;
+  position: relative;
+}
+
+/* ── Close button ───────────────────────────────────────────── */
+.wh-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  opacity: 0.45;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+.wh-close-btn:hover {
+  opacity: 1;
+  color: var(--text);
 }
 
 /* ── Content card ───────────────────────────────────────────── */

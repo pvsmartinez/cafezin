@@ -141,12 +141,12 @@ const CLONED_BRANCH_PREFIX = 'cafezin-cloned-branch:'
 
 export function getLocalClonedPath(gitUrl: string): string | null {
   const raw = localStorage.getItem(`${CLONED_PATH_PREFIX}${gitUrl}`);
-  return raw ? raw.replace(/\/cafezin$/, '') : null;
+  return raw ? raw.replace(/\/\.cafezin$/, '') : null;
 }
 
 export function setLocalClonedPath(gitUrl: string, path: string): void {
-  // Sanitize: never store a path ending in /cafezin (config dir)
-  const clean = path.replace(/\/cafezin$/, '');
+  // Sanitize: never store a path ending in /.cafezin (config dir)
+  const clean = path.replace(/\/\.cafezin$/, '');
   localStorage.setItem(`${CLONED_PATH_PREFIX}${gitUrl}`, clean);
 }
 

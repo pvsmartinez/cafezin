@@ -78,6 +78,8 @@ mod git_cli {
     }
 
     pub fn git_diff(path: String) -> Result<serde_json::Value, String> {
+        const DIFF_MAX_BYTES: usize = 100_000; // 100 KB cap — prevents UI freeze on large projects
+
         let status_out = Command::new("git")
             .args(["status", "--short"])
             .current_dir(&path)
@@ -93,10 +95,19 @@ mod git_cli {
             .current_dir(&path)
             .output()
             .map_err(|e| e.to_string())?;
-        let diff = if diff_out.status.success() {
-            String::from_utf8_lossy(&diff_out.stdout).to_string()
-        } else { String::new() };
-        Ok(serde_json::json!({ "files": files, "diff": diff }))
+        let (diff, diff_truncated) = if diff_out.status.success() {
+            let raw = diff_out.stdout;
+            if raw.len() > DIFF_MAX_BYTES {
+                // Truncate at a UTF-8 char boundary
+                let s = String::from_utf8_lossy(&raw[..DIFF_MAX_BYTES]).into_owned();
+                (s, true)
+            } else {
+                (String::from_utf8_lossy(&raw).into_owned(), false)
+            }
+        } else {
+            (String::new(), false)
+        };
+        Ok(serde_json::json!({ "files": files, "diff": diff, "diff_truncated": diff_truncated }))
     }
 
     pub fn git_sync(path: String, message: String, _token: Option<String>) -> Result<String, String> {
@@ -364,6 +375,8 @@ mod git_native {
             .collect();
 
         // Unified diff vs HEAD
+        const DIFF_MAX_BYTES: usize = 100_000; // 100 KB cap — prevents UI freeze on large projects
+        let mut diff_truncated = false;
         let diff_text = repo
             .head()
             .ok()
@@ -375,6 +388,10 @@ mod git_native {
             .map(|d| {
                 let mut out = String::new();
                 let _ = d.print(git2::DiffFormat::Patch, |_, _, line| {
+                    if out.len() >= DIFF_MAX_BYTES {
+                        diff_truncated = true;
+                        return false; // stop iteration
+                    }
                     let origin = line.origin();
                     // Include all patch lines; B = Binary (skip)
                     if origin != 'B' {
@@ -387,7 +404,7 @@ mod git_native {
             })
             .unwrap_or_default();
 
-        Ok(serde_json::json!({ "files": files, "diff": diff_text }))
+        Ok(serde_json::json!({ "files": files, "diff": diff_text, "diff_truncated": diff_truncated }))
     }
 
     pub fn git_sync(path: String, message: String, token: Option<String>) -> Result<String, String> {
@@ -776,11 +793,11 @@ fn canonicalize_path(path: String) -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Creates <workspace_path>/cafezin/ (and parents) using std::fs directly,
+/// Creates <workspace_path>/.cafezin/ (and parents) using std::fs directly,
 /// bypassing tauri-plugin-fs scope for the initial mkdir.
 #[tauri::command]
 fn ensure_config_dir(workspace_path: String) -> Result<(), String> {
-    let dir = std::path::Path::new(&workspace_path).join("cafezin");
+    let dir = std::path::Path::new(&workspace_path).join(".cafezin");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())
 }
 
@@ -958,9 +975,39 @@ async fn update_app(_app: tauri::AppHandle, _project_root: String) -> Result<(),
 async fn update_app(app: tauri::AppHandle, project_root: String) -> Result<(), String> {
     let emit_log = |line: &str| { let _ = app.emit("update:log", line.to_string()); };
 
+    fn load_env_value(env_files: &[std::path::PathBuf], key: &str) -> Option<String> {
+        for env_file in env_files {
+            let Ok(contents) = std::fs::read_to_string(env_file) else {
+                continue;
+            };
+
+            for line in contents.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                let Some((current_key, value)) = line.split_once('=') else {
+                    continue;
+                };
+                if current_key.trim() != key {
+                    continue;
+                }
+
+                return Some(value.trim().trim_matches('"').trim_matches('\'').to_string());
+            }
+        }
+
+        None
+    }
+
     let home = std::env::var("HOME").map_err(|e| e.to_string())?;
     let cargo_bin = format!("{}/.cargo/bin", home);
     let app_dir   = format!("{}/app", project_root);
+    let signing_key_path = format!("{}/.tauri/cafezin.key", home);
+    let env_files = vec![
+        std::path::Path::new(&project_root).join(".env.local"),
+        std::path::Path::new(&project_root).join("app").join(".env.local"),
+    ];
 
     let build_cmd = format!(
         r#"
@@ -975,6 +1022,27 @@ async fn update_app(app: tauri::AppHandle, project_root: String) -> Result<(), S
     emit_log("▸ Starting incremental build…");
     emit_log("");
 
+    let signing_key = match std::fs::read_to_string(&signing_key_path) {
+        Ok(contents) => {
+            emit_log(&format!("▸ Signing key loaded from {}", signing_key_path));
+            Some(contents.trim_end_matches(['\r', '\n']).to_string())
+        }
+        Err(_) => {
+            emit_log(&format!(
+                "⚠ No signing key at {} — updater bundle will not be signed",
+                signing_key_path
+            ));
+            None
+        }
+    };
+    let signing_password = std::env::var("TAURI_SIGNING_PRIVATE_KEY_PASSWORD")
+        .ok()
+        .filter(|value| !value.is_empty())
+        .or_else(|| load_env_value(&env_files, "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"));
+    if signing_password.is_some() {
+        emit_log("▸ Signing key password loaded from environment");
+    }
+
     // Remove stale .app bundles from a previous build so the post-build search
     // always finds exactly one — the freshly produced one.
     let bundle_dir = format!("{}/app/src-tauri/target/release/bundle/macos", project_root);
@@ -988,10 +1056,18 @@ async fn update_app(app: tauri::AppHandle, project_root: String) -> Result<(), S
         }
     }
 
-    let mut child = tokio::process::Command::new("bash")
-        .arg("-c")
-        .arg(&build_cmd)
-        .stdout(Stdio::piped())
+    let mut command = tokio::process::Command::new("bash");
+    command.arg("-c").arg(&build_cmd).stdout(Stdio::piped());
+    if let Some(key) = signing_key {
+        command.env("TAURI_SIGNING_PRIVATE_KEY", key);
+        if let Some(password) = signing_password {
+            command.env("TAURI_SIGNING_PRIVATE_KEY_PASSWORD", password);
+        } else {
+            command.env_remove("TAURI_SIGNING_PRIVATE_KEY_PASSWORD");
+        }
+    }
+
+    let mut child = command
         .spawn()
         .map_err(|e| { let _ = app.emit("update:error", e.to_string()); e.to_string() })?;
 

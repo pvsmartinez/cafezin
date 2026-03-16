@@ -58,7 +58,8 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
     const absDir = requestCd.includes('|') ? requestCd.split('|')[0] : requestCd;
     setCwd(absDir);
     if (!open) onToggle();
-    setTimeout(() => inputRef.current?.focus(), 100);
+    const t = setTimeout(() => inputRef.current?.focus(), 100);
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestCd]);
 
@@ -89,7 +90,9 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
 
   // Focus input when panel opens
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 80);
+    if (!open) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 80);
+    return () => clearTimeout(t);
   }, [open]);
 
   // ── Resize drag ──────────────────────────────────────────────────────────────

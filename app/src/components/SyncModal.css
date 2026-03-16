@@ -100,6 +100,39 @@
   text-transform: uppercase;
   padding: 8px 16px 4px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sm-section-label--toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  padding: 8px 16px 4px;
+}
+
+.sm-section-label--toggle:hover {
+  color: var(--text);
+}
+
+.sm-section-label-arrow {
+  font-size: 9px;
+  opacity: 0.6;
+}
+
+.sm-diff-truncated-badge {
+  font-size: var(--font-size-2xs);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  background: var(--warning-bg, rgba(255, 180, 0, 0.12));
+  color: var(--warning, #c8900a);
+  border: 1px solid var(--warning-border, rgba(200, 144, 10, 0.3));
+  border-radius: 4px;
+  padding: 1px 5px;
 }
 
 /* ── File list ───────────────────────────────────────────────── */

@@ -142,6 +142,17 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
     cancelAnimationFrame(animFrameRef.current);
   }, []);
 
+  // Guard against unmounting while a recording is in-flight (rAF loop + AudioContext)
+  useEffect(() => {
+    return () => {
+      cancelAnimationFrame(animFrameRef.current);
+      mediaRecorderRef.current?.stop();
+      mediaRecorderRef.current = null;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+    };
+  }, []);
+
   const handleMicClick = useCallback(() => {
     if (!groqKey) { setShowGroqSetup(true); return; }
     if (isRecording) stopRecording();

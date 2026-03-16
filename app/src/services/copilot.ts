@@ -7,6 +7,7 @@ import { appendArchiveEntry } from './copilotLog';
 import { saveApiSecret } from './apiSecrets';
 
 const COPILOT_API_URL = 'https://api.githubcopilot.com/chat/completions';
+const CHAT_COMPLETIONS_BLOCKED_MODELS = new Set(['gpt-5.4']);
 
 /**
  * Error subclass thrown when the Copilot API returns a non-2xx response.
@@ -28,6 +29,31 @@ let _lastRequestDump = '(no request made yet)';
 
 /** Returns the full dump of the most recent Copilot API request, regardless of success/failure. */
 export function getLastRequestDump(): string { return _lastRequestDump; }
+
+export function isChatCompletionsCompatibleModel(modelId: string): boolean {
+  return !!modelId && !CHAT_COMPLETIONS_BLOCKED_MODELS.has(modelId);
+}
+
+export function filterChatCompletionsCompatibleModels<T extends { id: string }>(models: T[]): T[] {
+  return models.filter((model) => isChatCompletionsCompatibleModel(model.id));
+}
+
+export function resolveCopilotModelForChatCompletions(
+  requestedModel: string | null | undefined,
+  availableModels?: Array<{ id: string }>,
+): CopilotModel {
+  if (requestedModel && isChatCompletionsCompatibleModel(requestedModel)) {
+    return requestedModel as CopilotModel;
+  }
+
+  const compatibleAvailable = filterChatCompletionsCompatibleModels(availableModels ?? []);
+  const preferred = compatibleAvailable.find((model) => model.id === DEFAULT_MODEL) ?? compatibleAvailable[0];
+  if (preferred) return preferred.id as CopilotModel;
+
+  const compatibleFallback = filterChatCompletionsCompatibleModels(FALLBACK_MODELS);
+  const fallback = compatibleFallback.find((model) => model.id === DEFAULT_MODEL) ?? compatibleFallback[0];
+  return (fallback?.id ?? DEFAULT_MODEL) as CopilotModel;
+}
 
 /** Build a human-readable dump of a request payload for diagnostics / copy-to-clipboard. */
 function buildRequestDump(
@@ -546,6 +572,10 @@ export async function streamCopilotChat(
   try {
     if (signal?.aborted) return;
     const sessionToken = await getCopilotSessionToken();
+    const resolvedModel = resolveCopilotModelForChatCompletions(model);
+    if (resolvedModel !== model) {
+      console.warn(`[Copilot] model "${model}" is not accessible via /chat/completions; using "${resolvedModel}" instead`);
+    }
 
     // Sanitize messages before sending: strip UI-only fields (items, activeFile,
     // attachedImage, attachedFile) and resolve structural problems (consecutive
@@ -553,7 +583,7 @@ export async function streamCopilotChat(
     const cleanMessages = sanitizeLoop([...messages]);
 
     // Capture the full request dump BEFORE sending (available even if request succeeds)
-    _lastRequestDump = buildRequestDump(cleanMessages, model, tools);
+    _lastRequestDump = buildRequestDump(cleanMessages, resolvedModel, tools);
 
     // Retry up to 3 times for transient 5xx errors with exponential backoff
     const MAX_RETRIES = 3;
@@ -570,11 +600,11 @@ export async function streamCopilotChat(
       const MAX_PAYLOAD_BYTES = 6 * 1024 * 1024; // 6 MB
       let messagesForRequest = cleanMessages;
       const bodyCandidate = JSON.stringify({
-        model,
+        model: resolvedModel,
         messages: cleanMessages,
         ...(tools ? { tools, tool_choice: 'auto' } : {}),
         stream: true,
-        ...modelApiParams(model, 0.7, 16384),
+        ...modelApiParams(resolvedModel, 0.7, 16384),
       });
       if (bodyCandidate.length > MAX_PAYLOAD_BYTES) {
         console.warn(
@@ -598,11 +628,11 @@ export async function streamCopilotChat(
         },
         signal,
         body: JSON.stringify({
-          model,
+          model: resolvedModel,
           messages: messagesForRequest,
           ...(tools ? { tools, tool_choice: 'auto' } : {}),
           stream: true,
-          ...modelApiParams(model, 0.7, 16384),
+          ...modelApiParams(resolvedModel, 0.7, 16384),
         }),
       });
       if (response.ok || response.status < 500) break;
@@ -621,7 +651,7 @@ export async function streamCopilotChat(
       const errorText = await response.text();
 
       // Update the dump with the error status+body and log to console
-      _lastRequestDump = buildRequestDump(cleanMessages, model, tools, response.status, errorText);
+      _lastRequestDump = buildRequestDump(cleanMessages, resolvedModel, tools, response.status, errorText);
       console.error('[Copilot] API error diagnostic:\n' + _lastRequestDump);
 
       let cleanError: string;
@@ -731,7 +761,7 @@ export async function fetchGhostCompletion(
   const userContent = `<file${langHint}>${prefixSnip}<CURSOR>${suffixSnip}</file>\nComplete from <CURSOR>. Output the completion text only, no markdown fences, no explanations.`;
 
   const body = JSON.stringify({
-    model: 'gpt-5-mini',
+    model: resolveCopilotModelForChatCompletions('gpt-5-mini'),
     messages: [
       {
         role: 'system',
@@ -906,7 +936,7 @@ export async function fetchCopilotModels(): Promise<CopilotModelInfo[]> {
       return false;
     }
     const byFamily = new Map<string, CopilotModelInfo>();
-    for (const m of mapped) {
+    for (const m of filterChatCompletionsCompatibleModels(mapped)) {
       const key = familyKey(m.id);
       const existing = byFamily.get(key);
       if (!existing || newerVersion(m.id, existing.id)) {
@@ -1136,6 +1166,10 @@ export async function runCopilotAgent(
 ): Promise<void> {
   try {
     const sessionToken = await getCopilotSessionToken();
+    const resolvedModel = resolveCopilotModelForChatCompletions(model);
+    if (resolvedModel !== model) {
+      console.warn(`[agent] model "${model}" is not accessible via /chat/completions; using "${resolvedModel}" instead`);
+    }
     const headers = {
       Authorization: `Bearer ${sessionToken}`,
       'Content-Type': 'application/json',
@@ -1173,18 +1207,18 @@ export async function runCopilotAgent(
         if (signal?.aborted) return;
         if (attempt > 0) await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
         // Update the diagnostic dump before every attempt so it reflects the live request.
-        _lastRequestDump = buildRequestDump(loopForRequest, model, tools);
+        _lastRequestDump = buildRequestDump(loopForRequest, resolvedModel, tools);
         const r = await fetch(COPILOT_API_URL, {
           method: 'POST',
           headers,
           signal,
           body: JSON.stringify({
-            model,
+            model: resolvedModel,
             messages: loopForRequest,
             tools,
             tool_choice: 'auto',
             stream: true,
-            ...modelApiParams(model, 0.3, 16000),
+            ...modelApiParams(resolvedModel, 0.3, 16000),
           }),
         });
         if (r.ok) { res = r; break; }
@@ -1222,7 +1256,7 @@ export async function runCopilotAgent(
       if (!res.ok) {
         const errText = await res.text();
         // Update the dump with the error response so the user gets actionable diagnostics.
-        _lastRequestDump = buildRequestDump(loopForRequest, model, tools, res.status, errText);
+        _lastRequestDump = buildRequestDump(loopForRequest, resolvedModel, tools, res.status, errText);
         console.error('[agent] API error diagnostic:\n' + _lastRequestDump);
         let cleanMsg: string;
         if (errText.trim().startsWith('<')) {
@@ -1486,7 +1520,7 @@ export async function runCopilotAgent(
         const compressed = await summarizeAndCompress(
           loop,
           headers,
-          model,
+          resolvedModel,
           workspacePath,
           sessionId ?? 's_unknown',
           round,
@@ -1540,7 +1574,7 @@ export async function runCopilotAgent(
       // is two consecutive `user` messages, not tool → user.
       const SENTINEL_CANVAS  = '__CANVAS_PNG__:';
       const SENTINEL_PREVIEW = '__PREVIEW_PNG__:';
-      if (modelSupportsVision(model)) {
+      if (modelSupportsVision(resolvedModel)) {
         let latestScreenshotUrl = '';
         let latestScreenshotLabel = '';
 

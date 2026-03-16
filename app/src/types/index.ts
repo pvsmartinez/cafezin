@@ -357,6 +357,5 @@ export const FALLBACK_MODELS: CopilotModelInfo[] = [
   { id: 'gpt-5.2-codex',        name: 'GPT-5.2-Codex',        multiplier: 1,    isPremium: false, vendor: 'OpenAI',    supportsVision: false },
   // Premium / >1× tier
   { id: 'claude-opus-4-6',      name: 'Claude Opus 4.6',      multiplier: 3,    isPremium: true,  vendor: 'Anthropic', supportsVision: true  },
-  { id: 'gpt-5.4',              name: 'GPT-5.4',              multiplier: 1,    isPremium: true,  vendor: 'OpenAI',    supportsVision: true  },
 ];
 

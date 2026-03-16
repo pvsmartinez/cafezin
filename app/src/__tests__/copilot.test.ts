@@ -9,6 +9,9 @@ import {
   CopilotDiagnosticError,
   modelSupportsVision,
   isBlockedModel,
+  isChatCompletionsCompatibleModel,
+  filterChatCompletionsCompatibleModels,
+  resolveCopilotModelForChatCompletions,
   familyKey,
   sanitizeLoop,
   estimateTokens,
@@ -17,6 +20,7 @@ import {
   clearOAuthToken,
   modelApiParams,
 } from '../services/copilot';
+import { FALLBACK_MODELS } from '../types';
 import type { ChatMessage } from '../types';
 
 // ── CopilotDiagnosticError ────────────────────────────────────────────────────
@@ -91,6 +95,43 @@ describe('isBlockedModel', () => {
     expect(isBlockedModel('gemini-2.5-pro')).toBe(false);
     expect(isBlockedModel('o3')).toBe(false);
     expect(isBlockedModel('o3-mini')).toBe(false);
+  });
+});
+
+// ── /chat/completions compatibility ─────────────────────────────────────────
+describe('chat-completions model compatibility', () => {
+  it('marks gpt-5.4 as incompatible with the current Copilot endpoint', () => {
+    expect(isChatCompletionsCompatibleModel('gpt-5.4')).toBe(false);
+  });
+
+  it('keeps currently supported Copilot defaults compatible', () => {
+    expect(isChatCompletionsCompatibleModel('gpt-5-mini')).toBe(true);
+    expect(isChatCompletionsCompatibleModel('gpt-4o')).toBe(true);
+    expect(isChatCompletionsCompatibleModel('claude-sonnet-4-6')).toBe(true);
+  });
+
+  it('filters incompatible models out of a picker list', () => {
+    const filtered = filterChatCompletionsCompatibleModels([
+      { id: 'gpt-5.4' },
+      { id: 'gpt-5-mini' },
+      { id: 'claude-sonnet-4-6' },
+    ]);
+    expect(filtered.map((m) => m.id)).toEqual(['gpt-5-mini', 'claude-sonnet-4-6']);
+  });
+
+  it('falls back to the default compatible model when the requested one is incompatible', () => {
+    expect(resolveCopilotModelForChatCompletions('gpt-5.4')).toBe('gpt-5-mini');
+  });
+
+  it('prefers a compatible available model list when resolving an incompatible saved model', () => {
+    expect(resolveCopilotModelForChatCompletions('gpt-5.4', [
+      { id: 'gpt-4o' },
+      { id: 'claude-sonnet-4-6' },
+    ])).toBe('gpt-4o');
+  });
+
+  it('does not keep gpt-5.4 in FALLBACK_MODELS', () => {
+    expect(FALLBACK_MODELS.some((model) => model.id === 'gpt-5.4')).toBe(false);
   });
 });
 

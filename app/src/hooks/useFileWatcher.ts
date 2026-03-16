@@ -12,11 +12,19 @@
 import { useEffect } from 'react';
 import type { MutableRefObject } from 'react';
 import { watch as fsWatch } from '@tauri-apps/plugin-fs';
+import type { WatchEvent } from '@tauri-apps/plugin-fs';
 import type { Workspace } from '../types';
 import { readFile } from '../services/workspace';
 import { getFileTypeInfo } from '../utils/fileType';
 
 const RELOAD_SKIP_KINDS = new Set(['pdf', 'video', 'audio', 'image', 'canvas']);
+
+/**
+ * Path segments that are internal to the app — changes inside these dirs
+ * should NOT rebuild the file tree or reload tabs.
+ * Covers both legacy 'cafezin/' and the current '.cafezin/' + '.git/'.
+ */
+const INTERNAL_PATH_SEGMENTS = ['/.cafezin/', '/cafezin/', '/.git/'];
 
 export interface UseFileWatcherOptions {
   /** Absolute workspace path; pass null/undefined to disable the watcher. */
@@ -62,7 +70,16 @@ export function useFileWatcher({
 
     fsWatch(
       watchPath,
-      () => {
+      (event: WatchEvent) => {
+        // Ignore events where ALL changed paths are inside internal dirs
+        // (.cafezin/, .git/, legacy cafezin/) — those are app-internal writes
+        // (e.g. copilot-log.jsonl, ai-marks.json, git object DB) and do NOT
+        // need to trigger a file-tree rebuild or tab reload.
+        const hasUserChange = event.paths.some(
+          (p) => !INTERNAL_PATH_SEGMENTS.some((seg) => p.includes(seg)),
+        );
+        if (!hasUserChange) return;
+
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(async () => {
           const ws = workspaceRef.current;

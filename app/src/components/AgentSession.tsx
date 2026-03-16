@@ -12,7 +12,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '../services/fs';
 
-import { getLastRequestDump, modelSupportsVision } from '../services/copilot';
+import { getLastRequestDump, modelSupportsVision, resolveCopilotModelForChatCompletions } from '../services/copilot';
 import { DEFAULT_MODEL } from '../types';
 import type { CopilotModel, CopilotModelInfo, MessageItem } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
@@ -69,6 +69,8 @@ export interface AgentSessionProps {
   onStreamingChange?: (streaming: boolean) => void;
   /** Called when the agent's observable status changes (for tab indicators). */
   onStatusChange?: (status: 'idle' | 'thinking' | 'error') => void;
+  /** Called when the user has scrolled to the bottom of the messages (clears unread). */
+  onMessagesSeen?: () => void;
   screenshotTargetRef?: React.RefObject<HTMLElement | null>;
   webPreviewRef?: React.RefObject<{ getScreenshot: () => Promise<string | null> } | null>;
   getActiveHtml?: () => { html: string; absPath: string } | null;
@@ -113,14 +115,19 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   onWorkspaceConfigChange,
   onStreamingChange,
   onStatusChange,
+  onMessagesSeen,
   screenshotTargetRef,
   webPreviewRef,
   getActiveHtml,
 }, ref) {
 
   // ── Model ─────────────────────────────────────────────────────────────────
-  const [model, setModel] = useState<CopilotModel>(initialModel ?? DEFAULT_MODEL);
-  useEffect(() => { if (initialModel) setModel(initialModel as CopilotModel); }, [initialModel]);
+  const [model, setModel] = useState<CopilotModel>(() =>
+    resolveCopilotModelForChatCompletions(initialModel ?? DEFAULT_MODEL, availableModels),
+  );
+  useEffect(() => {
+    setModel(resolveCopilotModelForChatCompletions(initialModel ?? DEFAULT_MODEL, availableModels));
+  }, [initialModel, availableModels]);
 
   // ── Input / attachments ───────────────────────────────────────────────────
   const [input, setInput] = useState(initialPrompt);
@@ -129,14 +136,31 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // When this tab becomes active, immediately clear unread if already scrolled to bottom
+  useEffect(() => {
+    if (!isActive) return;
+    const el = messagesContainerRef.current;
+    if (el && el.scrollTop + el.clientHeight >= el.scrollHeight - 60) {
+      onMessagesSeen?.();
+    }
+  // onMessagesSeen is stable from parent — safe to omit from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive]);
 
   // Focus when this tab becomes active
   useEffect(() => {
-    if (isActive) setTimeout(() => inputRef.current?.focus(), 50);
+    if (!isActive) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
   }, [isActive]);
 
   useEffect(() => {
-    if (isActive) { setInput(initialPrompt); setTimeout(() => inputRef.current?.focus(), 50); }
+    if (!isActive) return;
+    setInput(initialPrompt);
+    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPrompt]);
 
@@ -232,7 +256,11 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
   function handleRestoreSession() {
     const restoredModel = session.handleRestoreSession();
-    if (restoredModel) { setModel(restoredModel as CopilotModel); onModelChange?.(restoredModel); }
+    if (restoredModel) {
+      const resolved = resolveCopilotModelForChatCompletions(restoredModel, availableModels);
+      setModel(resolved);
+      onModelChange?.(resolved);
+    }
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }
 
@@ -364,7 +392,11 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
           <ModelPicker
             models={availableModels}
             value={model}
-            onChange={(id) => { setModel(id); onModelChange?.(id); }}
+            onChange={(id) => {
+              const resolved = resolveCopilotModelForChatCompletions(id, availableModels);
+              setModel(resolved);
+              onModelChange?.(resolved);
+            }}
             loading={modelsLoading}
             onSignOut={onSignOut}
           />
@@ -386,7 +418,16 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       })()}
 
       {/* Messages */}
-      <div className={`ai-messages${justDone ? ' ai-messages--done' : ''}`}>
+      <div
+        ref={messagesContainerRef}
+        className={`ai-messages${justDone ? ' ai-messages--done' : ''}`}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          if (isActive && el.scrollTop + el.clientHeight >= el.scrollHeight - 60) {
+            onMessagesSeen?.();
+          }
+        }}
+      >
         {/* Session stats bar */}
         {(sessionStats.filesCount > 0 || sessionStats.canvasOps > 0) && (
           <div className="ai-session-stats">

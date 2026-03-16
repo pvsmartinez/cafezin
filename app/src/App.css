@@ -897,3 +897,36 @@ body.is-resizing webview {
   opacity: 1;
   color: var(--text-muted);
 }
+
+/* ── Workspace empty state ─────────────────────────────────────── */
+.ws-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  cursor: pointer;
+  user-select: none;
+  gap: 8px;
+  outline: none;
+}
+.ws-empty:hover .ws-empty-logo,
+.ws-empty:hover .ws-empty-name {
+  opacity: 0.5;
+}
+.ws-empty-logo {
+  font-size: 32px;
+  color: #6b4226;
+  opacity: 0.2;
+  transition: opacity 0.2s;
+}
+.ws-empty-name {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #6b4226;
+  opacity: 0.18;
+  font-weight: 600;
+  text-transform: lowercase;
+  transition: opacity 0.2s;
+}

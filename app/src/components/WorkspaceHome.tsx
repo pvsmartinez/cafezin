@@ -12,6 +12,7 @@ interface WorkspaceHomeProps {
   aiMarks?: AIEditMark[];
   onOpenAIReview?: () => void;
   onSwitchWorkspace?: () => void;
+  onClose?: () => void;
 }
 
 interface SyncState {
@@ -42,7 +43,7 @@ function fileIcon(name: string): React.ReactNode {
   return '·';
 }
 
-export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [], onSwitchWorkspace }: WorkspaceHomeProps) {
+export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [], onSwitchWorkspace, onClose }: WorkspaceHomeProps) {
   const { t } = useTranslation();
   const [sync, setSync] = useState<SyncState>({ loading: true, changedCount: 0, error: false });
 
@@ -66,6 +67,9 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [], onS
 
   return (
     <div className="wh-root">
+      {onClose && (
+        <button className="wh-close-btn" onClick={onClose} title="Fechar home">✕</button>
+      )}
       <div className="wh-content">
 
         {/* Project name */}

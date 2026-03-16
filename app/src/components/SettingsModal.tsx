@@ -7,6 +7,7 @@ import {
   getProviderKey, PROVIDER_LABELS, PROVIDER_MODELS, PROVIDER_DEFAULT_MODELS,
   type AIProviderType,
 } from '../services/aiProvider';
+import { resolveCopilotModelForChatCompletions } from '../services/copilot';
 import { writeTextFile } from '../services/fs';
 import { saveWorkspaceConfig } from '../services/workspace';
 import {
@@ -225,8 +226,12 @@ export default function SettingsModal({
   }
 
   function handleSaveAIModel() {
-    setActiveModel(aiModel.trim());
-    void saveApiSecret('cafezin-ai-model', aiModel.trim());
+    const nextModel = aiProvider === 'copilot'
+      ? resolveCopilotModelForChatCompletions(aiModel.trim())
+      : aiModel.trim();
+    setActiveModel(nextModel);
+    setAIModel(nextModel);
+    void saveApiSecret('cafezin-ai-model', nextModel);
     setAIModelSaved(true);
     setTimeout(() => setAIModelSaved(false), 2000);
   }
@@ -239,7 +244,9 @@ export default function SettingsModal({
   useEffect(() => {
     if (!open || !workspace) return;
     setWsName(workspace.config.name ?? '');
-    setWsModel(workspace.config.preferredModel ?? '');
+    setWsModel(workspace.config.preferredModel
+      ? resolveCopilotModelForChatCompletions(workspace.config.preferredModel)
+      : '');
     setWsLanguage(workspace.config.preferredLanguage ?? 'pt-BR');
     setWsAgent(workspace.agentContext ?? '');
     setWsSidebarButtons(workspace.config.sidebarButtons ?? []);
@@ -277,7 +284,9 @@ export default function SettingsModal({
         config: {
           ...workspace.config,
           name: wsName,
-          preferredModel: wsModel || undefined,
+          preferredModel: wsModel
+            ? resolveCopilotModelForChatCompletions(wsModel)
+            : undefined,
           preferredLanguage: wsLanguage !== 'pt-BR' ? wsLanguage : undefined,
           sidebarButtons: wsSidebarButtons.length > 0 ? wsSidebarButtons : undefined,
           inboxFile: wsInboxFile.trim() || undefined,

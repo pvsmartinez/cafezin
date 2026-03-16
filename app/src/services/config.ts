@@ -5,16 +5,18 @@
  */
 
 /** Folder name (inside the workspace root) used for app config/logs/marks. */
-export const CONFIG_DIR = 'cafezin';
+export const CONFIG_DIR = '.cafezin';
 
 /**
  * Directory / file names that should be skipped when walking the workspace
  * file tree (listing, searching, etc.).
+ * Note: dotfiles starting with '.' are already filtered by buildFileTree/walkFilesFlat,
+ * but '.cafezin' is listed explicitly here for clarity.
  */
 export const WORKSPACE_SKIP = new Set([
   'node_modules',
   '.git',
-  'cafezin',
+  '.cafezin',
   'target',
   '.DS_Store',
 ]);

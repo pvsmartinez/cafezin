@@ -104,7 +104,18 @@ export async function loadWorkspace(folderPath: string): Promise<Workspace> {
   // We use our platform-aware ./fs wrapper which, on iOS, passes paths with
   // { baseDir: BaseDirectory.Document } — avoiding the /private/var/...
   // canonicalization bug in tauri-plugin-fs scope checks.
+
+  // Migration: rename legacy visible 'cafezin/' → hidden '.cafezin/' so the
+  // app's internal files stop showing up in the user's file explorer and,
+  // crucially, stop being tracked by git (which made sync slow in large projects).
+  const legacyConfigDir = `${folderPath}/cafezin`;
   const configDir = `${folderPath}/${CONFIG_DIR}`;
+  try {
+    if (await exists(legacyConfigDir) && !(await exists(configDir))) {
+      await rename(legacyConfigDir, configDir);
+    }
+  } catch { /* non-fatal — proceed with normal init */ }
+
   await mkdir(configDir, { recursive: true });
   const configPath = `${configDir}/${CONFIG_FILE}`;
 
@@ -141,6 +152,18 @@ export async function loadWorkspace(folderPath: string): Promise<Workspace> {
   try {
     await invoke('git_init', { path: folderPath });
   } catch { /* not fatal */ }
+
+  // Ensure .cafezin/ is excluded from git — prevents internal logs/config
+  // from being tracked and appearing in diffs, which made sync heavy on large projects.
+  try {
+    const gitignorePath = `${folderPath}/.gitignore`;
+    const CAFEZIN_IGNORE = '.cafezin/';
+    const current = (await exists(gitignorePath)) ? await readTextFile(gitignorePath) : '';
+    if (!current.split('\n').some((l) => l.trim() === CAFEZIN_IGNORE)) {
+      const appended = current ? `${current.trimEnd()}\n${CAFEZIN_IGNORE}\n` : `${CAFEZIN_IGNORE}\n`;
+      await writeTextFile(gitignorePath, appended);
+    }
+  } catch { /* best-effort */ }
 
   let hasGit = false;
   let gitRemote: string | undefined;

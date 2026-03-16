@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import {
   streamCopilotChat,
   runCopilotAgent,
@@ -144,9 +144,15 @@ export function useAIStream({
     askUserResolveRef.current = null;
   }
 
+  // Stable refs so the callbacks below can be wrapped in useCallback([]) without
+  // capturing stale state. Updated on every render (same pattern as dirtyFilesRef).
+  const isStreamingRef = useRef(false);
+  isStreamingRef.current = isStreaming;
+
   // ── Stop ─────────────────────────────────────────────────────────────────
-  function handleStop() {
-    if (!isStreaming) return;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleStop = useCallback(() => {
+    if (!isStreamingRef.current) return;
     const partial = liveItemsRef.current
       .filter((it): it is { type: 'text'; content: string } => it.type === 'text')
       .map((it) => it.content).join('');
@@ -164,7 +170,9 @@ export function useAIStream({
     askUserResolveRef.current?.('');
     askUserResolveRef.current = null;
     runIdRef.current++;
-  }
+  // agentId is a prop — stable for the lifetime of the agent instance.
+  // All other accesses go through refs or stable setters.
+  }, [agentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Send ──────────────────────────────────────────────────────────────────
   async function handleSend(
@@ -410,11 +418,11 @@ export function useAIStream({
   }
 
   /** Clears live stream state — call alongside session.handleNewChat(). */
-  function clearStream() {
+  const clearStream = useCallback(() => {
     setLiveItems([]);
     setIsStreamingState(false);
     setError(null);
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     isStreaming,
