@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { Sparkle, X, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react';
 import type { Editor, TLEditorSnapshot, TLComponents } from 'tldraw';
 import {
   Tldraw,
@@ -655,7 +656,7 @@ export default function CanvasEditor({
             onClick={() => setThemeOpen((v) => !v)}
             title="Slide theme — backgrounds, heading & body presets"
           >
-            ◈&nbsp;Theme
+            <Sparkle weight="fill" size={13} /> Theme
           </button>
         </div>
 
@@ -718,7 +719,7 @@ export default function CanvasEditor({
                     className="canvas-theme-bg-img-remove"
                     onClick={() => handleThemeChange({ ...theme, slideBgImage: '' })}
                     title="Remove image background"
-                  >✕</button>
+                  ><X weight="thin" size={12} /></button>
                 </div>
               ) : (
                 <div className="canvas-theme-bg-picker">
@@ -727,7 +728,7 @@ export default function CanvasEditor({
                   ) : wsImages.length === 0 ? (
                     <div className="canvas-theme-bg-picker-msg">
                       No images in workspace
-                      <button className="canvas-theme-bg-picker-refresh" onClick={loadWsImages}>↺</button>
+                      <button className="canvas-theme-bg-picker-refresh" onClick={loadWsImages}><ArrowsClockwise weight="thin" size={12} /></button>
                     </div>
                   ) : (
                     <>
@@ -762,7 +763,7 @@ export default function CanvasEditor({
                           />
                         </button>
                       ))}
-                      <button className="canvas-theme-bg-picker-refresh" onClick={loadWsImages} title="Refresh">↺</button>
+                      <button className="canvas-theme-bg-picker-refresh" onClick={loadWsImages} title="Refresh"><ArrowsClockwise weight="thin" size={12} /></button>
                     </>
                   )}
                 </div>
@@ -819,7 +820,7 @@ export default function CanvasEditor({
                       className={`canvas-theme-edit-btn${isEditing ? ' canvas-theme-edit-btn--on' : ''}`}
                       onClick={() => setEditingPreset(isEditing ? null : variant)}
                       title="Edit preset"
-                    >✎</button>
+                    ><PencilSimple weight="thin" size={12} /></button>
                   </div>
 
                   {!isEditing && (

@@ -5,10 +5,11 @@ import {
   getLastRateLimit,
   isQuotaError,
   estimateTokens,
+  getModelTokenBudgets,
   modelSupportsVision,
 } from '../services/copilot';
 import { appendLogEntry } from '../services/copilotLog';
-import { WORKSPACE_TOOLS, buildToolExecutor } from '../utils/workspaceTools';
+import { getWorkspaceTools, buildToolExecutor } from '../utils/workspaceTools';
 import { canvasToDataUrl, compressDataUrl } from '../utils/canvasAI';
 import { unlockAllByAgent } from '../services/copilotLock';
 import type {
@@ -68,6 +69,47 @@ export interface UseAIStreamParams {
   activeFileContent?: string;
 }
 
+export function buildRetryMessages(
+  newMessages: ChatMessage[],
+  partialForRetry?: string,
+): ChatMessage[] {
+  const partial = partialForRetry?.trim();
+  if (!partial) return newMessages;
+
+  const retryInstruction = [
+    '[Retry note]',
+    'Your previous response was interrupted before completion.',
+    'Continue from the partial assistant output below without restarting from the beginning.',
+    'Do not repeat text that was already written unless needed to finish the sentence cleanly.',
+    '',
+    'Partial assistant output:',
+    '---',
+    partial,
+    '---',
+  ].join('\n');
+
+  const nextMessages = [...newMessages];
+  const lastMessage = nextMessages[nextMessages.length - 1];
+
+  if (lastMessage?.role === 'user') {
+    if (typeof lastMessage.content === 'string') {
+      nextMessages[nextMessages.length - 1] = {
+        ...lastMessage,
+        content: `${lastMessage.content}\n\n${retryInstruction}`,
+      };
+      return nextMessages;
+    }
+
+    nextMessages[nextMessages.length - 1] = {
+      ...lastMessage,
+      content: [...lastMessage.content, { type: 'text', text: retryInstruction }],
+    };
+    return nextMessages;
+  }
+
+  return [...nextMessages, { role: 'user', content: retryInstruction }];
+}
+
 // ── useAIStream ───────────────────────────────────────────────────────────────
 export function useAIStream({
   model,
@@ -122,6 +164,16 @@ export function useAIStream({
   const abortRef  = useRef<AbortController | null>(null);
   const runIdRef  = useRef(0);
 
+  interface RetryPayload {
+    newMessages: ChatMessage[];
+    messagesWithUserMsg: ChatMessage[];
+    userMsg: ChatMessage;
+    /** Partial assistant content captured on error — included in API context on retry
+     *  so the model can continue its thread of thought. Not shown in UI. */
+    partialForRetry?: string;
+  }
+  const retryPayloadRef = useRef<RetryPayload | null>(null);
+
   function setIsStreaming(v: boolean) {
     setIsStreamingState(v);
     onStreamingChange?.(v);
@@ -174,94 +226,13 @@ export function useAIStream({
   // All other accesses go through refs or stable setters.
   }, [agentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Send ──────────────────────────────────────────────────────────────────
-  async function handleSend(
-    imageOverride?: string,
-    textOverride?: string,
-    pendingImageRef?: string | null,
-    pendingFileRefVal?: { name: string; content: string } | null,
-    input?: string,
-    clearInputAndAttachments?: () => void,
+  // ── Stream runner (shared by handleSend and retryLastSend) ───────────────
+  async function _runStream(
+    newMessages: ChatMessage[],
+    userMsg: ChatMessage,
+    runId: number,
+    signal: AbortSignal,
   ): Promise<void> {
-    const textToSend = (textOverride ?? input ?? '').trim();
-    if (!textToSend && !imageOverride && !pendingImageRef) {
-      if (isStreaming) handleStop();
-      return;
-    }
-
-    // If an agent run is in progress, commit the partial response and abort it.
-    if (isStreaming) {
-      const partial = liveItemsRef.current
-        .filter((it): it is { type: 'text'; content: string } => it.type === 'text')
-        .map((it) => it.content).join('');
-      if (partial.trim()) {
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: partial.trim() + '\n\n_[interrupted]_' },
-        ]);
-      }
-      abortRef.current?.abort();
-      setLiveItems([]);
-      setAskUserState(null);
-      askUserResolveRef.current?.('');
-      askUserResolveRef.current = null;
-    }
-
-    const runId = ++runIdRef.current;
-    abortRef.current = new AbortController();
-    const signal = abortRef.current.signal;
-
-    setError(null);
-    setLiveItems([]);
-    clearInputAndAttachments?.();
-
-    const capturedImage   = imageOverride ?? pendingImageRef ?? null;
-    const capturedFileRef = pendingFileRefVal ?? null;
-    const userMsg: ChatMessage = {
-      role: 'user',
-      content: textToSend || '📸',
-      activeFile,
-      ...(capturedImage    ? { attachedImage: capturedImage }         : {}),
-      ...(capturedFileRef  ? { attachedFile: capturedFileRef.name }   : {}),
-    };
-    setMessages((prev) => [...prev, userMsg]); // show user message immediately
-    setIsStreaming(true);
-    setAgentExhausted(false);
-
-    // Build multipart user message for the API
-    const prefix     = activeFile ? `[Context: user sent this prompt while "${activeFile.split('/').pop()}" was open]\n` : '';
-    const fileContext = capturedFileRef
-      ? `[Attached file: "${capturedFileRef.name}"]\n---\n${capturedFileRef.content}\n---\n\n`
-      : '';
-    const apiText = `${fileContext}${prefix}${textToSend || 'Describe what you see in this screenshot and note any issues.'}`;
-
-    let finalUserMsg: ChatMessage = (activeFile || capturedFileRef)
-      ? { role: 'user', content: apiText }
-      : userMsg;
-
-    if (modelSupportsVision(model)) {
-      const parts: ContentPart[] = [];
-      if (canvasEditorRef?.current) {
-        const url = await canvasToDataUrl(canvasEditorRef.current, 0.5);
-        if (url) {
-          const compressed = await compressDataUrl(url, 512, 0.65);
-          parts.push({ type: 'text', text: 'Current canvas state (before any edits) — study this carefully before making changes:' });
-          parts.push({ type: 'image_url', image_url: { url: compressed } });
-        }
-      }
-      if (capturedImage) {
-        const compressedCapture = await compressDataUrl(capturedImage, 512, 0.65);
-        parts.push({ type: 'text', text: 'Attached image:' });
-        parts.push({ type: 'image_url', image_url: { url: compressedCapture } });
-      }
-      if (parts.length > 0) {
-        parts.push({ type: 'text', text: apiText });
-        finalUserMsg = { role: 'user', content: parts };
-      }
-    }
-
-    const newMessages: ChatMessage[] = [...messages, finalUserMsg];
-
     let fullResponse = '';
 
     const onChunk = (chunk: string) => {
@@ -319,6 +290,11 @@ export function useAIStream({
             items: liveItemsRef.current.length > 0 ? liveItemsRef.current : undefined,
           },
         ]);
+        // Save partial so retryLastSend can include it in API context (model continues
+        // its thread of thought) while the UI is reset to a clean state.
+        if (retryPayloadRef.current) {
+          retryPayloadRef.current.partialForRetry = partial.trim();
+        }
       }
       if (err.message === 'NOT_AUTHENTICATED') {
         onNotAuthenticated?.();
@@ -334,9 +310,9 @@ export function useAIStream({
       setQuotaInfo(getLastRateLimit());
     };
 
-    // ── Sliding-window token budget ────────────────────────────────────────
+    // ── Sliding-window token budget ──────────────────────────────────────
     const apiMessages = (() => {
-      const CHAT_TOKEN_BUDGET = 70_000;
+      const CHAT_TOKEN_BUDGET = getModelTokenBudgets(model).chatBudget;
       const all = [systemPrompt, ...newMessages];
       if (estimateTokens(all) <= CHAT_TOKEN_BUDGET) return all;
       const firstUserIdx = all.findIndex((m, i) => i > 0 && m.role === 'user');
@@ -378,11 +354,8 @@ export function useAIStream({
         activeFileContent,
       );
 
-      const CANVAS_TOOL_NAMES = new Set(['list_canvas_shapes', 'canvas_op', 'canvas_screenshot', 'add_canvas_image']);
-      const hasCanvas           = !!(canvasEditorRef?.current);
       const isMobilePlatform    = import.meta.env.VITE_TAURI_MOBILE === 'true';
-      const activeTools = WORKSPACE_TOOLS.filter((t) => {
-        if (!hasCanvas && CANVAS_TOOL_NAMES.has(t.function.name)) return false;
+      const activeTools = getWorkspaceTools(workspaceConfig, workspaceExportConfig).filter((t) => {
         if (isMobilePlatform && t.function.name === 'run_command') return false;
         return true;
       });
@@ -417,6 +390,123 @@ export function useAIStream({
     }
   }
 
+  // ── Send ──────────────────────────────────────────────────────────────────
+  async function handleSend(
+    imageOverride?: string,
+    textOverride?: string,
+    pendingImagesRef?: string[],
+    pendingFileRefVal?: { name: string; content: string } | null,
+    input?: string,
+    clearInputAndAttachments?: () => void,
+  ): Promise<void> {
+    const textToSend = (textOverride ?? input ?? '').trim();
+    if (!textToSend && !imageOverride && (!pendingImagesRef || pendingImagesRef.length === 0)) {
+      if (isStreaming) handleStop();
+      return;
+    }
+
+    // If an agent run is in progress, commit the partial response and abort it.
+    if (isStreaming) {
+      const partial = liveItemsRef.current
+        .filter((it): it is { type: 'text'; content: string } => it.type === 'text')
+        .map((it) => it.content).join('');
+      if (partial.trim()) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: partial.trim() + '\n\n_[interrupted]_' },
+        ]);
+      }
+      abortRef.current?.abort();
+      setLiveItems([]);
+      setAskUserState(null);
+      askUserResolveRef.current?.('');
+      askUserResolveRef.current = null;
+    }
+
+    const runId = ++runIdRef.current;
+    abortRef.current = new AbortController();
+    const signal = abortRef.current.signal;
+
+    setError(null);
+    setLiveItems([]);
+    clearInputAndAttachments?.();
+
+    const capturedImages  = imageOverride ? [imageOverride] : (pendingImagesRef ?? []);
+    const capturedFileRef = pendingFileRefVal ?? null;
+    const userMsg: ChatMessage = {
+      role: 'user',
+      content: textToSend || '📸',
+      activeFile,
+      ...(capturedImages.length === 1 ? { attachedImage: capturedImages[0] } : {}),
+      ...(capturedImages.length > 0 ? { attachedImages: capturedImages } : {}),
+      ...(capturedFileRef  ? { attachedFile: capturedFileRef.name }   : {}),
+    };
+    setMessages((prev) => [...prev, userMsg]); // show user message immediately
+    setIsStreaming(true);
+    setAgentExhausted(false);
+
+    // Build multipart user message for the API
+    const prefix     = activeFile ? `[Context: user sent this prompt while "${activeFile.split('/').pop()}" was open]\n` : '';
+    const fileContext = capturedFileRef
+      ? `[Attached file: "${capturedFileRef.name}"]\n---\n${capturedFileRef.content}\n---\n\n`
+      : '';
+    const apiText = `${fileContext}${prefix}${textToSend || 'Describe what you see in this screenshot and note any issues.'}`;
+
+    let finalUserMsg: ChatMessage = (activeFile || capturedFileRef)
+      ? { role: 'user', content: apiText }
+      : userMsg;
+
+    if (modelSupportsVision(model)) {
+      const parts: ContentPart[] = [];
+      if (canvasEditorRef?.current) {
+        const url = await canvasToDataUrl(canvasEditorRef.current, 0.5);
+        if (url) {
+          const compressed = await compressDataUrl(url, 512, 0.65);
+          parts.push({ type: 'text', text: 'Current canvas state (before any edits) — study this carefully before making changes:' });
+          parts.push({ type: 'image_url', image_url: { url: compressed } });
+        }
+      }
+      if (capturedImages.length > 0) {
+        parts.push({
+          type: 'text',
+          text: capturedImages.length === 1 ? 'Attached image:' : `Attached images (${capturedImages.length}):`,
+        });
+        for (const capturedImage of capturedImages) {
+          const compressedCapture = await compressDataUrl(capturedImage, 512, 0.65);
+          parts.push({ type: 'image_url', image_url: { url: compressedCapture } });
+        }
+      }
+      if (parts.length > 0) {
+        parts.push({ type: 'text', text: apiText });
+        finalUserMsg = { role: 'user', content: parts };
+      }
+    }
+
+    const newMessages: ChatMessage[] = [...messages, finalUserMsg];
+
+    retryPayloadRef.current = { newMessages, messagesWithUserMsg: [...messages, userMsg], userMsg };
+    await _runStream(newMessages, userMsg, runId, signal);
+  }
+
+  /** Re-sends the last failed message without re-appending it to the messages array. */
+  async function retryLastSend(): Promise<void> {
+    if (!retryPayloadRef.current || isStreaming) return;
+    const { newMessages, messagesWithUserMsg, userMsg, partialForRetry } = retryPayloadRef.current;
+    const runId = ++runIdRef.current;
+    abortRef.current = new AbortController();
+    const signal = abortRef.current.signal;
+    setError(null);
+    setLiveItems([]);
+    setIsStreaming(true);
+    setAgentExhausted(false);
+    // Reset UI to before the partial — the continuation will replace it
+    setMessages(messagesWithUserMsg);
+    // Retry payloads must end with a user message. Claude rejects assistant prefill,
+    // so we encode any partial output as continuation instructions on the last user turn.
+    const apiMessages = buildRetryMessages(newMessages, partialForRetry);
+    await _runStream(apiMessages, userMsg, runId, signal);
+  }
+
   /** Clears live stream state — call alongside session.handleNewChat(). */
   const clearStream = useCallback(() => {
     setLiveItems([]);
@@ -436,6 +526,7 @@ export function useAIStream({
     setAskUserInput,
     handleStop,
     handleSend,
+    retryLastSend,
     handleAskUserAnswer,
     clearStream,
     isQuotaError,

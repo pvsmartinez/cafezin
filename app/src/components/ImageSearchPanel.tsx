@@ -9,7 +9,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Check, ArrowDown } from '@phosphor-icons/react';
+import { X, Check, ArrowDown, Gear, CaretUp, CaretDown, Sparkle } from '@phosphor-icons/react';
 import { writeFile, mkdir, exists } from '../services/fs';
 import { saveApiSecret } from '../services/apiSecrets';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
@@ -249,12 +249,12 @@ export default function ImageSearchPanel({ workspace, canvasEditorRef, onClose }
         {/* API key section */}
         <div className={`isp-key-section${keyOpen ? ' isp-key-section--open' : ''}`}>
           <button className="isp-key-toggle" onClick={() => setKeyOpen((v) => !v)}>
-            <span className="isp-key-icon">⚙</span>
+            <span className="isp-key-icon"><Gear weight="thin" size={14} /></span>
             <span>Pexels API Key</span>
             <span className={`isp-key-status${apiKey ? ' isp-key-status--ok' : ''}`}>
               {apiKey ? '●  set' : '○  not set'}
             </span>
-            <span className="isp-key-chevron">{keyOpen ? '▴' : '▾'}</span>
+            <span className="isp-key-chevron">{keyOpen ? <CaretUp weight="thin" size={12} /> : <CaretDown weight="thin" size={12} />}</span>
           </button>
           {keyOpen && (
             <div className="isp-key-body">
@@ -336,7 +336,7 @@ export default function ImageSearchPanel({ workspace, canvasEditorRef, onClose }
                             onClick={() => handleUse(photo, true)}
                             title="Save & add to active canvas"
                           >
-                            {isOnCanvas ? <><Check weight="thin" size={13} /> On canvas</> : '+ Canvas'}
+                            {isOnCanvas ? <><Check weight="thin" size={13} /> On canvas</> : <><Sparkle weight="fill" size={12} /> Canvas</>}
                           </button>
                         )}
                       </div>
@@ -345,7 +345,7 @@ export default function ImageSearchPanel({ workspace, canvasEditorRef, onClose }
                       <div className="isp-card-badge"><Check weight="thin" size={12} /></div>
                     )}
                     {isOnCanvas && (
-                      <div className="isp-card-badge isp-card-badge--canvas">◈</div>
+                      <div className="isp-card-badge isp-card-badge--canvas"><Sparkle weight="fill" size={11} /></div>
                     )}
                   </div>
                 );

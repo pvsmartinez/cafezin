@@ -1,6 +1,36 @@
 import { useState, useCallback, useEffect, useRef, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Check, CaretLeft, CaretRight, CaretDown, Play, FolderSimple, Copy, Warning, FolderPlus, Minus } from '@phosphor-icons/react';
+import {
+  X,
+  Check,
+  CaretLeft,
+  CaretRight,
+  CaretDown,
+  Play,
+  FolderSimple,
+  Copy,
+  Warning,
+  FolderPlus,
+  Minus,
+  Sparkle,
+  MagnifyingGlass,
+  ArrowsClockwise,
+  ArrowUp,
+  Gear,
+  PencilSimple,
+  File,
+  FileText,
+  FileCode,
+  FilePdf,
+  BracketsCurly,
+  Image,
+  MusicNote,
+  FilePlus,
+  TerminalWindow,
+  ArrowRight,
+  PaintBrush,
+  Code,
+} from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { createFile, createCanvasFile, createFolder, refreshWorkspaceFiles, deleteFile, duplicateFile, duplicateFolder, renameFile, moveFile, updateFileReferences } from '../services/workspace';
@@ -18,34 +48,34 @@ import './Sidebar.css';
  * two functions drifting out of sync.
  */
 function fileIconInfo(name: string): { icon: React.ReactNode; cls: string } {
-  if (name.endsWith('.tldr.json')) return { icon: '◈', cls: 'sidebar-icon--canvas' };
+  if (name.endsWith('.tldr.json')) return { icon: <Sparkle weight="fill" size={12} />, cls: 'sidebar-icon--canvas' };
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  if (['md', 'mdx'].includes(ext))               return { icon: '≣',  cls: 'sidebar-icon--md' };
-  if (['ts', 'tsx'].includes(ext))               return { icon: 'TS', cls: 'sidebar-icon--ts' };
-  if (['js', 'jsx', 'mjs'].includes(ext))        return { icon: 'JS', cls: 'sidebar-icon--js' };
-  if (['json', 'jsonc'].includes(ext))           return { icon: '{}', cls: 'sidebar-icon--json' };
-  if (['css', 'scss', 'less'].includes(ext))     return { icon: '#',  cls: 'sidebar-icon--css' };
-  if (['html', 'htm'].includes(ext))             return { icon: '<>', cls: 'sidebar-icon--html' };
-  if (ext === 'rs')                              return { icon: 'Rs', cls: 'sidebar-icon--rs' };
-  if (ext === 'py')                              return { icon: 'Py', cls: 'sidebar-icon--py' };
-  if (ext === 'go')                              return { icon: 'Go', cls: 'sidebar-icon--go' };
-  if (['c', 'cpp', 'h', 'hpp'].includes(ext))   return { icon: 'C',  cls: 'sidebar-icon--c' };
-  if (ext === 'java')                            return { icon: 'Jv', cls: 'sidebar-icon--java' };
-  if (['kt', 'kts'].includes(ext))              return { icon: 'Kt', cls: 'sidebar-icon--java' };
-  if (ext === 'swift')                           return { icon: 'Sw', cls: 'sidebar-icon--swift' };
-  if (ext === 'rb')                              return { icon: 'Rb', cls: 'sidebar-icon--rb' };
-  if (ext === 'php')                             return { icon: 'Php', cls: 'sidebar-icon--rb' };
-  if (['toml', 'yaml', 'yml'].includes(ext))    return { icon: '≡',  cls: 'sidebar-icon--cfg' };
-  if (['sh', 'bash', 'zsh', 'fish'].includes(ext)) return { icon: '$', cls: 'sidebar-icon--sh' };
-  if (ext === 'pdf')                             return { icon: 'PDF', cls: 'sidebar-icon--pdf' };
+  if (['md', 'mdx', 'txt'].includes(ext))        return { icon: <FileText weight="thin" size={13} />, cls: 'sidebar-icon--md' };
+  if (['ts', 'tsx'].includes(ext))               return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--ts' };
+  if (['js', 'jsx', 'mjs'].includes(ext))        return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--js' };
+  if (['json', 'jsonc'].includes(ext))           return { icon: <BracketsCurly weight="thin" size={13} />, cls: 'sidebar-icon--json' };
+  if (['css', 'scss', 'less'].includes(ext))     return { icon: <PaintBrush weight="thin" size={13} />, cls: 'sidebar-icon--css' };
+  if (['html', 'htm'].includes(ext))             return { icon: <Code weight="thin" size={13} />, cls: 'sidebar-icon--html' };
+  if (ext === 'rs')                              return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--rs' };
+  if (ext === 'py')                              return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--py' };
+  if (ext === 'go')                              return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--go' };
+  if (['c', 'cpp', 'h', 'hpp'].includes(ext))   return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--c' };
+  if (ext === 'java')                            return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--java' };
+  if (['kt', 'kts'].includes(ext))              return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--java' };
+  if (ext === 'swift')                           return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--swift' };
+  if (ext === 'rb')                              return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--rb' };
+  if (ext === 'php')                             return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--rb' };
+  if (['toml', 'yaml', 'yml'].includes(ext))    return { icon: <BracketsCurly weight="thin" size={13} />, cls: 'sidebar-icon--cfg' };
+  if (['sh', 'bash', 'zsh', 'fish'].includes(ext)) return { icon: <TerminalWindow weight="thin" size={13} />, cls: 'sidebar-icon--sh' };
+  if (ext === 'pdf')                             return { icon: <FilePdf weight="thin" size={13} />, cls: 'sidebar-icon--pdf' };
   if (['mp4', 'webm', 'mov', 'm4v', 'mkv', 'ogv', 'avi'].includes(ext))
                                                  return { icon: <Play weight="thin" size={11} />, cls: 'sidebar-icon--video' };
-  if (ext === 'gif')                             return { icon: 'GIF', cls: 'sidebar-icon--media' };
+  if (ext === 'gif')                             return { icon: <Image weight="thin" size={13} />, cls: 'sidebar-icon--media' };
   if (['mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a'].includes(ext))
-                                                 return { icon: '♪',  cls: 'sidebar-icon--media' };
+                                                 return { icon: <MusicNote weight="thin" size={13} />,  cls: 'sidebar-icon--media' };
   if (['png', 'jpg', 'jpeg', 'svg', 'webp', 'bmp', 'ico', 'avif', 'tiff', 'tif'].includes(ext))
-                                                 return { icon: '⊡', cls: 'sidebar-icon--image' };
-  return { icon: '·', cls: '' };
+                                                 return { icon: <Image weight="thin" size={13} />, cls: 'sidebar-icon--image' };
+  return { icon: <File weight="thin" size={13} />, cls: '' };
 }
 
 // ── File-type groups for the three-category creator ────────────────────────
@@ -168,7 +198,7 @@ function _TreeNodeItem({
             role="button"
             title={`New file in ${node.name}`}
             onClick={(e) => { e.stopPropagation(); onStartCreate(node.path, 'file'); }}
-          >+</span>
+          ><FilePlus weight="thin" size={12} /></span>
           <span
             className="sidebar-tree-action"
             role="button"
@@ -749,7 +779,7 @@ export default function Sidebar({
         </span>
         {workspace.agentContext ? (
           <span className="sidebar-agent-badge" title="AGENT.md found — loaded as AI context">
-            ✦
+            <Sparkle weight="fill" size={15} />
           </span>
         ) : null}
       </div>
@@ -760,12 +790,12 @@ export default function Sidebar({
           className={`sidebar-tab${sidebarMode === 'explorer' ? ' active' : ''}`}
           onClick={() => { onSidebarModeChange('explorer'); onExpandSidebar?.(); }}
           title="Explorer"
-        >⋟<span className="sidebar-label"> Files</span></button>
+        ><FolderSimple weight="regular" size={16} /><span className="sidebar-label"> Files</span></button>
         <button
           className={`sidebar-tab${sidebarMode === 'search' ? ' active' : ''}`}
           onClick={() => { onSidebarModeChange('search'); onExpandSidebar?.(); }}
           title={t('sidebar.searchTitle')}
-        >⌕<span className="sidebar-label"> Search</span></button>
+        ><MagnifyingGlass weight="regular" size={16} /><span className="sidebar-label"> Search</span></button>
       </div>
 
       {/* ── SEARCH MODE ─────────────────────────────────────────── */}
@@ -781,12 +811,11 @@ export default function Sidebar({
       {/* ── EXPLORER MODE ────────────────────────────────────────── */}
       {sidebarMode === 'explorer' && (
         <>
-
       {/* Explorer label with hover create actions */}
       <div className="sidebar-explorer-label">
         <span>{t('sidebar.explorerLabel')}</span>
         <div className="sidebar-explorer-actions">
-          <button className="sidebar-explorer-action" title="New file" onClick={() => startCreating('')}>+</button>
+          <button className="sidebar-explorer-action" title="New file" onClick={() => startCreating('')}><FilePlus weight="thin" size={13} /></button>
           <button className="sidebar-explorer-action" title="New folder" onClick={() => startCreating('', 'folder')}><FolderPlus weight="thin" size={13} /></button>
           <button className="sidebar-explorer-action" title="Collapse all folders" onClick={() => setExpandedDirs(new Set())}><Minus weight="thin" size={13} /></button>
         </div>
@@ -795,7 +824,6 @@ export default function Sidebar({
       {/* Multi-select bulk action bar */}
       {multiSelected.size > 0 && (
         <div className="sidebar-multiselect-bar">
-          <span className="sidebar-multiselect-count">{multiSelected.size} selected</span>
           <button
             className="sidebar-multiselect-delete"
             onClick={handleBulkDelete}
@@ -874,7 +902,7 @@ export default function Sidebar({
         {creatingIn !== null && (
           <div className="sidebar-creator">
             <div className="sidebar-creator-context">
-              <span className="sidebar-creator-kind">{creatingKind === 'folder' ? <><FolderPlus weight="thin" size={13} /> folder</> : '+ file'}</span>
+              <span className="sidebar-creator-kind">{creatingKind === 'folder' ? <><FolderPlus weight="thin" size={13} /> folder</> : <><FilePlus weight="thin" size={13} /> file</>}</span>
               {creatingIn ? <span className="sidebar-creator-path">in {creatingIn}</span> : <span className="sidebar-creator-path">at root</span>}
               <button type="button" className="sidebar-creator-cancel" onClick={cancelCreating} title="Cancel (Esc)"><X weight="thin" size={13} /></button>
             </div>
@@ -888,7 +916,7 @@ export default function Sidebar({
                     onClick={() => selectCategory('canvas')}
                     title={t('sidebar.newCanvasTitle')}
                   >
-                    <span className="scc-icon">◈</span>
+                    <span className="scc-icon"><Sparkle weight="thin" size={14} /></span>
                     <span className="scc-label">{t('sidebar.newCanvas')}</span>
                   </button>
                   <button
@@ -897,7 +925,7 @@ export default function Sidebar({
                     onClick={() => selectCategory('text')}
                     title={t('sidebar.newTextTitle')}
                   >
-                    <span className="scc-icon">◎</span>
+                    <span className="scc-icon"><FileText weight="thin" size={14} /></span>
                     <span className="scc-label">{t('sidebar.newText')}</span>
                   </button>
                   <button
@@ -906,7 +934,7 @@ export default function Sidebar({
                     onClick={() => selectCategory('code')}
                     title={t('sidebar.newCodeTitle')}
                   >
-                    <span className="scc-icon">&lt;/&gt;</span>
+                    <span className="scc-icon"><FileCode weight="thin" size={14} /></span>
                     <span className="scc-label">{t('sidebar.newCode')}</span>
                   </button>
                 </div>
@@ -964,10 +992,10 @@ export default function Sidebar({
           title="Export / Build"
         >
           <span className="sidebar-export-label">
-            <span className="sidebar-sync-icon-narrow">↑</span>
-            <span className="sidebar-label">↑ Export</span>
+            <span className="sidebar-btn-icon" aria-hidden><ArrowUp weight="regular" size={16} /></span>
+            <span className="sidebar-label">Export</span>
           </span>
-          <span className="sidebar-export-config" aria-hidden>⚙</span>
+          <span className="sidebar-export-config" aria-hidden><Gear weight="regular" size={14} /></span>
         </button>
         <button
           className={`sidebar-btn sidebar-btn-sync${syncStatus !== 'idle' ? ` ${syncStatus}` : ''}${syncStatus === 'idle' && gitChangedCount > 0 ? ' has-changes' : ''}${!workspace.hasGit ? ' disabled-no-git' : ''}`}
@@ -976,7 +1004,7 @@ export default function Sidebar({
           title={workspace.hasGit ? t('sidebar.syncTitle') : t('sidebar.syncNoGitTitle')}
         >
           <span className="sidebar-sync-label">
-            <span className="sidebar-sync-icon-narrow">⇅</span>
+            <span className="sidebar-btn-icon" aria-hidden><ArrowsClockwise weight="regular" size={16} /></span>
             <span className="sidebar-label">
               {!workspace.hasGit     && t('sidebar.syncLocal')}
               {workspace.hasGit && syncStatus === 'idle'    && t('sidebar.syncIdle')}
@@ -1004,7 +1032,7 @@ export default function Sidebar({
                 onClick={() => setAiEditsOpen((v) => !v)}
                 title={aiEditsOpen ? 'Recolher' : 'Ver edições da IA pendentes'}
               >
-                <span className="sidebar-ai-edits-label">✦ AI edits</span>
+                <span className="sidebar-ai-edits-label"><Sparkle weight="fill" size={13} /> {t('sidebar.aiEditsLabel')}</span>
                 <span className="sidebar-ai-badge">{unreviewed.length}</span>
                 <span className="sidebar-ai-edits-caret">
                   {aiEditsOpen
@@ -1066,7 +1094,7 @@ export default function Sidebar({
             title={`Publicar demos em ${workspace.config.vercelConfig.demoHub.projectName}.vercel.app`}
             onClick={onPublishDemoHub}
           >
-            ⇗ Publicar Demos
+            <ArrowRight weight="thin" size={13} /> Publicar Demos
           </button>
         )}
       </div>
@@ -1091,7 +1119,7 @@ export default function Sidebar({
             ? contextMenu.path
             : (contextMenu.path.includes('/') ? contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/')) : '');
           startCreating(inPath, 'file');
-        }}><span className="sidebar-ctx-icon">+</span> New file here</button>
+        }}><span className="sidebar-ctx-icon"><FilePlus weight="thin" size={13} /></span> New file here</button>
         <button onClick={() => {
           const inPath = contextMenu.isDir
             ? contextMenu.path
@@ -1102,18 +1130,18 @@ export default function Sidebar({
         <button onClick={() => {
           const name = contextMenu.path.split('/').pop() ?? contextMenu.path;
           startRename(contextMenu.path, name);
-        }}><span className="sidebar-ctx-icon">✎</span> Rename</button>
+        }}><span className="sidebar-ctx-icon"><PencilSimple weight="thin" size={13} /></span> Rename</button>
         <button onClick={() => {
           revealItemInDir(`${workspace.path}/${contextMenu.path}`);
           setContextMenu(null);
-        }}><span className="sidebar-ctx-icon">⊙</span> Show in Finder</button>
+        }}><span className="sidebar-ctx-icon"><FolderSimple weight="thin" size={13} /></span> Show in Finder</button>
         <button onClick={() => {
           const dir = contextMenu.isDir
             ? contextMenu.path
             : (contextMenu.path.includes('/') ? contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/')) : '');
           onOpenTerminalAt?.(dir);
           setContextMenu(null);
-        }}><span className="sidebar-ctx-icon">$</span> Open in Terminal</button>
+        }}><span className="sidebar-ctx-icon"><TerminalWindow weight="thin" size={13} /></span> Open in Terminal</button>
         {!contextMenu.isDir && (
           <button onClick={() => {
             navigator.clipboard.writeText(contextMenu.path).catch(() => {});
@@ -1125,11 +1153,11 @@ export default function Sidebar({
           const pickerH = Math.min(folders.length * 32 + 88, 320);
           setMovePicker({ path: contextMenu.path, x: contextMenu.x, y: Math.min(contextMenu.y, window.innerHeight - pickerH - 6) });
           setContextMenu(null);
-        }}><span className="sidebar-ctx-icon">→</span> Move to…</button>
+        }}><span className="sidebar-ctx-icon"><ArrowRight weight="thin" size={13} /></span> Move to…</button>
         <div className="sidebar-context-separator" />
         {contextMenu.isDir
-          ? <button onClick={() => handleDuplicateFolder(contextMenu.path)}><span className="sidebar-ctx-icon">⧉</span> Duplicate folder</button>
-          : <button onClick={() => handleDuplicateFile(contextMenu.path)}><span className="sidebar-ctx-icon">⧉</span> Duplicate</button>
+          ? <button onClick={() => handleDuplicateFolder(contextMenu.path)}><span className="sidebar-ctx-icon"><Copy weight="thin" size={13} /></span> Duplicate folder</button>
+          : <button onClick={() => handleDuplicateFile(contextMenu.path)}><span className="sidebar-ctx-icon"><Copy weight="thin" size={13} /></span> Duplicate</button>
         }
         <div className="sidebar-context-separator" />
         <button className="sidebar-context-delete" onClick={() => handleDeleteFile(contextMenu.path)}><span className="sidebar-ctx-icon"><X weight="thin" size={13} /></span> Delete</button>

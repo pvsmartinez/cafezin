@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Warning } from '@phosphor-icons/react';
+import { X, Warning, ArrowsClockwise, CaretDown, CaretRight, ArrowUUpLeft } from '@phosphor-icons/react';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import './SyncModal.css';
@@ -133,7 +133,7 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
         {/* Header */}
         <div className="sm-header">
           <span className="sm-title">
-            ⇅ Sync changes
+            <ArrowsClockwise weight="thin" size={14} /> Sync changes
             {result && (
               <span className="sm-file-count">
                 {result.files.length} file{result.files.length !== 1 ? 's' : ''}
@@ -175,7 +175,7 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
                             disabled={isReverting || syncing}
                             title="Discard changes"
                           >
-                            {isReverting ? '…' : '↩'}
+                              {isReverting ? '…' : <ArrowUUpLeft weight="thin" size={12} />}
                           </button>
                         )}
                       </div>
@@ -192,7 +192,7 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
                     onClick={() => setDiffExpanded((v) => !v)}
                     type="button"
                   >
-                    <span className="sm-section-label-arrow">{diffExpanded ? '▾' : '▸'}</span>
+                    <span className="sm-section-label-arrow">{diffExpanded ? <CaretDown weight="thin" size={12} /> : <CaretRight weight="thin" size={12} />}</span>
                     Diff
                     {result.diff_truncated && (
                       <span className="sm-diff-truncated-badge" title="Diff is larger than 100 KB — showing first 100 KB only">
@@ -226,7 +226,8 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
               onClick={handleConfirm}
               disabled={syncing || loading}
             >
-              {syncing ? '⇅ Syncing…' : hasChanges ? '⇅ Commit & push' : '⇅ Push'}
+              <ArrowsClockwise weight="thin" size={13} />
+              {syncing ? 'Syncing…' : hasChanges ? 'Commit & push' : 'Push'}
             </button>
           </div>
         </div>

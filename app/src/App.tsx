@@ -42,7 +42,7 @@ import { useFileWatcher } from './hooks/useFileWatcher';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import type { TLShapeId } from 'tldraw';
 const CanvasEditor = lazy(() => import('./components/CanvasEditor'));
-import { canvasAIContext, executeCanvasCommands } from './utils/canvasAI';
+import { canvasAIContext } from './utils/canvasAI';
 import { registerCanvasTabControls, getCanvasEditor } from './utils/canvasRegistry';
 import { exportMarkdownToPDF } from './utils/exportPDF';
 import {
@@ -59,14 +59,13 @@ import { onLockedFilesChange, getLockedFiles } from './services/copilotLock';
 import { fetchGhostCompletion } from './services/copilot';
 import { loadWorkspaceSession, saveWorkspaceSession } from './services/workspaceSession';
 import { getFileTypeInfo } from './utils/fileType';
-import { generateId } from './utils/generateId';
-import type { Workspace, AIEditMark, AppSettings, WorkspaceExportConfig, WorkspaceConfig } from './types';
+import type { Workspace, AppSettings, WorkspaceExportConfig, WorkspaceConfig } from './types';
 import { DEFAULT_APP_SETTINGS, APP_SETTINGS_KEY } from './types';
 import { setupI18n } from './i18n';
 import { useBacklinks } from './hooks/useBacklinks';
 import { useModals } from './hooks/useModals';
 import { useCanvasState } from './hooks/useCanvasState';
-import { useAIMarks, makeCanvasMark } from './hooks/useAIMarks';
+import { useAIMarks } from './hooks/useAIMarks';
 import { useTsDiagnostics } from './hooks/useTsDiagnostics';
 import BacklinksPanel from './components/BacklinksPanel';
 import './App.css';
@@ -291,7 +290,16 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // ── Panel resize (sidebar ↔ editor ↔ AI panel) ───────────────────────────
-  const { sidebarWidth, setSidebarWidth, aiPanelWidth, startSidebarDrag, startAiDrag } = useDragResize();
+  const {
+    sidebarWidth,
+    setSidebarWidth,
+    aiPanelWidth,
+    aiPanelCollapsed,
+    startSidebarDrag,
+    startAiDrag,
+    collapseAiPanel,
+    expandAiPanel,
+  } = useDragResize();
   // Keep a stable ref so keyboard-shortcut closures can read the latest width
   const sidebarWidthRef = useRef(sidebarWidth);
   sidebarWidthRef.current = sidebarWidth;
@@ -316,7 +324,6 @@ export default function App() {
     handleMarkUserEdited,
     handleAINavNext,
     handleAINavPrev,
-    recordMark,
     cleanupMarksForContent,
   } = useAIMarks({
     workspace,
@@ -1056,7 +1063,9 @@ export default function App() {
     setPandocBusy(true);
     setPandocError(null);
     try {
-      await exportMarkdownToPDF(content, outAbsPath, workspace.path);
+      await exportMarkdownToPDF(content, outAbsPath, workspace.path, {
+        features: workspace.config.features,
+      });
       // Refresh sidebar so the PDF appears in the file tree
       await refreshWorkspace(workspace);
       await handleOpenFile(outRelPath);
@@ -1114,50 +1123,6 @@ export default function App() {
       console.error('Failed to refresh workspace after file write:', err);
     }
   }, [workspace, refreshWorkspace]);
-
-  // ── Insert from AI ───────────────────────────────────────────
-  // Canvas: parse the ```canvas``` block from the AI response and execute
-  // commands against the live editor.  Text files: append to the document.
-  const handleInsert = useCallback((text: string, model: string) => {
-    const kind = activeFile ? getFileTypeInfo(activeFile).kind : null;
-    // Read-only file types — inserting text would corrupt the file
-    if (kind === 'pdf' || kind === 'video' || kind === 'audio' || kind === 'image') return;
-    if (kind === 'canvas') {
-      if (canvasEditorRef.current && activeFile) {
-        const { shapeIds } = executeCanvasCommands(canvasEditorRef.current, text);
-        // Record a canvas AI mark with the created shape IDs
-        if (shapeIds.length > 0 && workspace) {
-          recordMark(makeCanvasMark(activeFile, shapeIds, model));
-        }
-      }
-      return;
-    }
-    let newContent = '';
-    setContent((prev) => {
-      newContent = prev + (prev.endsWith('\n') ? '\n' : '\n\n') + text;
-      // Keep tab ref consistent immediately inside the setter
-      if (activeFile) tabContentsRef.current.set(activeFile, newContent);
-      return newContent;
-    });
-    // Schedule auto-save and record AI edit provenance.
-    // NOTE: newContent is assigned synchronously inside the setContent updater
-    // above (React calls functional updaters synchronously during reconciliation
-    // when not inside a concurrent transition). To be safe, we read from
-    // tabContentsRef which is always written first inside the updater.
-    const contentToSave = activeFile ? (tabContentsRef.current.get(activeFile) ?? newContent) : newContent;
-    if (workspace && activeFile) {
-      scheduleAutosave(workspace, activeFile, contentToSave);
-      const mark: AIEditMark = {
-        id: generateId(),
-        fileRelPath: activeFile,
-        text,
-        model,
-        insertedAt: new Date().toISOString(),
-        reviewed: false,
-      };
-      recordMark(mark);
-    }
-  }, [workspace, activeFile, scheduleAutosave]);
 
   // AI document context: for canvas, send live shape summary + command protocol
   // canvasEditorRef is a ref — intentionally not in deps (changes don't trigger re-render).
@@ -1448,23 +1413,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Tab bar — visible when any files are open */}
-      <TabBar
-        tabs={tabs}
-        activeTabId={activeTabId}
-        dirtyFiles={dirtyFiles}
-        lockedFiles={lockedFiles}
-        previewTabId={previewTabId}
-        workspacePath={workspace.path}
-        onSelect={switchToTab}
-        onClose={handleCloseTab}
-        onCloseOthers={handleCloseOthers}
-        onCloseToRight={handleCloseToRight}
-        onCloseAll={handleCloseAllTabs}
-        onPromoteTab={promoteTab}
-        onReorder={reorderTabs}
-      />
-
       {/* Workspace: editor body + bottom terminal panel */}
       <div className="app-workspace">
       {/* Main 3-column body */}
@@ -1525,6 +1473,23 @@ export default function App() {
 
         {/* ── Editor area ─ has position:relative for FindReplaceBar overlay ─ */}
         <div className="editor-area" ref={editorAreaRef}>
+          {/* File tab bar belongs to the center editor column, not the whole shell */}
+          <TabBar
+            tabs={tabs}
+            activeTabId={activeTabId}
+            dirtyFiles={dirtyFiles}
+            lockedFiles={lockedFiles}
+            previewTabId={previewTabId}
+            workspacePath={workspace.path}
+            onSelect={switchToTab}
+            onClose={handleCloseTab}
+            onCloseOthers={handleCloseOthers}
+            onCloseToRight={handleCloseToRight}
+            onCloseAll={handleCloseAllTabs}
+            onPromoteTab={promoteTab}
+            onReorder={reorderTabs}
+          />
+
           {/* Copilot lock overlay — shown while agent is writing the active file */}
           {activeFile && lockedFiles.has(activeFile) && (
             <div className="copilot-lock-overlay" aria-hidden>
@@ -1630,6 +1595,7 @@ export default function App() {
             content={content}
             onNavigate={handleOpenFile}
             currentFilePath={activeFile ?? undefined}
+            features={workspace?.config.features}
           />
         ) : viewMode === 'preview' && (fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && activeFile && workspace ? (
           <WebPreview
@@ -1693,10 +1659,12 @@ export default function App() {
           ref={aiPanelRef}
           isOpen={aiOpen}
           onClose={() => setAiOpen(false)}
+          collapsed={aiPanelCollapsed}
+          onCollapse={collapseAiPanel}
+          onExpand={expandAiPanel}
           initialPrompt={aiInitialPrompt}
           initialModel={workspace.config.preferredModel}
           onModelChange={handleModelChange}
-          onInsert={handleInsert}
           documentContext={aiDocumentContext}
           agentContext={workspace.agentContext}
           workspacePath={workspace.path}

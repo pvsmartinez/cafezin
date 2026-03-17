@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { marked } from 'marked';
 import {
   FileText, PencilSimple, Wrench, FolderOpen, MagnifyingGlass,
   ArrowsLeftRight, Trash, Stack, CheckCircle, Globe, Link,
@@ -23,12 +22,11 @@ import {
 } from '../../services/aiProvider';
 import { DEFAULT_MODEL, FALLBACK_MODELS } from '../../types';
 import type { ChatMessage, CopilotModelInfo, ToolActivity, ContentPart } from '../../types';
-import { WORKSPACE_TOOLS, buildToolExecutor } from '../../utils/workspaceTools';
+import { getWorkspaceTools, buildToolExecutor } from '../../utils/workspaceTools';
 import { saveApiSecret } from '../../services/apiSecrets';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Workspace } from '../../types';
-
-marked.setOptions({ gfm: true, breaks: false });
+import { AIMarkdownText } from '../ai/AIMarkdownText';
 
 const contentToString = (content: string | ContentPart[]): string =>
   typeof content === 'string'
@@ -42,10 +40,6 @@ const contentToString = (content: string | ContentPart[]): string =>
 const CANVAS_TOOLS = new Set([
   'list_canvas_shapes', 'canvas_op', 'canvas_screenshot', 'add_canvas_image',
 ]);
-const MOBILE_TOOLS = WORKSPACE_TOOLS.filter(
-  (t) => !CANVAS_TOOLS.has(t.function.name) && t.function.name !== 'run_command',
-);
-
 const MOBILE_SYSTEM_CONTEXT = `\
 ## Mobile environment constraints
 You are running inside the Cafezin iOS app. Keep these limitations in mind:
@@ -72,15 +66,7 @@ Do NOT use it for things you can already do here (file edits, writing, web searc
 
 // ── Simple markdown renderer for chat bubbles ────────────────────────────────
 function MobileMdMessage({ content }: { content: string }) {
-  const html = useMemo(() => {
-    try { return marked.parse(content) as string; } catch { return content; }
-  }, [content]);
-  return (
-    <div
-      className="prose-content"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
+  return <AIMarkdownText content={content} />;
 }
 
 // ── Tool activity chip ────────────────────────────────────────────────────────
@@ -153,6 +139,13 @@ export default function MobileCopilot({
   contextFileContent,
   onFileWritten,
 }: MobileCopilotProps) {
+  const mobileTools = useMemo(
+    () => getWorkspaceTools(workspace?.config, workspace?.config.exportConfig).filter(
+      (t) => !CANVAS_TOOLS.has(t.function.name) && t.function.name !== 'run_command',
+    ),
+    [workspace?.config],
+  );
+
   // ── Auth ─────────────────────────────────────────────────────────────────
   const [authStatus, setAuthStatus] = useState<'checking' | 'unauthenticated' | 'connecting' | 'authenticated'>(
     () => isAIConfigured() ? 'authenticated' : 'unauthenticated',
@@ -300,7 +293,7 @@ export default function MobileCopilot({
       );
       await runCopilotAgent(
         apiMessages,
-        MOBILE_TOOLS,
+        mobileTools,
         executor,
         onChunk,
         (activity: ToolActivity) => {

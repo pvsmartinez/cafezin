@@ -20,11 +20,19 @@ import './ExportModal.css';
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 
+const DEFAULT_GIT_PUBLISH = {
+  commitMessage: 'Publish from Cafezin — {{datetime}}',
+  remote: 'origin',
+  branch: '',
+  skipCommitWhenNoChanges: true,
+} as const;
+
 const FORMAT_LABELS: Record<ExportFormat, string> = {
   'pdf':        'Markdown → PDF',
   'canvas-png': 'Canvas → PNG',
   'canvas-pdf': 'Canvas → PDF (slides)',
   'zip':        'Zip bundle',
+  'git-publish':'Git publish',
   'custom':     'Custom command',
 };
 
@@ -33,6 +41,7 @@ const FORMAT_BADGE_COLOR: Record<ExportFormat, string> = {
   'canvas-png': 'blue',
   'canvas-pdf': 'purple',
   'zip':        'orange',
+  'git-publish':'blue',
   'custom':     'grey',
 };
 
@@ -48,6 +57,7 @@ const FORMAT_DEFAULTS: Record<ExportFormat, { include: string[]; outputDir: stri
   'canvas-png':  { include: ['tldr.json'],          outputDir: 'dist' },
   'canvas-pdf':  { include: ['tldr.json'],          outputDir: 'dist' },
   'zip':         { include: ['html', 'css', 'js'],  outputDir: 'dist' },
+  'git-publish': { include: [],                     outputDir: '.' },
   'custom':      { include: [],                     outputDir: 'dist' },
 };
 
@@ -107,7 +117,10 @@ export default function ExportModal({
         const allFiles = await listAllFiles(workspace.path);
         if (cancelled) return;
         const counts = new Map<string, number>();
-        for (const t of targets) counts.set(t.id, resolveFiles(allFiles, t).length);
+        for (const t of targets) {
+          if (t.format === 'git-publish') continue;
+          counts.set(t.id, resolveFiles(allFiles, t).length);
+        }
         setFileCounts(counts);
       } catch { /* best-effort */ }
     }
@@ -115,7 +128,7 @@ export default function ExportModal({
     return () => { cancelled = true; };
   // Depend only on the file-selection fields that affect which files are matched
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(targets.map(t => ({ id: t.id, include: t.include, includeFiles: t.includeFiles, excludeFiles: t.excludeFiles })))]);
+  }, [JSON.stringify(targets.map(t => ({ id: t.id, format: t.format, include: t.include, includeFiles: t.includeFiles, excludeFiles: t.excludeFiles })))]);
 
   // ── Persist helpers ─────────────────────────────────────────────────────────
   const persist = useCallback(async (nextTargets: ExportTarget[]) => {
@@ -143,6 +156,24 @@ export default function ExportModal({
     persist(next); // use derived `next`, not stale `targets` closure
   }
 
+  function addGitPublishTarget() {
+    const id = uid();
+    const n: ExportTarget = {
+      id,
+      name: 'Git Publish',
+      description: 'Stage all changes, create a commit when needed, and push so Git-based deploys run automatically.',
+      include: [],
+      format: 'git-publish',
+      outputDir: '.',
+      gitPublish: { ...DEFAULT_GIT_PUBLISH },
+      enabled: true,
+    };
+    const next = [...targets, n];
+    setTargets(next);
+    setExpandedId(id);
+    persist(next);
+  }
+
   function deleteTarget(id: string) {
     const next = targets.filter((t) => t.id !== id);
     updateTargets(next);
@@ -164,6 +195,7 @@ export default function ExportModal({
     try {
       const result = await runExportTarget({
         workspacePath: workspace.path,
+        workspaceConfig: workspace.config,
         target,
         canvasEditorRef: canvasEditorRef,
         activeCanvasRel,
@@ -257,6 +289,10 @@ export default function ExportModal({
           {targets.map((target) => {
             const s = statuses.get(target.id);
             const isExpanded = expandedId === target.id;
+            const gitPublish = { ...DEFAULT_GIT_PUBLISH, ...(target.gitPublish ?? {}) };
+            const targetOutLabel = target.format === 'git-publish'
+              ? (gitPublish.branch?.trim() ? `${gitPublish.remote?.trim() || 'origin'}/${gitPublish.branch.trim()}` : `${gitPublish.remote?.trim() || 'origin'} push`)
+              : `${target.outputDir}/`;
 
             return (
               <div key={target.id} className={`em-target${isExpanded ? ' expanded' : ''}`}>
@@ -282,8 +318,8 @@ export default function ExportModal({
                   <span className={`em-badge em-badge--${FORMAT_BADGE_COLOR[target.format]}`}>
                     {FORMAT_LABELS[target.format]}
                   </span>
-                  <span className="em-target-out" title="Output directory">{target.outputDir}/</span>
-                  {fileCounts.has(target.id) && (
+                  <span className="em-target-out" title={target.format === 'git-publish' ? 'Git destination' : 'Output directory'}>{targetOutLabel}</span>
+                  {target.format !== 'git-publish' && fileCounts.has(target.id) && (
                     <span className="em-file-count" title="Files matched by this target">
                       {fileCounts.get(target.id)} file{fileCounts.get(target.id) !== 1 ? 's' : ''}
                     </span>
@@ -336,6 +372,11 @@ export default function ExportModal({
                 {/* Result row after completion */}
                 {s?.result && (
                   <div className={`em-result${s.status === 'error' ? ' em-result--error' : ''}`}>
+                    {s.result.summary && (
+                      <div className="em-result-row">
+                        <span>{s.result.summary}</span>
+                      </div>
+                    )}
                     {s.result.outputs.length > 0 && (
                       <div className="em-result-row">
                         <span>✓ {s.result.outputs.length} file{s.result.outputs.length !== 1 ? 's' : ''} → {s.result.outputs.join(', ')} ({s.result.elapsed}ms)</span>
@@ -416,6 +457,8 @@ export default function ExportModal({
                             format: f,
                             include: FORMAT_DEFAULTS[f].include,
                             outputDir: FORMAT_DEFAULTS[f].outputDir,
+                            gitPublish: f === 'git-publish' ? { ...DEFAULT_GIT_PUBLISH, ...(target.gitPublish ?? {}) } : target.gitPublish,
+                            vercelPublish: f === 'git-publish' ? undefined : target.vercelPublish,
                           });
                         }}
                       >
@@ -426,57 +469,65 @@ export default function ExportModal({
                     </div>
 
                     {/* File selection —————————————————————————————— */}
-                    <div className="em-section-label">File selection</div>
-                    <div className="em-field">
-                      <label>Pinned files <span className="em-hint">(one per line — overrides extensions below when set)</span></label>
-                      <textarea
-                        className="em-monaco"
-                        rows={3}
-                        placeholder={`notes/chapter1.md\nnotes/chapter2.md`}
-                        value={(target.includeFiles ?? []).join('\n')}
-                        onChange={(e) => {
-                          const lines = e.target.value.split('\n').map((s) => s.trim()).filter(Boolean);
-                          updateTarget(target.id, { includeFiles: lines.length ? lines : undefined });
-                        }}
-                      />
-                      <span className="em-hint">Leave empty to use extension matching instead.</span>
-                    </div>
-                    <div className="em-field">
-                      <label>Match extensions <span className="em-hint">(comma-separated, no dot — ignored when Pinned files is set)</span></label>
-                      <input
-                        placeholder="md, tldr.json, html …"
-                        value={target.include.join(', ')}
-                        onChange={(e) =>
-                          updateTarget(target.id, {
-                            include: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="em-field">
-                      <label>Exclude files <span className="em-hint">(one per line)</span></label>
-                      <textarea
-                        className="em-monaco"
-                        rows={2}
-                        placeholder="drafts/scratch.md"
-                        value={(target.excludeFiles ?? []).join('\n')}
-                        onChange={(e) => {
-                          const lines = e.target.value.split('\n').map((s) => s.trim()).filter(Boolean);
-                          updateTarget(target.id, { excludeFiles: lines.length ? lines : undefined });
-                        }}
-                      />
-                    </div>
+                    {target.format !== 'git-publish' && (
+                      <>
+                        <div className="em-section-label">File selection</div>
+                        <div className="em-field">
+                          <label>Pinned files <span className="em-hint">(one per line — overrides extensions below when set)</span></label>
+                          <textarea
+                            className="em-monaco"
+                            rows={3}
+                            placeholder={`notes/chapter1.md\nnotes/chapter2.md`}
+                            value={(target.includeFiles ?? []).join('\n')}
+                            onChange={(e) => {
+                              const lines = e.target.value.split('\n').map((s) => s.trim()).filter(Boolean);
+                              updateTarget(target.id, { includeFiles: lines.length ? lines : undefined });
+                            }}
+                          />
+                          <span className="em-hint">Leave empty to use extension matching instead.</span>
+                        </div>
+                        <div className="em-field">
+                          <label>Match extensions <span className="em-hint">(comma-separated, no dot — ignored when Pinned files is set)</span></label>
+                          <input
+                            placeholder="md, tldr.json, html …"
+                            value={target.include.join(', ')}
+                            onChange={(e) =>
+                              updateTarget(target.id, {
+                                include: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="em-field">
+                          <label>Exclude files <span className="em-hint">(one per line)</span></label>
+                          <textarea
+                            className="em-monaco"
+                            rows={2}
+                            placeholder="drafts/scratch.md"
+                            value={(target.excludeFiles ?? []).join('\n')}
+                            onChange={(e) => {
+                              const lines = e.target.value.split('\n').map((s) => s.trim()).filter(Boolean);
+                              updateTarget(target.id, { excludeFiles: lines.length ? lines : undefined });
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
 
                     {/* Output ————————————————————————————————————— */}
-                    <div className="em-section-label">Output</div>
-                    <div className="em-field">
-                      <label>Output directory</label>
-                      <input
-                        placeholder="dist"
-                        value={target.outputDir}
-                        onChange={(e) => updateTarget(target.id, { outputDir: e.target.value || 'dist' })}
-                      />
-                    </div>
+                    {target.format !== 'git-publish' && (
+                      <>
+                        <div className="em-section-label">Output</div>
+                        <div className="em-field">
+                          <label>Output directory</label>
+                          <input
+                            placeholder="dist"
+                            value={target.outputDir}
+                            onChange={(e) => updateTarget(target.id, { outputDir: e.target.value || 'dist' })}
+                          />
+                        </div>
+                      </>
+                    )}
                     {(target.format === 'pdf' || target.format === 'canvas-pdf') && (
                       <div className="em-field em-field--row">
                         <label>
@@ -526,6 +577,62 @@ export default function ExportModal({
                           Runs with workspace root as cwd.
                         </span>
                       </div>
+                    )}
+
+                    {target.format === 'git-publish' && (
+                      <>
+                        <div className="em-section-label">Git Publish</div>
+                        <div className="em-hint em-hint--block em-hint--info">
+                          Stages the whole workspace, creates a commit when needed, then runs git push. This is ideal for sites/apps that deploy automatically after a push to GitHub.
+                        </div>
+                        <div className="em-field">
+                          <label>Commit message <span className="em-hint">(supports {'{{workspace}}'}, {'{{target}}'}, {'{{date}}'}, {'{{datetime}}'})</span></label>
+                          <input
+                            className="em-mono"
+                            placeholder="Publish from Cafezin — {{datetime}}"
+                            value={gitPublish.commitMessage}
+                            onChange={(e) => updateTarget(target.id, {
+                              gitPublish: { ...gitPublish, commitMessage: e.target.value },
+                            })}
+                          />
+                        </div>
+                        <div className="em-field">
+                          <label>Remote</label>
+                          <input
+                            className="em-mono"
+                            placeholder="origin"
+                            value={gitPublish.remote}
+                            onChange={(e) => updateTarget(target.id, {
+                              gitPublish: { ...gitPublish, remote: e.target.value },
+                            })}
+                          />
+                        </div>
+                        <div className="em-field">
+                          <label>Branch <span className="em-hint">(optional)</span></label>
+                          <input
+                            className="em-mono"
+                            placeholder="main"
+                            value={gitPublish.branch}
+                            onChange={(e) => updateTarget(target.id, {
+                              gitPublish: { ...gitPublish, branch: e.target.value },
+                            })}
+                          />
+                          <span className="em-hint">Leave empty to push the current branch/upstream.</span>
+                        </div>
+                        <div className="em-field em-field--row">
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={gitPublish.skipCommitWhenNoChanges}
+                              onChange={(e) => updateTarget(target.id, {
+                                gitPublish: { ...gitPublish, skipCommitWhenNoChanges: e.target.checked },
+                              })}
+                            />
+                            {' '}Skip commit when there are no changes
+                          </label>
+                          <span className="em-hint">Recommended for deploy targets: the export still attempts a push even when the workspace is already clean.</span>
+                        </div>
+                      </>
                     )}
 
                     {/* PDF-only options ─────────────────────────────────── */}
@@ -661,36 +768,40 @@ export default function ExportModal({
                     )}
 
                     {/* Vercel Publish ─────────────────────────────────── */}
-                    <div className="em-section-label">Vercel Publish</div>
-                    <div className="em-field">
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={!!target.vercelPublish}
-                          onChange={(e) => updateTarget(target.id, {
-                            vercelPublish: e.target.checked
-                              ? { projectName: target.vercelPublish?.projectName ?? '' }
-                              : undefined,
-                          })}
-                        />
-                        {' '}Habilitar "Publicar" após export
-                      </label>
-                      <span className="em-hint">Exibe botão "Publicar" após export bem-sucedido para fazer deploy no Vercel.</span>
-                    </div>
-                    {target.vercelPublish && (
-                      <div className="em-field">
-                        <label>Nome do projeto Vercel <span className="em-hint">(e.g. santacruz → santacruz.vercel.app)</span></label>
-                        <input
-                          placeholder="meu-projeto"
-                          value={target.vercelPublish.projectName}
-                          onChange={(e) => updateTarget(target.id, {
-                            vercelPublish: { ...target.vercelPublish!, projectName: e.target.value },
-                          })}
-                        />
-                        <span className="em-hint">
-                          Token e Team ID são configurados em Settings → API Keys (global) ou Settings → Workspace → Vercel Publish (override).
-                        </span>
-                      </div>
+                    {target.format !== 'git-publish' && (
+                      <>
+                        <div className="em-section-label">Vercel Publish</div>
+                        <div className="em-field">
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={!!target.vercelPublish}
+                              onChange={(e) => updateTarget(target.id, {
+                                vercelPublish: e.target.checked
+                                  ? { projectName: target.vercelPublish?.projectName ?? '' }
+                                  : undefined,
+                              })}
+                            />
+                            {' '}Habilitar "Publicar" após export
+                          </label>
+                          <span className="em-hint">Exibe botão "Publicar" após export bem-sucedido para fazer deploy no Vercel.</span>
+                        </div>
+                        {target.vercelPublish && (
+                          <div className="em-field">
+                            <label>Nome do projeto Vercel <span className="em-hint">(e.g. santacruz → santacruz.vercel.app)</span></label>
+                            <input
+                              placeholder="meu-projeto"
+                              value={target.vercelPublish.projectName}
+                              onChange={(e) => updateTarget(target.id, {
+                                vercelPublish: { ...target.vercelPublish!, projectName: e.target.value },
+                              })}
+                            />
+                            <span className="em-hint">
+                              Token e Team ID são configurados em Settings → API Keys (global) ou Settings → Workspace → Vercel Publish (override).
+                            </span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -701,9 +812,14 @@ export default function ExportModal({
 
         {/* Footer */}
         <div className="em-footer">
-          <button className="em-add-btn" onClick={addTarget}>
-            <Plus weight="bold" /> New target
-          </button>
+          <div className="em-footer-right">
+            <button className="em-add-btn" onClick={addTarget}>
+              <Plus weight="bold" /> New target
+            </button>
+            <button className="em-add-btn" onClick={addGitPublishTarget}>
+              <CloudArrowUp weight="bold" /> Git publish
+            </button>
+          </div>
           <div className="em-footer-right">
             {enabledCount > 0 && (
               <span className="em-enabled-count">{enabledCount} target{enabledCount !== 1 ? 's' : ''} enabled</span>

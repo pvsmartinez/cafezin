@@ -27,6 +27,12 @@ fn main() {
         v
     };
 
+    println!("cargo:rerun-if-env-changed=GITHUB_OAUTH_CLIENT_ID");
+    println!("cargo:rerun-if-env-changed=GITHUB_OAUTH_CLIENT_SECRET");
+
+    let mut oauth_client_id = std::env::var("GITHUB_OAUTH_CLIENT_ID").ok();
+    let mut oauth_client_secret = std::env::var("GITHUB_OAUTH_CLIENT_SECRET").ok();
+
     for env_file in &env_files {
         if let Ok(contents) = std::fs::read_to_string(env_file) {
             println!("cargo:rerun-if-changed={}", env_file.display());
@@ -38,15 +44,25 @@ fn main() {
                 if let Some((key, val)) = line.split_once('=') {
                     let key = key.trim();
                     let val = val.trim().trim_matches('"').trim_matches('\'');
-                    if matches!(key, "GITHUB_OAUTH_CLIENT_ID" | "GITHUB_OAUTH_CLIENT_SECRET") {
-                        // Only set if not already provided via the shell environment
-                        if std::env::var(key).is_err() {
-                            println!("cargo:rustc-env={key}={val}");
+                    match key {
+                        "GITHUB_OAUTH_CLIENT_ID" if oauth_client_id.is_none() => {
+                            oauth_client_id = Some(val.to_string());
                         }
+                        "GITHUB_OAUTH_CLIENT_SECRET" if oauth_client_secret.is_none() => {
+                            oauth_client_secret = Some(val.to_string());
+                        }
+                        _ => {}
                     }
                 }
             }
         }
+    }
+
+    if let Some(val) = oauth_client_id {
+        println!("cargo:rustc-env=GITHUB_OAUTH_CLIENT_ID={val}");
+    }
+    if let Some(val) = oauth_client_secret {
+        println!("cargo:rustc-env=GITHUB_OAUTH_CLIENT_SECRET={val}");
     }
 
     // ── iOS link flags ─────────────────────────────────────────────────────

@@ -41,16 +41,18 @@ fi
 
 # ── Tauri signing key ─────────────────────────────────────────────────────────
 SIGNING_KEY_FILE="$HOME/.tauri/cafezin.key"
-if [[ -f "$SIGNING_KEY_FILE" ]]; then
+if [[ -f "$SIGNING_KEY_FILE" && -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
   export TAURI_SIGNING_PRIVATE_KEY="$(cat "$SIGNING_KEY_FILE")"
   echo "▸ Signing key loaded from $SIGNING_KEY_FILE"
-  if [[ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
-    echo "▸ Signing key password loaded from environment"
-  else
-    unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-  fi
+  echo "▸ Signing key password loaded from environment"
 else
-  echo "⚠  No signing key at $SIGNING_KEY_FILE — updater bundle will not be signed"
+  unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+  unset TAURI_SIGNING_PRIVATE_KEY
+  if [[ -f "$SIGNING_KEY_FILE" ]]; then
+    echo "▸ No TAURI_SIGNING_PRIVATE_KEY_PASSWORD set — skipping updater signing for local update"
+  else
+    echo "⚠  No signing key at $SIGNING_KEY_FILE — updater bundle will not be signed"
+  fi
 fi
 
 echo ""
@@ -74,7 +76,7 @@ fi
 echo ""
 echo "▸ Building (incremental, app bundle only)…"
 cd "$APP_DIR"
-npm run tauri build -- --bundles app
+npm run tauri build -- --bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
 # ── Locate the fresh bundle ──────────────────────────────────────────────────
 NEW_APP=""

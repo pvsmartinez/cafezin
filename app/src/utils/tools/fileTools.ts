@@ -900,13 +900,12 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       if (mdFiles.length === 0) return 'No Markdown files found in workspace.';
 
       const results = await Promise.all(
-        mdFiles.map(async (absPath) => {
+        mdFiles.map(async (relPath) => {
           try {
-            const text = await readTextFile(absPath);
-            const rel = absPath.replace(workspacePath + '/', '');
-            return { rel, count: countWords(text) };
+            const text = await readTextFile(`${workspacePath}/${relPath}`);
+            return { rel: relPath, count: countWords(text) };
           } catch {
-            return { rel: absPath.replace(workspacePath + '/', ''), count: 0 };
+            return { rel: relPath, count: 0 };
           }
         }),
       );

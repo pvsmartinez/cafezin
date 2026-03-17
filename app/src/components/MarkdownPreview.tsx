@@ -1,12 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { marked } from 'marked';
-import katex from 'katex';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import 'katex/dist/katex.min.css';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import type { WorkspaceFeatureConfig } from '../types';
+import { hasMermaidCodeBlocks, renderMarkdownBaseHtml, renderMarkdownToHtml } from '../utils/markdownRender';
 import './MarkdownPreview.css';
-
-// Configure marked: GitHub-flavoured, synchronous
-marked.setOptions({ gfm: true, breaks: false });
 
 interface MarkdownPreviewProps {
   content: string;
@@ -15,39 +12,36 @@ interface MarkdownPreviewProps {
   /** Absolute path of the file currently being previewed — used to resolve
    *  relative links (e.g. ../folder/other.md → folder/other.md). */
   currentFilePath?: string;
+  /** Optional per-workspace render capabilities. */
+  features?: WorkspaceFeatureConfig;
 }
 
-export default function MarkdownPreview({ content, onNavigate, currentFilePath }: MarkdownPreviewProps) {
+export default function MarkdownPreview({ content, onNavigate, currentFilePath, features }: MarkdownPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const html = useMemo(() => {
-    // Pre-process: replace $$...$$ (block) and $...$ (inline) with rendered KaTeX HTML
-    let processed = content;
+  const baseHtml = useMemo(() => renderMarkdownBaseHtml(content), [content]);
+  const [html, setHtml] = useState(baseHtml);
 
-    // Block math: $$...$$
-    processed = processed.replace(/\$\$([\s\S]+?)\$\$/g, (_match, expr: string) => {
-      try {
-        return `<div class="katex-block">${katex.renderToString(expr.trim(), { displayMode: true, throwOnError: false })}</div>`;
-      } catch {
-        return `<div class="katex-block katex-error">${expr}</div>`;
-      }
-    });
+  useEffect(() => {
+    setHtml(baseHtml);
+  }, [baseHtml]);
 
-    // Inline math: $...$  (not preceded by another $)
-    processed = processed.replace(/(?<!\$)\$([^\n$]+?)\$/g, (_match, expr: string) => {
-      try {
-        return katex.renderToString(expr.trim(), { displayMode: false, throwOnError: false });
-      } catch {
-        return `<span class="katex-error">$${expr}$</span>`;
-      }
-    });
+  useEffect(() => {
+    if (!features?.markdown?.mermaid || !hasMermaidCodeBlocks(content)) return;
 
-    try {
-      return marked.parse(processed) as string;
-    } catch {
-      return '<p style="color:#c97570">Failed to render markdown.</p>';
-    }
-  }, [content]);
+    let cancelled = false;
+    void renderMarkdownToHtml(content, { features })
+      .then((nextHtml) => {
+        if (!cancelled) setHtml(nextHtml);
+      })
+      .catch(() => {
+        if (!cancelled) setHtml(baseHtml);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [baseHtml, content, features]);
 
   // Inject copy buttons into every <pre> block after each render.
   useEffect(() => {

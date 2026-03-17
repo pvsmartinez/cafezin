@@ -116,6 +116,36 @@
   border-radius: 0;
 }
 
+.md-preview-body .mermaid-diagram {
+  margin: 1.25em 0;
+  padding: 18px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-deep) 76%, transparent);
+  overflow-x: auto;
+}
+
+.md-preview-body .mermaid-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.md-preview-body .mermaid-diagram.is-error {
+  border-style: dashed;
+}
+
+.md-preview-body .mermaid-diagram.is-error::before {
+  content: 'Mermaid render failed';
+  display: block;
+  margin-bottom: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 /* Blockquotes */
 .md-preview-body blockquote {
   border-left: 3px solid var(--border2);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowClockwise, Play } from '@phosphor-icons/react';
+import { ArrowClockwise, Check, Copy, Play } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 
 // ── Segment parser ────────────────────────────────────────────────────────────
@@ -40,6 +40,7 @@ interface CodeBlockProps {
 export function CodeBlock({ lang, code, workspacePath }: CodeBlockProps) {
   const [output, setOutput] = useState<{ stdout: string; stderr: string; exit_code: number } | null>(null);
   const [running, setRunning] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   async function runCode() {
     setRunning(true);
@@ -57,19 +58,32 @@ export function CodeBlock({ lang, code, workspacePath }: CodeBlockProps) {
     }
   }
 
+  async function handleCopy() {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  }
+
   const canRun = RUNNABLE_LANGS.has(lang.toLowerCase());
 
   return (
     <div className="ai-code-block">
       <div className="ai-code-block-header">
         {lang && <span className="ai-code-lang">{lang}</span>}
-        {canRun && (
-          <button className="ai-code-run-btn" onClick={runCode} disabled={running}>
-            {running
-              ? <ArrowClockwise weight="thin" size={13} />
-              : <><Play weight="thin" size={13} />{' Run'}</>}
+        <div className="ai-code-actions">
+          <button className="ai-code-copy-btn" onClick={() => void handleCopy()}>
+            {copied
+              ? <><Check weight="bold" size={13} />{' Copied'}</>
+              : <><Copy weight="thin" size={13} />{' Copy'}</>}
           </button>
-        )}
+          {canRun && (
+            <button className="ai-code-run-btn" onClick={runCode} disabled={running}>
+              {running
+                ? <ArrowClockwise weight="thin" size={13} />
+                : <><Play weight="thin" size={13} />{' Run'}</>}
+            </button>
+          )}
+        </div>
       </div>
       <pre className="ai-code-pre"><code>{code}</code></pre>
       {output && (

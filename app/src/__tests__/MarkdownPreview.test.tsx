@@ -1,6 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import MarkdownPreview from '../components/MarkdownPreview';
+
+vi.mock('mermaid', () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn(async (_id: string, code: string) => ({
+      svg: `<svg data-testid="mermaid-svg"><text>${code.trim()}</text></svg>`,
+    })),
+  },
+}));
 
 // ── Basic rendering ───────────────────────────────────────────────────────────
 describe('MarkdownPreview — basic rendering', () => {
@@ -193,5 +202,19 @@ const greeting = (name: string) => \`Hello, \${name}!\`;
     expect(screen.getByRole('heading', { level: 2, name: 'Features' })).toBeInTheDocument();
     expect(container.querySelector('pre code')).toBeInTheDocument();
     expect(container.querySelector('a')).toHaveAttribute('href', 'https://example.com');
+  });
+
+  it('renders Mermaid diagrams when the workspace feature is enabled', async () => {
+    const { container } = render(
+      <MarkdownPreview
+        content={'```mermaid\nflowchart TD\nA --> B\n```'}
+        features={{ markdown: { mermaid: true } }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('.mermaid-diagram svg')).toBeInTheDocument();
+    });
+    expect(container.querySelector('pre code.language-mermaid')).not.toBeInTheDocument();
   });
 });

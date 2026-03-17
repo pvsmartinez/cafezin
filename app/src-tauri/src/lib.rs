@@ -1015,33 +1015,43 @@ async fn update_app(app: tauri::AppHandle, project_root: String) -> Result<(), S
         export NVM_DIR="{home}/.nvm"
         [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh" --no-use
         cd '{app_dir}'
-        npm run tauri build -- --bundles app 2>&1
+        npm run tauri build -- --bundles app --config '{{"bundle":{{"createUpdaterArtifacts":false}}}}' 2>&1
         "#
     );
 
     emit_log("▸ Starting incremental build…");
     emit_log("");
 
-    let signing_key = match std::fs::read_to_string(&signing_key_path) {
-        Ok(contents) => {
-            emit_log(&format!("▸ Signing key loaded from {}", signing_key_path));
-            Some(contents.trim_end_matches(['\r', '\n']).to_string())
-        }
-        Err(_) => {
-            emit_log(&format!(
-                "⚠ No signing key at {} — updater bundle will not be signed",
-                signing_key_path
-            ));
-            None
-        }
-    };
     let signing_password = std::env::var("TAURI_SIGNING_PRIVATE_KEY_PASSWORD")
         .ok()
         .filter(|value| !value.is_empty())
         .or_else(|| load_env_value(&env_files, "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"));
-    if signing_password.is_some() {
-        emit_log("▸ Signing key password loaded from environment");
-    }
+    let signing_key = if signing_password.is_some() {
+        match std::fs::read_to_string(&signing_key_path) {
+            Ok(contents) => {
+                emit_log(&format!("▸ Signing key loaded from {}", signing_key_path));
+                emit_log("▸ Signing key password loaded from environment");
+                Some(contents.trim_end_matches(['\r', '\n']).to_string())
+            }
+            Err(_) => {
+                emit_log(&format!(
+                    "⚠ No signing key at {} — updater bundle will not be signed",
+                    signing_key_path
+                ));
+                None
+            }
+        }
+    } else {
+        if std::path::Path::new(&signing_key_path).exists() {
+            emit_log("▸ No TAURI_SIGNING_PRIVATE_KEY_PASSWORD set — skipping updater signing for local update");
+        } else {
+            emit_log(&format!(
+                "⚠ No signing key at {} — updater bundle will not be signed",
+                signing_key_path
+            ));
+        }
+        None
+    };
 
     // Remove stale .app bundles from a previous build so the post-build search
     // always finds exactly one — the freshly produced one.

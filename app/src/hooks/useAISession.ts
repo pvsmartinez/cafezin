@@ -20,7 +20,7 @@ export function loadSavedSession(): SavedSession | null {
 }
 
 export function persistSession(msgs: ChatMessage[], mdl: string) {
-  // Only persist user/assistant roles; strip attachedImage (base64) to stay within storage limits
+  // Only persist user/assistant roles; strip attached images (base64) to stay within storage limits
   const slim = msgs
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .map((m) => ({
@@ -52,13 +52,10 @@ export const contentToString = (content: ChatMessage['content']): string =>
 // ── useAISession ──────────────────────────────────────────────────────────────
 interface UseAISessionParams {
   model: CopilotModel;
-  onInsert?: (text: string, model: string) => void;
 }
 
-export function useAISession({ model, onInsert }: UseAISessionParams) {
+export function useAISession({ model }: UseAISessionParams) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [insertedMsgs, setInsertedMsgs] = useState<Set<number>>(new Set());
-  const [copiedMsgs, setCopiedMsgs] = useState<Set<number>>(new Set());
   const [savedSession, setSavedSession] = useState<SavedSession | null>(() => loadSavedSession());
 
   // Log session identifiers
@@ -80,8 +77,6 @@ export function useAISession({ model, onInsert }: UseAISessionParams) {
   function handleNewChat() {
     setSavedSession(loadSavedSession());
     setMessages([]);
-    setInsertedMsgs(new Set());
-    setCopiedMsgs(new Set());
     sessionIdRef.current = newSessionId();
     sessionStartedAtRef.current = new Date().toISOString();
   }
@@ -93,30 +88,14 @@ export function useAISession({ model, onInsert }: UseAISessionParams) {
     return savedSession.model;
   }
 
-  function handleInsertMessage(idx: number, content: string) {
-    onInsert?.(content, model);
-    setInsertedMsgs((prev) => new Set([...prev, idx]));
-    setTimeout(() => setInsertedMsgs((prev) => { const n = new Set(prev); n.delete(idx); return n; }), 3000);
-  }
-
-  async function handleCopyMessage(idx: number, content: string) {
-    await navigator.clipboard.writeText(content);
-    setCopiedMsgs((prev) => new Set([...prev, idx]));
-    setTimeout(() => setCopiedMsgs((prev) => { const n = new Set(prev); n.delete(idx); return n; }), 2000);
-  }
-
   return {
     messages,
     setMessages,
-    insertedMsgs,
-    copiedMsgs,
     savedSession,
     setSavedSession,
     sessionIdRef,
     sessionStartedAtRef,
     handleNewChat,
     handleRestoreSession,
-    handleInsertMessage,
-    handleCopyMessage,
   };
 }

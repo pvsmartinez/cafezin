@@ -8,6 +8,8 @@ import type { DirEntry } from '@tauri-apps/plugin-fs';
 import * as tauriFs from '@tauri-apps/plugin-fs';
 import { buildToolExecutor } from '../utils/workspaceTools';
 import type { Editor } from 'tldraw';
+import * as canvasAI from '../utils/canvasAI';
+import * as canvasRegistry from '../utils/canvasRegistry';
 
 const WS_PATH = '/test/workspace';
 
@@ -221,6 +223,20 @@ describe('list_canvas_shapes (no editor)', () => {
     const result = await exec('list_canvas_shapes', {});
     expect(result).toContain('No canvas');
   });
+
+  it('can target a specific canvas file and list shapes after auto-opening it', async () => {
+    const fakeEditor = { id: 'editor' } as unknown as Editor;
+    vi.spyOn(canvasRegistry, 'ensureCanvasTabOpen').mockResolvedValue(undefined);
+    vi.spyOn(canvasRegistry, 'getCanvasEditor').mockReturnValue(fakeEditor);
+    vi.spyOn(canvasAI, 'summarizeCanvas').mockReturnValue('shape summary');
+
+    const exec = makeExecutor(null);
+    const result = await exec('list_canvas_shapes', { expected_file: 'slides/deck.tldr.json' });
+
+    expect(canvasRegistry.ensureCanvasTabOpen).toHaveBeenCalledWith('slides/deck.tldr.json');
+    expect(canvasRegistry.getCanvasEditor).toHaveBeenCalledWith('slides/deck.tldr.json');
+    expect(result).toContain('Canvas file: slides/deck.tldr.json');
+  });
 });
 
 // ── canvas_op: no editor guard ────────────────────────────────────────────────
@@ -229,6 +245,34 @@ describe('canvas_op (no editor)', () => {
     const exec = makeExecutor(null);
     const result = await exec('canvas_op', { commands: '{"op":"add_note","text":"hi"}' });
     expect(result).toContain('No canvas');
+  });
+});
+
+// ── word_count ───────────────────────────────────────────────────────────────
+describe('word_count', () => {
+  it('counts all markdown files in the workspace using workspace-relative paths', async () => {
+    vi.mocked(tauriFs.readDir)
+      .mockResolvedValueOnce([
+        { name: 'chap1.md', isDirectory: false, isFile: true, isSymlink: false } as DirEntry,
+        { name: 'chap2.md', isDirectory: false, isFile: true, isSymlink: false } as DirEntry,
+      ]);
+
+    vi.mocked(tauriFs.readTextFile)
+      .mockImplementation(async (path) => {
+        if (path === `${WS_PATH}/chap1.md`) return 'one two three';
+        if (path === `${WS_PATH}/chap2.md`) return 'four five';
+        throw new Error(`unexpected path: ${path}`);
+      });
+
+    const exec = makeExecutor();
+    const result = await exec('word_count', {});
+
+    expect(tauriFs.readTextFile).toHaveBeenCalledWith(`${WS_PATH}/chap1.md`, undefined);
+    expect(tauriFs.readTextFile).toHaveBeenCalledWith(`${WS_PATH}/chap2.md`, undefined);
+    expect(result).toContain('chap1.md');
+    expect(result).toContain('chap2.md');
+    expect(result).toContain('TOTAL');
+    expect(result).toContain('5 words');
   });
 });
 

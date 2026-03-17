@@ -5,8 +5,8 @@
  */
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import {
-  X, Check, ArrowUp, ArrowDown, Warning, Camera, Paperclip, Copy,
-  Microphone, Stop, ArrowCounterClockwise,
+  X, ArrowUp, Warning, Camera, Paperclip,
+  Microphone, Stop, ArrowCounterClockwise, Sparkle, FileText,
 } from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
@@ -21,6 +21,7 @@ import { getMimeType, IMAGE_EXTS } from '../utils/mime';
 
 import { ModelPicker } from './ai/AIModelPicker';
 import { CodeBlock, parseSegments } from './ai/AICodeBlock';
+import { AIMarkdownText } from './ai/AIMarkdownText';
 import { ToolItem, useSessionStats } from './ai/AIToolProcess';
 
 import { useAISession, contentToString, fmtRelative } from '../hooks/useAISession';
@@ -30,6 +31,8 @@ import { useAIStream } from '../hooks/useAIStream';
 import { useAIScreenshot } from '../hooks/useAIScreenshot';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+const MAX_PENDING_IMAGES = 4;
 
 export interface AgentSessionProps {
   /** Stable unique id for this agent tab (e.g. "agent-1", "agent-2-1710000000"). */
@@ -53,7 +56,6 @@ export interface AgentSessionProps {
   initialPrompt?: string;
   initialModel?: string;
   onModelChange?: (model: string) => void;
-  onInsert?: (text: string, model: string) => void;
   documentContext?: string;
   agentContext?: string;
   workspacePath?: string;
@@ -98,7 +100,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   initialPrompt = '',
   initialModel,
   onModelChange,
-  onInsert,
   documentContext = '',
   agentContext = '',
   workspacePath,
@@ -131,7 +132,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
   // ── Input / attachments ───────────────────────────────────────────────────
   const [input, setInput] = useState(initialPrompt);
-  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [pendingFileRef, setPendingFileRef] = useState<{ name: string; content: string } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
@@ -176,7 +177,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   // ── Domain hooks ──────────────────────────────────────────────────────────
   const [memoryContent, setMemoryContent] = useWorkspaceMemory(workspacePath);
 
-  const session      = useAISession({ model, onInsert });
+  const session      = useAISession({ model });
   const sessionStats = useSessionStats(session.messages);
 
   const systemPrompt = useSystemPrompt({
@@ -224,18 +225,38 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     onError: (msg) => stream.setError(msg),
   });
 
+  const appendPendingImages = useCallback((incoming: string[]) => {
+    if (incoming.length === 0) return;
+    setPendingImages((prev) => {
+      const remaining = Math.max(0, MAX_PENDING_IMAGES - prev.length);
+      if (remaining === 0) {
+        stream.setError(`You can attach up to ${MAX_PENDING_IMAGES} images per message.`);
+        return prev;
+      }
+      const accepted = incoming.slice(0, remaining);
+      if (accepted.length < incoming.length) {
+        stream.setError(`Only the first ${MAX_PENDING_IMAGES} images will be sent.`);
+      }
+      return [...prev, ...accepted];
+    });
+  }, [stream]);
+
+  const removePendingImageAt = useCallback((index: number) => {
+    setPendingImages((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   // ── Send ─────────────────────────────────────────────────────────────────
   const handleSend = useCallback(async (imageOverride?: string, textOverride?: string) => {
     await stream.handleSend(
       imageOverride,
       textOverride,
-      pendingImage,
+      pendingImages,
       pendingFileRef,
       input,
-      () => { setInput(''); setPendingImage(null); setPendingFileRef(null); },
+      () => { setInput(''); setPendingImages([]); setPendingFileRef(null); },
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stream.handleSend, pendingImage, pendingFileRef, input]);
+  }, [stream.handleSend, pendingImages, pendingFileRef, input]);
 
   const screenshot = useAIScreenshot({
     canvasEditorRef,
@@ -244,7 +265,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     input,
     isStreaming: stream.isStreaming,
     onReady: (url) => handleSend(url),
-    onStage: setPendingImage,
+    onStage: (url) => appendPendingImages([url]),
   });
 
   // ── Session actions ───────────────────────────────────────────────────────
@@ -304,11 +325,11 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       setTimeout(() => inputRef.current?.focus(), 50);
     },
     receiveFinderFiles(paths: string[]) {
-      const first = paths[0];
-      if (!first) return;
-      const name = first.split('/').pop() ?? first;
-      const ext = name.split('.').pop()?.toLowerCase() ?? '';
-      readFile(first).then((bytes) => {
+      if (paths.length === 0) return;
+      Promise.all(paths.map(async (filePath) => {
+        const name = filePath.split('/').pop() ?? filePath;
+        const ext = name.split('.').pop()?.toLowerCase() ?? '';
+        const bytes = await readFile(filePath);
         if (IMAGE_EXTS.has(ext)) {
           const mime = getMimeType(ext, 'image/png');
           let binary = '';
@@ -317,10 +338,15 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
           }
           const b64 = btoa(binary);
-          setPendingImage(`data:${mime};base64,${b64}`);
-        } else {
-          const content = new TextDecoder().decode(bytes).slice(0, 20000);
-          setPendingFileRef({ name, content });
+          return { kind: 'image' as const, dataUrl: `data:${mime};base64,${b64}` };
+        }
+        const content = new TextDecoder().decode(bytes).slice(0, 20000);
+        return { kind: 'file' as const, name, content };
+      })).then((entries) => {
+        appendPendingImages(entries.filter((entry) => entry.kind === 'image').map((entry) => entry.dataUrl));
+        const firstFile = entries.find((entry) => entry.kind === 'file');
+        if (firstFile && firstFile.kind === 'file') {
+          setPendingFileRef({ name: firstFile.name, content: firstFile.content });
         }
       }).catch((err) => console.error('[AgentSession] receiveFinderFiles:', err));
     },
@@ -332,54 +358,68 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault(); e.stopPropagation(); setIsDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    if (file.type.startsWith('image/')) {
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    files.forEach((file) => {
       const reader = new FileReader();
-      reader.onload = (ev) => { const url = ev.target?.result as string; if (url) setPendingImage(url); };
-      reader.readAsDataURL(file);
-    } else {
-      const reader = new FileReader();
+      if (file.type.startsWith('image/')) {
+        reader.onload = (ev) => {
+          const url = ev.target?.result as string;
+          if (url) appendPendingImages([url]);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
       reader.onload = (ev) => {
         const content = ev.target?.result as string;
         if (content != null) setPendingFileRef({ name: file.name, content: content.slice(0, 20000) });
       };
       reader.readAsText(file);
-    }
+    });
   }
 
   async function handleAttachFile() {
     try {
-      const selected = await openFileDialog({ multiple: false });
-      if (!selected || typeof selected !== 'string') return;
-      const name = selected.split('/').pop() ?? selected;
-      const ext = name.split('.').pop()?.toLowerCase() ?? '';
-      const bytes = await readFile(selected);
-      if (IMAGE_EXTS.has(ext)) {
-        const mime = getMimeType(ext, 'image/png');
-        let binary = '';
-        const CHUNK = 8192;
-        for (let i = 0; i < bytes.length; i += CHUNK) {
-          binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+      const selected = await openFileDialog({ multiple: true });
+      if (!selected) return;
+      const selectedPaths = Array.isArray(selected) ? selected : [selected];
+      const encodedImages: string[] = [];
+      for (const selectedPath of selectedPaths) {
+        const name = selectedPath.split('/').pop() ?? selectedPath;
+        const ext = name.split('.').pop()?.toLowerCase() ?? '';
+        const bytes = await readFile(selectedPath);
+        if (IMAGE_EXTS.has(ext)) {
+          const mime = getMimeType(ext, 'image/png');
+          let binary = '';
+          const CHUNK = 8192;
+          for (let i = 0; i < bytes.length; i += CHUNK) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+          }
+          const b64 = btoa(binary);
+          encodedImages.push(`data:${mime};base64,${b64}`);
+        } else {
+          const content = new TextDecoder().decode(bytes).slice(0, 20000);
+          setPendingFileRef({ name, content });
         }
-        const b64 = btoa(binary);
-        setPendingImage(`data:${mime};base64,${b64}`);
-      } else {
-        const content = new TextDecoder().decode(bytes).slice(0, 20000);
-        setPendingFileRef({ name, content });
       }
+      appendPendingImages(encodedImages);
     } catch (err) { console.error('[attach-file]', err); }
   }
 
   function handlePaste(e: React.ClipboardEvent) {
     const items = Array.from(e.clipboardData.items);
-    const imgItem = items.find((it) => it.type.startsWith('image/'));
-    if (!imgItem) return;
-    const file = imgItem.getAsFile();
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => { const url = ev.target?.result as string; if (url) setPendingImage(url); };
-    reader.readAsDataURL(file);
+    const imageItems = items.filter((it) => it.type.startsWith('image/'));
+    if (imageItems.length === 0) return;
+    imageItems.forEach((imgItem) => {
+      const file = imgItem.getAsFile();
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const url = ev.target?.result as string;
+        if (url) appendPendingImages([url]);
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -434,13 +474,13 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             <span className="ai-session-stats-label">Session</span>
             {sessionStats.filesCount > 0 && (
               <span className="ai-session-stat-chip">
-                <span className="ai-stat-chip-icon">⊝</span>
+                <span className="ai-stat-chip-icon"><FileText weight="thin" size={12} /></span>
                 {sessionStats.filesCount} {sessionStats.filesCount === 1 ? 'file' : 'files'} edited
               </span>
             )}
             {sessionStats.canvasOps > 0 && (
               <span className="ai-session-stat-chip">
-                <span className="ai-stat-chip-icon">◈</span>
+                <span className="ai-stat-chip-icon"><Sparkle weight="fill" size={12} /></span>
                 {sessionStats.canvasOps} canvas {sessionStats.canvasOps === 1 ? 'op' : 'ops'}
               </span>
             )}
@@ -453,10 +493,10 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             Ask Copilot anything about your document.
             <br />
             <span className="ai-hint">Enter to send · Shift+Enter new line · Esc to close</span>
-            {agentContext && <div className="ai-agent-notice">✶ AGENT.md loaded as context</div>}
+            {agentContext && <div className="ai-agent-notice"><Sparkle weight="fill" size={12} /> AGENT.md loaded as context</div>}
             {session.savedSession && session.savedSession.messages.length > 0 && (
               <button className="ai-restore-session-btn" onClick={handleRestoreSession}>
-                <span className="ai-restore-session-label">↩ Restore last conversation</span>
+                <span className="ai-restore-session-label"><ArrowCounterClockwise weight="thin" size={12} /> Restore last conversation</span>
                 <span className="ai-restore-session-meta">
                   {session.savedSession.messages.filter((m) => m.role === 'user').length}{' '}
                   message{session.savedSession.messages.filter((m) => m.role === 'user').length !== 1 ? 's' : ''}{' '}
@@ -470,7 +510,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
         {/* Message list */}
         {session.messages.map((msg, i) => (
           <div key={i} className={`ai-message ai-message--${msg.role}`}>
-            <div className="ai-message-label">{msg.role === 'user' ? 'You' : `✶ ${agentLabel}`}</div>
+            <div className="ai-message-label">{msg.role === 'user' ? 'You' : <><Sparkle weight="fill" size={11} /> {agentLabel}</>}</div>
             <div className="ai-message-content">
               {msg.role === 'assistant' && msg.items && msg.items.length > 0
                 ? <>
@@ -479,7 +519,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                         ? parseSegments(item.content).map((seg, ssi) =>
                             seg.type === 'code'
                               ? <CodeBlock key={`${si}-${ssi}`} lang={seg.lang} code={seg.code} workspacePath={workspacePath} />
-                              : <span key={`${si}-${ssi}`} style={{ whiteSpace: 'pre-wrap' }}>{seg.content}</span>
+                              : <AIMarkdownText key={`${si}-${ssi}`} content={seg.content} />
                           )
                         : <ToolItem key={item.activity.callId} activity={item.activity} />
                     )}
@@ -489,13 +529,17 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 ? parseSegments(contentToString(msg.content)).map((seg, si) =>
                     seg.type === 'code'
                       ? <CodeBlock key={si} lang={seg.lang} code={seg.code} workspacePath={workspacePath} />
-                      : <span key={si} style={{ whiteSpace: 'pre-wrap' }}>{seg.content}</span>
+                      : <AIMarkdownText key={si} content={seg.content} />
                   )
                 : <span style={{ whiteSpace: 'pre-wrap' }}>{contentToString(msg.content)}</span>
               }
             </div>
-            {msg.role === 'user' && msg.attachedImage && (
-              <img src={msg.attachedImage} className="ai-message-img" alt="attached" />
+            {msg.role === 'user' && ((msg.attachedImages && msg.attachedImages.length > 0) || msg.attachedImage) && (
+              <div className="ai-message-img-grid">
+                {(msg.attachedImages ?? (msg.attachedImage ? [msg.attachedImage] : [])).map((image, imageIndex) => (
+                  <img key={`${i}-${imageIndex}`} src={image} className="ai-message-img" alt="attached" />
+                ))}
+              </div>
             )}
             {msg.role === 'user' && msg.attachedFile && (
               <div className="ai-message-file-pill">
@@ -505,32 +549,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             )}
             {msg.role === 'user' && msg.activeFile && (
               <div className="ai-message-file-tag">📄 {msg.activeFile.split('/').pop()}</div>
-            )}
-            {msg.role === 'assistant' && msg.content && (
-              <div className="ai-msg-actions">
-                {onInsert && (
-                  <button
-                    className={`ai-msg-action-btn ${session.insertedMsgs.has(i) ? 'ai-msg-action-btn--done' : ''}`}
-                    onClick={() => session.handleInsertMessage(i, contentToString(msg.content))}
-                    title="Insert into document and track as AI edit"
-                  >
-                    {session.insertedMsgs.has(i)
-                      ? <><Check weight="thin" size={12} />{' Inserted'}</>
-                      : <><ArrowDown weight="thin" size={12} />{' Insert'}</>
-                    }
-                  </button>
-                )}
-                <button
-                  className={`ai-msg-action-btn ${session.copiedMsgs.has(i) ? 'ai-msg-action-btn--done' : ''}`}
-                  onClick={() => session.handleCopyMessage(i, contentToString(msg.content))}
-                  title="Copy to clipboard"
-                >
-                  {session.copiedMsgs.has(i)
-                    ? <><Check weight="thin" size={12} />{' Copied'}</>
-                    : <><Copy weight="thin" size={12} />{' Copy'}</>
-                  }
-                </button>
-              </div>
             )}
           </div>
         ))}
@@ -544,7 +562,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 ? <>
                     {stream.liveItems.map((item: MessageItem, idx: number) =>
                       item.type === 'text'
-                        ? <span key={idx} style={{ whiteSpace: 'pre-wrap' }}>{item.content}</span>
+                        ? <AIMarkdownText key={idx} content={item.content} />
                         : <ToolItem key={item.activity.callId} activity={item.activity} />
                     )}
                     <div className="ai-thinking-indicator ai-thinking-indicator--inline">
@@ -610,6 +628,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 Manage paid tokens ↗
               </button>
             )}
+            <button
+              className="ai-retry-btn"
+              onClick={() => { void stream.retryLastSend(); }}
+            >
+              ↻ Tentar novamente
+            </button>
             <button
               className="ai-error-copy"
               onClick={() => {
@@ -677,12 +701,22 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {pendingImage && (
-          <div className="ai-img-preview">
-            <img src={pendingImage} alt="attached" />
-            <button className="ai-img-remove" onClick={() => setPendingImage(null)} title="Remove image">
-              <X weight="thin" size={12} />
-            </button>
+        {isDragOver && (
+          <div className="ai-drop-indicator" aria-hidden="true">
+            <Paperclip weight="thin" size={14} />
+            <span>Drop images or files to attach</span>
+          </div>
+        )}
+        {pendingImages.length > 0 && (
+          <div className="ai-img-preview-strip">
+            {pendingImages.map((image, index) => (
+              <div key={index} className="ai-img-preview">
+                <img src={image} alt={`attached ${index + 1}`} />
+                <button className="ai-img-remove" onClick={() => removePendingImageAt(index)} title="Remove image">
+                  <X weight="thin" size={12} />
+                </button>
+              </div>
+            ))}
             {!modelSupportsVision(model) && (
               <span className="ai-no-vision-warning">
                 <Warning weight="thin" size={12} /> Model doesn't support images
@@ -779,7 +813,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
           ) : (
             <button
               onClick={() => handleSend()}
-              disabled={!input.trim() && !pendingImage}
+                disabled={!input.trim() && pendingImages.length === 0}
               className={`ai-btn-send${stream.isStreaming ? ' ai-btn-send--interrupt' : ''}`}
               title={stream.isStreaming ? 'Interrupt and send (Enter)' : 'Send (Enter)'}
             >

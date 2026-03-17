@@ -5,12 +5,15 @@ import { CaretLeft, SpeakerSimpleHigh } from '@phosphor-icons/react';
 import { getFileTypeInfo } from '../../utils/fileType';
 import { loadSlidePreviews } from '../../utils/slidePreviews';
 import MarkdownPreview from '../MarkdownPreview';
+import type { WorkspaceFeatureConfig } from '../../types';
 
 interface MobilePreviewProps {
   /** Absolute workspace path */
   workspacePath: string;
   /** Relative file path within workspace */
   filePath: string;
+  /** Optional per-workspace render capabilities. */
+  features?: WorkspaceFeatureConfig;
   onClear: () => void;
 }
 
@@ -91,7 +94,7 @@ function HtmlViewer({ absPath }: { absPath: string }) {
 
 // ── Markdown viewer ──────────────────────────────────────────────────────
 
-function MarkdownViewer({ absPath }: { absPath: string }) {
+function MarkdownViewer({ absPath, features }: { absPath: string; features?: WorkspaceFeatureConfig }) {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -108,7 +111,7 @@ function MarkdownViewer({ absPath }: { absPath: string }) {
 
   return (
     <div className="px-5 pt-5 pb-10">
-      <MarkdownPreview content={content} />
+      <MarkdownPreview content={content} features={features} />
     </div>
   );
 }
@@ -223,7 +226,7 @@ function TextViewer({ absPath }: { absPath: string }) {
 
 // ── Main preview ──────────────────────────────────────────────────────────
 
-export default function MobilePreview({ workspacePath, filePath, onClear }: MobilePreviewProps) {
+export default function MobilePreview({ workspacePath, filePath, features, onClear }: MobilePreviewProps) {
   const absPath = `${workspacePath}/${filePath}`;
   const filename = filePath.split('/').pop() ?? filePath;
   const { kind } = getFileTypeInfo(filename);
@@ -235,7 +238,7 @@ export default function MobilePreview({ workspacePath, filePath, onClear }: Mobi
       case 'html':
         return <HtmlViewer absPath={absPath} />;
       case 'markdown':
-        return <MarkdownViewer absPath={absPath} />;
+        return <MarkdownViewer absPath={absPath} features={features} />;
       case 'image':
         return <ImageViewer absPath={absPath} />;
       case 'video':

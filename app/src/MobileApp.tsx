@@ -677,6 +677,7 @@ export default function MobileApp() {
             <MobilePreview
               workspacePath={workspace!.path}
               filePath={openFile}
+              features={workspace!.config.features}
               onClear={() => setOpenFile(null)}
             />
           );

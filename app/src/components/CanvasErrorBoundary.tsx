@@ -11,6 +11,7 @@
 
 import React from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Warning, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { writeFile as tauriWriteFile } from '../services/fs';
 
 interface Props {
@@ -90,7 +91,7 @@ export class CanvasErrorBoundary extends React.Component<Props, State> {
     return (
       <div className="canvas-error-boundary">
         <div className="canvas-error-inner">
-          <div className="canvas-error-icon">⚠</div>
+          <div className="canvas-error-icon"><Warning weight="thin" size={22} /></div>
           <div className="canvas-error-title">Canvas error</div>
           <div className="canvas-error-file">{fileName}</div>
           <div className="canvas-error-msg">{errorMessage}</div>
@@ -101,7 +102,7 @@ export class CanvasErrorBoundary extends React.Component<Props, State> {
               onClick={() => this.restoreFromGit()}
               disabled={recovering}
             >
-              {recovering ? 'Restoring…' : '↩ Restore from last git commit'}
+                {recovering ? 'Restoring…' : <><ArrowCounterClockwise weight="thin" size={14} /> Restore from last git commit</>}
             </button>
             <button
               className="canvas-error-btn canvas-error-btn--danger"

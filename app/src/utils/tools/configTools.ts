@@ -19,7 +19,7 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'export_workspace',
       description:
-        'Run export targets for this workspace — markdown → PDF, canvas → PNG/PDF, zip bundles, or custom commands. ' +
+        'Run export targets for this workspace — markdown → PDF, canvas → PNG/PDF, zip bundles, git publish flows, or custom commands. ' +
         'Call this when the user says to export, build, publish, deploy, or produce output files. ' +
         'With no argument it runs all enabled targets. Pass a target name to run just one.',
       parameters: {
@@ -52,12 +52,13 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
           action: { type: 'string', enum: ['list', 'add', 'update', 'remove'], description: 'Operation to perform.' },
           preset: {
             type: 'string',
-            enum: ['book', 'course-slides', 'article'],
+            enum: ['book', 'course-slides', 'article', 'git-publish'],
             description:
               'Opinionated export preset for action="add" — sets all required options automatically. ' +
               '"book": merge all .md files → single PDF with TOC, title page, counter versioning, strip frontmatter. ' +
               '"course-slides": export all .tldr.json canvases as PDFs. ' +
               '"article": single clean PDF, timestamp versioning, no merge. ' +
+              '"git-publish": stage all changes, create a commit when needed, and push to the remote for deploy-by-git workflows. ' +
               'title, author, and outputDir can still be passed alongside preset to personalise.',
           },
           id:          { type: 'string', description: 'Target id (for update/remove).' },
@@ -65,13 +66,29 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
           description: { type: 'string', description: 'Human/AI readable description of what this target produces.' },
           format: {
             type: 'string',
-            enum: ['pdf', 'canvas-png', 'canvas-pdf', 'zip', 'custom'],
+            enum: ['pdf', 'canvas-png', 'canvas-pdf', 'zip', 'git-publish', 'custom'],
             description: 'Export format.',
           },
           include:      { type: 'array', items: { type: 'string' }, description: 'File extensions to match, e.g. ["md"] or ["tldr.json"].' },
           includeFiles: { type: 'array', items: { type: 'string' }, description: 'Pinned specific files (relative paths). Overrides include extensions when set.' },
           excludeFiles: { type: 'array', items: { type: 'string' }, description: 'Relative paths to skip.' },
           outputDir:    { type: 'string', description: 'Output directory relative to workspace root.' },
+          gitPublishCommitMessage: {
+            type: 'string',
+            description: '(Git publish only) Commit message template. Supports {{workspace}}, {{target}}, {{date}}, {{datetime}}.',
+          },
+          gitPublishRemote: {
+            type: 'string',
+            description: '(Git publish only) Remote name, e.g. "origin".',
+          },
+          gitPublishBranch: {
+            type: 'string',
+            description: '(Git publish only) Optional branch to push, e.g. "main". Leave empty for the current branch.',
+          },
+          gitPublishSkipCommitWhenNoChanges: {
+            type: 'boolean',
+            description: '(Git publish only) Skip commit when there are no changes and still try to push. Defaults to true.',
+          },
           customCommand:{ type: 'string', description: 'Shell command for custom format. Use {{input}} and {{output}} placeholders.' },
           enabled:      { type: 'boolean', description: 'Whether this target is included in Export All.' },
           merge:        { type: 'boolean', description: 'Merge all matched files into one output (pdf/canvas-pdf).' },
@@ -269,11 +286,12 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
         try {
           const result = await runExportTarget({
             workspacePath,
+            workspaceConfig,
             target,
             canvasEditorRef: canvasEditor,
             activeCanvasRel: typeof activeFile === 'string' ? activeFile : null,
           });
-          const okPart  = result.outputs.length > 0 ? `✓ ${result.outputs.join(', ')}` : '';
+          const okPart  = result.outputs.length > 0 ? `✓ ${result.outputs.join(', ')}` : (result.summary ? `✓ ${result.summary}` : '');
           const errPart = result.errors.length  > 0 ? `⚠ ${result.errors.join('; ')}` : '';
           lines.push(`[${target.name}] ${[okPart, errPart].filter(Boolean).join(' | ')} (${result.elapsed}ms)`);
         } catch (e) {
@@ -335,6 +353,17 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
             stripFrontmatter: true,
             versionOutput: 'timestamp',
           };
+        } else if (args.preset === 'git-publish') {
+          if (!args.name) args = { ...args, name: 'Git Publish' };
+          args = {
+            ...args,
+            format: 'git-publish',
+            include: [],
+            outputDir: '.',
+            gitPublishCommitMessage: args.gitPublishCommitMessage ?? 'Publish from Cafezin — {{datetime}}',
+            gitPublishRemote: args.gitPublishRemote ?? 'origin',
+            gitPublishSkipCommitWhenNoChanges: args.gitPublishSkipCommitWhenNoChanges ?? true,
+          };
         }
 
         if (!args.name)   return 'Error: name is required for add.';
@@ -352,6 +381,20 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
           stripDraftSections: args.stripDraftSections === true ? true : undefined,
           stripDetails:       args.stripDetails        === true ? true : undefined,
         } : undefined;
+        const hasGitPublish =
+          args.format === 'git-publish' ||
+          args.gitPublishCommitMessage !== undefined ||
+          args.gitPublishRemote !== undefined ||
+          args.gitPublishBranch !== undefined ||
+          args.gitPublishSkipCommitWhenNoChanges !== undefined;
+        const gitPublish = hasGitPublish ? {
+          commitMessage: args.gitPublishCommitMessage ? String(args.gitPublishCommitMessage) : undefined,
+          remote: args.gitPublishRemote ? String(args.gitPublishRemote) : undefined,
+          branch: args.gitPublishBranch ? String(args.gitPublishBranch) : undefined,
+          skipCommitWhenNoChanges: args.gitPublishSkipCommitWhenNoChanges !== undefined
+            ? Boolean(args.gitPublishSkipCommitWhenNoChanges)
+            : undefined,
+        } : undefined;
         const newTarget: ExportTarget = {
           id: Math.random().toString(36).slice(2, 9),
           name: String(args.name),
@@ -361,6 +404,7 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
           includeFiles: Array.isArray(args.includeFiles) ? args.includeFiles.map(String) : undefined,
           excludeFiles: Array.isArray(args.excludeFiles) ? args.excludeFiles.map(String) : undefined,
           outputDir: args.outputDir ? String(args.outputDir) : 'dist',
+          gitPublish,
           customCommand: args.customCommand ? String(args.customCommand) : undefined,
           enabled: args.enabled !== false,
           merge: args.merge === true ? true : undefined,
@@ -389,6 +433,18 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
         if (args.includeFiles !== undefined) patch.includeFiles  = Array.isArray(args.includeFiles) ? args.includeFiles.map(String) : [];
         if (args.excludeFiles !== undefined) patch.excludeFiles  = Array.isArray(args.excludeFiles) ? args.excludeFiles.map(String) : [];
         if (args.outputDir    !== undefined) patch.outputDir     = String(args.outputDir);
+        if (args.gitPublishCommitMessage !== undefined || args.gitPublishRemote !== undefined ||
+            args.gitPublishBranch !== undefined || args.gitPublishSkipCommitWhenNoChanges !== undefined) {
+          const existing = match.gitPublish ?? {};
+          patch.gitPublish = {
+            ...existing,
+            ...(args.gitPublishCommitMessage !== undefined ? { commitMessage: String(args.gitPublishCommitMessage) || undefined } : {}),
+            ...(args.gitPublishRemote !== undefined ? { remote: String(args.gitPublishRemote) || undefined } : {}),
+            ...(args.gitPublishBranch !== undefined ? { branch: String(args.gitPublishBranch) || undefined } : {}),
+            ...(args.gitPublishSkipCommitWhenNoChanges !== undefined ? { skipCommitWhenNoChanges: Boolean(args.gitPublishSkipCommitWhenNoChanges) } : {}),
+          };
+          if (!Object.values(patch.gitPublish).some((value) => value !== undefined && value !== '')) patch.gitPublish = undefined;
+        }
         if (args.customCommand!== undefined) patch.customCommand = String(args.customCommand);
         if (args.enabled      !== undefined) patch.enabled       = Boolean(args.enabled);
         if (args.merge        !== undefined) patch.merge         = Boolean(args.merge);

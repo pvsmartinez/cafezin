@@ -92,6 +92,8 @@ CORE PHILOSOPHY — you are a co-pilot, not a replacement:
         return `Language: the user has configured this workspace to use ${lang}. Reply in ${lang} unless the message is clearly written in a different language, in which case mirror that language.`;
       })(),
 
+      'Response formatting: Cafezin renders assistant replies as Markdown in the AI panel. Prefer well-structured Markdown by default when it improves readability: headings, bullet lists, numbered lists, tables, blockquotes, and fenced code blocks. Do not wrap the entire answer in a single code fence. For very short replies, plain sentences are fine.',
+
       // ── File types ────────────────────────────────────────────
       `The app supports the following file types in the left sidebar:
   • Markdown (.md) — the primary format. Rendered with live preview (marked library). Full Markdown + YAML frontmatter. Users write, edit, and structure long-form content here.
@@ -286,6 +288,13 @@ BOOK EXPORT SETUP (when user asks to export/publish the book):
     titlePageTitle="<title>", titlePageAuthor="<author>") — preset auto-sets merge, toc, stripFrontmatter,
   versionOutput, and include. Only pass title/author to personalise. Then call export_workspace.
 
+PUBLISH / DEPLOY RULES FOR ANY WORKSPACE:
+  • Treat "publish", "deploy", "build release", "subir", and "export" as export-system tasks first.
+  • ALWAYS inspect the configured export targets before deciding what to do: call configure_export_targets(action="list").
+  • If a suitable target already exists, run it with export_workspace(target="<name>").
+  • If no suitable target exists, add or update one with configure_export_targets, then run export_workspace.
+  • Prefer git-publish targets for deploy-by-git workflows. Do not invent a Vercel-specific flow unless the export target itself explicitly says so.
+
 CHAPTER FILE NAMING CONVENTION:
   Use consistent names: cap01.md, cap02.md … or capitulo-01.md … or 01-introducao.md
   Always zero-pad numbers (01, 02, … 10) so alphabetical order = narrative order.`
@@ -300,45 +309,6 @@ CHAPTER FILE NAMING CONVENTION:
       activeFile && (activeFile.endsWith('.html') || activeFile.endsWith('.htm'))
         ? `\n── HTML / INTERACTIVE DEMO GUIDANCE ──────────────────────────────────────────────────\nThe active file is an HTML document rendered live in the preview pane (~900px wide).\n\nLayout & spacing principles:\n• Prefer relative units: %, rem, vw/vh, clamp() — avoid px for spacing and font sizes\n• Use CSS custom properties (--gap, --radius, --color-accent) for consistency\n• Flexbox or CSS Grid for all multi-element layouts; avoid float / position: absolute for flow\n• Comfortable reading width: max-width: 800px; margin: 0 auto; padding: 2rem\n• Interactive demos: always style :hover and :focus states; add transition: 0.2s ease\n• Buttons/inputs: min-height: 2.5rem; padding: 0.5rem 1.25rem; border-radius: 0.375rem\n• Section gaps: use row-gap / column-gap on flex/grid containers, never margin hacks\n• Color contrast: body text on background must be AA-compliant (4.5:1 ratio minimum)\n\nVisual verification workflow:\n1. Write or patch the HTML/CSS file.\n2. Immediately call screenshot_preview to see the rendered result.\n3. Identify any spacing, overflow, alignment, or readability issues.\n4. Call patch_workspace_file to fix them.\n5. Call screenshot_preview again to confirm.\nNever report the demo as done without at least one screenshot_preview call.`
         : '',
-
-      // ── Demo Hub context ──────────────────────────────────────
-      (() => {
-        const demoHub = workspace?.config?.vercelConfig?.demoHub;
-        if (!demoHub?.projectName) return '';
-        const src = demoHub.sourceDir ? `"${demoHub.sourceDir}/"` : 'the workspace root';
-        const setupCall = `publish_vercel(action="setup", projectType="demos"${demoHub.sourceDir ? `, sourceDir="${demoHub.sourceDir}"` : ''})`;
-        const deployCall = `publish_vercel(action="deploy", projectName="${demoHub.projectName}"${demoHub.sourceDir ? `, sourceDir="${demoHub.sourceDir}"` : ''})`;
-        return [
-          '',
-          '── DEMO HUB ─────────────────────────────────────────────────────────────────────────',
-          `This workspace has the Demo Hub feature configured.`,
-          `Vercel project: "${demoHub.projectName}" → published at https://${demoHub.projectName}.vercel.app`,
-          `Source folder: ${src} — each sub-folder becomes a route, e.g. demos/aula1/ → /${demoHub.projectName}.vercel.app/aula1`,
-          '',
-          'When the user asks to create a new demo/exercise:',
-          `1. Create a sub-folder inside the source folder (e.g. ${demoHub.sourceDir ? demoHub.sourceDir + '/' : ''}aula3/)`,
-          '2. Write an index.html (and any .css/.js) files inside it — fully self-contained, no dev server needed',
-          '3. Remind the user they can publish with the "↗ Publicar Demos" button in the sidebar',
-          '',
-          'File naming convention: demos use kebab-case folder names (ex: aula-01-html-basico, ex-01-flexbox).',
-          '',
-          'VERCEL SETUP — do this ONCE before the first deploy of a new workspace:',
-          `• Call ${setupCall}`,
-          '• This creates vercel.json (cleanUrls=true, trailingSlash=false) and .vercelignore in the source folder.',
-          '• If the user reports a 404, a broken route, or Vercel is not finding demos → setup is missing. Run it.',
-          '• For SPAs built with Vite/React, use projectType="spa" — this adds rewrites so client-side routes work.',
-          '',
-          'DEPLOYMENT RULES — CRITICAL:',
-          `• To deploy/publish to Vercel: ALWAYS call the publish_vercel tool with action="deploy", projectName="${demoHub.projectName}"${demoHub.sourceDir ? `, sourceDir="${demoHub.sourceDir}"` : ''}.`,
-          '• This uses the Vercel REST API — NO git commit is needed, NO vercel CLI is involved.',
-          '• NEVER use run_command to call the vercel CLI (vercel, vercel deploy, vercel --prod, etc.).',
-          '• If the user says "publicar", "deploy", "subir pro ar", "publicar demos" → call publish_vercel directly.',
-          '',
-          'BUILD + DEPLOY (for projects with a build step):',
-          `• Call ${deployCall} with buildCommand="npm run build" and buildOutputDir="dist".`,
-          '• The tool runs the build, then deploys the output — one round trip, no extra steps.',
-        ].join('\n');
-      })(),
     ].filter(Boolean).join('\n\n'),
-  }), [hasTools, model, workspaceFileList, memoryContent, agentContext, documentContext, activeFile, workspace?.config?.preferredLanguage, workspace?.config?.vercelConfig?.demoHub]);
+  }), [hasTools, model, workspaceFileList, memoryContent, agentContext, documentContext, activeFile, workspace?.config?.preferredLanguage]);
 }

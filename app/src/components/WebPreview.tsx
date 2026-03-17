@@ -1,4 +1,5 @@
 import { useMemo, useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
+import { Sparkle } from '@phosphor-icons/react';
 import { toPng } from 'html-to-image';
 import './WebPreview.css';
 import { buildSrcDoc, renderHtmlOffscreen } from '../utils/htmlPreview';
@@ -114,7 +115,7 @@ const WebPreview = forwardRef<WebPreviewHandle, WebPreviewProps>(function WebPre
       <div className="web-preview-toolbar">
         <span className="web-preview-label">Preview — {filename}</span>
         {isLocked && (
-          <span className="web-preview-lock-badge">✦ Copilot writing…</span>
+          <span className="web-preview-lock-badge"><Sparkle weight="fill" size={12} /> Copilot writing…</span>
         )}
         <button
           className="web-preview-reload-btn"

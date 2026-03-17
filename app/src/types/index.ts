@@ -48,6 +48,8 @@ export interface ChatMessage {
   activeFile?: string;
   /** UI-only: base64 data URL of a user-attached image. Merged into multipart content before sending. */
   attachedImage?: string;
+  /** UI-only: base64 data URLs of user-attached images. Merged into multipart content before sending. */
+  attachedImages?: string[];
   /** UI-only: filename of a user-attached non-image file. Content is injected into the API message. */
   attachedFile?: string;
 }
@@ -80,6 +82,7 @@ export type ExportFormat =
   | 'canvas-png'  // each canvas file → PNG (via tldraw)
   | 'canvas-pdf'  // each canvas → PDF, one page per slide/frame
   | 'zip'         // bundle matching files into a .zip (JSZip, pure JS)
+  | 'git-publish' // git add -A + commit + push, useful for deploy-by-git workflows
   | 'custom';     // run an arbitrary shell command (desktop only)
 
 export interface ExportTarget {
@@ -106,6 +109,20 @@ export interface ExportTarget {
   format: ExportFormat;
   /** Output directory relative to workspace root, e.g. "dist" */
   outputDir: string;
+  /**
+   * For 'git-publish' format: stage all changes, optionally create a commit,
+   * then push to the configured remote / branch.
+   */
+  gitPublish?: {
+    /** Commit message template. Supports {{workspace}}, {{target}}, {{date}}, {{datetime}}. */
+    commitMessage?: string;
+    /** Git remote name. Defaults to "origin" when omitted. */
+    remote?: string;
+    /** Optional branch name. Leave empty to push the current branch/upstream. */
+    branch?: string;
+    /** Default true: if there are no staged changes, skip commit and still attempt push. */
+    skipCommitWhenNoChanges?: boolean;
+  };
   /**
    * For 'custom' format: shell command run with workspace root as cwd.
    * Placeholders: {{input}} = source file, {{output}} = output path.
@@ -198,6 +215,18 @@ export interface VercelWorkspaceConfig {
   };
 }
 
+/** Optional per-workspace capabilities that enhance built-in file types. */
+export interface WorkspaceFeatureConfig {
+  /** Markdown-specific render features such as Mermaid diagrams. */
+  markdown?: {
+    mermaid?: boolean;
+  };
+  /** Reserved for future canvas-only capabilities. */
+  canvas?: Record<string, boolean>;
+  /** Reserved for future code-editor capabilities. */
+  code?: Record<string, boolean>;
+}
+
 /** A custom action button shown at the bottom of the sidebar. */
 export interface SidebarButton {
   id: string;
@@ -231,6 +260,8 @@ export interface WorkspaceConfig {
   inboxFile?: string;
   /** Vercel publish config — workspace-level override (token, teamId) */
   vercelConfig?: VercelWorkspaceConfig;
+  /** Optional feature flags / capabilities enabled only for this workspace. */
+  features?: WorkspaceFeatureConfig;
   /**
    * Git branch used for sync. Defaults to the remote's default branch (usually main/master).
    * Set on desktop via Settings → Workspace. Mobile uses this branch when cloning/pulling.
@@ -297,6 +328,10 @@ export interface CopilotModelInfo {
   vendor?: string;
   /** Whether the model accepts image_url content (false for o-series reasoning models) */
   supportsVision: boolean;
+  /** Optional token metadata when the Copilot /models endpoint provides it. */
+  contextWindow?: number;
+  maxInputTokens?: number;
+  maxOutputTokens?: number;
 }
 
 /** Application-level settings persisted in localStorage. */

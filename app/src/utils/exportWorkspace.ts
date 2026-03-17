@@ -18,7 +18,7 @@ import { invoke } from '@tauri-apps/api/core';
 import jsPDF from 'jspdf';
 import JSZip from 'jszip';
 import { exportMarkdownToPDF } from './exportPDF';
-import type { ExportTarget } from '../types';
+import type { ExportTarget, WorkspaceConfig } from '../types';
 import type { Editor, TLShape } from 'tldraw';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -28,6 +28,8 @@ export interface ExportResult {
   /** Relative paths of files that were produced */
   outputs: string[];
   errors: string[];
+  /** Optional success summary for targets that do not produce files, e.g. git publish. */
+  summary?: string;
   /** ms elapsed */
   elapsed: number;
 }
@@ -60,6 +62,32 @@ function basename(relPath: string): string {
 function stripExt(filename: string): string {
   const dotIdx = filename.lastIndexOf('.');
   return dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function renderGitTemplate(template: string, target: ExportTarget, wsPath: string): string {
+  const now = new Date();
+  const workspaceName = wsPath.split('/').filter(Boolean).pop() ?? 'workspace';
+  const replacements: Record<string, string> = {
+    workspace: workspaceName,
+    target: target.name,
+    date: now.toISOString().slice(0, 10),
+    datetime: now.toISOString().slice(0, 19).replace('T', ' '),
+  };
+  return template.replace(/\{\{(workspace|target|date|datetime)\}\}/g, (_, key: string) => replacements[key] ?? '');
+}
+
+async function runShellCommand(
+  wsPath: string,
+  cmd: string,
+): Promise<{ stdout: string; stderr: string; exit_code: number }> {
+  return invoke<{ stdout: string; stderr: string; exit_code: number }>('shell_run', {
+    cmd,
+    cwd: wsPath,
+  });
 }
 
 /** Strip trailing `.json` from `.tldr.json` → `.tldr` then strip that too */
@@ -229,6 +257,7 @@ async function exportPDF(
   wsPath: string,
   files: string[],
   target: ExportTarget,
+  workspaceConfig?: WorkspaceConfig,
 ): Promise<ExportResult> {
   const t0 = Date.now();
   const outputs: string[] = [];
@@ -279,6 +308,7 @@ async function exportPDF(
       try {
         await exportMarkdownToPDF(merged, `${wsPath}/${outRel}`, wsPath, {
           customCss,
+          features: workspaceConfig?.features,
           prependHtml: buildPrependHtml(merged),
         });
         outputs.push(outRel);
@@ -294,6 +324,7 @@ async function exportPDF(
         const content = preProcessMarkdown(raw, target.preProcess);
         await exportMarkdownToPDF(content, `${wsPath}/${outRel}`, wsPath, {
           customCss,
+          features: workspaceConfig?.features,
           prependHtml: buildPrependHtml(content),
         });
         outputs.push(outRel);
@@ -537,11 +568,119 @@ async function exportCustom(
   return { targetId: target.id, outputs, errors, elapsed: Date.now() - t0 };
 }
 
+async function exportGitPublish(
+  wsPath: string,
+  target: ExportTarget,
+): Promise<ExportResult> {
+  const t0 = Date.now();
+  const gitPublish = target.gitPublish ?? {};
+  const commitTemplate = gitPublish.commitMessage?.trim() || 'Publish from Cafezin — {{datetime}}';
+  const remote = gitPublish.remote?.trim() || 'origin';
+  const branch = gitPublish.branch?.trim() || '';
+  const skipCommitWhenNoChanges = gitPublish.skipCommitWhenNoChanges !== false;
+
+  try {
+    const insideRepo = await runShellCommand(wsPath, 'git rev-parse --is-inside-work-tree');
+    if (insideRepo.exit_code !== 0) {
+      return {
+        targetId: target.id,
+        outputs: [],
+        errors: ['This workspace is not a git repository. Initialize git before using Git Publish targets.'],
+        elapsed: Date.now() - t0,
+      };
+    }
+
+    const addResult = await runShellCommand(wsPath, 'git add -A');
+    if (addResult.exit_code !== 0) {
+      return {
+        targetId: target.id,
+        outputs: [],
+        errors: [addResult.stderr || 'git add -A failed.'],
+        elapsed: Date.now() - t0,
+      };
+    }
+
+    const diffResult = await runShellCommand(wsPath, 'git diff --cached --quiet --exit-code');
+    if (diffResult.exit_code !== 0 && diffResult.exit_code !== 1) {
+      return {
+        targetId: target.id,
+        outputs: [],
+        errors: [diffResult.stderr || 'Unable to inspect staged git changes.'],
+        elapsed: Date.now() - t0,
+      };
+    }
+
+    const hasChangesToCommit = diffResult.exit_code === 1;
+    let commitMessage = '';
+    if (hasChangesToCommit) {
+      commitMessage = renderGitTemplate(commitTemplate, target, wsPath).trim();
+      if (!commitMessage) {
+        return {
+          targetId: target.id,
+          outputs: [],
+          errors: ['Commit message template resolved to an empty string.'],
+          elapsed: Date.now() - t0,
+        };
+      }
+      const commitResult = await runShellCommand(wsPath, `git commit -m ${shellQuote(commitMessage)}`);
+      if (commitResult.exit_code !== 0) {
+        return {
+          targetId: target.id,
+          outputs: [],
+          errors: [commitResult.stderr || commitResult.stdout || 'git commit failed.'],
+          elapsed: Date.now() - t0,
+        };
+      }
+    } else if (!skipCommitWhenNoChanges) {
+      return {
+        targetId: target.id,
+        outputs: [],
+        errors: ['No staged changes to commit.'],
+        elapsed: Date.now() - t0,
+      };
+    }
+
+    const pushCmd = branch
+      ? `git push ${shellQuote(remote)} ${shellQuote(branch)}`
+      : `git push ${shellQuote(remote)}`;
+    const pushResult = await runShellCommand(wsPath, pushCmd);
+    if (pushResult.exit_code !== 0) {
+      return {
+        targetId: target.id,
+        outputs: [],
+        errors: [pushResult.stderr || pushResult.stdout || 'git push failed.'],
+        elapsed: Date.now() - t0,
+      };
+    }
+
+    const destination = branch ? `${remote}/${branch}` : `${remote} (current branch)`;
+    const summary = hasChangesToCommit
+      ? `Committed and pushed to ${destination}.`
+      : `No new commit needed; pushed to ${destination}.`;
+
+    return {
+      targetId: target.id,
+      outputs: [],
+      errors: [],
+      summary: commitMessage ? `${summary} Commit: ${commitMessage}` : summary,
+      elapsed: Date.now() - t0,
+    };
+  } catch (e) {
+    return {
+      targetId: target.id,
+      outputs: [],
+      errors: [String(e)],
+      elapsed: Date.now() - t0,
+    };
+  }
+}
+
 // ── Public entry point ────────────────────────────────────────────────────────
 
 export interface RunExportOptions {
   workspacePath: string;
   target: ExportTarget;
+  workspaceConfig?: WorkspaceConfig;
   /**
    * Ref to the live canvas editor — re-read after onOpenFileForExport resolves
    * so the fresh instance is used. Preferred over canvasEditor.
@@ -572,19 +711,21 @@ export interface RunExportOptions {
 }
 
 export async function runExportTarget(opts: RunExportOptions): Promise<ExportResult> {
-  const { workspacePath, target } = opts;
+  const { workspacePath, target, workspaceConfig } = opts;
   const allFiles = await listAllFiles(workspacePath);
   const matched  = resolveFiles(allFiles, target);
 
   switch (target.format) {
     case 'pdf':
-      return exportPDF(workspacePath, matched, target);
+      return exportPDF(workspacePath, matched, target, workspaceConfig);
     case 'canvas-png':
       return exportCanvasPNG(workspacePath, matched, target, opts);
     case 'canvas-pdf':
       return exportCanvasPDF(workspacePath, matched, target, opts);
     case 'zip':
       return exportZip(workspacePath, matched, target);
+    case 'git-publish':
+      return exportGitPublish(workspacePath, target);
     case 'custom':
       return exportCustom(workspacePath, matched, target);
     default:

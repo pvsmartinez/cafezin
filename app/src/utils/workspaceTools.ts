@@ -7,7 +7,7 @@
  *   utils/tools/webTools.ts     - web_search, search_images, fetch_url, run_command, publish_vercel
  *   utils/tools/configTools.ts  - export_workspace, configure_export_targets, configure_workspace, remember, ask_user
  *
- * Public API is unchanged: WORKSPACE_TOOLS, buildToolExecutor, ToolDefinition, ToolExecutor.
+ * Public API is unchanged: WORKSPACE_TOOLS, getWorkspaceTools, buildToolExecutor, ToolDefinition, ToolExecutor.
  */
 
 import type { Editor } from 'tldraw';
@@ -27,6 +27,16 @@ export const WORKSPACE_TOOLS = [
   ...WEB_TOOL_DEFS,
   ...CONFIG_TOOL_DEFS,
 ];
+
+export function getWorkspaceTools(
+  _workspaceConfig?: WorkspaceConfig,
+  _workspaceExportConfig?: WorkspaceExportConfig,
+) {
+  return WORKSPACE_TOOLS.filter((tool) => {
+    if (tool.function.name === 'publish_vercel') return false;
+    return true;
+  });
+}
 
 // Aggregated executor factory - same signature as before
 export function buildToolExecutor(

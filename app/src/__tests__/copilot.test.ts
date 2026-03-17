@@ -15,6 +15,8 @@ import {
   familyKey,
   sanitizeLoop,
   estimateTokens,
+  getCompressionAnchorUserText,
+  getModelTokenBudgets,
   isQuotaError,
   getStoredOAuthToken,
   clearOAuthToken,
@@ -241,7 +243,7 @@ describe('sanitizeLoop', () => {
     expect(assistants[0].tool_calls).toBeDefined();
   });
 
-  it('merges consecutive user messages by joining their content', () => {
+  it('keeps only the newest consecutive user message', () => {
     const msgs: ChatMessage[] = [
       { role: 'user', content: 'part one' },
       { role: 'user', content: 'part two' },
@@ -249,8 +251,18 @@ describe('sanitizeLoop', () => {
     const out = sanitizeLoop(msgs);
     const users = out.filter((m) => m.role === 'user');
     expect(users).toHaveLength(1);
-    expect(users[0].content).toContain('part one');
-    expect(users[0].content).toContain('part two');
+    expect(users[0].content).toBe('part two');
+  });
+
+  it('drops an unanswered older user prompt before a new one', () => {
+    const msgs: ChatMessage[] = [
+      { role: 'system', content: 'You are helpful.' },
+      { role: 'user', content: 'old prompt that failed' },
+      { role: 'user', content: 'new prompt to send now' },
+    ];
+    const out = sanitizeLoop(msgs);
+    expect(out.map((m) => m.role)).toEqual(['system', 'user']);
+    expect(out[1].content).toBe('new prompt to send now');
   });
 
   it('strips UI-only fields (items, toolActivities, activeFile) before sending', () => {
@@ -276,6 +288,35 @@ describe('sanitizeLoop', () => {
     const out = sanitizeLoop(msgs);
     expect(out).toHaveLength(4);
     expect(out.map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'user']);
+  });
+});
+
+// ── getCompressionAnchorUserText ────────────────────────────────────────────
+describe('getCompressionAnchorUserText', () => {
+  it('prefers the latest plain-text user request', () => {
+    const msgs: ChatMessage[] = [
+      { role: 'user', content: 'first request' },
+      { role: 'assistant', content: 'working on it' },
+      { role: 'user', content: 'latest request' },
+    ];
+    expect(getCompressionAnchorUserText(msgs)).toBe('latest request');
+  });
+
+  it('ignores synthetic session-summary user messages', () => {
+    const msgs: ChatMessage[] = [
+      { role: 'user', content: 'real request' },
+      { role: 'assistant', content: 'summary incoming' },
+      { role: 'user', content: '[SESSION SUMMARY — 10 rounds archived]\n\nold summary blob' },
+    ];
+    expect(getCompressionAnchorUserText(msgs)).toBe('real request');
+  });
+
+  it('falls back when no plain-text user request is available', () => {
+    const msgs: ChatMessage[] = [
+      { role: 'assistant', content: 'hello' },
+      { role: 'user', content: [{ type: 'text', text: 'image context' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } }] as any },
+    ];
+    expect(getCompressionAnchorUserText(msgs)).toContain('not recoverable');
   });
 });
 
@@ -338,13 +379,14 @@ describe('isQuotaError', () => {
 
 // ── sanitizeLoop: UI-field stripping ─────────────────────────────────────────
 describe('sanitizeLoop — UI-only field stripping', () => {
-  it('strips items, activeFile, attachedImage, attachedFile before sending to API', () => {
+  it('strips items, activeFile, attachedImage, attachedImages, attachedFile before sending to API', () => {
     const msgs = [
       Object.assign(
         { role: 'user' as const, content: 'hello world' } as ChatMessage,
         {
           activeFile: 'notes.md',
           attachedImage: 'data:image/png;base64,abc123',
+          attachedImages: ['data:image/png;base64,abc123', 'data:image/png;base64,def456'],
           attachedFile: 'doc.pdf',
           items: [{ type: 'text', text: 'hi' }],
         },
@@ -355,6 +397,7 @@ describe('sanitizeLoop — UI-only field stripping', () => {
     expect(out[0].content).toBe('hello world');
     expect((out[0] as any).activeFile).toBeUndefined();
     expect((out[0] as any).attachedImage).toBeUndefined();
+    expect((out[0] as any).attachedImages).toBeUndefined();
     expect((out[0] as any).attachedFile).toBeUndefined();
     expect((out[0] as any).items).toBeUndefined();
   });
@@ -481,5 +524,31 @@ describe('modelApiParams', () => {
     const p = modelApiParams('gpt-4.1', 0.2, 1800);
     expect(p.temperature).toBe(0.2);
     expect(p.max_tokens).toBe(1800);
+  });
+});
+
+// ── getModelTokenBudgets ────────────────────────────────────────────────────
+describe('getModelTokenBudgets', () => {
+  it('keeps GPT-family budgets close to the current defaults', () => {
+    const budgets = getModelTokenBudgets('gpt-4o');
+    expect(budgets.source).toBe('heuristic');
+    expect(budgets.contextWindow).toBe(128000);
+    expect(budgets.chatBudget).toBeGreaterThanOrEqual(70000);
+    expect(budgets.compressBudget).toBeGreaterThan(budgets.chatBudget);
+  });
+
+  it('gives Gemini Pro more room than GPT defaults', () => {
+    const gpt = getModelTokenBudgets('gpt-4o');
+    const gemini = getModelTokenBudgets('gemini-3-pro');
+    expect(gemini.contextWindow).toBeGreaterThan(gpt.contextWindow);
+    expect(gemini.chatBudget).toBeGreaterThan(gpt.chatBudget);
+    expect(gemini.compressBudget).toBeGreaterThan(gpt.compressBudget);
+  });
+
+  it('keeps Claude Haiku more conservative than Gemini Pro', () => {
+    const haiku = getModelTokenBudgets('claude-haiku-4-5');
+    const gemini = getModelTokenBudgets('gemini-3-pro');
+    expect(haiku.contextWindow).toBeLessThan(gemini.contextWindow);
+    expect(haiku.chatBudget).toBeLessThan(gemini.chatBudget);
   });
 });

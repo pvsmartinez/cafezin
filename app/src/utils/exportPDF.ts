@@ -12,15 +12,13 @@
  *   6. Write bytes to disk via Tauri plugin-fs
  */
 
-import { marked } from 'marked';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { writeFile } from '../services/fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import 'katex/dist/katex.min.css';
-import { preprocessMath } from './mathPreprocess';
-
-marked.setOptions({ gfm: true, breaks: false });
+import type { WorkspaceFeatureConfig } from '../types';
+import { renderMarkdownToHtml } from './markdownRender';
 
 /** A4 page dimensions at 96 dpi (CSS pixels) */
 const A4_W_PX = 794;
@@ -143,6 +141,19 @@ const PRINT_STYLES = `
   img    { max-width: 100%; border-radius: 4px; }
   strong { font-weight: 700; color: #111; }
   em     { font-style: italic; color: inherit; }
+  .mermaid-diagram {
+    margin: 1.3em 0;
+    padding: 16px 18px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fbfbfb;
+  }
+  .mermaid-diagram svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+  }
 
   /* ── Title page ─────────────────────────────────────────────────────── */
   .title-page {
@@ -220,10 +231,12 @@ export async function exportMarkdownToPDF(
     customCss?: string;
     /** Raw HTML injected at the very beginning of the document (e.g. title page, TOC) */
     prependHtml?: string;
+    /** Optional per-workspace render capabilities. */
+    features?: WorkspaceFeatureConfig;
   },
 ): Promise<void> {
-  // ── 1. Pre-process math (KaTeX), then render markdown ─────────────────────
-  const rawHtml = marked.parse(preprocessMath(content)) as string;
+  // ── 1. Render markdown with optional workspace capabilities ───────────────
+  const rawHtml = await renderMarkdownToHtml(content, { features: options?.features });
 
   // ── 2. Mount off-screen container ───────────────────────────────────────────
   const wrapper = document.createElement('div');

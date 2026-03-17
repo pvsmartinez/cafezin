@@ -3,7 +3,18 @@
  * The per-session logic lives in AgentSession.tsx.
  */
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Snowflake, Microphone, CaretDown, CaretUp, CaretRight, CaretLeft } from '@phosphor-icons/react';
+import {
+  Snowflake,
+  Microphone,
+  CaretDown,
+  CaretUp,
+  CaretRight,
+  CaretLeft,
+  Circle,
+  CircleNotch,
+  CheckCircle,
+  WarningCircle,
+} from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
 
@@ -42,10 +53,12 @@ export interface PendingVoiceMemo {
 interface AIPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  collapsed?: boolean;
+  onCollapse?: () => void;
+  onExpand?: () => void;
   initialPrompt?: string;
   initialModel?: string;
   onModelChange?: (model: string) => void;
-  onInsert?: (text: string, model: string) => void;
   documentContext?: string;
   agentContext?: string;
   workspacePath?: string;
@@ -84,6 +97,52 @@ interface AgentTab {
   unread: boolean;
 }
 
+function getTabStatusMeta(tab: AgentTab): { tone: 'idle' | 'thinking' | 'error' | 'ready'; label: string; ariaLabel: string; title: string } {
+  if (tab.status === 'thinking') {
+    return {
+      tone: 'thinking',
+      label: 'Trabalhando',
+      ariaLabel: 'a trabalhar',
+      title: 'Respondendo agora',
+    };
+  }
+  if (tab.status === 'error') {
+    return {
+      tone: 'error',
+      label: 'Erro',
+      ariaLabel: 'erro',
+      title: 'Última resposta falhou',
+    };
+  }
+  if (tab.unread) {
+    return {
+      tone: 'ready',
+      label: 'Pronto',
+      ariaLabel: 'pronto e não lido',
+      title: 'Tem resposta nova nesta aba',
+    };
+  }
+  return {
+    tone: 'idle',
+    label: 'Pronto',
+    ariaLabel: 'pronto',
+    title: 'Sem atividade pendente',
+  };
+}
+
+function renderTabStatusIcon(tone: 'idle' | 'thinking' | 'error' | 'ready') {
+  if (tone === 'thinking') {
+    return <CircleNotch size={13} weight="bold" />;
+  }
+  if (tone === 'error') {
+    return <WarningCircle size={13} weight="fill" />;
+  }
+  if (tone === 'ready') {
+    return <CheckCircle size={13} weight="fill" />;
+  }
+  return <Circle size={12} weight="bold" />;
+}
+
 /** True when running inside a Tauri WebView. */
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -92,10 +151,12 @@ const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   isOpen,
   onClose,
+  collapsed = false,
+  onCollapse,
+  onExpand,
   initialPrompt,
   initialModel,
   onModelChange,
-  onInsert,
   documentContext,
   agentContext,
   workspacePath,
@@ -169,16 +230,14 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   // ── Tabs ──────────────────────────────────────────────────────────────────
   const [tabs, setTabs] = useState<AgentTab[]>([{ id: 'agent-1', label: 'Agente 1', status: 'idle', unread: false }]);
   const [activeTabId, setActiveTabId] = useState('agent-1');
-  const [collapsed, setCollapsed] = useState(false);
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [renamingValue, setRenamingValue] = useState('');
 
   // Track previous status per tab so we can detect thinking→idle transition
   const prevStatusRef = useRef<Map<string, AgentStatus>>(new Map());
 
   // Track whether the native window is focused (for dock bounce)
   const windowFocusedRef = useRef(true);
-
-  // Reset collapsed when panel is re-opened
-  useEffect(() => { if (isOpen) setCollapsed(false); }, [isOpen]);
 
   // Subscribe to window focus changes for dock bounce (macOS desktop only)
   useEffect(() => {
@@ -237,11 +296,32 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     const label = `Agente ${n}`;
     setTabs((prev) => [...prev, { id, label, status: 'idle', unread: false }]);
     setActiveTabId(id);
-    setCollapsed(false);
+    onExpand?.();
   }
 
   function clearUnread(id: string) {
     setTabs((prev) => prev.map((t) => t.id === id ? { ...t, unread: false } : t));
+  }
+
+  function startRenaming(tab: AgentTab) {
+    setRenamingTabId(tab.id);
+    setRenamingValue(tab.label);
+  }
+
+  function commitRename() {
+    if (!renamingTabId) return;
+    const trimmed = renamingValue.trim();
+    setTabs((prev) => prev.map((tab) => {
+      if (tab.id !== renamingTabId) return tab;
+      return { ...tab, label: trimmed || tab.label };
+    }));
+    setRenamingTabId(null);
+    setRenamingValue('');
+  }
+
+  function cancelRename() {
+    setRenamingTabId(null);
+    setRenamingValue('');
   }
 
   function closeTab(id: string) {
@@ -251,6 +331,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
       if (activeTabId === id) setActiveTabId(next[0].id);
       return next;
     });
+    if (renamingTabId === id) cancelRename();
   }
 
   // ── Delegate Finder drop to active agent session ──────────────────────────
@@ -284,25 +365,22 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
       <div className="ai-panel ai-panel--collapsed" data-panel="ai">
         <button
           className="ai-panel-expand-btn"
-          onClick={() => setCollapsed(false)}
+          onClick={onExpand}
           title="Expandir painel"
         >
           <CaretLeft weight="thin" size={14} />
         </button>
         <div className="ai-panel-icon-strip">
           {tabs.map((tab, i) => {
-            const dotCls = tab.status === 'thinking' ? 'thinking'
-              : tab.status === 'error' ? 'error'
-              : tab.unread ? 'unread'
-              : 'idle';
+            const statusMeta = getTabStatusMeta(tab);
             return (
               <button
                 key={tab.id}
                 className={`ai-panel-icon-btn${activeTabId === tab.id ? ' ai-panel-icon-btn--active' : ''}`}
-                onClick={() => { setCollapsed(false); setActiveTabId(tab.id); }}
-                title={tab.label + (tab.unread ? ' — não lido' : '')}
+                onClick={() => { onExpand?.(); setActiveTabId(tab.id); }}
+                title={`${tab.label} — ${statusMeta.label}${tab.unread ? ' — não lido' : ''}`}
               >
-                <span className={`ai-panel-icon-dot ai-panel-icon-dot--${dotCls}`} />
+                <span className={`ai-panel-icon-dot ai-panel-icon-dot--${statusMeta.tone}`} />
                 <span className="ai-panel-icon-num">{i + 1}</span>
               </button>
             );
@@ -318,23 +396,50 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
       {/* Tab bar */}
       <div className="ai-tab-bar">
         {tabs.map((tab) => {
-          const dotCls = tab.status === 'thinking' ? 'thinking'
-            : tab.status === 'error' ? 'error'
-            : tab.unread ? 'unread'
-            : 'idle';
+          const statusMeta = getTabStatusMeta(tab);
+          const isRenaming = renamingTabId === tab.id;
           return (
-          <div key={tab.id} className={`ai-tab${activeTabId === tab.id ? ' ai-tab--active' : ''}${tab.unread ? ' ai-tab--unread' : ''}`}>
-            <button
-              className="ai-tab-label"
-              onClick={() => setActiveTabId(tab.id)}
-              title={tab.label}
-            >
-              <span
-                className={`ai-tab-dot ai-tab-dot--${dotCls}`}
-                aria-label={tab.status === 'thinking' ? 'a trabalhar' : tab.status === 'error' ? 'erro' : tab.unread ? 'não lido' : 'pronto'}
+          <div
+            key={tab.id}
+            className={`ai-tab ai-tab--${statusMeta.tone}${activeTabId === tab.id ? ' ai-tab--active' : ''}${tab.unread ? ' ai-tab--unread' : ''}`}
+          >
+            {isRenaming ? (
+              <input
+                className="ai-tab-input"
+                value={renamingValue}
+                onChange={(e) => setRenamingValue(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitRename();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelRename();
+                  }
+                }}
+                autoFocus
+                spellCheck={false}
+                aria-label="Renomear agente"
               />
-              {tab.label}
-            </button>
+            ) : (
+              <button
+                className="ai-tab-label"
+                onClick={() => setActiveTabId(tab.id)}
+                onDoubleClick={() => startRenaming(tab)}
+                title={`${tab.label} — ${statusMeta.title}. Duplo clique para renomear`}
+                aria-label={`${tab.label}. Status: ${statusMeta.ariaLabel}`}
+              >
+                <span className="ai-tab-name">{tab.label}</span>
+                <span
+                  className={`ai-tab-indicator ai-tab-indicator--${statusMeta.tone}`}
+                  aria-label={statusMeta.ariaLabel}
+                  title={statusMeta.title}
+                >
+                  {renderTabStatusIcon(statusMeta.tone)}
+                </span>
+              </button>
+            )}
             {tabs.length > 1 && (
               <button
                 className="ai-tab-close"
@@ -352,7 +457,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
         </button>
         <button
           className="ai-tab-collapse"
-          onClick={() => setCollapsed(true)}
+          onClick={onCollapse}
           title="Minimizar painel"
         >
           <CaretRight weight="thin" size={12} />
@@ -412,7 +517,6 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           initialPrompt={initialPrompt}
           initialModel={initialModel}
           onModelChange={onModelChange}
-          onInsert={onInsert}
           documentContext={documentContext}
           agentContext={agentContext}
           workspacePath={workspacePath}

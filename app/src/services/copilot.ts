@@ -137,10 +137,112 @@ export function isQuotaError(msg: string): boolean {
 }
 
 // ── Context budget ────────────────────────────────────────────────────────────
-// Trigger summarization when the estimated token count exceeds this threshold.
-// Most Copilot models have a 128k context; we leave ~38k headroom for the system
-// prompt, tool definitions, and the model's reply.
-const CONTEXT_TOKEN_LIMIT = 90_000;
+interface ModelTokenMetadata {
+  contextWindow?: number;
+  maxInputTokens?: number;
+  maxOutputTokens?: number;
+  source: 'api' | 'heuristic';
+}
+
+export interface ModelTokenBudgets {
+  contextWindow: number;
+  chatBudget: number;
+  compressBudget: number;
+  maxOutputTokens?: number;
+  source: 'api' | 'heuristic';
+}
+
+const MODEL_TOKEN_METADATA = new Map<string, ModelTokenMetadata>();
+const MIN_CHAT_BUDGET = 48_000;
+const MAX_CHAT_BUDGET = 180_000;
+const MIN_COMPRESS_BUDGET = 64_000;
+const MAX_COMPRESS_BUDGET = 220_000;
+
+function readPositiveNumber(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
+  return Math.floor(value);
+}
+
+function firstNumericField(raw: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = readPositiveNumber(raw[key]);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function inferContextWindow(model: string): number {
+  const id = model.toLowerCase();
+  if (/gemini-3(?:\.1)?-pro|gemini-2\.5-pro/.test(id)) return 320_000;
+  if (/gemini-3-flash|gemini-2\.5-flash/.test(id)) return 220_000;
+  if (/claude-.*opus/.test(id)) return 180_000;
+  if (/claude-.*sonnet/.test(id)) return 160_000;
+  if (/claude-.*haiku/.test(id)) return 120_000;
+  if (/^o\d|codex|gpt-5/.test(id)) return 128_000;
+  if (/gpt-4\.1|gpt-4o|grok/.test(id)) return 128_000;
+  return 128_000;
+}
+
+function registerModelTokenMetadata(raw: RawModel): ModelTokenMetadata | null {
+  const record = raw as unknown as Record<string, unknown>;
+  const contextWindow = firstNumericField(record, [
+    'context_window',
+    'contextWindow',
+    'max_input_tokens',
+    'maxInputTokens',
+    'input_token_limit',
+    'prompt_token_limit',
+    'max_prompt_tokens',
+  ]);
+  const maxInputTokens = firstNumericField(record, [
+    'max_input_tokens',
+    'maxInputTokens',
+    'input_token_limit',
+    'prompt_token_limit',
+    'max_prompt_tokens',
+  ]);
+  const maxOutputTokens = firstNumericField(record, [
+    'max_output_tokens',
+    'maxOutputTokens',
+    'output_token_limit',
+    'completion_token_limit',
+    'max_completion_tokens',
+  ]);
+
+  if (!contextWindow && !maxInputTokens && !maxOutputTokens) return null;
+
+  const meta: ModelTokenMetadata = {
+    contextWindow: contextWindow ?? maxInputTokens,
+    maxInputTokens,
+    maxOutputTokens,
+    source: 'api',
+  };
+  MODEL_TOKEN_METADATA.set(raw.id, meta);
+  return meta;
+}
+
+export function getModelTokenBudgets(model: CopilotModel): ModelTokenBudgets {
+  const discovered = MODEL_TOKEN_METADATA.get(model);
+  const contextWindow = discovered?.contextWindow ?? discovered?.maxInputTokens ?? inferContextWindow(model);
+  const source = discovered?.source ?? 'heuristic';
+
+  const rawChatBudget = Math.min(Math.floor(contextWindow * 0.62), contextWindow - 36_000);
+  const chatBudget = Math.max(MIN_CHAT_BUDGET, Math.min(MAX_CHAT_BUDGET, rawChatBudget));
+
+  const rawCompressBudget = Math.min(Math.floor(contextWindow * 0.78), contextWindow - 24_000);
+  const compressBudget = Math.max(
+    Math.max(chatBudget + 12_000, MIN_COMPRESS_BUDGET),
+    Math.min(MAX_COMPRESS_BUDGET, rawCompressBudget),
+  );
+
+  return {
+    contextWindow,
+    chatBudget,
+    compressBudget,
+    maxOutputTokens: discovered?.maxOutputTokens,
+    source,
+  };
+}
 
 /**
  * Rough token estimate: 1 token ≈ 4 characters of JSON-serialized content.
@@ -176,10 +278,32 @@ function stripBase64ForLog(messages: ChatMessage[]): object[] {
 }
 
 /**
+ * Pick the most relevant user instruction to keep when compressing context.
+ * In long-lived chats, preserving the very first prompt verbatim can anchor the
+ * model to stale intent even after the conversation has moved on.
+ */
+export function getCompressionAnchorUserText(messages: ChatMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== 'user' || typeof msg.content !== 'string') continue;
+    const text = msg.content.trim();
+    if (!text) continue;
+    if (text.startsWith('[SESSION SUMMARY')) continue;
+    return text;
+  }
+
+  const fallback = messages.find((m) => m.role === 'user' && typeof m.content === 'string');
+  return typeof fallback?.content === 'string' && fallback.content.trim()
+    ? fallback.content.trim()
+    : '(current user request not recoverable)';
+}
+
+/**
  * Ask the model to produce a dense summary of the conversation, then rebuild
  * the context window to a compact form:
  *   1. System messages (kept verbatim)
- *   2. First user message — the original task (preserved so the agent never forgets why it's here)
+ *   2. Latest meaningful user request — keeps the agent aligned with the most
+ *      recent user intent rather than over-anchoring to the very first prompt
  *   3. A synthetic user message with the [SESSION SUMMARY] noting N rounds were archived
  *   4. The last 8 messages verbatim (recent exchanges for recency context)
  *
@@ -199,6 +323,7 @@ async function summarizeAndCompress(
   // ── Ask the model to summarize ───────────────────────────────────────────
   let summaryText = '[Summary unavailable — model did not respond]';
   try {
+    const budgets = getModelTokenBudgets(model);
     const summaryRes = await fetch(COPILOT_API_URL, {
       method: 'POST',
       headers,
@@ -225,7 +350,7 @@ async function summarizeAndCompress(
           },
         ],
         stream: false,
-        ...modelApiParams(model, 0.2, 1800),
+        ...modelApiParams(model, 0.2, Math.min(budgets.maxOutputTokens ?? 1800, 1800)),
       }),
     });
     if (summaryRes.ok) {
@@ -265,12 +390,7 @@ async function summarizeAndCompress(
   //   [recent tail: last 8 msgs, vision stripped,
   //    trimmed so it starts from the last USER turn]   ← bridgeMsg is assistant, tail must start with user
   const systemMsgs = loop.filter((m) => m.role === 'system');
-  const firstUserMsg = loop.find(
-    (m) => m.role === 'user' && !Array.isArray(m.content),
-  );
-  const originalTask = firstUserMsg
-    ? (typeof firstUserMsg.content === 'string' ? firstUserMsg.content : JSON.stringify(firstUserMsg.content))
-    : '(original task not recoverable)';
+  const currentUserRequest = getCompressionAnchorUserText(loop);
 
   // Last 8 messages, vision stripped
   const rawTail = loop
@@ -299,8 +419,9 @@ async function summarizeAndCompress(
     role: 'user',
     content:
       `[SESSION SUMMARY — ${round} rounds archived to workspace log (cafezin/copilot-log.jsonl)]\n\n` +
-      `Original task: ${originalTask}\n\n` +
+      `Current user request: ${currentUserRequest}\n\n` +
       `Progress summary:\n${summaryText}\n\n` +
+      `Priority rule: follow the current user request above if any older goal in the summary conflicts with it.\n\n` +
       `---\nThe full turn-by-turn transcript is in the workspace log (read_file on ` +
       `cafezin/copilot-log.jsonl). Continuing from here:`,
   };
@@ -336,15 +457,22 @@ export function sanitizeLoop(msgs: ChatMessage[]): ChatMessage[] {
 
   // ── Pre-pass: strip UI-only fields that the Copilot API doesn't accept ──
   // `items` (MessageItem[]) is local display metadata stored in React state.
-  // `activeFile`, `attachedImage`, and `attachedFile` are also UI-only fields.
+  // `activeFile`, `attachedImage`, `attachedImages`, and `attachedFile` are also UI-only fields.
   // None of these must be sent to the API — some backends return 400 Bad Request
   // when they encounter unknown fields in message objects.
-  // `attachedImage` in particular can be a large base64 data URL; stripping it
+  // Attached base64 images in particular can be large; stripping them
   // prevents megabytes of data being re-sent on every subsequent API call.
   const stripped: ChatMessage[] = msgs.map((m) => {
     if (!m) return m;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { items: _items, activeFile: _af, attachedImage: _ai, attachedFile: _afile, ...clean } = m as any;
+    const {
+      items: _items,
+      activeFile: _af,
+      attachedImage: _ai,
+      attachedImages: _ais,
+      attachedFile: _afile,
+      ...clean
+    } = m as any;
     return clean as ChatMessage;
   });
   // Pass 1: resolve orphan tool messages by tracking active tool_call_ids
@@ -385,10 +513,10 @@ export function sanitizeLoop(msgs: ChatMessage[]): ChatMessage[] {
       continue;
     }
     if (prev && prev.role === m.role && m.role === 'user') {
-      // For consecutive user messages merge into one (avoids double-send artifacts)
-      const prevContent = typeof prev.content === 'string' ? prev.content : JSON.stringify(prev.content);
-      const curContent  = typeof m.content  === 'string' ? m.content  : JSON.stringify(m.content);
-      out[out.length - 1] = { ...m, content: `${prevContent}\n\n${curContent}` };
+      // Keep only the newest user turn. Concatenating stale unanswered prompts
+      // into the latest prompt makes the model treat old user intent as if it
+      // were re-sent, which is worse than dropping the invalid earlier turn.
+      out[out.length - 1] = m;
       continue;
     }
     out.push(m);
@@ -555,6 +683,21 @@ async function getCopilotSessionToken(): Promise<string> {
   return _tokenRefreshPending;
 }
 
+/** Convert raw Tauri/reqwest network errors to user-friendly messages. */
+function humanizeNetworkError(err: Error): Error {
+  const msg = err.message.toLowerCase();
+  if (
+    msg.includes('error sending request for url') ||
+    msg.includes('dns error') ||
+    msg.includes('connect error') ||
+    msg.includes('connection refused') ||
+    msg.includes('network is unreachable')
+  ) {
+    return new Error('Sem conexão com a Internet — verifique sua rede e tente novamente.');
+  }
+  return err;
+}
+
 /**
  * Stream a Copilot chat completion.
  * Calls the GitHub Copilot API with the provided messages and
@@ -585,7 +728,10 @@ export async function streamCopilotChat(
     // Capture the full request dump BEFORE sending (available even if request succeeds)
     _lastRequestDump = buildRequestDump(cleanMessages, resolvedModel, tools);
 
-    // Retry up to 3 times for transient 5xx errors with exponential backoff
+    // Retry up to 3 times for transient 5xx errors with exponential backoff.
+    // The inner try/catch also catches network-level errors (DNS failure, connection
+    // refused, Tauri reqwest errors) so a brief network blip gets a silent retry
+    // instead of surfacing immediately.
     const MAX_RETRIES = 3;
     let response: Awaited<ReturnType<typeof fetch>> | null = null;
     let lastError: Error | null = null;
@@ -619,28 +765,36 @@ export async function streamCopilotChat(
         );
         messagesForRequest = stripped;
       }
-      response = await fetch(COPILOT_API_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${sessionToken}`,
-          'Content-Type': 'application/json',
-          ...EDITOR_HEADERS,
-        },
-        signal,
-        body: JSON.stringify({
-          model: resolvedModel,
-          messages: messagesForRequest,
-          ...(tools ? { tools, tool_choice: 'auto' } : {}),
-          stream: true,
-          ...modelApiParams(resolvedModel, 0.7, 16384),
-        }),
-      });
-      if (response.ok || response.status < 500) break;
+      let r: Awaited<ReturnType<typeof fetch>>;
+      try {
+        r = await fetch(COPILOT_API_URL, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+            'Content-Type': 'application/json',
+            ...EDITOR_HEADERS,
+          },
+          signal,
+          body: JSON.stringify({
+            model: resolvedModel,
+            messages: messagesForRequest,
+            ...(tools ? { tools, tool_choice: 'auto' } : {}),
+            stream: true,
+            ...modelApiParams(resolvedModel, 0.7, 16384),
+          }),
+        });
+      } catch (fetchErr) {
+        if (fetchErr instanceof Error && (fetchErr.name === 'AbortError' || fetchErr.message === 'AbortError')) return;
+        lastError = humanizeNetworkError(fetchErr instanceof Error ? fetchErr : new Error(String(fetchErr)));
+        console.warn(`[Copilot] network error on attempt ${attempt + 1}:`, lastError.message);
+        continue; // silent retry
+      }
+      if (r.ok || r.status < 500) { response = r; break; }
       // 5xx — retry
-      const errorText = await response.text();
+      const errorText = await r.text();
       const cleanError = errorText.trim().startsWith('<')
-        ? `GitHub returned a ${response.status} (server error) — please retry in a moment`
-        : `Copilot API error ${response.status}: ${errorText}`;
+        ? `GitHub returned a ${r.status} (server error) — please retry in a moment`
+        : `Copilot API error ${r.status}: ${errorText}`;
       lastError = new Error(cleanError);
       response = null;
     }
@@ -717,7 +871,7 @@ export async function streamCopilotChat(
   } catch (err) {
     // AbortError = intentional interrupt by the user sending a new message — swallow silently
     if (err instanceof Error && (err.name === 'AbortError' || err.message === 'AbortError')) return;
-    onError(err instanceof Error ? err : new Error(String(err)));
+    onError(humanizeNetworkError(err instanceof Error ? err : new Error(String(err))));
   }
 }
 
@@ -833,6 +987,18 @@ interface RawModel {
   multiplier?: number;
   vendor?: string;
   capabilities?: { family?: string };
+  context_window?: number;
+  contextWindow?: number;
+  max_input_tokens?: number;
+  maxInputTokens?: number;
+  max_output_tokens?: number;
+  maxOutputTokens?: number;
+  input_token_limit?: number;
+  output_token_limit?: number;
+  prompt_token_limit?: number;
+  completion_token_limit?: number;
+  max_prompt_tokens?: number;
+  max_completion_tokens?: number;
 }
 
 /**
@@ -908,6 +1074,7 @@ export async function fetchCopilotModels(): Promise<CopilotModelInfo[]> {
       )
       .map((m) => {
         const mult = m.billing_multiplier ?? m.multiplier ?? 1;
+        const tokenMeta = registerModelTokenMetadata(m);
         return {
           id: m.id,
           name: m.name ?? m.id,
@@ -915,6 +1082,9 @@ export async function fetchCopilotModels(): Promise<CopilotModelInfo[]> {
           isPremium: mult > 1,
           vendor: m.vendor,
           supportsVision: modelSupportsVision(m.id),
+          ...(tokenMeta?.contextWindow ? { contextWindow: tokenMeta.contextWindow } : {}),
+          ...(tokenMeta?.maxInputTokens ? { maxInputTokens: tokenMeta.maxInputTokens } : {}),
+          ...(tokenMeta?.maxOutputTokens ? { maxOutputTokens: tokenMeta.maxOutputTokens } : {}),
         };
       });
 
@@ -1181,6 +1351,7 @@ export async function runCopilotAgent(
     // Messages appended within the loop are synthetic and already clean.
     const loop = sanitizeLoop([...messages]);
     const MAX_ROUNDS = 100;
+    const budgets = getModelTokenBudgets(resolvedModel);
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       // Early-exit if the caller aborted (user sent a new message mid-run)
@@ -1208,19 +1379,27 @@ export async function runCopilotAgent(
         if (attempt > 0) await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
         // Update the diagnostic dump before every attempt so it reflects the live request.
         _lastRequestDump = buildRequestDump(loopForRequest, resolvedModel, tools);
-        const r = await fetch(COPILOT_API_URL, {
-          method: 'POST',
-          headers,
-          signal,
-          body: JSON.stringify({
-            model: resolvedModel,
-            messages: loopForRequest,
-            tools,
-            tool_choice: 'auto',
-            stream: true,
-            ...modelApiParams(resolvedModel, 0.3, 16000),
-          }),
-        });
+        let r: Awaited<ReturnType<typeof fetch>>;
+        try {
+          r = await fetch(COPILOT_API_URL, {
+            method: 'POST',
+            headers,
+            signal,
+            body: JSON.stringify({
+              model: resolvedModel,
+              messages: loopForRequest,
+              tools,
+              tool_choice: 'auto',
+              stream: true,
+              ...modelApiParams(resolvedModel, 0.3, 16000),
+            }),
+          });
+        } catch (fetchErr) {
+          if (fetchErr instanceof Error && (fetchErr.name === 'AbortError' || fetchErr.message === 'AbortError')) return;
+          lastFetchError = humanizeNetworkError(fetchErr instanceof Error ? fetchErr : new Error(String(fetchErr)));
+          console.warn(`[agent] network error on attempt ${attempt + 1}:`, lastFetchError.message);
+          continue; // silent retry
+        }
         if (r.ok) { res = r; break; }
         if (r.status === 400) {
           // 400 can mean the vision user message (base64 image) is too large or
@@ -1514,7 +1693,7 @@ export async function runCopilotAgent(
       const estimatedTok = estimateTokens(loop);
       console.debug('[agent] estimated tokens after round', round, ':', estimatedTok);
 
-      if (estimatedTok > CONTEXT_TOKEN_LIMIT) {
+      if (estimatedTok > budgets.compressBudget) {
         // Notify the user (shown inline in the chat stream)
         onChunk('\n\n_[Context approaching limit — summarizing prior session and continuing...]_\n\n');
         const compressed = await summarizeAndCompress(
@@ -1654,6 +1833,6 @@ export async function runCopilotAgent(
   } catch (err) {
     // AbortError = intentional interrupt by the user sending a new message — swallow silently
     if (err instanceof Error && (err.name === 'AbortError' || err.message === 'AbortError')) return;
-    onError(err instanceof Error ? err : new Error(String(err)));
+    onError(humanizeNetworkError(err instanceof Error ? err : new Error(String(err))));
   }
 }

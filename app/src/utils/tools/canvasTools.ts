@@ -25,8 +25,18 @@ export const CANVAS_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'list_canvas_shapes',
       description:
-        "List all shapes currently on the open canvas. Returns the canvas filename first (so you can verify you are editing the correct file), then each shape's short ID (last 10 chars), type, position, size, color, fill, and text content. Arrow shapes include their start/end coordinates. Call this before update, move, or delete operations to get valid shape IDs.",
-      parameters: { type: 'object', properties: {}, required: [] },
+        'List all shapes on a canvas. Pass expected_file to inspect a specific .tldr.json file even if it is not the active tab — the tool will open/switch to it if needed. ' +
+        "Returns the canvas filename first (so you can verify you are editing the correct file), then each shape's short ID (last 10 chars), type, position, size, color, fill, and text content. Arrow shapes include their start/end coordinates. Call this before update, move, or delete operations to get valid shape IDs.",
+      parameters: {
+        type: 'object',
+        properties: {
+          expected_file: {
+            type: 'string',
+            description: 'Optional relative workspace path of the canvas file to inspect, e.g. "aulas/Aula-02.tldr.json". The tool will switch to that tab if needed.',
+          },
+        },
+        required: [],
+      },
     },
   },
   {
@@ -167,11 +177,26 @@ export const executeCanvasTools: DomainExecutor = async (name, args, ctx) => {
 
     // ── list_canvas_shapes ──────────────────────────────────────────────
     case 'list_canvas_shapes': {
-      const regEditor = activeFile ? getCanvasEditor(activeFile) : undefined;
-      const editor = regEditor ?? canvasEditor.current;
-      if (!editor) return 'No canvas is currently open. Ask the user to open a .tldr.json canvas file first.';
-      // Always prefix with the open file so the AI can verify it is editing the right file.
-      const fileHeader = activeFile ? `Canvas file: ${activeFile}` : '';
+      const expectedFile = String(args.expected_file ?? '').trim();
+      if (expectedFile) {
+        try {
+          await ensureCanvasTabOpen(expectedFile);
+        } catch (e) {
+          return `Error opening canvas tab "${expectedFile}": ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+      const targetFile = expectedFile || activeFile || '';
+      const regEditor = targetFile ? getCanvasEditor(targetFile) : undefined;
+      const editor = regEditor ?? (!targetFile ? canvasEditor.current : null);
+      if (!editor) {
+        if (expectedFile) {
+          return `Error: canvas editor for "${expectedFile}" is not mounted. ` +
+            'Make sure the file exists and was created as a canvas, then try again.';
+        }
+        return 'No canvas is currently open. Ask the user to open a .tldr.json canvas file first.';
+      }
+      // Always prefix with the canvas file so the AI can verify it is editing the right file.
+      const fileHeader = targetFile ? `Canvas file: ${targetFile}` : '';
       const summary = summarizeCanvas(editor);
       return fileHeader ? `${fileHeader}\n${summary}` : summary;
     }

@@ -17,7 +17,7 @@ import {
   listGitAccountLabels,
   type SyncDeviceFlowState, type SyncedWorkspace,
 } from '../services/syncConfig'
-import type { Workspace, AppSettings, SidebarButton, VercelWorkspaceConfig } from '../types';
+import type { Workspace, AppSettings, SidebarButton, VercelWorkspaceConfig, WorkspaceFeatureConfig } from '../types';
 import { saveApiSecret } from '../services/apiSecrets';
 import './SettingsModal.css';
 
@@ -176,6 +176,7 @@ export default function SettingsModal({
   const [wsSidebarButtons, setWsSidebarButtons] = useState<SidebarButton[]>([]);
   const [wsInboxFile, setWsInboxFile] = useState('');
   const [wsGitBranch, setWsGitBranch] = useState('');
+  const [wsMarkdownMermaid, setWsMarkdownMermaid] = useState(false);
   const [wsVercelToken, setWsVercelToken] = useState('');
   const [wsVercelTeamId, setWsVercelTeamId] = useState('');
   const [wsVercelDemoHubProject, setWsVercelDemoHubProject] = useState('');
@@ -252,6 +253,7 @@ export default function SettingsModal({
     setWsSidebarButtons(workspace.config.sidebarButtons ?? []);
     setWsInboxFile(workspace.config.inboxFile ?? '');
     setWsGitBranch(workspace.config.gitBranch ?? '');
+    setWsMarkdownMermaid(workspace.config.features?.markdown?.mermaid ?? false);
     setWsVercelToken(workspace.config.vercelConfig?.token ?? '');
     setWsVercelTeamId(workspace.config.vercelConfig?.teamId ?? '');
     setWsVercelDemoHubProject(workspace.config.vercelConfig?.demoHub?.projectName ?? '');
@@ -261,6 +263,31 @@ export default function SettingsModal({
 
   function setApp<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
     onAppSettingsChange({ ...appSettings, [key]: value });
+  }
+
+  function buildWorkspaceFeatures(existing?: WorkspaceFeatureConfig): WorkspaceFeatureConfig | undefined {
+    const nextFeatures: WorkspaceFeatureConfig = {
+      ...existing,
+      markdown: wsMarkdownMermaid
+        ? { ...existing?.markdown, mermaid: true }
+        : existing?.markdown
+          ? Object.fromEntries(
+              Object.entries(existing.markdown).filter(([key]) => key !== 'mermaid'),
+            ) as WorkspaceFeatureConfig['markdown']
+          : undefined,
+    };
+
+    if (nextFeatures.markdown && Object.keys(nextFeatures.markdown).length === 0) {
+      delete nextFeatures.markdown;
+    }
+    if (nextFeatures.canvas && Object.keys(nextFeatures.canvas).length === 0) {
+      delete nextFeatures.canvas;
+    }
+    if (nextFeatures.code && Object.keys(nextFeatures.code).length === 0) {
+      delete nextFeatures.code;
+    }
+
+    return Object.keys(nextFeatures).length > 0 ? nextFeatures : undefined;
   }
 
   const { t } = useTranslation();
@@ -291,6 +318,7 @@ export default function SettingsModal({
           sidebarButtons: wsSidebarButtons.length > 0 ? wsSidebarButtons : undefined,
           inboxFile: wsInboxFile.trim() || undefined,
           gitBranch: wsGitBranch.trim() || undefined,
+          features: buildWorkspaceFeatures(workspace.config.features),
           vercelConfig: (wsVercelToken.trim() || wsVercelTeamId.trim() || wsVercelDemoHubProject.trim())
             ? {
                 token: wsVercelToken.trim() || undefined,
@@ -750,6 +778,25 @@ export default function SettingsModal({
                     placeholder="Descreva o projeto, estilo de código ou qualquer contexto que a IA deva conhecer…"
                     rows={10}
                   />
+                </div>
+              </section>
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">Capacidades por workspace</h3>
+
+                <div className="sm-row">
+                  <div className="sm-row-label">
+                    <span>{t('settings.workspaceMarkdownMermaidLabel')}</span>
+                    <span className="sm-row-desc">{t('settings.workspaceMarkdownMermaidDesc')}</span>
+                  </div>
+                  <label className="sm-toggle">
+                    <input
+                      type="checkbox"
+                      checked={wsMarkdownMermaid}
+                      onChange={(e) => setWsMarkdownMermaid(e.target.checked)}
+                    />
+                    <span className="sm-toggle-track" />
+                  </label>
                 </div>
               </section>
 
