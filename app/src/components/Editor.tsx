@@ -15,7 +15,8 @@ import { cpp } from '@codemirror/lang-cpp';
 import { php } from '@codemirror/lang-php';
 import { sql } from '@codemirror/lang-sql';
 import { vue } from '@codemirror/lang-vue';
-import { StreamLanguage } from '@codemirror/language';
+import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import { shell } from '@codemirror/legacy-modes/mode/shell';
 import { toml } from '@codemirror/legacy-modes/mode/toml';
 import { ruby } from '@codemirror/legacy-modes/mode/ruby';
@@ -141,6 +142,102 @@ function makeAIMarkField(texts: string[]) {
     provide: (f) => EditorView.decorations.from(f),
   });
 }
+
+// ── Cream light syntax highlight style ───────────────────────────────────────
+const creamHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword,                        color: '#2563b0', fontWeight: '500' },
+  { tag: tags.controlKeyword,                 color: '#7340c8' },
+  { tag: [tags.string, tags.special(tags.string)], color: '#1a7a3c' },
+  { tag: tags.regexp,                         color: '#bf3c3c' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: '#8a7060', fontStyle: 'italic' },
+  { tag: [tags.number, tags.integer, tags.float], color: '#b97820' },
+  { tag: tags.bool,                           color: '#b97820', fontWeight: '500' },
+  { tag: tags.null,                           color: '#b97820' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#7340c8' },
+  { tag: [tags.typeName, tags.namespace], color: '#b97820' },
+  { tag: tags.className,                      color: '#b97820', fontWeight: '600' },
+  { tag: tags.definition(tags.variableName),  color: '#1f9e8a' },
+  { tag: tags.definition(tags.propertyName),  color: '#1f9e8a' },
+  { tag: tags.operator,                       color: '#555555' },
+  { tag: tags.punctuation,                    color: '#888880' },
+  { tag: tags.propertyName,                   color: '#2d2010' },
+  { tag: tags.attributeName,                  color: '#2563b0' },
+  { tag: tags.attributeValue,                 color: '#1a7a3c' },
+  { tag: [tags.url, tags.link],               color: '#1f9e8a', textDecoration: 'underline' },
+  { tag: tags.tagName,                        color: '#bf3c3c', fontWeight: '500' },
+  { tag: tags.angleBracket,                   color: '#888880' },
+  { tag: tags.heading,                        color: '#1a1108', fontWeight: 'bold' },
+  { tag: tags.emphasis,                       fontStyle: 'italic', color: '#6b5c47' },
+  { tag: tags.strong,                         fontWeight: '700', color: '#2d2010' },
+  { tag: tags.strikethrough,                  textDecoration: 'line-through', color: '#8a7060' },
+  { tag: tags.meta,                           color: '#8a7060' },
+  { tag: tags.invalid,                        color: '#bf3c3c', textDecoration: 'underline wavy' },
+  { tag: tags.deleted,                        color: '#bf3c3c', textDecoration: 'line-through' },
+  { tag: tags.inserted,                       color: '#1a7a3c' },
+  { tag: tags.changed,                        color: '#b97820' },
+  { tag: tags.self,                           color: '#2563b0', fontStyle: 'italic' },
+  { tag: tags.atom,                           color: '#b97820' },
+  { tag: tags.annotation,                     color: '#7340c8' },
+]);
+
+// ── Cream editor UI theme (backgrounds, gutters, panels) ──────────────────────
+const creamEditorTheme = EditorView.theme({
+  '&': {
+    background: 'var(--bg)',
+    color: 'var(--text)',
+  },
+  '.cm-gutters': {
+    background: 'var(--surface)',
+    color: 'var(--text-dim)',
+    borderRight: '1px solid var(--border)',
+  },
+  '.cm-activeLineGutter': {
+    background: 'var(--surface2)',
+  },
+  '.cm-activeLine': {
+    background: 'rgba(0, 0, 0, 0.03)',
+  },
+  '.cm-searchMatch': {
+    background: 'rgba(185, 120, 32, 0.22)',
+    outline: '1px solid rgba(185, 120, 32, 0.5)',
+  },
+  '.cm-searchMatch.cm-searchMatch-selected': {
+    background: 'rgba(31, 158, 138, 0.28)',
+  },
+  '.cm-selectionMatch': {
+    background: 'rgba(31, 158, 138, 0.12)',
+  },
+  '.cm-panels': {
+    background: 'var(--surface2)',
+    color: 'var(--text)',
+  },
+  '.cm-panels.cm-panels-top': {
+    borderBottom: '1px solid var(--border)',
+  },
+  '.cm-tooltip': {
+    background: 'var(--surface)',
+    border: '1px solid var(--border2)',
+    color: 'var(--text)',
+  },
+  '.cm-completionLabel': {
+    color: 'var(--text)',
+  },
+  '.cm-completionDetail': {
+    color: 'var(--text-muted)',
+  },
+  '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+    background: 'var(--accent-bg)',
+    color: 'var(--accent)',
+  },
+  '.cm-foldPlaceholder': {
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--text-muted)',
+  },
+}, { dark: false });
+
+// Bundled as a single extension for use as theme prop
+const creamTheme = [creamEditorTheme, syntaxHighlighting(creamHighlightStyle, { fallback: true })];
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
@@ -543,7 +640,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
           value={content}
           onChange={onChange}
           extensions={extensions}
-          theme={isDark ? oneDark : 'light'}
+          theme={isDark ? oneDark : creamTheme}
           height="100%"
           onCreateEditor={(view) => { viewRef.current = view; }}
           basicSetup={{

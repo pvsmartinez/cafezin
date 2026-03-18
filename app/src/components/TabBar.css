@@ -119,12 +119,12 @@
 }
 
 .tab-close:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface2);
   color: var(--text) !important;
 }
 
 .tab-close:active {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--border2);
 }
 
 .tab-close-all {
@@ -271,7 +271,7 @@
 
 .tab-overflow-item .tab-close:hover {
   color: var(--text) !important;
-  background: rgba(255,255,255,0.08);
+  background: var(--surface2);
 }
 
 /* ── Drag-to-reorder ─────────────────────────────────── */
