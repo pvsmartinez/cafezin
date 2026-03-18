@@ -67,6 +67,12 @@ export interface UseAIStreamParams {
    * than potentially stale disk content.
    */
   activeFileContent?: string;
+  /**
+   * When false, all AI calls are blocked at the hook level (defence-in-depth,
+   * even if the UI gate already handles it). Defaults to true when omitted so
+   * existing callers are unaffected.
+   */
+  canUseAI?: boolean;
 }
 
 export function buildRetryMessages(
@@ -137,6 +143,7 @@ export function useAIStream({
   onNotAuthenticated,
   agentId = 'agent-1',
   activeFileContent,
+  canUseAI = true,
 }: UseAIStreamParams) {
   const [isStreaming, setIsStreamingState] = useState(false);
   const [agentExhausted, setAgentExhausted] = useState(false);
@@ -398,7 +405,13 @@ export function useAIStream({
     pendingFileRefVal?: { name: string; content: string } | null,
     input?: string,
     clearInputAndAttachments?: () => void,
-  ): Promise<void> {
+  ): Promise<void> {    // Defence-in-depth: block AI calls when the account is not entitled.
+    // The UI gate (PremiumGate component) is the primary barrier; this is the
+    // safety net in case the gate is bypassed or the component is used directly.
+    if (!canUseAI) {
+      setError('Recurso disponível apenas no plano Premium. Acesse cafezin.app/premium para fazer upgrade.');
+      return;
+    }
     const textToSend = (textOverride ?? input ?? '').trim();
     if (!textToSend && !imageOverride && (!pendingImagesRef || pendingImagesRef.length === 0)) {
       if (isStreaming) handleStop();

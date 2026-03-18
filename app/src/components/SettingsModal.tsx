@@ -19,6 +19,7 @@ import {
 } from '../services/syncConfig'
 import type { Workspace, AppSettings, SidebarButton, VercelWorkspaceConfig, WorkspaceFeatureConfig } from '../types';
 import { saveApiSecret } from '../services/apiSecrets';
+import { useAccountState } from '../hooks/useAccountState';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -32,7 +33,7 @@ interface SettingsModalProps {
   initialTab?: Tab;
 }
 
-type Tab = 'general' | 'workspace' | 'sync';
+type Tab = 'general' | 'workspace' | 'sync' | 'account';
 
 const FONT_OPTIONS = [
   { label: 'Pequena (13px)', value: 13 },
@@ -292,6 +293,9 @@ export default function SettingsModal({
 
   const { t } = useTranslation();
 
+  // ── Account state (premium entitlement) ──────────────────────────────────
+  const { account, loading: accountLoading, refresh: refreshAccount } = useAccountState();
+
   const autosaveLabels: Record<number, string> = {
     500:  t('settings.autosaveFast'),
     1000: t('settings.autosaveNormal'),
@@ -377,6 +381,10 @@ export default function SettingsModal({
             className={`sm-tab ${tab === 'sync' ? 'active' : ''}`}
             onClick={() => setTab('sync')}
           >{t('settings.tabSync')}</button>
+          <button
+            className={`sm-tab ${tab === 'account' ? 'active' : ''}`}
+            onClick={() => setTab('account')}
+          >Conta</button>
         </div>
 
         {/* Body */}
@@ -1143,6 +1151,112 @@ export default function SettingsModal({
                   {syncError && <p className="sm-sync-error" style={{ marginTop: 8 }}>{syncError}</p>}
                 </section>
               )}
+
+            </div>
+          )}
+
+          {/* ── Account tab ── */}
+          {tab === 'account' && (
+            <div className="sm-section-list">
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">Plano</h3>
+
+                {accountLoading ? (
+                  <p className="sm-section-desc">Verificando plano…</p>
+                ) : (
+                  <>
+                    <div className="sm-row">
+                      <div className="sm-row-label">
+                        <span>Status atual</span>
+                        <span className="sm-row-desc">
+                          {account.authenticated ? account.plan === 'premium' ? 'Premium ativo' : 'Plano gratuito' : 'Não autenticado'}
+                        </span>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          background: account.isPremium ? 'rgba(var(--yellow-rgb,212,169,106),0.15)' : 'var(--surface2)',
+                          color: account.isPremium ? 'var(--yellow, #d4a96a)' : 'var(--text-muted)',
+                          border: `1px solid ${account.isPremium ? 'rgba(var(--yellow-rgb,212,169,106),0.35)' : 'var(--border)'}`,
+                        }}
+                      >
+                        {account.isPremium ? 'Premium' : 'Free'}
+                      </span>
+                    </div>
+
+                    {account.isPremium && account.currentPeriodEnd && (
+                      <div className="sm-row">
+                        <div className="sm-row-label">
+                          <span>Renova em</span>
+                          <span className="sm-row-desc">
+                            {new Date(account.currentPeriodEnd).toLocaleDateString('pt-BR')}
+                            {account.cancelAtPeriodEnd && ' (cancelamento agendado)'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="sm-row">
+                      <button
+                        className="sm-save-btn"
+                        style={{ marginLeft: 'auto' }}
+                        onClick={() => void refreshAccount()}
+                        disabled={accountLoading}
+                      >
+                        Atualizar status
+                      </button>
+                    </div>
+
+                    {!account.isPremium && (
+                      <div style={{ marginTop: 12 }}>
+                        <a
+                          href="https://cafezin.app/premium"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="sm-save-btn"
+                          style={{ display: 'inline-block', textDecoration: 'none', cursor: 'pointer' }}
+                        >
+                          Ver planos Premium ↗
+                        </a>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">Suas chaves de API (BYOK)</h3>
+                <p className="sm-section-desc">
+                  Com o plano Premium, você usa sua própria chave de API.
+                  Nenhum custo extra de uso nos pagamentos do Cafezin.
+                  Configure sua chave na aba <strong>Geral</strong> → Assistente de IA.
+                  Pegue sua chave no provedor:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                  {[
+                    { name: 'GitHub Copilot', url: 'https://github.com/settings/copilot' },
+                    { name: 'OpenAI',         url: 'https://platform.openai.com/api-keys' },
+                    { name: 'Anthropic',      url: 'https://console.anthropic.com/settings/keys' },
+                    { name: 'Groq',           url: 'https://console.groq.com/keys' },
+                  ].map((p) => (
+                    <a
+                      key={p.name}
+                      href={p.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: 'var(--accent)', fontSize: 13 }}
+                    >
+                      {p.name} ↗
+                    </a>
+                  ))}
+                </div>
+              </section>
 
             </div>
           )}

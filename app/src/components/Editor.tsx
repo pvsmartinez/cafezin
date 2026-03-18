@@ -144,6 +144,12 @@ function makeAIMarkField(texts: string[]) {
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
+  const cursorColor    = isDark ? '#4ec9b0' : '#1a7a6d';
+  const selectionBg    = isDark ? '#3b3026' : 'rgba(31, 158, 138, 0.15)';
+  const aiMarkBg       = isDark ? 'rgba(212, 169, 106, 0.15)'  : 'rgba(180, 120, 60, 0.12)';
+  const aiMarkBorderB  = isDark ? 'rgba(212, 169, 106, 0.7)'   : 'rgba(160, 100, 40, 0.55)';
+  const aiMarkBorderS  = isDark ? 'rgba(212, 169, 106, 0.3)'   : 'rgba(160, 100, 40, 0.25)';
+  const aiMarkShadow   = isDark ? 'rgba(212, 169, 106, 0.1)'   : 'rgba(160, 100, 40, 0.08)';
   return EditorView.theme({
     '&': {
       height: '100%',
@@ -160,7 +166,7 @@ function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
       maxWidth: codeMode ? 'none' : '720px',
       margin: codeMode ? '0' : '0 auto',
       padding: codeMode ? '24px 16px' : '48px 24px',
-      caretColor: '#4ec9b0',
+      caretColor: cursorColor,
       lineHeight: codeMode ? '1.55' : '1.75',
     },
     '.cm-line': {
@@ -170,20 +176,20 @@ function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
       outline: 'none',
     },
     '.cm-cursor': {
-      borderLeftColor: '#4ec9b0',
+      borderLeftColor: cursorColor,
       borderLeftWidth: '2px',
     },
     '.cm-selectionBackground': {
-      background: '#3b3026 !important',
+      background: `${selectionBg} !important`,
     },
     '.cm-ai-mark': {
-      backgroundColor: 'rgba(212, 169, 106, 0.15)',
-      borderBottom: '2px solid rgba(212, 169, 106, 0.7)',
-      borderTop: '1px solid rgba(212, 169, 106, 0.3)',
-      borderLeft: '1px solid rgba(212, 169, 106, 0.3)',
-      borderRight: '1px solid rgba(212, 169, 106, 0.3)',
+      backgroundColor: aiMarkBg,
+      borderBottom: `2px solid ${aiMarkBorderB}`,
+      borderTop:    `1px solid ${aiMarkBorderS}`,
+      borderLeft:   `1px solid ${aiMarkBorderS}`,
+      borderRight:  `1px solid ${aiMarkBorderS}`,
       borderRadius: '2px',
-      boxShadow: '0 0 0 1px rgba(212, 169, 106, 0.1)',
+      boxShadow: `0 0 0 1px ${aiMarkShadow}`,
     },
   }, { dark: isDark });
 }

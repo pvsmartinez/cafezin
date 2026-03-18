@@ -33,8 +33,10 @@ import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types
 import type { Editor as TldrawEditor } from 'tldraw';
 
 import { AIAuthScreen } from './ai/AIAuthScreen';
+import { PremiumGate } from './ai/PremiumGate';
 import AgentSession from './AgentSession';
 import type { AgentSessionHandle } from './AgentSession';
+import { useAccountState } from '../hooks/useAccountState';
 
 import './AIPanel.css';
 
@@ -179,6 +181,9 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   pendingVoiceMemos,
   onVoiceMemoHandled,
 }, ref) {
+
+  // ── Account / premium entitlement ─────────────────────────────────────────
+  const { account, loading: accountLoading, refresh: refreshAccount } = useAccountState();
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const [authStatus, setAuthStatus] = useState<'checking' | 'unauthenticated' | 'connecting' | 'authenticated'>('checking');
@@ -345,6 +350,20 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
   // ── Early returns ─────────────────────────────────────────────────────────
   if (!isOpen) return null;
+
+  // Premium gate: block AI access for free/unauthenticated Cafezin accounts.
+  // Shown before the provider-auth check so all AI routes are gated uniformly.
+  if (!accountLoading && !account.canUseAI) {
+    return (
+      <PremiumGate
+        account={account}
+        loading={accountLoading}
+        style={style}
+        onRefresh={refreshAccount}
+      />
+    );
+  }
+
   if (authStatus === 'unauthenticated' || authStatus === 'connecting') {
     return (
       <AIAuthScreen

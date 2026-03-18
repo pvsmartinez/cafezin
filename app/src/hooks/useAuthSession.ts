@@ -22,6 +22,7 @@ import {
   listSyncedWorkspaces,
   type SyncedWorkspace,
 } from '../services/syncConfig';
+import { clearAccountCache } from '../services/accountService';
 
 export interface UseAuthSessionOptions {
   /**
@@ -106,6 +107,7 @@ export function useAuthSession(options?: UseAuthSessionOptions): AuthSessionStat
             clearTimeout(oauthTimeoutRef.current);
             oauthTimeoutRef.current = null;
           }
+          clearAccountCache(); // force fresh entitlement fetch after OAuth
           await onAuthSuccessRef.current?.();
         }
       } catch (_err) {
@@ -146,6 +148,7 @@ export function useAuthSession(options?: UseAuthSessionOptions): AuthSessionStat
         await signUp(email, password);
       }
       setIsLoggedIn(true);
+      clearAccountCache(); // force fresh entitlement fetch after email login
       await onAuthSuccessRef.current?.();
       return undefined;
     } catch (err) {

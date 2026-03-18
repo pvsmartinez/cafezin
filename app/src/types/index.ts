@@ -394,3 +394,38 @@ export const FALLBACK_MODELS: CopilotModelInfo[] = [
   { id: 'claude-opus-4-6',      name: 'Claude Opus 4.6',      multiplier: 3,    isPremium: true,  vendor: 'Anthropic', supportsVision: true  },
 ];
 
+// ── Account / Subscription / Entitlements ─────────────────────────────────────
+// These types mirror the Supabase get_my_account_state() RPC response.
+
+export type SubscriptionPlan = 'free' | 'premium';
+export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'inactive';
+
+/** Canonical account state fetched from Supabase and cached locally. */
+export interface AccountState {
+  /** True when the user is authenticated with Cafezin (Supabase). */
+  authenticated: boolean;
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+  /** True when plan = 'premium' and status is active/trialing and not expired. */
+  isPremium: boolean;
+  /**
+   * Master capability flag — always check this before any AI call.
+   * Currently equivalent to isPremium; kept separate so we can add trial/grace
+   * logic without touching every callsite.
+   */
+  canUseAI: boolean;
+  /** ISO timestamp of the end of the current billing period, or null. */
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  trialEnd?: string | null;
+}
+
+/** Unauthenticated / free default — safe to use as the initial state. */
+export const FREE_ACCOUNT_STATE: AccountState = {
+  authenticated: false,
+  plan: 'free',
+  status: 'inactive',
+  isPremium: false,
+  canUseAI: false,
+};
+

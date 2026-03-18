@@ -27,6 +27,7 @@ import { saveApiSecret } from '../../services/apiSecrets';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Workspace } from '../../types';
 import { AIMarkdownText } from '../ai/AIMarkdownText';
+import { useAccountState } from '../../hooks/useAccountState';
 
 const contentToString = (content: string | ContentPart[]): string =>
   typeof content === 'string'
@@ -147,6 +148,7 @@ export default function MobileCopilot({
   );
 
   // ── Auth ─────────────────────────────────────────────────────────────────
+  const { account, loading: accountLoading, refresh: refreshAccount } = useAccountState();
   const [authStatus, setAuthStatus] = useState<'checking' | 'unauthenticated' | 'connecting' | 'authenticated'>(
     () => isAIConfigured() ? 'authenticated' : 'unauthenticated',
   );
@@ -394,6 +396,43 @@ export default function MobileCopilot({
   }
 
   // ── Auth screen ──────────────────────────────────────────────────────────
+  // Premium gate: block AI for free/unauthenticated accounts before provider auth.
+  if (!accountLoading && !account.canUseAI) {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex items-center gap-2 px-4 pt-3 pb-[10px] border-b border-app-border bg-surface shrink-0">
+          <span className="flex-1 text-[17px] font-semibold truncate">Copilot</span>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 py-8 text-center">
+          <div className="opacity-40 text-muted" style={{ fontSize: 32 }}>&#9733;</div>
+          <div className="text-lg font-semibold">
+            {account.authenticated ? 'Recurso do plano Premium' : 'IA disponível no plano Premium'}
+          </div>
+          <div className="text-sm text-muted max-w-[260px] leading-[1.5]">
+            {account.authenticated
+              ? 'Faça upgrade para Premium e use sua própria chave de API sem custo extra de uso.'
+              : 'Crie sua conta Premium no site para usar IA no Cafezin.'}
+          </div>
+          <a
+            href="https://cafezin.app/premium"
+            target="_blank"
+            rel="noreferrer"
+            className="btn-primary"
+            style={{ textDecoration: 'none' }}
+          >
+            Ver planos ↗
+          </a>
+          <button
+            className="text-sm text-muted"
+            onClick={() => void refreshAccount()}
+            disabled={accountLoading}
+          >
+            {accountLoading ? 'Verificando…' : 'Já sou Premium — atualizar'}
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (authStatus === 'unauthenticated' || authStatus === 'connecting') {
     return (
       <div className="flex-1 flex flex-col overflow-hidden">

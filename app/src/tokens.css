@@ -159,6 +159,10 @@
   /* Shadow */
   --shadow:        rgba(0, 0, 0, 0.40);
 
+  /* ── Surface overlays (used as fallback in AIPanel, etc.) ── */
+  --bg2:           rgba(255, 255, 255, 0.04);   /* subtle elevated surface  */
+  --bg3:           rgba(255, 255, 255, 0.07);   /* more elevated surface    */
+
   /* ── Aliases — legacy / alternate naming conventions ── */
   --font-sans:      var(--font-ui);
   --surface-2:      var(--surface2);
@@ -246,6 +250,10 @@ body.theme-light {
 
   /* Shadow */
   --shadow:        rgba(35, 22, 8, 0.22);
+
+  /* Surface overlays — inverted for light */
+  --bg2:           rgba(0, 0, 0, 0.04);
+  --bg3:           rgba(0, 0, 0, 0.07);
 
   --text-rgb:  56, 44, 28;   /* rgb() of --pal-text, keep in sync */
 }

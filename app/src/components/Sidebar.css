@@ -58,7 +58,7 @@
 }
 .sidebar-tab:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface2);
 }
 .sidebar-tab.active {
   color: var(--accent);
@@ -1302,7 +1302,7 @@
   }
   .sidebar-tab svg { width: 18px; height: 18px; }
   .sidebar-tab:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface2);
     color: var(--text);
   }
   .sidebar-tab.active {
@@ -1347,7 +1347,7 @@
   }
   .sidebar-btn-icon svg { width: 18px; height: 18px; }
   .sidebar-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface2);
   }
   .sidebar-btn-export,
   .sidebar-btn-sync {
