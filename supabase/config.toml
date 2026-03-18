@@ -49,3 +49,6 @@ policy = "oneshot"
 
 [analytics]
 enabled = false
+
+[functions.admin]
+verify_jwt = false
