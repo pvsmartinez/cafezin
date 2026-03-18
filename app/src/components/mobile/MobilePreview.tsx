@@ -35,7 +35,7 @@ function SlideViewer({ workspacePath, filePath }: { workspacePath: string; fileP
 
   if (loading) {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-[#0d0f11]">
+      <div className="mb-preview-stage h-full flex flex-col items-center justify-center">
         <div className="spinner" />
       </div>
     );
@@ -43,7 +43,7 @@ function SlideViewer({ workspacePath, filePath }: { workspacePath: string; fileP
 
   if (urls.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-[#0d0f11]">
+      <div className="mb-preview-stage h-full flex flex-col items-center justify-center">
         <div className="flex flex-col items-center justify-center gap-4 px-6 py-8 text-center">
           <div className="text-sm text-muted max-w-[280px] leading-[1.5]">
             Sem slides gerados. Abra este canvas no desktop para gerar as imagens.
@@ -54,22 +54,22 @@ function SlideViewer({ workspacePath, filePath }: { workspacePath: string; fileP
   }
 
   return (
-    <div className="h-full flex flex-col items-center justify-center bg-[#0d0f11] relative">
+    <div className="mb-preview-stage h-full flex flex-col items-center justify-center relative">
       <img
         key={urls[idx]}
         src={urls[idx]}
         alt={`Slide ${idx + 1}`}
         className="w-full max-h-[calc(100%-60px)] object-contain"
       />
-      <div className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-4 px-4 py-3 bg-black/40">
+      <div className="mb-preview-controls absolute bottom-0 inset-x-0 flex items-center justify-center gap-4 px-4 py-3">
         <button
-          className="bg-white/[0.12] border-0 rounded-lg text-white text-lg w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-30 active:opacity-50"
+          className="mb-preview-button border-0 rounded-lg text-lg w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-30 active:opacity-50"
           disabled={idx === 0}
           onClick={() => setIdx(i => i - 1)}
         >‹</button>
-        <span className="text-[13px] text-white/60 min-w-[60px] text-center">{idx + 1} / {urls.length}</span>
+        <span className="mb-preview-counter text-[13px] min-w-[60px] text-center">{idx + 1} / {urls.length}</span>
         <button
-          className="bg-white/[0.12] border-0 rounded-lg text-white text-lg w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-30 active:opacity-50"
+          className="mb-preview-button border-0 rounded-lg text-lg w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-30 active:opacity-50"
           disabled={idx === urls.length - 1}
           onClick={() => setIdx(i => i + 1)}
         >›</button>

@@ -1,5 +1,5 @@
 /** What kind of file this is — drives which viewer/editor is shown. */
-export type FileKind = 'markdown' | 'pdf' | 'video' | 'audio' | 'image' | 'canvas' | 'html' | 'code' | 'unknown';
+export type FileKind = 'markdown' | 'pdf' | 'video' | 'audio' | 'image' | 'canvas' | 'html' | 'code' | 'spreadsheet' | 'unknown';
 
 export interface FileTypeInfo {
   kind: FileKind;
@@ -43,7 +43,7 @@ const CODE_EXTENSIONS: Record<string, string> = {
   ps1: 'powershell',
   // Diff / plain text
   diff: 'diff', patch: 'diff',
-  txt: '', csv: '', tsv: '', log: '',
+  txt: '', log: '',
   // Misc
   md: 'markdown',
 };
@@ -77,6 +77,14 @@ export function getFileTypeInfo(filename: string): FileTypeInfo {
   // Images + GIFs — shown via <img>
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tiff', 'tif'].includes(ext)) {
     return { kind: 'image', supportsPreview: false, defaultMode: 'preview', language: '' };
+  }
+
+  // Spreadsheets — handled by SpreadsheetViewer
+  if (['csv', 'tsv'].includes(ext)) {
+    return { kind: 'spreadsheet', supportsPreview: false, defaultMode: 'edit', language: '' };
+  }
+  if (['xlsx', 'xls', 'ods', 'xlsm', 'xlsb'].includes(ext)) {
+    return { kind: 'spreadsheet', supportsPreview: false, defaultMode: 'edit', language: '' };
   }
 
   if (ext in CODE_EXTENSIONS) {

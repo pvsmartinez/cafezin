@@ -13,15 +13,15 @@ const ICONS: Record<string, React.ReactNode> = {
 };
 
 const TYPE_CLASSES: Record<string, string> = {
-  success: 'bg-[rgba(86,207,178,0.18)] border border-[rgba(86,207,178,0.35)] text-accent',
-  error:   'bg-[rgba(201,117,112,0.18)] border border-[rgba(201,117,112,0.35)] text-danger',
-  info:    'bg-[rgba(79,163,224,0.18)]  border border-[rgba(79,163,224,0.35)]  text-[var(--blue)]',
+  success: 'mb-toast-success',
+  error:   'mb-toast-error',
+  info:    'mb-toast-info',
 };
 
 const ICON_BG: Record<string, string> = {
-  success: 'bg-[rgba(86,207,178,0.2)]',
-  error:   'bg-[rgba(201,117,112,0.2)]',
-  info:    'bg-[rgba(79,163,224,0.2)]',
+  success: 'mb-toast-success-icon',
+  error:   'mb-toast-error-icon',
+  info:    'mb-toast-info-icon',
 };
 
 export default function ToastList({ toasts, onDismiss }: ToastListProps) {
@@ -37,7 +37,8 @@ export default function ToastList({ toasts, onDismiss }: ToastListProps) {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`flex items-center gap-[10px] px-4 py-3 rounded-xl text-sm font-medium leading-[1.4] w-full pointer-events-auto cursor-pointer backdrop-glass shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-toast-in ${TYPE_CLASSES[t.type] ?? TYPE_CLASSES.info}`}
+          className={`flex items-center gap-[10px] px-4 py-3 rounded-xl text-sm font-medium leading-[1.4] w-full pointer-events-auto cursor-pointer backdrop-glass animate-toast-in ${TYPE_CLASSES[t.type] ?? TYPE_CLASSES.info}`}
+          style={{ boxShadow: 'var(--mb-toast-shadow)' }}
           role="alert"
           onClick={() => onDismiss(t.id)}
         >

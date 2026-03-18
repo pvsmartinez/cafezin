@@ -30,6 +30,7 @@ import {
   ArrowRight,
   PaintBrush,
   Code,
+  Table,
 } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
@@ -75,6 +76,8 @@ function fileIconInfo(name: string): { icon: React.ReactNode; cls: string } {
                                                  return { icon: <MusicNote weight="thin" size={13} />,  cls: 'sidebar-icon--media' };
   if (['png', 'jpg', 'jpeg', 'svg', 'webp', 'bmp', 'ico', 'avif', 'tiff', 'tif'].includes(ext))
                                                  return { icon: <Image weight="thin" size={13} />, cls: 'sidebar-icon--image' };
+  if (['csv', 'tsv', 'xlsx', 'xls', 'ods'].includes(ext))
+                                                 return { icon: <Table weight="thin" size={13} />, cls: 'sidebar-icon--csv' };
   return { icon: <File weight="thin" size={13} />, cls: '' };
 }
 
@@ -86,6 +89,7 @@ const TEXT_TYPES = [
   { ext: '.mdx',  label: 'MDX' },
   { ext: '.txt',  label: 'Plain text' },
   { ext: '.json', label: 'JSON' },
+  { ext: '.csv',  label: 'CSV' },
 ];
 
 const CODE_TYPES = [

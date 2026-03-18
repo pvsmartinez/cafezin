@@ -138,7 +138,7 @@ function VoiceMemoItem({ memo, groqKey, onDelete, onTranscribed }: VoiceMemoItem
   return (
     <div className={`border-b border-app-border ${expanded ? 'bg-surface-2/50' : ''}`}>
       <button
-        className="w-full flex items-center gap-3 px-4 py-[11px] bg-transparent border-0 text-left cursor-pointer active:bg-white/[0.03]"
+        className="mb-tap w-full flex items-center gap-3 px-4 py-[11px] bg-transparent border-0 text-left cursor-pointer"
         onClick={toggleExpand}
       >
         <div className="flex-1 flex flex-col gap-0.5 min-w-0">
@@ -489,7 +489,7 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
                 {formatDuration(recordSeconds)}
               </span>
               <button
-                className="w-[64px] h-[64px] bg-danger rounded-full border-0 text-white flex items-center justify-center cursor-pointer active:opacity-80 animate-mb-record-pulse"
+                className="w-[64px] h-[64px] bg-danger rounded-full border-0 text-[var(--text-on-emphasis)] flex items-center justify-center cursor-pointer active:opacity-80 animate-mb-record-pulse"
                 onClick={stopRecording}
                 aria-label="Parar gravação"
               >
@@ -503,7 +503,7 @@ export default function MobileVoiceMemo({ workspacePath }: MobileVoiceMemoProps)
                 <span className="text-xs text-danger mb-2 text-center max-w-[260px]">{error}</span>
               )}
               <button
-                className="w-[72px] h-[72px] bg-accent rounded-full border-0 text-white flex items-center justify-center cursor-pointer active:opacity-75 disabled:opacity-40"
+                className="w-[72px] h-[72px] bg-accent rounded-full border-0 text-[var(--text-on-emphasis)] flex items-center justify-center cursor-pointer active:opacity-75 disabled:opacity-40"
                 onClick={startRecording}
                 aria-label="Começar a gravar"
                 disabled={!groqKey}

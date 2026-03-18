@@ -213,6 +213,40 @@
   border-top: 1px solid rgba(var(--yellow-rgb, 212,169,106), 0.12);
 }
 
+body.theme-light .sidebar {
+  background: rgba(242, 238, 229, 0.62);
+  border-right-color: rgba(0, 0, 0, 0.07);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body.theme-light .sidebar-header,
+body.theme-light .sidebar-tabs {
+  border-bottom-color: rgba(0, 0, 0, 0.07);
+}
+
+body.theme-light .sidebar-tab:hover {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+body.theme-light .sidebar-tab.active {
+  background: rgba(var(--accent-rgb), 0.04);
+  border-bottom-color: rgba(var(--accent-rgb), 0.7);
+}
+
+body.theme-light .sidebar-file:hover {
+  background: rgba(0, 0, 0, 0.024);
+}
+
+body.theme-light .sidebar-file.active {
+  background: rgba(var(--accent-rgb), 0.055);
+}
+
+body.theme-light .sidebar-empty,
+body.theme-light .sidebar-explorer-label {
+  color: var(--text-muted);
+}
+
 /* Review-all check button -- always visible in expanded actions row */
 .sidebar-ai-review-all {
   background: none;

@@ -7,6 +7,71 @@
   --mb-topbar-h: 44px;
   --mb-safe-b: env(safe-area-inset-bottom, 0px);
   --mb-safe-t: env(safe-area-inset-top, 0px);
+  --mb-shell-bg:
+    radial-gradient(120% 88% at 50% -12%, rgba(var(--accent-rgb), 0.08), transparent 54%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, var(--bg) 26%, var(--bg) 100%);
+  --mb-overlay-bg: rgba(7, 9, 12, 0.84);
+  --mb-card-bg: rgba(255, 255, 255, 0.04);
+  --mb-card-border: rgba(255, 255, 255, 0.1);
+  --mb-card-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+  --mb-input-bg: rgba(255, 255, 255, 0.08);
+  --mb-input-border: rgba(255, 255, 255, 0.15);
+  --mb-placeholder: rgba(226, 232, 240, 0.42);
+  --mb-divider: rgba(255, 255, 255, 0.1);
+  --mb-divider-text: rgba(226, 232, 240, 0.34);
+  --mb-press-bg: rgba(255, 255, 255, 0.045);
+  --mb-preview-bg: #0d0f11;
+  --mb-preview-controls-bg: rgba(0, 0, 0, 0.4);
+  --mb-preview-button-bg: rgba(255, 255, 255, 0.12);
+  --mb-preview-button-text: rgba(248, 250, 252, 0.96);
+  --mb-preview-counter: rgba(248, 250, 252, 0.62);
+  --mb-warning-bg: rgba(255, 165, 0, 0.08);
+  --mb-warning-border: rgba(255, 165, 0, 0.25);
+  --mb-warning-text: #e8a020;
+  --mb-toast-shadow: 0 10px 28px rgba(0, 0, 0, 0.34);
+  --mb-toast-success-bg: rgba(86, 207, 178, 0.18);
+  --mb-toast-success-border: rgba(86, 207, 178, 0.35);
+  --mb-toast-success-icon: rgba(86, 207, 178, 0.22);
+  --mb-toast-error-bg: rgba(201, 117, 112, 0.18);
+  --mb-toast-error-border: rgba(201, 117, 112, 0.35);
+  --mb-toast-error-icon: rgba(201, 117, 112, 0.22);
+  --mb-toast-info-bg: rgba(79, 163, 224, 0.18);
+  --mb-toast-info-border: rgba(79, 163, 224, 0.35);
+  --mb-toast-info-icon: rgba(79, 163, 224, 0.22);
+}
+
+body.theme-light {
+  --mb-shell-bg:
+    radial-gradient(120% 94% at 50% -16%, rgba(var(--accent-rgb), 0.065), transparent 56%),
+    linear-gradient(180deg, rgba(255, 252, 246, 0.96) 0%, rgba(249, 245, 237, 0.88) 18%, var(--bg) 38%, var(--bg) 100%);
+  --mb-overlay-bg: rgba(58, 49, 40, 0.18);
+  --mb-card-bg: rgba(255, 252, 247, 0.82);
+  --mb-card-border: rgba(117, 101, 79, 0.14);
+  --mb-card-shadow: 0 14px 36px rgba(62, 47, 28, 0.08);
+  --mb-input-bg: rgba(255, 252, 247, 0.92);
+  --mb-input-border: rgba(117, 101, 79, 0.16);
+  --mb-placeholder: rgba(110, 94, 75, 0.46);
+  --mb-divider: rgba(117, 101, 79, 0.14);
+  --mb-divider-text: rgba(110, 94, 75, 0.45);
+  --mb-press-bg: rgba(66, 51, 32, 0.045);
+  --mb-preview-bg: #f6f1e8;
+  --mb-preview-controls-bg: rgba(250, 246, 239, 0.9);
+  --mb-preview-button-bg: rgba(117, 101, 79, 0.09);
+  --mb-preview-button-text: var(--text);
+  --mb-preview-counter: rgba(95, 80, 63, 0.66);
+  --mb-warning-bg: rgba(226, 145, 40, 0.1);
+  --mb-warning-border: rgba(182, 117, 34, 0.22);
+  --mb-warning-text: #9f6221;
+  --mb-toast-shadow: 0 12px 28px rgba(88, 68, 44, 0.12);
+  --mb-toast-success-bg: rgba(76, 143, 118, 0.12);
+  --mb-toast-success-border: rgba(76, 143, 118, 0.22);
+  --mb-toast-success-icon: rgba(76, 143, 118, 0.16);
+  --mb-toast-error-bg: rgba(176, 96, 88, 0.12);
+  --mb-toast-error-border: rgba(176, 96, 88, 0.22);
+  --mb-toast-error-icon: rgba(176, 96, 88, 0.16);
+  --mb-toast-info-bg: rgba(86, 123, 168, 0.12);
+  --mb-toast-info-border: rgba(86, 123, 168, 0.22);
+  --mb-toast-info-icon: rgba(86, 123, 168, 0.16);
 }
 
 /* ── Tailwind ──────────────────────────────────────────────────────────────── */
@@ -22,7 +87,10 @@
            active:opacity-75 disabled:opacity-40 disabled:cursor-not-allowed;
     border: none;
   }
-  .btn-primary   { @apply btn bg-accent text-white; }
+  .btn-primary   {
+    @apply btn bg-accent;
+    color: var(--text-on-emphasis);
+  }
   .btn-secondary { @apply btn bg-surface-2 text-app-text border border-app-border; }
   .btn-ghost     { @apply btn bg-surface-2 text-app-text border border-app-border; }
 
@@ -37,6 +105,104 @@
     @apply w-7 h-7 rounded-full border-[3px] border-app-border animate-mb-spin;
     border-style: solid;
     border-top-color: var(--accent);
+  }
+
+  .mb-screen {
+    background: var(--mb-shell-bg);
+  }
+
+  .mb-card {
+    background: var(--mb-card-bg);
+    border: 1px solid var(--mb-card-border);
+    box-shadow: var(--mb-card-shadow);
+  }
+
+  .mb-input {
+    background: var(--mb-input-bg);
+    border: 1px solid var(--mb-input-border);
+    color: var(--text);
+  }
+
+  .mb-input::placeholder {
+    color: var(--mb-placeholder);
+  }
+
+  .mb-divider-text {
+    color: var(--mb-divider-text);
+  }
+
+  .mb-divider-line {
+    background: var(--mb-divider);
+  }
+
+  .mb-tap {
+    transition: background-color 120ms ease, opacity 120ms ease;
+  }
+
+  .mb-tap:active {
+    background: var(--mb-press-bg);
+  }
+
+  .mb-overlay {
+    background: var(--mb-overlay-bg);
+  }
+
+  .mb-warning-panel {
+    background: var(--mb-warning-bg);
+    border: 1px solid var(--mb-warning-border);
+  }
+
+  .mb-warning-text {
+    color: var(--mb-warning-text);
+  }
+
+  .mb-preview-stage {
+    background: var(--mb-preview-bg);
+  }
+
+  .mb-preview-controls {
+    background: var(--mb-preview-controls-bg);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .mb-preview-button {
+    background: var(--mb-preview-button-bg);
+    color: var(--mb-preview-button-text);
+  }
+
+  .mb-preview-counter {
+    color: var(--mb-preview-counter);
+  }
+
+  .mb-toast-success {
+    background: var(--mb-toast-success-bg);
+    border: 1px solid var(--mb-toast-success-border);
+    color: var(--accent);
+  }
+
+  .mb-toast-success-icon {
+    background: var(--mb-toast-success-icon);
+  }
+
+  .mb-toast-error {
+    background: var(--mb-toast-error-bg);
+    border: 1px solid var(--mb-toast-error-border);
+    color: var(--red);
+  }
+
+  .mb-toast-error-icon {
+    background: var(--mb-toast-error-icon);
+  }
+
+  .mb-toast-info {
+    background: var(--mb-toast-info-bg);
+    border: 1px solid var(--mb-toast-info-border);
+    color: var(--blue);
+  }
+
+  .mb-toast-info-icon {
+    background: var(--mb-toast-info-icon);
   }
 }
 

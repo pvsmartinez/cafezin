@@ -404,6 +404,12 @@ export default function SettingsModal({
                   </div>
                   <div className="sm-theme-toggle">
                     <button
+                      className={`sm-theme-btn ${appSettings.theme === 'system' ? 'active' : ''}`}
+                      onClick={() => setApp('theme', 'system')}
+                    >
+                      {t('settings.themeSystem')}
+                    </button>
+                    <button
                       className={`sm-theme-btn ${appSettings.theme === 'dark' ? 'active' : ''}`}
                       onClick={() => setApp('theme', 'dark')}
                     >

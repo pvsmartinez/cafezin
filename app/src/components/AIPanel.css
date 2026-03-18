@@ -521,6 +521,38 @@
   border-radius: var(--radius-md);
   color: var(--accent);
   font-size: var(--font-size-xs);
+
+body.theme-light .ai-panel {
+  background: rgba(242, 238, 229, 0.7);
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body.theme-light .ai-panel-header {
+  background: rgba(246, 242, 234, 0.66);
+  border-bottom-color: rgba(0, 0, 0, 0.07);
+}
+
+body.theme-light .ai-btn-ghost:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+body.theme-light .ai-message--user .ai-message-content {
+  background: rgba(var(--green-rgb), 0.05);
+  border-left-color: rgba(var(--green-rgb), 0.28);
+}
+
+body.theme-light .ai-session-stats {
+  background: rgba(0, 0, 0, 0.018);
+  border-color: rgba(0, 0, 0, 0.07);
+}
+
+body.theme-light .ai-session-stat-chip {
+  background: rgba(var(--accent-rgb), 0.05);
+  border-color: rgba(var(--accent-rgb), 0.12);
+}
   font-weight: 600;
   letter-spacing: 0.02em;
 }

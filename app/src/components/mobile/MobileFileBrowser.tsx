@@ -41,7 +41,7 @@ interface TreeNodeProps {
 function TreeNode({ node, depth, selectedPath, onSelect }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(depth < 2);
 
-  const nodeBase = 'flex items-center gap-1.5 py-[9px] cursor-pointer transition-colors duration-100 active:bg-white/[0.04]';
+  const nodeBase = 'mb-tap flex items-center gap-1.5 py-[9px] cursor-pointer transition-colors duration-100';
 
   if (node.isDirectory) {
     // Folder that contains an index.html → treat as a renderable webpage

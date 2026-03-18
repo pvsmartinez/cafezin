@@ -17,6 +17,7 @@ import MarkdownPreview from './components/MarkdownPreview';
 import WebPreview, { type WebPreviewHandle } from './components/WebPreview';
 import PDFViewer from './components/PDFViewer';
 import MediaViewer from './components/MediaViewer';
+import SpreadsheetViewer from './components/SpreadsheetViewer';
 import UpdateModal from './components/UpdateModal';
 import UpdateReleaseModal from './components/UpdateReleaseModal';
 import ForceUpdateModal from './components/ForceUpdateModal';
@@ -85,6 +86,10 @@ const FORCE_UPDATE_URL = 'https://raw.githubusercontent.com/pvsmartinez/cafezin/
 
 /** True when running inside a Tauri WebView (not a plain browser). */
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+function getSystemTheme(): 'dark' | 'light' {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
 /** Returns negative if a < b, 0 if equal, positive if a > b */
 function compareVersions(a: string, b: string): number {
@@ -180,6 +185,30 @@ export default function App() {
   }, [content]);
   const [fileStat, setFileStat] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(() => initSettings);
+  const [systemTheme, setSystemTheme] = useState<'dark' | 'light'>(() => getSystemTheme());
+  const resolvedTheme = appSettings.theme === 'system' ? systemTheme : appSettings.theme;
+  const isDarkTheme = resolvedTheme === 'dark';
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const updateTheme = (event?: MediaQueryListEvent) => {
+      setSystemTheme(event?.matches ?? mediaQuery.matches ? 'dark' : 'light');
+    };
+
+    updateTheme();
+
+    if ('addEventListener' in mediaQuery) {
+      mediaQuery.addEventListener('change', updateTheme);
+      return () => mediaQuery.removeEventListener('change', updateTheme);
+    }
+
+    const legacyMediaQuery = mediaQuery as MediaQueryList & {
+      addListener?: (listener: (event: MediaQueryListEvent) => void) => void;
+      removeListener?: (listener: (event: MediaQueryListEvent) => void) => void;
+    };
+    legacyMediaQuery.addListener?.(updateTheme);
+    return () => legacyMediaQuery.removeListener?.(updateTheme);
+  }, []);
 
   // Sync i18n language when user changes the locale setting
   useEffect(() => {
@@ -513,10 +542,10 @@ export default function App() {
 
   // Apply/remove light theme class on body
   useEffect(() => {
-    const isLight = appSettings.theme === 'light';
+    const isLight = resolvedTheme === 'light';
     document.documentElement.classList.toggle('theme-light', isLight);
     document.body.classList.toggle('theme-light', isLight);
-  }, [appSettings.theme]);
+  }, [resolvedTheme]);
 
   // Keep autosave delay ref in sync
   useEffect(() => {
@@ -585,7 +614,7 @@ export default function App() {
   async function reloadActiveFile() {
     if (!workspace || !activeTabId) return;
     const info = getFileTypeInfo(activeTabId);
-    if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image') return;
+    if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image' || info.kind === 'spreadsheet') return;
     try {
       const text = await readFile(workspace, activeTabId);
       savedContentRef.current.set(activeTabId, text);
@@ -614,7 +643,7 @@ export default function App() {
     }),
     onSave: async () => {
       const kind = fileTypeInfo?.kind;
-      if (activeTabId && workspace && kind !== 'pdf' && kind !== 'video' && kind !== 'image') {
+      if (activeTabId && workspace && kind !== 'pdf' && kind !== 'video' && kind !== 'image' && kind !== 'spreadsheet') {
         if (kind === 'canvas') forceSaveRef.current?.();
         const current = tabContentsRef.current.get(activeTabId) ?? content;
         cancelAutosave();
@@ -914,7 +943,7 @@ export default function App() {
     const info = getFileTypeInfo(filename);
 
     // Binary/non-text files: no content to read — register tab and switch
-    if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image') {
+    if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image' || info.kind === 'spreadsheet') {
       tabContentsRef.current.set(filename, '');
       tabViewModeRef.current.set(filename, info.defaultMode as 'edit' | 'preview');
       addTab(filename);
@@ -1519,6 +1548,12 @@ export default function App() {
             filename={activeFile}
             onStat={setFileStat}
           />
+        ) : fileTypeInfo?.kind === 'spreadsheet' && activeFile ? (
+          <SpreadsheetViewer
+            absPath={`${workspace.path}/${activeFile}`}
+            filename={activeFile}
+            onStat={setFileStat}
+          />
         ) : (fileTypeInfo?.kind === 'video' || fileTypeInfo?.kind === 'audio' || fileTypeInfo?.kind === 'image') && activeFile ? (
           <MediaViewer
             absPath={`${workspace.path}/${activeFile}`}
@@ -1565,7 +1600,7 @@ export default function App() {
             onMarkUserEdited={handleMarkUserEdited}
             rescanFramesRef={rescanFramesRef}
             forceSaveRef={forceSaveRef}
-            darkMode={appSettings.theme === 'dark'}
+            darkMode={isDarkTheme}
             onFileSaved={() => handleFileWritten(activeFile ?? '')}
             canvasRelPath={activeFile ?? undefined}
           />
@@ -1619,7 +1654,7 @@ export default function App() {
             fontSize={appSettings.editorFontSize}
             onImagePaste={handleEditorImagePaste}
             language={fileTypeInfo?.language}
-            isDark={appSettings.theme === 'dark'}
+            isDark={isDarkTheme}
             isLocked={activeFile ? lockedFiles.has(activeFile) : false}
             onFormat={fileTypeInfo?.kind === 'code' ? handleFormat : undefined}
             diagnostics={tsDiags.diagnostics}

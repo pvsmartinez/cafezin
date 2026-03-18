@@ -19,15 +19,50 @@ function applyThemeClass(theme: 'dark' | 'light') {
   document.body.classList.toggle('theme-light', isLight);
 }
 
+function getSystemTheme(): 'dark' | 'light' {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function resolveTheme(theme: 'system' | 'dark' | 'light'): 'dark' | 'light' {
+  return theme === 'system' ? getSystemTheme() : theme;
+}
+
+function readStoredTheme(): 'system' | 'dark' | 'light' {
+  try {
+    const saved = localStorage.getItem('cafezin-app-settings');
+    const parsedTheme = saved ? JSON.parse(saved).theme as 'system' | 'dark' | 'light' | undefined : undefined;
+    return parsedTheme ?? 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+function syncThemeClass() {
+  applyThemeClass(resolveTheme(readStoredTheme()));
+}
+
 // Apply saved theme class synchronously before first render so the browser
 // paints Frame 0 with the correct palette — prevents flash of dark content
 // when the user has configured light mode.
-try {
-  const saved = localStorage.getItem('cafezin-app-settings');
-  if (saved && JSON.parse(saved).theme === 'light') {
-    applyThemeClass('light');
+syncThemeClass();
+
+const systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const handleSystemThemeChange = () => syncThemeClass();
+
+if (typeof systemThemeQuery.addEventListener === 'function') {
+  systemThemeQuery.addEventListener('change', handleSystemThemeChange);
+} else {
+  type LegacyMediaQueryList = MediaQueryList & {
+    addListener?: (listener: (event: MediaQueryListEvent) => void) => void;
+  };
+  (systemThemeQuery as LegacyMediaQueryList).addListener?.(handleSystemThemeChange);
+}
+
+window.addEventListener('storage', (event) => {
+  if (event.key === 'cafezin-app-settings') {
+    syncThemeClass();
   }
-} catch { /* ignore malformed JSON or missing localStorage */ }
+});
 
 // Detect mobile platform.
 // Primary: TAURI_ENV_PLATFORM is automatically injected by Tauri for every build

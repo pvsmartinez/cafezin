@@ -336,7 +336,7 @@ export interface CopilotModelInfo {
 
 /** Application-level settings persisted in localStorage. */
 export interface AppSettings {
-  theme: 'dark' | 'light';
+  theme: 'system' | 'dark' | 'light';
   /** Editor font size in px */
   editorFontSize: number;
   /** Autosave debounce delay in ms */
@@ -356,7 +356,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  theme: 'dark',
+  theme: 'system',
   editorFontSize: 14,
   autosaveDelay: 1000,
   showWordCount: true,

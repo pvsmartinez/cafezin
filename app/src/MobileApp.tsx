@@ -400,7 +400,7 @@ export default function MobileApp() {
     // ── Not signed in — email + password form ────────────────────────────
     if (!isLoggedIn) {
       return (
-        <div className="mb-shell fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
+        <div className="mb-shell mb-screen fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
           <ToastList toasts={toasts} onDismiss={dismiss} />
           <div className="flex-1 overflow-y-auto scroll-touch flex flex-col">
             <div className="flex flex-col items-center gap-5 px-6 py-10 text-center flex-1">
@@ -440,19 +440,19 @@ export default function MobileApp() {
                 </div>
               )}
 
-              <div className="flex items-center gap-2.5 text-white/30 text-xs w-full max-w-[300px]">
-                <div className="flex-1 h-px bg-white/[0.1]" />
+              <div className="mb-divider-text flex items-center gap-2.5 text-xs w-full max-w-[300px]">
+                <div className="mb-divider-line flex-1 h-px" />
                 ou
-                <div className="flex-1 h-px bg-white/[0.1]" />
+                <div className="mb-divider-line flex-1 h-px" />
               </div>
 
-              <div className="flex rounded-lg overflow-hidden border border-white/[0.12] w-full max-w-[300px]">
+              <div className="mb-card flex rounded-lg overflow-hidden w-full max-w-[300px]">
                 <button
-                  className={`flex-1 py-2.5 text-sm font-semibold border-0 cursor-pointer transition-opacity active:opacity-75 ${authMode === 'login' ? 'bg-accent text-white' : 'bg-transparent text-muted'}`}
+                  className={`flex-1 py-2.5 text-sm font-semibold border-0 cursor-pointer transition-opacity active:opacity-75 ${authMode === 'login' ? 'bg-accent text-[var(--text-on-emphasis)]' : 'bg-transparent text-muted'}`}
                   onClick={() => { setAuthMode('login') }}
                 >Entrar</button>
                 <button
-                  className={`flex-1 py-2.5 text-sm font-semibold border-0 cursor-pointer transition-opacity active:opacity-75 ${authMode === 'signup' ? 'bg-accent text-white' : 'bg-transparent text-muted'}`}
+                  className={`flex-1 py-2.5 text-sm font-semibold border-0 cursor-pointer transition-opacity active:opacity-75 ${authMode === 'signup' ? 'bg-accent text-[var(--text-on-emphasis)]' : 'bg-transparent text-muted'}`}
                   onClick={() => { setAuthMode('signup') }}
                 >Criar conta</button>
               </div>
@@ -462,7 +462,7 @@ export default function MobileApp() {
                 placeholder="seu@email.com"
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
-                className="w-full max-w-[300px] px-[14px] py-[10px] bg-white/[0.08] border border-white/[0.15] rounded-lg text-white text-[15px] outline-none placeholder:text-white/40"
+                className="mb-input w-full max-w-[300px] px-[14px] py-[10px] rounded-lg text-[15px] outline-none"
               />
               <input
                 type="password"
@@ -470,7 +470,7 @@ export default function MobileApp() {
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') void handleAuth() }}
-                className="w-full max-w-[300px] px-[14px] py-[10px] bg-white/[0.08] border border-white/[0.15] rounded-lg text-white text-[15px] outline-none placeholder:text-white/40"
+                className="mb-input w-full max-w-[300px] px-[14px] py-[10px] rounded-lg text-[15px] outline-none"
               />
 
               {authBusy && (
@@ -499,19 +499,19 @@ export default function MobileApp() {
     const labelsNeedingAuth = uniqueLabels.filter(l => !getGitAccountToken(l));
 
     return (
-      <div className="mb-shell fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
+      <div className="mb-shell mb-screen fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
         <ToastList toasts={toasts} onDismiss={dismiss} />
 
         {/* ── GitHub Device Flow modal ── */}
         {gitAuthModal && (
-          <div className="fixed inset-0 z-[999] bg-black/85 flex items-center justify-center px-6">
-            <div className="bg-surface border border-app-border rounded-2xl py-7 px-6 max-w-[360px] w-full flex flex-col gap-4 items-center">
+          <div className="mb-overlay fixed inset-0 z-[999] flex items-center justify-center px-6">
+            <div className="mb-card bg-surface rounded-2xl py-7 px-6 max-w-[360px] w-full flex flex-col gap-4 items-center">
               <GithubLogo size={40} weight="thin" className="opacity-80" />
               <div className="text-lg font-bold text-center">Conectar GitHub</div>
               <div className="text-[13px] text-muted text-center">
                 Acesse <strong className="text-app-text">github.com/login/device</strong> e insira o código abaixo:
               </div>
-              <div className="font-mono text-[32px] font-bold tracking-[0.25em] text-accent px-5 py-3 bg-white/[0.06] rounded-[10px] border border-white/[0.12]">
+              <div className="mb-card device-flow-code font-mono text-[32px] font-bold tracking-[0.25em] text-accent px-5 py-3 rounded-[10px]">
                 {gitAuthModal.userCode}
               </div>
               <div className="flex gap-2 w-full">
@@ -562,9 +562,9 @@ export default function MobileApp() {
 
             {/* ── GitHub accounts that need authentication ── */}
             {!loadingSynced && labelsNeedingAuth.length > 0 && (
-              <div className="w-full max-w-[360px] bg-[rgba(255,165,0,0.08)] border border-[rgba(255,165,0,0.25)] rounded-xl px-[14px] py-3 flex flex-col gap-2.5">
+              <div className="mb-warning-panel w-full max-w-[360px] rounded-xl px-[14px] py-3 flex flex-col gap-2.5">
                 <div className="flex items-center gap-2 text-[13px] font-semibold">
-                  <Warning size={16} color="var(--mb-warning, #e8a020)" />
+                  <Warning size={16} color="var(--mb-warning-text)" />
                   Conta GitHub não conectada
                 </div>
                 <div className="text-xs text-muted text-left">
@@ -595,12 +595,12 @@ export default function MobileApp() {
                   return (
                     <div
                       key={ws.gitUrl}
-                      className={`bg-white/[0.05] rounded-xl px-[14px] py-3 flex flex-col gap-1 border ${!hasToken ? 'border-[rgba(255,165,0,0.3)]' : 'border-white/[0.1]'}`}
+                      className={`mb-card rounded-xl px-[14px] py-3 flex flex-col gap-1 ${!hasToken ? 'border-[color:var(--mb-warning-border)]' : ''}`}
                     >
                       <div className="font-semibold text-[15px]">{ws.name}</div>
                       <div className="text-[11px] text-muted break-all">{ws.gitUrl}</div>
                       {!hasToken && (
-                        <div className="text-[11px] text-[#e8a020] flex items-center gap-1 mt-0.5">
+                        <div className="mb-warning-text text-[11px] flex items-center gap-1 mt-0.5">
                           <Warning size={12} /> Token GitHub não configurado — conecte a conta acima
                         </div>
                       )}

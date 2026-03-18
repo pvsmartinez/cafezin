@@ -334,3 +334,21 @@
 [data-theme='dark'] .bottom-panel-input-row {
   background: var(--fmt-bg);
 }
+
+body.theme-light .bottom-panel {
+  background: rgba(242, 238, 229, 0.72);
+  border-top-color: rgba(0, 0, 0, 0.07);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+body.theme-light .bottom-panel-tabrow {
+  background: rgba(246, 242, 234, 0.62);
+  border-bottom-color: rgba(0, 0, 0, 0.07);
+}
+
+body.theme-light .bottom-panel-tab:hover,
+body.theme-light .bottom-panel-action-btn:hover,
+body.theme-light .bottom-panel-entry:hover {
+  background: rgba(0, 0, 0, 0.025);
+}

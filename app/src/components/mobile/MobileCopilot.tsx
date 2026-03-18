@@ -506,7 +506,7 @@ export default function MobileCopilot({
           {models.map(m => (
             <button
               key={m.id}
-              className={`flex items-center w-full px-4 py-[9px] bg-transparent border-0 text-left cursor-pointer text-app-text text-sm gap-2 active:bg-white/[0.04] ${m.id === model ? 'bg-[rgba(var(--accent-rgb),0.12)]' : ''}`}
+              className={`mb-tap flex items-center w-full px-4 py-[9px] bg-transparent border-0 text-left cursor-pointer text-app-text text-sm gap-2 ${m.id === model ? 'bg-[rgba(var(--accent-rgb),0.12)]' : ''}`}
               onClick={() => {
                 setModel(resolveCopilotModelForChatCompletions(m.id, models));
                 setShowModelPicker(false);
@@ -546,7 +546,7 @@ export default function MobileCopilot({
 
         {messages.map((msg, i) => (
           msg.role === 'user' ? (
-            <div key={i} className="max-w-[86%] px-[13px] py-[10px] rounded-2xl text-sm leading-[1.5] break-words self-end bg-accent text-white rounded-br-[4px]">
+            <div key={i} className="max-w-[86%] px-[13px] py-[10px] rounded-2xl text-sm leading-[1.5] break-words self-end bg-accent text-[var(--text-on-emphasis)] rounded-br-[4px]">
               {contentToString(msg.content)}
             </div>
           ) : (
@@ -626,7 +626,7 @@ export default function MobileCopilot({
           disabled={streaming}
         />
         <button
-          className="w-[38px] h-[38px] border-0 rounded-full text-lg flex items-center justify-center shrink-0 cursor-pointer transition-opacity text-white disabled:opacity-35 active:opacity-65"
+          className="w-[38px] h-[38px] border-0 rounded-full text-lg flex items-center justify-center shrink-0 cursor-pointer transition-opacity text-[var(--text-on-emphasis)] disabled:opacity-35 active:opacity-65"
           style={{ background: streaming ? 'var(--red)' : 'var(--accent)' }}
           onClick={streaming ? handleStop : handleSend}
           disabled={!streaming && !input.trim()}

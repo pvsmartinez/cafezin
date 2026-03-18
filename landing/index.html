@@ -5,7 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cafezin — Escreva, pense, crie com AI</title>
   <meta name="description" content="Cafezin é a ferramenta de produtividade com AI para escritores, educadores e criadores de conteúdo. Editor Markdown, canvas e AI integrada. Grátis para criar, Premium para ampliar." />
-  <link rel="icon" type="image/png" href="icon.png" />
+
+  <!-- Canonical -->
+  <link rel="canonical" href="https://cafezin.pmatz.com/" />
+
+  <!-- Favicon & icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="icon.png" />
+  <link rel="apple-touch-icon" href="icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1c1610" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://cafezin.pmatz.com/" />
+  <meta property="og:title" content="Cafezin — Escreva, pense, crie com AI" />
+  <meta property="og:description" content="Cafezin é a ferramenta de produtividade com AI para escritores, educadores e criadores de conteúdo. Editor Markdown, canvas e AI integrada. Grátis para criar, Premium para ampliar." />
+  <meta property="og:image" content="https://cafezin.pmatz.com/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:site_name" content="Cafezin" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Cafezin — Escreva, pense, crie com AI" />
+  <meta name="twitter:description" content="Cafezin é a ferramenta de produtividade com AI para escritores, educadores e criadores de conteúdo. Editor Markdown, canvas e AI integrada. Grátis para criar, Premium para ampliar." />
+  <meta name="twitter:image" content="https://cafezin.pmatz.com/og-image.png" />
 
   <!-- Fonts: Nunito (UI) + Vollkorn (serif headings) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,6 +38,40 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Vollkorn:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Schema.org: SoftwareApplication -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Cafezin",
+    "url": "https://cafezin.pmatz.com/",
+    "description": "Ferramenta de produtividade com AI para escritores, educadores e criadores de conteúdo. Editor Markdown, canvas visual e AI integrada, tudo rodando no seu dispositivo.",
+    "applicationCategory": "ProductivityApplication",
+    "operatingSystem": "macOS, Windows",
+    "inLanguage": "pt-BR",
+    "offers": [
+      {
+        "@type": "Offer",
+        "name": "Plano Grátis",
+        "price": "0",
+        "priceCurrency": "BRL"
+      },
+      {
+        "@type": "Offer",
+        "name": "Premium",
+        "price": "0",
+        "priceCurrency": "BRL",
+        "description": "Acesso completo à AI integrada — GitHub Copilot"
+      }
+    ],
+    "author": {
+      "@type": "Person",
+      "name": "Pedro Martinez",
+      "url": "https://github.com/pvsmartinez"
+    }
+  }
+  </script>
 </head>
 <body>
 
@@ -20,7 +79,7 @@
   <nav class="nav">
     <div class="nav-inner">
       <a class="nav-logo" href="#">
-        <img src="coffe.png" alt="Cafezin" class="nav-logo-img" />
+        <img src="coffe.png" alt="Logo do Cafezin" class="nav-logo-img" width="28" height="28" />
         <span class="nav-logo-name">Cafezin</span>
       </a>
       <div class="nav-links">

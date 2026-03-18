@@ -76,6 +76,7 @@ export const TEXT_EXTS = new Set([
   'py', 'sql',           // Python scripts and SQL migrations
   'env',                 // .env files (non-secret ones like .env.example)
   'gitignore', 'editorconfig',
+  'csv', 'tsv',          // Spreadsheets — plain text, readable by AI via read_workspace_file
 ]);
 
 /**

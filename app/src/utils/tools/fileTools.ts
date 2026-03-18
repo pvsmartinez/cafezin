@@ -14,6 +14,8 @@ import {
 } from '../../services/fs';
 import { walkFilesFlat } from '../../services/workspace';
 import { lockFile, unlockFile, waitForUnlock } from '../../services/copilotLock';
+import { parseSpreadsheetFile, serializeSheetToCSV, sheetToMarkdownTable } from '../../services/spreadsheet';
+import type { SheetTab } from '../../services/spreadsheet';
 import type { ToolDefinition, DomainExecutor } from './shared';
 import { TEXT_EXTS, safeResolvePath } from './shared';
 
@@ -345,6 +347,63 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
           },
         },
         required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_spreadsheet',
+      description:
+        'Read a CSV, TSV or XLSX file and return its contents as a Markdown table. ' +
+        'For XLSX files with multiple sheets, specify the sheet name or index. ' +
+        'Omit `path` to read the currently active file. ' +
+        'For plain CSV/TSV files, read_workspace_file also works and returns raw text.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'Relative path from workspace root, e.g. "data/sales.xlsx". Defaults to the active file.',
+          },
+          sheet: {
+            type: 'string',
+            description: 'Sheet name or 0-based index to read. Defaults to the first sheet (0).',
+          },
+          max_rows: {
+            type: 'number',
+            description: 'Maximum number of data rows to include in the output. Default: 200.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'write_spreadsheet',
+      description:
+        'Write or overwrite a CSV file with structured data. Handles proper CSV quoting automatically. ' +
+        'Only .csv files are supported. Pass headers (column labels) and rows (data). ' +
+        'To make small text edits to an existing CSV, prefer read_workspace_file → patch_workspace_file instead.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'Relative path from workspace root. Must end in .csv, e.g. "data/sales.csv".',
+          },
+          headers: {
+            type: 'string',
+            description: 'JSON array of column header labels, e.g. ["Name","Age","Score"].',
+          },
+          rows: {
+            type: 'string',
+            description: 'JSON array of rows, each row an array of string values, e.g. [["Alice","30","95"],["Bob","25","88"]].',
+          },
+        },
+        required: ['path', 'headers', 'rows'],
       },
     },
   },
@@ -1252,6 +1311,85 @@ draft: true
       if (skipped.length)  parts.push(`Skipped — already exist (${skipped.length}): ${skipped.join(', ')}`);
       if (errors.length)   parts.push(`Errors (${errors.length}): ${errors.join('; ')}`);
       return parts.join('\n');
+    }
+
+    // ── read_spreadsheet ──────────────────────────────────────────────────
+    case 'read_spreadsheet': {
+      const relPath = typeof args.path === 'string' ? args.path : (ctx.activeFile ?? '');
+      if (!relPath) return 'No file specified and no active file open.';
+      const absPath = safeResolvePath(workspacePath, relPath);
+      const ext = relPath.split('.').pop()?.toLowerCase() ?? 'csv';
+      const maxRows = typeof args.max_rows === 'number' ? args.max_rows : 200;
+
+      const data = await parseSpreadsheetFile(absPath, ext);
+      if (data.sheets.length === 0) return 'Spreadsheet is empty or has no sheets.';
+
+      // Resolve which sheet to read
+      let sheetIdx = 0;
+      if (args.sheet !== undefined) {
+        if (typeof args.sheet === 'number') {
+          sheetIdx = args.sheet;
+        } else {
+          const name = String(args.sheet);
+          const found = data.sheets.findIndex((s) => s.name === name);
+          sheetIdx = found >= 0 ? found : parseInt(name, 10) || 0;
+        }
+      }
+      const sheet = data.sheets[Math.min(sheetIdx, data.sheets.length - 1)];
+      if (!sheet) return 'Sheet not found.';
+
+      const header = data.sheets.length > 1
+        ? `**${data.filename}** — sheet: **${sheet.name}** (${sheetIdx + 1}/${data.sheets.length})\nAll sheets: ${data.sheets.map((s) => s.name).join(', ')}\n\n`
+        : `**${data.filename}**\n\n`;
+
+      return header + sheetToMarkdownTable(sheet, maxRows);
+    }
+
+    // ── write_spreadsheet ─────────────────────────────────────────────────
+    case 'write_spreadsheet': {
+      const relPath = String(args.path ?? '').trim();
+      if (!relPath) return 'Error: path is required.';
+      if (!relPath.endsWith('.csv')) return 'Error: write_spreadsheet only supports .csv files.';
+
+      let headers: string[], rows: string[][];
+      try {
+        headers = JSON.parse(String(args.headers ?? '[]')) as string[];
+        rows = JSON.parse(String(args.rows ?? '[]')) as string[][];
+        if (!Array.isArray(headers)) return 'Error: headers must be a JSON array of strings.';
+        if (!Array.isArray(rows)) return 'Error: rows must be a JSON array of arrays.';
+      } catch (e) {
+        return `Error: invalid JSON in headers or rows: ${e}`;
+      }
+
+      let absPath: string;
+      try { absPath = safeResolvePath(workspacePath, relPath); }
+      catch (e) { return String(e); }
+
+      const sheet: SheetTab = { name: 'Sheet1', headers, rows: rows.map((r) => r.map(String)) };
+      const csv = await serializeSheetToCSV(sheet);
+
+      const lwWrite = await waitForUnlock(relPath, ctx.agentId);
+      if (lwWrite.timedOut) {
+        return `Cannot write “${relPath}” — it is locked by another agent (${lwWrite.owner}).`;
+      }
+      lockFile(relPath, ctx.agentId);
+      await new Promise<void>((r) => setTimeout(r, 0));
+      const dirPath = absPath.split('/').slice(0, -1).join('/');
+      try {
+        if (!(await exists(dirPath))) await mkdir(dirPath, { recursive: true });
+        await writeTextFile(absPath, csv);
+      } catch (e) {
+        unlockFile(relPath);
+        return `Error writing file: ${e}`;
+      }
+      try {
+        onFileWritten?.(relPath);
+        onMarkRecorded?.(relPath, csv);
+        await new Promise<void>((r) => setTimeout(r, 400));
+      } finally {
+        unlockFile(relPath);
+      }
+      return `CSV written: ${relPath} — ${headers.length} columns, ${rows.length} data rows (${csv.length} chars).`;
     }
 
     default:

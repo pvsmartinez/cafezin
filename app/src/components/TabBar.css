@@ -260,6 +260,54 @@
   text-overflow: ellipsis;
 }
 
+body.theme-light .tab-bar {
+  background: rgba(243, 239, 231, 0.62);
+  border-bottom-color: rgba(0, 0, 0, 0.07);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+body.theme-light .tab-item {
+  color: var(--text-muted);
+  border-right-color: rgba(0, 0, 0, 0.04);
+}
+
+body.theme-light .tab-item:hover {
+  background: rgba(0, 0, 0, 0.025);
+  color: var(--text);
+}
+
+body.theme-light .tab-item.active {
+  background: rgba(247, 244, 237, 0.9);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+body.theme-light .tab-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+body.theme-light .tab-close-all,
+body.theme-light .tab-overflow-wrap {
+  border-left-color: rgba(0, 0, 0, 0.06);
+}
+
+body.theme-light .tab-close-all:hover,
+body.theme-light .tab-overflow-btn:hover,
+body.theme-light .tab-overflow-btn.active {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+body.theme-light .tab-overflow-menu {
+  background: rgba(247, 244, 237, 0.96);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 30px rgba(41, 33, 20, 0.08);
+}
+
+body.theme-light .tab-overflow-item:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
 .tab-overflow-item .tab-close {
   color: transparent;
   font-size: var(--font-size-md);

@@ -29,6 +29,14 @@ body {
   font-feature-settings: 'kern' 1, 'liga' 1;
 }
 
+body.theme-light {
+  background:
+    radial-gradient(1200px 360px at 50% -8%, rgba(var(--accent-rgb), 0.055), transparent 62%),
+    radial-gradient(900px 420px at 12% 0%, rgba(182, 160, 120, 0.08), transparent 58%),
+    linear-gradient(180deg, #f3efe7 0%, var(--bg) 26%, #e8e3d8 100%);
+  background-attachment: fixed;
+}
+
 /* ── Global scrollbar ─────────────────────────────────── */
 * {
   scrollbar-width: thin;
@@ -62,6 +70,10 @@ button:focus-visible,
   width: 100vw;
   background: var(--bg);
   color: var(--text);
+}
+
+body.theme-light .app {
+  background: transparent;
 }
 
 /* ── Header ──────────────────────────────────────── */
@@ -476,6 +488,65 @@ button:focus-visible,
   flex-direction: column;
   min-height: 0;
   animation: file-fadein 0.13s ease;
+}
+
+body.theme-light .app-header {
+  background: rgba(247, 243, 235, 0.74);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+body.theme-light .app-title {
+  color: var(--text-bright);
+}
+
+body.theme-light .app-workspace-name {
+  background: rgba(0, 0, 0, 0.025);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--text-muted);
+}
+
+body.theme-light .app-ai-toggle {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.015);
+}
+
+body.theme-light .app-ai-toggle.active {
+  background: var(--surface);
+  border-color: rgba(var(--accent-rgb), 0.3);
+}
+
+body.theme-light .app-view-toggle {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.09);
+}
+
+body.theme-light .app-view-btn:hover {
+  background: rgba(0, 0, 0, 0.045);
+}
+
+body.theme-light .app-view-btn.active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+body.theme-light .app-body {
+  background: linear-gradient(to right, var(--bg) 0%, var(--bg) 100%);
+}
+
+body.theme-light .editor-area {
+  background:
+    radial-gradient(700px 180px at 50% 0%, rgba(255, 255, 255, 0.22), transparent 70%),
+    transparent;
+}
+
+body.theme-light .editor-file-view {
+  background: rgba(247, 244, 237, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.035),
+    0 14px 40px rgba(41, 33, 20, 0.06);
 }
 
 /* ── Copilot lock overlay ─────────────────────────────── */
