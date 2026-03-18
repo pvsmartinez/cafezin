@@ -372,3 +372,15 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+/* ── Copy flash ───────────────────────────────────────────────────────────────────── */
+@keyframes ss-copy-flash {
+  0%   { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+  60%  { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  100% { background: transparent; }
+}
+
+.ss-td.copied {
+  animation: ss-copy-flash 0.8s ease-out forwards;
+  outline: 1px solid var(--accent-border, var(--accent));
+  outline-offset: -1px;
+}

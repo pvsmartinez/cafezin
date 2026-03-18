@@ -1,5 +1,5 @@
 /**
- * billing-webhook — Lemon Squeezy webhook handler for Cafezin.
+ * billing-webhook — Paddle webhook handler for Cafezin.
  *
  * Registers subscription events and keeps `user_subscriptions` in sync.
  * Uses billing_events for idempotent processing (UNIQUE provider + event_id).
@@ -8,7 +8,7 @@
  *   https://dxxwlnvemqgpdrnkzrcr.supabase.co/functions/v1/billing-webhook
  *
  * Required secrets (supabase secrets set --project-ref dxxwlnvemqgpdrnkzrcr):
- *   LEMONSQUEEZY_SIGNING_SECRET  — from LS Dashboard → Settings → Webhooks
+ *   PADDLE_WEBHOOK_SECRET  — from Paddle Dashboard → Notifications → webhook secret
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
@@ -21,9 +21,25 @@ function buf2hex(buf: ArrayBuffer): string {
     .join('');
 }
 
-async function verifySignature(body: string, signature: string): Promise<boolean> {
-  const secret = Deno.env.get('LEMONSQUEEZY_SIGNING_SECRET');
-  if (!secret) throw new Error('LEMONSQUEEZY_SIGNING_SECRET not set');
+/**
+ * Verifies a Paddle webhook signature.
+ * Header format: `ts=<timestamp>;h1=<hmac-sha256>`
+ * Signed payload: `<timestamp>:<rawBody>`
+ */
+async function verifySignature(body: string, signatureHeader: string): Promise<boolean> {
+  const secret = Deno.env.get('PADDLE_WEBHOOK_SECRET');
+  if (!secret) throw new Error('PADDLE_WEBHOOK_SECRET not set');
+
+  // Parse ts and h1 from header
+  const parts: Record<string, string> = {};
+  for (const part of signatureHeader.split(';')) {
+    const eqIdx = part.indexOf('=');
+    if (eqIdx > 0) parts[part.slice(0, eqIdx).trim()] = part.slice(eqIdx + 1).trim();
+  }
+
+  const ts = parts['ts'];
+  const h1 = parts['h1'];
+  if (!ts || !h1) return false;
 
   const key = await crypto.subtle.importKey(
     'raw',
@@ -32,22 +48,24 @@ async function verifySignature(body: string, signature: string): Promise<boolean
     false,
     ['sign'],
   );
-  const expected = buf2hex(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body)));
-  return expected === signature;
+  const signedPayload = `${ts}:${body}`;
+  const expected = buf2hex(
+    await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signedPayload)),
+  );
+  return expected === h1;
 }
 
 // ── Status mapping ─────────────────────────────────────────────────────────
 
-function mapStatus(lsStatus: string): string {
-  switch (lsStatus) {
+function mapStatus(paddleStatus: string): string {
+  switch (paddleStatus) {
     case 'active':    return 'active';
     case 'trialing':  return 'trialing';
     case 'past_due':  return 'past_due';
-    case 'cancelled':
-    case 'canceled':  return 'canceled';
-    case 'expired':   return 'inactive';
     case 'paused':    return 'past_due';
-    default:          return lsStatus;
+    case 'canceled':
+    case 'cancelled': return 'canceled';
+    default:          return 'inactive';
   }
 }
 
@@ -59,11 +77,11 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.text();
-  const signature = req.headers.get('X-Signature') ?? '';
+  const signatureHeader = req.headers.get('Paddle-Signature') ?? '';
 
   let valid = false;
   try {
-    valid = await verifySignature(body, signature);
+    valid = await verifySignature(body, signatureHeader);
   } catch (e) {
     console.error('Signature check error:', e);
   }
@@ -80,10 +98,10 @@ Deno.serve(async (req) => {
     return new Response('Invalid JSON', { status: 400 });
   }
 
-  const eventType: string  = event.meta?.event_name ?? '';
-  const eventId: string    = event.meta?.webhook_id ?? crypto.randomUUID();
-  const customData         = event.meta?.custom_data ?? {};
-  const userId: string | undefined = customData.user_id;
+  const eventType: string           = event.event_type ?? '';
+  const eventId: string             = event.event_id   ?? crypto.randomUUID();
+  const data                        = event.data ?? {};
+  const userId: string | undefined  = data.custom_data?.user_id;
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -94,7 +112,7 @@ Deno.serve(async (req) => {
   const { error: dupError } = await supabase
     .from('billing_events')
     .insert({
-      provider:   'lemonsqueezy',
+      provider:   'paddle',
       event_id:   eventId,
       event_type: eventType,
       user_id:    userId ?? null,
@@ -111,13 +129,14 @@ Deno.serve(async (req) => {
   }
 
   // ── Subscription events ──────────────────────────────────────────────────
-  if (userId && eventType.startsWith('subscription_')) {
-    const attrs              = event.data?.attributes ?? {};
-    const lsStatus: string   = attrs.status ?? '';
-    const status             = eventType === 'subscription_expired'
-      ? 'inactive'
-      : mapStatus(lsStatus);
-    const plan               = (status === 'canceled' || status === 'inactive') ? 'free' : 'premium';
+  if (userId && eventType.startsWith('subscription.')) {
+    const paddleStatus: string = data.status ?? '';
+    const status = mapStatus(paddleStatus);
+    const plan   = (status === 'canceled' || status === 'inactive') ? 'free' : 'premium';
+
+    // cancel_at_period_end: true when a cancellation is scheduled but not yet effective
+    const cancelAtPeriodEnd = data.scheduled_change?.action === 'cancel';
+    const priceId           = data.items?.[0]?.price?.id ?? null;
 
     const { error: upsertErr } = await supabase
       .from('user_subscriptions')
@@ -126,14 +145,14 @@ Deno.serve(async (req) => {
           user_id:                  userId,
           plan,
           status,
-          provider:                 'lemonsqueezy',
-          provider_customer_id:     String(attrs.customer_id ?? ''),
-          provider_subscription_id: String(event.data?.id ?? ''),
-          provider_price_id:        String(attrs.variant_id ?? ''),
-          current_period_start:     attrs.current_period_start ?? null,
-          current_period_end:       attrs.current_period_end   ?? null,
-          cancel_at_period_end:     attrs.cancel_at_period_end ?? false,
-          trial_end:                attrs.trial_ends_at        ?? null,
+          provider:                 'paddle',
+          provider_customer_id:     String(data.customer_id ?? ''),
+          provider_subscription_id: String(data.id ?? ''),
+          provider_price_id:        String(priceId ?? ''),
+          current_period_start:     data.current_billing_period?.starts_at ?? null,
+          current_period_end:       data.current_billing_period?.ends_at   ?? null,
+          cancel_at_period_end:     cancelAtPeriodEnd,
+          trial_end:                data.trial_dates?.ends_at ?? null,
           updated_at:               new Date().toISOString(),
         },
         { onConflict: 'user_id' },
@@ -141,7 +160,7 @@ Deno.serve(async (req) => {
 
     if (upsertErr) {
       console.error('user_subscriptions upsert error:', upsertErr);
-      // Still return 200 so LS doesn't retry — event is already stored in billing_events
+      // Still return 200 so Paddle doesn't retry — event is already stored in billing_events
     }
   }
 

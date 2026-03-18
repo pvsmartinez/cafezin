@@ -82,14 +82,18 @@ function fileIconInfo(name: string): { icon: React.ReactNode; cls: string } {
 }
 
 // ── File-type groups for the three-category creator ────────────────────────
-type FileCategory = 'canvas' | 'text' | 'code';
+type FileCategory = 'canvas' | 'text' | 'code' | 'spreadsheet';
 
 const TEXT_TYPES = [
   { ext: '.md',   label: 'Markdown' },
   { ext: '.mdx',  label: 'MDX' },
   { ext: '.txt',  label: 'Plain text' },
   { ext: '.json', label: 'JSON' },
-  { ext: '.csv',  label: 'CSV' },
+];
+
+const SPREADSHEET_TYPES = [
+  { ext: '.csv', label: 'CSV' },
+  { ext: '.tsv', label: 'TSV' },
 ];
 
 const CODE_TYPES = [
@@ -685,9 +689,10 @@ export default function Sidebar({
 
   function selectCategory(cat: FileCategory) {
     setSelectedCategory(cat);
-    if (cat === 'canvas') setSelectedExt('.tldr.json');
-    else if (cat === 'text')  setSelectedExt('.md');
-    else                      setSelectedExt('.ts');
+    if (cat === 'canvas')      setSelectedExt('.tldr.json');
+    else if (cat === 'text')   setSelectedExt('.md');
+    else if (cat === 'spreadsheet') setSelectedExt('.csv');
+    else                       setSelectedExt('.ts');
     setTimeout(() => createInputRef.current?.focus(), 0);
   }
 
@@ -941,6 +946,15 @@ export default function Sidebar({
                     <span className="scc-icon"><FileCode weight="thin" size={14} /></span>
                     <span className="scc-label">{t('sidebar.newCode')}</span>
                   </button>
+                  <button
+                    type="button"
+                    className={`sidebar-creator-cat${selectedCategory === 'spreadsheet' ? ' active spreadsheet' : ''}`}
+                    onClick={() => selectCategory('spreadsheet')}
+                    title={t('sidebar.newSpreadsheetTitle')}
+                  >
+                    <span className="scc-icon"><Table weight="thin" size={14} /></span>
+                    <span className="scc-label">{t('sidebar.newSpreadsheet')}</span>
+                  </button>
                 </div>
 
                 {/* ── Sub-options for Text ── */}
@@ -961,6 +975,20 @@ export default function Sidebar({
                 {selectedCategory === 'code' && (
                   <div className="sidebar-creator-subtypes">
                     {CODE_TYPES.map((tp) => (
+                      <button
+                        key={tp.ext}
+                        type="button"
+                        className={`sidebar-type-pill${selectedExt === tp.ext ? ' active' : ''}`}
+                        onClick={() => { setSelectedExt(tp.ext); setTimeout(() => createInputRef.current?.focus(), 0); }}
+                      >{tp.label}</button>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── Sub-options for Spreadsheet ── */}
+                {selectedCategory === 'spreadsheet' && (
+                  <div className="sidebar-creator-subtypes">
+                    {SPREADSHEET_TYPES.map((tp) => (
                       <button
                         key={tp.ext}
                         type="button"

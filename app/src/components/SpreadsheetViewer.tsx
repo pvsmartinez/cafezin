@@ -32,8 +32,10 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
   const [editingCell, setEditingCell] = useState<CellPos | null>(null);
   const [editValue, setEditValue] = useState('');
   const [selectedCell, setSelectedCell] = useState<CellPos | null>(null);
+  const [copiedCell, setCopiedCell] = useState<CellPos | null>(null);
   const cellInputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-save debounce timer (CSV only)
   const saveDebouncerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -110,7 +112,7 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
   }
 
   function cellAddr(row: number, col: number): string {
-    return `${colLabel(col)}${row === -1 ? 'H' : row + 1}`;
+    return row === -1 ? colLabel(col) : `${colLabel(col)}${row + 1}`;
   }
 
   function looksNumeric(val: string): boolean {
@@ -168,6 +170,46 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
         ? (activeSheet.headers[col] ?? '')
         : (activeSheet.rows[row]?.[col] ?? '');
       navigator.clipboard.writeText(val).catch(() => {});
+      setCopiedCell({ row, col });
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopiedCell(null), 800);
+      return;
+    }
+
+    // Ctrl+V — paste single value or tab-separated block
+    if (e.key === 'v' && (e.ctrlKey || e.metaKey) && selectedCell) {
+      e.preventDefault();
+      const { row, col } = selectedCell;
+      if (row < 0) return;
+      navigator.clipboard.readText().then((text) => {
+        if (!text || !activeSheet) return;
+        const lines = text.split(/\r?\n/).filter((l) => l !== '');
+        if (lines.length === 1 && !text.includes('\t')) {
+          startEdit(row, col, text);
+        } else {
+          const pastedRows = lines.map((l) => l.split('\t'));
+          const newSheets = sheets.map((sh, si) => {
+            if (si !== activeSheetIdx) return sh;
+            const newRows = sh.rows.map((r) => [...r]);
+            for (let dr = 0; dr < pastedRows.length; dr++) {
+              const ri = row + dr;
+              if (ri >= newRows.length) break;
+              const cells = pastedRows[dr] ?? [];
+              for (let dc = 0; dc < cells.length; dc++) {
+                const ci = col + dc;
+                if (ci >= sh.headers.length) break;
+                while (newRows[ri].length <= ci) newRows[ri].push('');
+                newRows[ri][ci] = cells[dc] ?? '';
+              }
+            }
+            return { ...sh, rows: newRows };
+          });
+          setSheets(newSheets);
+          setDirty(true);
+          const updated = newSheets[activeSheetIdx];
+          if (updated) saveCurrentSheet(updated);
+        }
+      }).catch(() => {});
       return;
     }
 
@@ -249,7 +291,13 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
       cancelEdit();
     }
   }
-
+  // ── Auto-scroll selected cell into view ────────────────────────────────────────
+  useEffect(() => {
+    if (!selectedCell) return;
+    const { row, col } = selectedCell;
+    const el = gridRef.current?.querySelector<HTMLElement>(`[data-cell="${row},${col}"]`);
+    el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [selectedCell]); // eslint-disable-line react-hooks/exhaustive-deps
   // ── Row / column operations ───────────────────────────────────────────────
   function addRow() {
     if (!activeSheet) return;
@@ -263,13 +311,21 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
     if (updated) saveCurrentSheet(updated);
   }
 
-  function removeLastRow() {
+  function removeRow() {
     if (!activeSheet || activeSheet.rows.length === 0) return;
+    // Delete the selected row if one is selected, otherwise the last row
+    const rowIdx = (selectedCell !== null && selectedCell.row >= 0)
+      ? selectedCell.row
+      : activeSheet.rows.length - 1;
     const newSheets = sheets.map((sh, i) =>
-      i !== activeSheetIdx ? sh : { ...sh, rows: sh.rows.slice(0, -1) },
+      i !== activeSheetIdx ? sh : { ...sh, rows: sh.rows.filter((_, ri) => ri !== rowIdx) },
     );
     setSheets(newSheets);
     setDirty(true);
+    if (selectedCell && selectedCell.row >= 0) {
+      const newLen = newSheets[activeSheetIdx]?.rows.length ?? 0;
+      setSelectedCell({ row: Math.min(selectedCell.row, Math.max(0, newLen - 1)), col: selectedCell.col });
+    }
     const updated = newSheets[activeSheetIdx];
     if (updated) saveCurrentSheet(updated);
   }
@@ -290,17 +346,23 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
     if (updated) saveCurrentSheet(updated);
   }
 
-  function removeLastColumn() {
+  function removeColumn() {
     if (!activeSheet || activeSheet.headers.length === 0) return;
+    // Delete the selected column if one is selected, otherwise the last column
+    const colIdx = selectedCell !== null ? selectedCell.col : activeSheet.headers.length - 1;
     const newSheets = sheets.map((sh, i) =>
       i !== activeSheetIdx ? sh : {
         ...sh,
-        headers: sh.headers.slice(0, -1),
-        rows: sh.rows.map((r) => r.slice(0, -1)),
+        headers: sh.headers.filter((_, ci) => ci !== colIdx),
+        rows: sh.rows.map((r) => r.filter((_, ci) => ci !== colIdx)),
       },
     );
     setSheets(newSheets);
     setDirty(true);
+    if (selectedCell) {
+      const maxCol = (newSheets[activeSheetIdx]?.headers.length ?? 1) - 1;
+      setSelectedCell({ row: selectedCell.row, col: Math.min(selectedCell.col, Math.max(0, maxCol)) });
+    }
     const updated = newSheets[activeSheetIdx];
     if (updated) saveCurrentSheet(updated);
   }
@@ -365,13 +427,23 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
         <button className="ss-btn" title="Adicionar linha" onClick={addRow}>
           <Plus size={12} /><ArrowDown size={12} />
         </button>
-        <button className="ss-btn" title="Remover última linha" onClick={removeLastRow}>
+        <button
+          className="ss-btn"
+          title={selectedCell && selectedCell.row >= 0 ? `Remover linha ${selectedCell.row + 1}` : 'Remover última linha'}
+          onClick={removeRow}
+          disabled={!activeSheet || activeSheet.rows.length === 0}
+        >
           <Minus size={12} /><ArrowDown size={12} />
         </button>
         <button className="ss-btn" title="Adicionar coluna" onClick={addColumn}>
           <Plus size={12} /><ArrowRight size={12} />
         </button>
-        <button className="ss-btn" title="Remover última coluna" onClick={removeLastColumn}>
+        <button
+          className="ss-btn"
+          title={selectedCell ? `Remover coluna ${colLabel(selectedCell.col)}` : 'Remover última coluna'}
+          onClick={removeColumn}
+          disabled={!activeSheet || activeSheet.headers.length === 0}
+        >
           <Minus size={12} /><ArrowRight size={12} />
         </button>
 
@@ -411,21 +483,33 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
         </div>
       )}
 
-      {/* ── Formula bar ── */}
-      {selectedCell && !editingCell && (() => {
-        const { row, col } = selectedCell;
-        const val = row === -1 ? (activeSheet.headers[col] ?? '') : (activeSheet.rows[row]?.[col] ?? '');
-        const isFormula = val.startsWith('=');
-        return (
-          <div className="ss-formula-bar">
-            <span className="ss-formula-addr">{cellAddr(row, col)}</span>
+      {/* ── Formula bar (always visible) ── */}
+      <div className="ss-formula-bar">
+        {editingCell ? (
+          <>
+            <span className="ss-formula-addr">{cellAddr(editingCell.row, editingCell.col)}</span>
             <span className="ss-formula-divider" />
-            {val
-              ? <span className={`ss-formula-value${isFormula ? ' is-formula' : ''}`}>{val}</span>
-              : <span className="ss-formula-empty">vazio</span>}
-          </div>
-        );
-      })()}
+            <span className="ss-formula-value">
+              {editValue || <span className="ss-formula-empty">digitando…</span>}
+            </span>
+          </>
+        ) : selectedCell ? (() => {
+          const { row, col } = selectedCell;
+          const val = row === -1 ? (activeSheet.headers[col] ?? '') : (activeSheet.rows[row]?.[col] ?? '');
+          const isFormula = val.startsWith('=');
+          return (
+            <>
+              <span className="ss-formula-addr">{cellAddr(row, col)}</span>
+              <span className="ss-formula-divider" />
+              {val
+                ? <span className={`ss-formula-value${isFormula ? ' is-formula' : ''}`}>{val}</span>
+                : <span className="ss-formula-empty">vazio</span>}
+            </>
+          );
+        })() : (
+          <span className="ss-formula-empty">Clique em uma célula para selecionar</span>
+        )}
+      </div>
 
       {/* ── Grid ── */}
       <div
@@ -442,6 +526,7 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
               {activeSheet.headers.map((h, ci) => (
                 <th
                   key={ci}
+                  data-cell={`-1,${ci}`}
                   className={`ss-th${selectedCell?.row === -1 && selectedCell?.col === ci && !editingCell ? ' selected' : ''}`}
                   onClick={() => { if (!editingCell) { setSelectedCell({ row: -1, col: ci }); gridRef.current?.focus(); } }}
                   onDoubleClick={() => startEdit(-1, ci)}
@@ -469,10 +554,12 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
                 {activeSheet.headers.map((_h, ci) => (
                   <td
                     key={ci}
+                    data-cell={`${ri},${ci}`}
                     className={[
                       'ss-td',
                       editingCell?.row === ri && editingCell?.col === ci ? 'editing' : '',
                       selectedCell?.row === ri && selectedCell?.col === ci && !editingCell ? 'selected' : '',
+                      copiedCell?.row === ri && copiedCell?.col === ci ? 'copied' : '',
                       looksNumeric(row[ci] ?? '') ? 'num' : '',
                     ].filter(Boolean).join(' ')}
                     onClick={() => { if (!editingCell) { setSelectedCell({ row: ri, col: ci }); gridRef.current?.focus(); } }}
@@ -511,7 +598,7 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
         <span>{activeSheet.rows.length.toLocaleString()} linhas · {activeSheet.headers.length} colunas</span>
         {dirty && <span className="ss-status-dirty">· alterado</span>}
         {selectedCell && !editingCell && (
-          <span className="ss-status-hint">↑↓←→ navegar · Enter editar · Del limpar · Ctrl+C copiar</span>
+          <span className="ss-status-hint">↑↓←→ navegar · Enter editar · Del limpar · ⌘C copiar · ⌘V colar</span>
         )}
       </div>
     </div>

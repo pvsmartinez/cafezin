@@ -656,6 +656,7 @@ body.theme-light .sidebar-explorer-label {
 .sidebar-tree-file:has(.sidebar-icon--pdf):hover    { background: rgba(var(--red-rgb, 201,117,112), 0.06); }
 .sidebar-tree-file:has(.sidebar-icon--swift):hover  { background: rgba(var(--red-rgb, 201,117,112), 0.06); }
 .sidebar-tree-file:has(.sidebar-icon--sh):hover     { background: rgba(var(--green-rgb, 126,200,160), 0.06); }
+.sidebar-tree-file:has(.sidebar-icon--csv):hover    { background: rgba(70, 190, 165, 0.06); }
 
 .sidebar-tree-file.active {
   background: rgba(var(--accent-rgb), 0.12);
@@ -928,7 +929,7 @@ body.theme-light .sidebar-explorer-label {
 /* ── 3 category tabs ───────────────────────────────────────────── */
 .sidebar-creator-categories {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-2);
 }
 
@@ -983,6 +984,12 @@ body.theme-light .sidebar-explorer-label {
   background: rgba(var(--accent-rgb), 0.14);
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.sidebar-creator-cat.active.spreadsheet {
+  background: rgba(70, 190, 165, 0.13);
+  border-color: rgb(70, 190, 165);
+  color: rgb(70, 190, 165);
 }
 
 /* ── Sub-type pills (shown below category tabs) ────────────────── */

@@ -14,7 +14,7 @@ import {
 } from '../../services/fs';
 import { walkFilesFlat } from '../../services/workspace';
 import { lockFile, unlockFile, waitForUnlock } from '../../services/copilotLock';
-import { parseSpreadsheetFile, serializeSheetToCSV, sheetToMarkdownTable } from '../../services/spreadsheet';
+import { parseSpreadsheetFile, serializeSheetToCSV, serializeSheetToTSV, sheetToMarkdownTable } from '../../services/spreadsheet';
 import type { SheetTab } from '../../services/spreadsheet';
 import type { ToolDefinition, DomainExecutor } from './shared';
 import { TEXT_EXTS, safeResolvePath } from './shared';
@@ -384,26 +384,47 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'write_spreadsheet',
       description:
-        'Write or overwrite a CSV file with structured data. Handles proper CSV quoting automatically. ' +
-        'Only .csv files are supported. Pass headers (column labels) and rows (data). ' +
-        'To make small text edits to an existing CSV, prefer read_workspace_file → patch_workspace_file instead.',
+        'Create or edit a CSV or TSV file. Supports two modes:\n' +
+        '• **Full rewrite**: pass `headers` + `rows` to replace the entire file.\n' +
+        '• **Surgical edit**: pass `updates`, `append_rows`, and/or `delete_rows` ' +
+        'to modify only parts of an existing file, leaving untouched cells unchanged.\n' +
+        'CSV/TSV quoting and escaping are handled automatically.',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'Relative path from workspace root. Must end in .csv, e.g. "data/sales.csv".',
+            description: 'Relative path from workspace root. Must end in .csv or .tsv, e.g. "data/sales.csv".',
           },
           headers: {
             type: 'string',
-            description: 'JSON array of column header labels, e.g. ["Name","Age","Score"].',
+            description: '(Full rewrite) JSON array of column header labels, e.g. ["Name","Age","Score"]. Required together with `rows`.',
           },
           rows: {
             type: 'string',
-            description: 'JSON array of rows, each row an array of string values, e.g. [["Alice","30","95"],["Bob","25","88"]].',
+            description: '(Full rewrite) JSON array of data rows. Each row is an array of string values, e.g. [["Alice","30"],["Bob","25"]].',
+          },
+          updates: {
+            type: 'string',
+            description:
+              '(Surgical) JSON array of cell patches: [{"row":1,"col":2,"value":"new"},…]. ' +
+              'Row 0 = header row; row 1 = first data row. Col is 0-based. ' +
+              'File must already exist.',
+          },
+          append_rows: {
+            type: 'string',
+            description:
+              '(Surgical) JSON array of rows to append at the end of the existing file, e.g. [["Alice","30"],["Bob","25"]]. ' +
+              'File must already exist.',
+          },
+          delete_rows: {
+            type: 'string',
+            description:
+              '(Surgical) JSON array of 1-based data-row indices to remove. E.g. "[2,5]" deletes the 2nd and 5th data rows ' +
+              '(row 0 = header row, not counted). Applied before `updates` and `append_rows`. File must already exist.',
           },
         },
-        required: ['path', 'headers', 'rows'],
+        required: ['path'],
       },
     },
   },
@@ -1349,49 +1370,123 @@ draft: true
     case 'write_spreadsheet': {
       const relPath = String(args.path ?? '').trim();
       if (!relPath) return 'Error: path is required.';
-      if (!relPath.endsWith('.csv')) return 'Error: write_spreadsheet only supports .csv files.';
-
-      let headers: string[], rows: string[][];
-      try {
-        headers = JSON.parse(String(args.headers ?? '[]')) as string[];
-        rows = JSON.parse(String(args.rows ?? '[]')) as string[][];
-        if (!Array.isArray(headers)) return 'Error: headers must be a JSON array of strings.';
-        if (!Array.isArray(rows)) return 'Error: rows must be a JSON array of arrays.';
-      } catch (e) {
-        return `Error: invalid JSON in headers or rows: ${e}`;
-      }
+      const ext = relPath.split('.').pop()?.toLowerCase() ?? '';
+      if (ext !== 'csv' && ext !== 'tsv') return 'Error: write_spreadsheet only supports .csv and .tsv files.';
 
       let absPath: string;
       try { absPath = safeResolvePath(workspacePath, relPath); }
       catch (e) { return String(e); }
 
-      const sheet: SheetTab = { name: 'Sheet1', headers, rows: rows.map((r) => r.map(String)) };
-      const csv = await serializeSheetToCSV(sheet);
+      const hasFullRewrite = args.headers !== undefined || args.rows !== undefined;
+      const hasSurgical    = args.updates !== undefined || args.append_rows !== undefined || args.delete_rows !== undefined;
+
+      if (!hasFullRewrite && !hasSurgical) {
+        return 'Error: provide either (headers + rows) for a full rewrite, or (updates / append_rows / delete_rows) for a surgical edit.';
+      }
+      if (hasFullRewrite && hasSurgical) {
+        return 'Error: cannot mix full-rewrite params (headers/rows) with surgical params (updates/append_rows/delete_rows) in one call.';
+      }
+
+      let sheet: SheetTab;
+      let summaryVerb: string;
+
+      if (hasFullRewrite) {
+        // Full rewrite
+        let headers: string[], rows: string[][];
+        try {
+          headers = JSON.parse(String(args.headers ?? '[]')) as string[];
+          rows    = JSON.parse(String(args.rows    ?? '[]')) as string[][];
+          if (!Array.isArray(headers)) return 'Error: headers must be a JSON array of strings.';
+          if (!Array.isArray(rows))    return 'Error: rows must be a JSON array of arrays.';
+        } catch (e) { return `Error: invalid JSON in headers or rows: ${e}`; }
+        sheet = { name: 'Sheet1', headers, rows: rows.map((r) => r.map(String)) };
+        summaryVerb = `full rewrite — ${headers.length} col(s), ${rows.length} data row(s)`;
+
+      } else {
+        // Surgical edit — read existing file first
+        if (!(await exists(absPath))) {
+          return `File not found: ${relPath}. Surgical edits require an existing file — use full rewrite (headers+rows) to create it.`;
+        }
+        const existingData = await parseSpreadsheetFile(absPath, ext);
+        sheet = existingData.sheets[0] ?? { name: 'Sheet1', headers: [], rows: [] };
+        const ops: string[] = [];
+
+        // delete_rows runs first so indices in updates/append_rows refer to post-deletion state
+        if (args.delete_rows !== undefined) {
+          let deleteIdxs: number[];
+          try {
+            deleteIdxs = JSON.parse(String(args.delete_rows)) as number[];
+            if (!Array.isArray(deleteIdxs)) return 'Error: delete_rows must be a JSON array of row numbers.';
+          } catch (e) { return `Error: invalid JSON in delete_rows: ${e}`; }
+          const deleteSet = new Set(deleteIdxs.map((n) => n - 1)); // 1-based to 0-based
+          const before = sheet.rows.length;
+          sheet.rows = sheet.rows.filter((_, ri) => !deleteSet.has(ri));
+          ops.push(`${before - sheet.rows.length} row(s) deleted`);
+        }
+
+        if (args.updates !== undefined) {
+          let updates: Array<{ row: number; col: number; value: string }>;
+          try {
+            updates = JSON.parse(String(args.updates)) as typeof updates;
+            if (!Array.isArray(updates)) return 'Error: updates must be a JSON array.';
+          } catch (e) { return `Error: invalid JSON in updates: ${e}`; }
+          for (const u of updates) {
+            const r = Number(u.row);
+            const c = Number(u.col);
+            const v = String(u.value ?? '');
+            if (r === 0) {
+              while (sheet.headers.length <= c) sheet.headers.push('');
+              sheet.headers[c] = v;
+            } else {
+              const ri = r - 1;
+              while (sheet.rows.length <= ri) sheet.rows.push(sheet.headers.map(() => ''));
+              while (sheet.rows[ri].length <= c) sheet.rows[ri].push('');
+              sheet.rows[ri][c] = v;
+            }
+          }
+          ops.push(`${updates.length} cell update(s)`);
+        }
+
+        if (args.append_rows !== undefined) {
+          let newRows: string[][];
+          try {
+            newRows = JSON.parse(String(args.append_rows)) as string[][];
+            if (!Array.isArray(newRows)) return 'Error: append_rows must be a JSON array of arrays.';
+          } catch (e) { return `Error: invalid JSON in append_rows: ${e}`; }
+          sheet.rows.push(...newRows.map((r) => r.map(String)));
+          ops.push(`${newRows.length} row(s) appended`);
+        }
+
+        summaryVerb = `surgical edit — ${ops.join(', ')}, ${sheet.rows.length} total row(s)`;
+      }
+
+      const serialized = ext === 'tsv'
+        ? await serializeSheetToTSV(sheet)
+        : await serializeSheetToCSV(sheet);
 
       const lwWrite = await waitForUnlock(relPath, ctx.agentId);
       if (lwWrite.timedOut) {
-        return `Cannot write “${relPath}” — it is locked by another agent (${lwWrite.owner}).`;
+        return `Cannot write "${relPath}" — it is locked by another agent (${lwWrite.owner}).`;
       }
       lockFile(relPath, ctx.agentId);
       await new Promise<void>((r) => setTimeout(r, 0));
       const dirPath = absPath.split('/').slice(0, -1).join('/');
       try {
         if (!(await exists(dirPath))) await mkdir(dirPath, { recursive: true });
-        await writeTextFile(absPath, csv);
+        await writeTextFile(absPath, serialized);
       } catch (e) {
         unlockFile(relPath);
         return `Error writing file: ${e}`;
       }
       try {
         onFileWritten?.(relPath);
-        onMarkRecorded?.(relPath, csv);
+        onMarkRecorded?.(relPath, serialized);
         await new Promise<void>((r) => setTimeout(r, 400));
       } finally {
         unlockFile(relPath);
       }
-      return `CSV written: ${relPath} — ${headers.length} columns, ${rows.length} data rows (${csv.length} chars).`;
+      return `${ext.toUpperCase()} written: ${relPath} — ${summaryVerb} (${serialized.length} chars).`;
     }
-
     default:
       return null;
   }
