@@ -739,7 +739,7 @@
 
 .ai-btn-send {
   background: var(--accent);
-  color: var(--bg);
+  color: var(--text-on-emphasis);
   border: none;
   border-radius: var(--radius-md);
   font-size: var(--font-size-lg);
@@ -778,7 +778,7 @@
 .ai-btn-send--interrupt {
   background: var(--orange);
   border: none;
-  color: var(--bg);
+  color: var(--text-on-emphasis);
 }
 
 .ai-btn-send--interrupt:hover:not(:disabled) {
@@ -789,7 +789,7 @@
 .ai-btn-send--stop {
   background: var(--red);
   border: none;
-  color: var(--bg);
+  color: var(--text-on-emphasis);
 }
 
 .ai-btn-send--stop:hover {
@@ -1196,7 +1196,7 @@
 
 .ai-auth-btn {
   background: var(--accent);
-  color: var(--bg);
+  color: var(--text-on-emphasis);
   border: none;
   border-radius: var(--radius-md);
   padding: 8px 20px;

@@ -154,8 +154,11 @@ mod git_cli {
             }
         }
 
-        // Push (best-effort — if no remote is configured, silently OK)
-        let _ = run_out(&["push", "origin", "HEAD"]);
+        // Push only if a remote exists. Surface push errors instead of silently
+        // succeeding so first-time publish flows can fail clearly.
+        if run_out(&["remote", "get-url", "origin"]).is_ok() {
+            run_out(&["push", "origin", "HEAD"])?;
+        }
         Ok("synced".into())
     }
 
@@ -503,6 +506,7 @@ mod git_native {
                 if let Some(ref tok) = token { inject_token(&normed, tok) } else { normed }
             };
             let _ = repo.remote_set_url("origin", &push_url);
+            let mut push_error: Option<String> = None;
             if let Ok(mut remote) = repo.find_remote("origin") {
                 let callbacks = if let Some(tok) = token {
                     token_callbacks(tok)
@@ -522,12 +526,17 @@ mod git_native {
                 drop(remote);
                 // Re-open remote to avoid borrow conflict after set_url
                 if let Ok(mut r2) = repo.find_remote("origin") {
-                    let _ = r2.push(&[&refspec], Some(&mut push_opts)); // best-effort
+                    if let Err(err) = r2.push(&[&refspec], Some(&mut push_opts)) {
+                        push_error = Some(err.to_string());
+                    }
                 }
             }
             // Restore clean URL after push
             let clean = normalize_url(&origin_url);
             let _ = repo.remote_set_url("origin", &clean);
+            if let Some(err) = push_error {
+                return Err(err);
+            }
         }
 
         Ok("synced".into())
@@ -865,6 +874,15 @@ pub struct DeviceFlowPollResult {
     pub error_description: Option<String>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct GitHubCreatedRepo {
+    pub name: String,
+    pub full_name: String,
+    pub html_url: String,
+    pub clone_url: String,
+    pub private: bool,
+}
+
 /// Step 1: Request a user_code / device_code pair from GitHub.
 /// The client_id and client_secret stay in Rust — the renderer only receives display data.
 /// `scope` examples: "copilot" (Copilot API access), "repo" (git clone/push private repos).
@@ -903,6 +921,34 @@ async fn github_device_flow_poll(device_code: String) -> Result<DeviceFlowPollRe
         .await
         .map_err(|e| format!("device flow poll request failed: {e}"))?;
     res.json::<DeviceFlowPollResult>().await.map_err(|e| format!("device flow poll parse error: {e}"))
+}
+
+#[tauri::command]
+async fn github_create_repo(repo_name: String, private_repo: bool, token: String) -> Result<GitHubCreatedRepo, String> {
+    let client = reqwest::Client::new();
+    let res = client
+        .post("https://api.github.com/user/repos")
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "Cafezin")
+        .bearer_auth(token)
+        .json(&serde_json::json!({
+            "name": repo_name,
+            "private": private_repo,
+            "auto_init": false,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("GitHub repo create request failed: {e}"))?;
+
+    if !res.status().is_success() {
+        let status = res.status().as_u16();
+        let body = res.text().await.unwrap_or_default();
+        return Err(format!("GitHub repo create failed ({status}): {body}"));
+    }
+
+    res.json::<GitHubCreatedRepo>()
+        .await
+        .map_err(|e| format!("GitHub repo create parse error: {e}"))
 }
 
 /// Returns the distribution channel so the frontend can adapt its update UI.
@@ -1273,7 +1319,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll])
+        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

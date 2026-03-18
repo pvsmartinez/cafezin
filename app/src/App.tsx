@@ -513,7 +513,9 @@ export default function App() {
 
   // Apply/remove light theme class on body
   useEffect(() => {
-    document.body.classList.toggle('theme-light', appSettings.theme === 'light');
+    const isLight = appSettings.theme === 'light';
+    document.documentElement.classList.toggle('theme-light', isLight);
+    document.body.classList.toggle('theme-light', isLight);
   }, [appSettings.theme]);
 
   // Keep autosave delay ref in sync

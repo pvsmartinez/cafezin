@@ -115,6 +115,7 @@
   --accent-rgb:    var(--pal-accent-rgb);
   --accent-bg:     rgba(var(--accent-rgb), 0.12);
   --accent-border: rgba(var(--accent-rgb), 0.38);
+  --text-on-emphasis: #0f0b07;
 
   /* Semantic colours — fixed across palettes */
   --green:         #82cfa5;
@@ -187,42 +188,45 @@
    ╚══════════════════════════════════════════════════════════════════╝ */
 
 /* ── 🥛 Cream palette — edit these ~13 values to re-theme light mode ───── */
+:root.theme-light,
 body.theme-light {
-  --pal-dark:       #f5f0e7;   /* page bg (lightest)    */
-  --pal-card:       #fdf8f2;   /* panels, cards         */
-  --pal-inset:      #ece7db;   /* inset, hover          */
-  --pal-deep:       #e4ddd2;   /* deep inputs           */
-  --pal-code-bg:    #e9e4db;   /* code blocks           */
-  --pal-line:       #c9c0ae;   /* visible borders       */
-  --pal-code-line:  #cdc4b0;   /* code area borders     */
-  --pal-hi:         #251a0c;   /* headings (darkest)    */
-  --pal-text:       #382c1c;   /* body text             */
-  --pal-muted:      #7a6a52;   /* secondary text        */
-  --pal-ghost:      #a89880;   /* placeholders          */
-  --pal-accent:     #1f9e8a;   /* brand / interactive   */
-  --pal-accent-rgb: 31, 158, 138;
+  --pal-dark:       #ece9e1;   /* app canvas bg          */
+  --pal-card:       #f7f4ed;   /* working surfaces       */
+  --pal-inset:      #e6dfd2;   /* inset, hover           */
+  --pal-deep:       #dad2c4;   /* deep inputs            */
+  --pal-code-bg:    #f1ede4;   /* editor/code surfaces   */
+  --pal-line:       #b2aa9a;   /* visible borders        */
+  --pal-code-line:  #c0b7a8;   /* code area borders      */
+  --pal-hi:         #221c16;   /* headings (darkest)     */
+  --pal-text:       #2f2922;   /* body text              */
+  --pal-muted:      #565044;   /* secondary text         */
+  --pal-ghost:      #746d61;   /* placeholders           */
+  --pal-accent:     #176b60;   /* brand / interactive    */
+  --pal-accent-rgb: 23, 107, 96;
 }
 
 /* ── Semantic overrides for light — derived from palette ──────────────── */
+:root.theme-light,
 body.theme-light {
   /* --border in light has its own value (midpoint between surface2 and border2) */
-  --border:        #ddd5c5;
+  --border:        #cbc4b6;
 
   /* Semantic colours — adjusted for light */
-  --green:         #2d9e5e;
-  --green-rgb:     45, 158, 94;
-  --yellow:        #a57428;
-  --yellow-rgb:    165, 116, 40;
-  --red:           #bf3c3c;
-  --red-rgb:       191, 60, 60;
-  --purple:        #7340c8;
-  --purple-rgb:    115, 64, 200;
-  --purple-dim:    #9468d4;
+  --green:         #266f46;
+  --green-rgb:     38, 111, 70;
+  --yellow:        #8b641b;
+  --yellow-rgb:    139, 100, 27;
+  --red:           #b23535;
+  --red-rgb:       178, 53, 53;
+  --purple:        #6936b8;
+  --purple-rgb:    105, 54, 184;
+  --purple-dim:    #865ed0;
   --purple-bg:     rgba(var(--purple-rgb), 0.08);
-  --blue:          #2563b0;
-  --blue-rgb:      37, 99, 176;
-  --orange:        #b97820;
-  --orange-rgb:    185, 120, 32;
+  --blue:          #275b99;
+  --blue-rgb:      39, 91, 153;
+  --orange:        #8f5a12;
+  --orange-rgb:    143, 90, 18;
+  --text-on-emphasis: #fffdf8;
 
   /* Canvas format panel / active-state */
   --fmt-bg:          var(--surface2);
@@ -238,22 +242,22 @@ body.theme-light {
   --fmt-green-hbr:   rgba(var(--green-rgb), 0.6);
 
   /* Glass HUD */
-  --hud-bg:        rgba(248, 244, 236, 0.92);
-  --hud-border:    rgba(0, 0, 0, 0.14);
-  --hud-text:      #4a3e2e;
-  --hud-text-dim:  #7a6a52;
-  --hud-text-hi:   #251a0c;
+  --hud-bg:        rgba(243, 239, 231, 0.96);
+  --hud-border:    rgba(34, 28, 20, 0.12);
+  --hud-text:      #433a30;
+  --hud-text-dim:  #64594b;
+  --hud-text-hi:   #221c16;
 
   /* Editor */
-  --editor-selection:  rgba(31, 158, 138, 0.13);
-  --editor-active-ln:  rgba(0,0,0,0.03);
+  --editor-selection:  rgba(23, 107, 96, 0.12);
+  --editor-active-ln:  rgba(0,0,0,0.04);
 
   /* Shadow */
-  --shadow:        rgba(35, 22, 8, 0.22);
+  --shadow:        rgba(41, 33, 20, 0.10);
 
   /* Surface overlays — inverted for light */
-  --bg2:           rgba(0, 0, 0, 0.04);
-  --bg3:           rgba(0, 0, 0, 0.07);
+  --bg2:           rgba(0, 0, 0, 0.025);
+  --bg3:           rgba(0, 0, 0, 0.045);
 
-  --text-rgb:  56, 44, 28;   /* rgb() of --pal-text, keep in sync */
+  --text-rgb:  47, 41, 34;   /* rgb() of --pal-text, keep in sync */
 }

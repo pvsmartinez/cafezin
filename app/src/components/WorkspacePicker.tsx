@@ -7,13 +7,34 @@ import { supabase } from '../services/supabase';
 import { mkdir } from '../services/fs';
 import { pickWorkspaceFolder, loadWorkspace, getRecents, removeRecent } from '../services/workspace';
 import {
+  createGitHubRepo,
+  getGitAccountToken,
   getSession, getUser, signOut,
+  listGitAccountLabels,
   listSyncedWorkspaces, registerWorkspace, registerWorkspaceByUrl,
+  startGitAccountFlow,
   type SyncedWorkspace,
+  type SyncDeviceFlowState,
 } from '../services/syncConfig';
 import type { Workspace, RecentWorkspace } from '../types';
 import './WorkspacePicker.css';
 import { timeAgo } from '../utils/timeAgo';
+
+const DEFAULT_GIT_ACCOUNT_LABEL = 'personal';
+
+function getPreferredGitAccountLabel(labels: string[]): string {
+  if (labels.includes(DEFAULT_GIT_ACCOUNT_LABEL)) return DEFAULT_GIT_ACCOUNT_LABEL;
+  return labels[0] ?? DEFAULT_GIT_ACCOUNT_LABEL;
+}
+
+function sanitizeRepoName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100);
+}
 
 /** Normalize a git URL for comparison: strip protocol/host, trailing .git, lowercase */
 function normalizeGitUrl(url: string): string {
@@ -87,9 +108,21 @@ export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
   const [createError, setCreateError] = useState<string | null>(null);
   const [publishPath, setPublishPath] = useState<string | null>(null);
   const [publishName, setPublishName] = useState('');
+  const [publishMode, setPublishMode] = useState<'create' | 'existing'>('create');
+  const [publishRepoName, setPublishRepoName] = useState('');
+  const [publishPrivateRepo, setPublishPrivateRepo] = useState(true);
+  const [publishGitAccountLabel, setPublishGitAccountLabel] = useState(DEFAULT_GIT_ACCOUNT_LABEL);
   const [publishUrl, setPublishUrl] = useState('');
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [gitFlowBusy, setGitFlowBusy] = useState(false);
+  const [gitFlowState, setGitFlowState] = useState<SyncDeviceFlowState | null>(null);
+  const [gitAccountLabels, setGitAccountLabels] = useState<string[]>(() => {
+    const labels = listGitAccountLabels();
+    return labels.includes(DEFAULT_GIT_ACCOUNT_LABEL)
+      ? labels
+      : [DEFAULT_GIT_ACCOUNT_LABEL, ...labels.filter((label) => label !== DEFAULT_GIT_ACCOUNT_LABEL)];
+  });
 
   // ── Publish-to-cloud state (local-nogit flow) ─────────────────────────────
   const [cloneBusy, setCloneBusy] = useState<string | null>(null); // gitUrl being cloned
@@ -253,22 +286,84 @@ export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
 
   /** Open publish-to-cloud form for a local-nogit workspace. */
   function openPublishForm(r: RecentWorkspace) {
+    const preferredLabel = getPreferredGitAccountLabel(gitAccountLabels);
     setPublishPath(r.path);
     setPublishName(r.name);
+    setPublishMode('create');
+    setPublishRepoName(sanitizeRepoName(r.name));
+    setPublishPrivateRepo(true);
+    setPublishGitAccountLabel(preferredLabel);
     setPublishUrl('');
     setPublishError(null);
   }
 
+  async function ensureGitHubToken(label: string): Promise<string> {
+    const existing = getGitAccountToken(label);
+    if (existing) return existing;
+
+    setGitFlowBusy(true);
+    setPublishError(null);
+    try {
+      const token = await startGitAccountFlow(label, (state) => setGitFlowState(state));
+      setGitFlowState(null);
+      setGitAccountLabels((prev) => prev.includes(label) ? prev : [...prev, label]);
+      return token;
+    } finally {
+      setGitFlowBusy(false);
+    }
+  }
+
+  function updateRecentWorkspace(path: string, gitRemote: string) {
+    setRecents((prev) => {
+      const next = prev.map((r) =>
+        r.path === path ? { ...r, hasGit: true, gitRemote } : r,
+      );
+      localStorage.setItem('cafezin-recent-workspaces', JSON.stringify(next.slice(0, 20)));
+      return next;
+    });
+  }
+
+  async function finalizePublishedWorkspace(gitUrl: string, gitAccountLabel: string, token?: string) {
+    if (!publishPath) return;
+    await invoke('git_set_remote', { path: publishPath, url: gitUrl });
+    if (token) {
+      await invoke('git_sync', {
+        path: publishPath,
+        message: 'Initial commit from Cafezin',
+        token,
+      });
+    }
+    await registerWorkspaceByUrl(publishName, gitUrl, gitAccountLabel);
+    updateRecentWorkspace(publishPath, gitUrl);
+    await loadCloud();
+    setPublishPath(null);
+    setGitFlowState(null);
+  }
+
+  /** Create a GitHub repo automatically, then push and register it. */
+  async function handlePublishCreate() {
+    if (!publishPath || !publishRepoName.trim()) return;
+    setPublishBusy(true);
+    setPublishError(null);
+    try {
+      const token = await ensureGitHubToken(publishGitAccountLabel);
+      const repo = await createGitHubRepo(sanitizeRepoName(publishRepoName), publishPrivateRepo, token);
+      await finalizePublishedWorkspace(repo.cloneUrl, publishGitAccountLabel, token);
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPublishBusy(false);
+    }
+  }
+
   /** Set remote + register in Supabase for a local workspace with no git remote. */
-  async function handlePublish() {
+  async function handlePublishExisting() {
     if (!publishPath || !publishUrl.trim()) return;
     setPublishBusy(true);
     setPublishError(null);
     try {
-      await invoke('git_set_remote', { path: publishPath, url: publishUrl.trim() });
-      await registerWorkspaceByUrl(publishName, publishUrl.trim());
-      await loadCloud();
-      setPublishPath(null);
+      const token = getGitAccountToken(publishGitAccountLabel) ?? undefined;
+      await finalizePublishedWorkspace(publishUrl.trim(), publishGitAccountLabel, token);
     } catch (err) {
       setPublishError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -337,20 +432,141 @@ export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
         {/* ── Publish-to-cloud form (inline) ── */}
         {publishPath && (
           <div className="wp-publish-form">
-            <p className="wp-publish-label">Cole a URL do repositório remoto:</p>
-            <input
-              className="wp-auth-input"
-              placeholder="https://github.com/usuario/repo.git"
-              value={publishUrl}
-              onChange={(e) => setPublishUrl(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void handlePublish(); if (e.key === 'Escape') setPublishPath(null); }}
-              autoFocus
-            />
+            <div className="wp-publish-mode-row">
+              <button
+                className={`wp-publish-mode-btn${publishMode === 'create' ? ' wp-publish-mode-btn--active' : ''}`}
+                onClick={() => setPublishMode('create')}
+                disabled={publishBusy}
+              >
+                Criar repo no GitHub
+              </button>
+              <button
+                className={`wp-publish-mode-btn${publishMode === 'existing' ? ' wp-publish-mode-btn--active' : ''}`}
+                onClick={() => setPublishMode('existing')}
+                disabled={publishBusy}
+              >
+                Usar URL existente
+              </button>
+            </div>
+
+            {publishMode === 'create' ? (
+              <>
+                <p className="wp-publish-label">Padrão seguro: privado + conta git padrão. Se quiser, pode só clicar em Criar.</p>
+                <input
+                  className="wp-auth-input"
+                  placeholder="nome-do-repositorio"
+                  value={publishRepoName}
+                  onChange={(e) => setPublishRepoName(sanitizeRepoName(e.target.value))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handlePublishCreate();
+                    if (e.key === 'Escape') setPublishPath(null);
+                  }}
+                  autoFocus
+                />
+                <div className="wp-publish-settings">
+                  <label className="wp-publish-setting">
+                    <span className="wp-publish-setting-label">Conta git</span>
+                    <select
+                      className="wp-publish-select"
+                      value={publishGitAccountLabel}
+                      onChange={(e) => setPublishGitAccountLabel(e.target.value)}
+                      disabled={publishBusy || gitFlowBusy}
+                    >
+                      {gitAccountLabels.map((label) => (
+                        <option key={label} value={label}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="wp-publish-setting">
+                    <span className="wp-publish-setting-label">Visibilidade</span>
+                    <div className="wp-visibility-toggle" role="tablist" aria-label="Visibilidade do repositório">
+                      <button
+                        type="button"
+                        className={`wp-visibility-btn${publishPrivateRepo ? ' wp-visibility-btn--active' : ''}`}
+                        onClick={() => setPublishPrivateRepo(true)}
+                        disabled={publishBusy}
+                      >
+                        Privado
+                      </button>
+                      <button
+                        type="button"
+                        className={`wp-visibility-btn${!publishPrivateRepo ? ' wp-visibility-btn--active' : ''}`}
+                        onClick={() => setPublishPrivateRepo(false)}
+                        disabled={publishBusy}
+                      >
+                        Publico
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <p className="wp-publish-hint">
+                  {getGitAccountToken(publishGitAccountLabel)
+                    ? `Conta ${publishGitAccountLabel} ja autenticada.`
+                    : `Se necessario, o GitHub vai pedir login para a conta ${publishGitAccountLabel}.`}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="wp-publish-label">Cole a URL do repositório remoto:</p>
+                <input
+                  className="wp-auth-input"
+                  placeholder="https://github.com/usuario/repo.git"
+                  value={publishUrl}
+                  onChange={(e) => setPublishUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handlePublishExisting();
+                    if (e.key === 'Escape') setPublishPath(null);
+                  }}
+                  autoFocus
+                />
+                <label className="wp-publish-setting">
+                  <span className="wp-publish-setting-label">Conta git</span>
+                  <select
+                    className="wp-publish-select"
+                    value={publishGitAccountLabel}
+                    onChange={(e) => setPublishGitAccountLabel(e.target.value)}
+                    disabled={publishBusy || gitFlowBusy}
+                  >
+                    {gitAccountLabels.map((label) => (
+                      <option key={label} value={label}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+                <p className="wp-publish-hint">
+                  Se a conta selecionada estiver autenticada, o Cafezin também faz o push inicial automaticamente.
+                </p>
+              </>
+            )}
+
+            {gitFlowState && (
+              <div className="wp-publish-flow">
+                <p className="wp-publish-flow-text">Abra esta URL no navegador e insira o código:</p>
+                <button
+                  className="wp-publish-link"
+                  onClick={() => openUrl(gitFlowState.verificationUri).catch(() => window.open(gitFlowState.verificationUri, '_blank'))}
+                  type="button"
+                >
+                  {gitFlowState.verificationUri}
+                </button>
+                <div className="wp-publish-flow-code">{gitFlowState.userCode}</div>
+                <p className="wp-publish-hint">Aguardando autorização do GitHub…</p>
+              </div>
+            )}
+
             {publishError && <div className="wp-auth-error">{publishError}</div>}
             <div className="wp-publish-actions">
               <button className="wp-publish-cancel" onClick={() => setPublishPath(null)}>Cancelar</button>
-              <button className="wp-btn-action wp-btn-action--primary wp-btn-action--sm" onClick={handlePublish} disabled={publishBusy || !publishUrl.trim()}>
-                {publishBusy ? 'Salvando…' : <><CloudArrowUp weight="thin" size={13} /> Publicar</>}
+              <button
+                className="wp-btn-action wp-btn-action--primary wp-btn-action--sm"
+                onClick={publishMode === 'create' ? handlePublishCreate : handlePublishExisting}
+                disabled={publishBusy || gitFlowBusy || (publishMode === 'create' ? !publishRepoName.trim() : !publishUrl.trim())}
+              >
+                {publishBusy || gitFlowBusy
+                  ? 'Publicando…'
+                  : publishMode === 'create'
+                    ? <><CloudArrowUp weight="thin" size={13} /> Criar</>
+                    : <><CloudArrowUp weight="thin" size={13} /> Conectar</>}
               </button>
             </div>
           </div>

@@ -377,7 +377,7 @@
   right: 6px;
   background: var(--green);
   border-radius: 50%;
-  color: var(--bg);
+  color: var(--text-on-emphasis);
   font-size: var(--font-size-xs);
   font-weight: 700;
   width: 20px;

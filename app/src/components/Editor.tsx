@@ -143,69 +143,69 @@ function makeAIMarkField(texts: string[]) {
   });
 }
 
-// ── Cream light syntax highlight style ───────────────────────────────────────
+// ── Paper light syntax highlight style ───────────────────────────────────────
 const creamHighlightStyle = HighlightStyle.define([
-  { tag: tags.keyword,                        color: '#2563b0', fontWeight: '500' },
-  { tag: tags.controlKeyword,                 color: '#7340c8' },
-  { tag: [tags.string, tags.special(tags.string)], color: '#1a7a3c' },
-  { tag: tags.regexp,                         color: '#bf3c3c' },
-  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: '#8a7060', fontStyle: 'italic' },
-  { tag: [tags.number, tags.integer, tags.float], color: '#b97820' },
-  { tag: tags.bool,                           color: '#b97820', fontWeight: '500' },
-  { tag: tags.null,                           color: '#b97820' },
-  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#7340c8' },
-  { tag: [tags.typeName, tags.namespace], color: '#b97820' },
-  { tag: tags.className,                      color: '#b97820', fontWeight: '600' },
-  { tag: tags.definition(tags.variableName),  color: '#1f9e8a' },
-  { tag: tags.definition(tags.propertyName),  color: '#1f9e8a' },
-  { tag: tags.operator,                       color: '#555555' },
-  { tag: tags.punctuation,                    color: '#888880' },
-  { tag: tags.propertyName,                   color: '#2d2010' },
-  { tag: tags.attributeName,                  color: '#2563b0' },
-  { tag: tags.attributeValue,                 color: '#1a7a3c' },
-  { tag: [tags.url, tags.link],               color: '#1f9e8a', textDecoration: 'underline' },
-  { tag: tags.tagName,                        color: '#bf3c3c', fontWeight: '500' },
-  { tag: tags.angleBracket,                   color: '#888880' },
-  { tag: tags.heading,                        color: '#1a1108', fontWeight: 'bold' },
-  { tag: tags.emphasis,                       fontStyle: 'italic', color: '#6b5c47' },
-  { tag: tags.strong,                         fontWeight: '700', color: '#2d2010' },
-  { tag: tags.strikethrough,                  textDecoration: 'line-through', color: '#8a7060' },
-  { tag: tags.meta,                           color: '#8a7060' },
-  { tag: tags.invalid,                        color: '#bf3c3c', textDecoration: 'underline wavy' },
-  { tag: tags.deleted,                        color: '#bf3c3c', textDecoration: 'line-through' },
-  { tag: tags.inserted,                       color: '#1a7a3c' },
-  { tag: tags.changed,                        color: '#b97820' },
-  { tag: tags.self,                           color: '#2563b0', fontStyle: 'italic' },
-  { tag: tags.atom,                           color: '#b97820' },
-  { tag: tags.annotation,                     color: '#7340c8' },
+  { tag: tags.keyword,                        color: '#275b99', fontWeight: '500' },
+  { tag: tags.controlKeyword,                 color: '#6b4aa5' },
+  { tag: [tags.string, tags.special(tags.string)], color: '#2b6a4a' },
+  { tag: tags.regexp,                         color: '#a34a44' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: '#756b60', fontStyle: 'italic' },
+  { tag: [tags.number, tags.integer, tags.float], color: '#8b6527' },
+  { tag: tags.bool,                           color: '#8b6527', fontWeight: '500' },
+  { tag: tags.null,                           color: '#8b6527' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#6b4aa5' },
+  { tag: [tags.typeName, tags.namespace], color: '#8b6527' },
+  { tag: tags.className,                      color: '#8b6527', fontWeight: '600' },
+  { tag: tags.definition(tags.variableName),  color: '#176b60' },
+  { tag: tags.definition(tags.propertyName),  color: '#176b60' },
+  { tag: tags.operator,                       color: '#5d5750' },
+  { tag: tags.punctuation,                    color: '#877d72' },
+  { tag: tags.propertyName,                   color: '#40362b' },
+  { tag: tags.attributeName,                  color: '#275b99' },
+  { tag: tags.attributeValue,                 color: '#2b6a4a' },
+  { tag: [tags.url, tags.link],               color: '#176b60', textDecoration: 'underline' },
+  { tag: tags.tagName,                        color: '#a34a44', fontWeight: '500' },
+  { tag: tags.angleBracket,                   color: '#877d72' },
+  { tag: tags.heading,                        color: '#221c16', fontWeight: 'bold' },
+  { tag: tags.emphasis,                       fontStyle: 'italic', color: '#64594b' },
+  { tag: tags.strong,                         fontWeight: '700', color: '#31281f' },
+  { tag: tags.strikethrough,                  textDecoration: 'line-through', color: '#756b60' },
+  { tag: tags.meta,                           color: '#756b60' },
+  { tag: tags.invalid,                        color: '#a34a44', textDecoration: 'underline wavy' },
+  { tag: tags.deleted,                        color: '#a34a44', textDecoration: 'line-through' },
+  { tag: tags.inserted,                       color: '#2b6a4a' },
+  { tag: tags.changed,                        color: '#8b6527' },
+  { tag: tags.self,                           color: '#275b99', fontStyle: 'italic' },
+  { tag: tags.atom,                           color: '#8b6527' },
+  { tag: tags.annotation,                     color: '#6b4aa5' },
 ]);
 
 // ── Cream editor UI theme (backgrounds, gutters, panels) ──────────────────────
 const creamEditorTheme = EditorView.theme({
   '&': {
-    background: 'var(--bg)',
+    background: 'var(--surface)',
     color: 'var(--text)',
   },
   '.cm-gutters': {
-    background: 'var(--surface)',
+    background: 'var(--surface2)',
     color: 'var(--text-dim)',
     borderRight: '1px solid var(--border)',
   },
   '.cm-activeLineGutter': {
-    background: 'var(--surface2)',
+    background: 'var(--surface-deep)',
   },
   '.cm-activeLine': {
-    background: 'rgba(0, 0, 0, 0.03)',
+    background: 'rgba(0, 0, 0, 0.028)',
   },
   '.cm-searchMatch': {
-    background: 'rgba(185, 120, 32, 0.22)',
-    outline: '1px solid rgba(185, 120, 32, 0.5)',
+    background: 'rgba(143, 90, 18, 0.16)',
+    outline: '1px solid rgba(143, 90, 18, 0.32)',
   },
   '.cm-searchMatch.cm-searchMatch-selected': {
-    background: 'rgba(31, 158, 138, 0.28)',
+    background: 'rgba(23, 107, 96, 0.18)',
   },
   '.cm-selectionMatch': {
-    background: 'rgba(31, 158, 138, 0.12)',
+    background: 'rgba(23, 107, 96, 0.08)',
   },
   '.cm-panels': {
     background: 'var(--surface2)',
@@ -242,11 +242,11 @@ const creamTheme = [creamEditorTheme, syntaxHighlighting(creamHighlightStyle, { 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
   const cursorColor    = isDark ? '#4ec9b0' : '#1a7a6d';
-  const selectionBg    = isDark ? '#3b3026' : 'rgba(31, 158, 138, 0.15)';
-  const aiMarkBg       = isDark ? 'rgba(212, 169, 106, 0.15)'  : 'rgba(180, 120, 60, 0.12)';
-  const aiMarkBorderB  = isDark ? 'rgba(212, 169, 106, 0.7)'   : 'rgba(160, 100, 40, 0.55)';
-  const aiMarkBorderS  = isDark ? 'rgba(212, 169, 106, 0.3)'   : 'rgba(160, 100, 40, 0.25)';
-  const aiMarkShadow   = isDark ? 'rgba(212, 169, 106, 0.1)'   : 'rgba(160, 100, 40, 0.08)';
+  const selectionBg    = isDark ? '#3b3026' : 'rgba(23, 107, 96, 0.13)';
+  const aiMarkBg       = isDark ? 'rgba(212, 169, 106, 0.15)'  : 'rgba(143, 90, 18, 0.09)';
+  const aiMarkBorderB  = isDark ? 'rgba(212, 169, 106, 0.7)'   : 'rgba(143, 90, 18, 0.42)';
+  const aiMarkBorderS  = isDark ? 'rgba(212, 169, 106, 0.3)'   : 'rgba(143, 90, 18, 0.18)';
+  const aiMarkShadow   = isDark ? 'rgba(212, 169, 106, 0.1)'   : 'rgba(143, 90, 18, 0.05)';
   return EditorView.theme({
     '&': {
       height: '100%',

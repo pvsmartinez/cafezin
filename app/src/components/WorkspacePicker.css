@@ -62,7 +62,7 @@
 .wp-btn-open {
   margin-top: var(--space-4);
   background: var(--accent);
-  color: var(--bg);
+  color: var(--text-on-emphasis);
   border: none;
   border-radius: var(--radius-md);
   font-size: var(--font-size-md);
@@ -334,7 +334,7 @@
 }
 .wp-auth-tab--active {
   background: var(--accent);
-  color: var(--bg);
+  color: var(--text-on-emphasis);
   font-weight: 600;
 }
 
@@ -543,10 +543,165 @@
   gap: var(--space-3);
 }
 
+.wp-publish-mode-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.wp-publish-mode-btn {
+  flex: 1;
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base), color var(--transition-base);
+}
+
+.wp-publish-mode-btn:hover:not(:disabled) {
+  background: var(--surface-code);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.wp-publish-mode-btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(var(--accent-rgb, 87,200,150), 0.08);
+}
+
 .wp-publish-label {
   font-size: var(--font-size-sm);
   color: var(--text-muted);
   margin: 0;
+}
+
+.wp-publish-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-dim);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.wp-publish-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.wp-publish-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wp-publish-setting-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wp-publish-select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+  outline: none;
+}
+
+.wp-publish-select:focus {
+  border-color: var(--accent);
+}
+
+.wp-visibility-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.wp-visibility-btn {
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  padding: 9px 10px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base), color var(--transition-base);
+}
+
+.wp-visibility-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.wp-visibility-btn--active {
+  background: rgba(var(--accent-rgb, 87,200,150), 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.wp-publish-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text);
+}
+
+.wp-publish-checkbox input {
+  margin: 0;
+}
+
+.wp-publish-flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: rgba(var(--accent-rgb, 87,200,150), 0.08);
+  border: 1px solid rgba(var(--accent-rgb, 87,200,150), 0.18);
+}
+
+.wp-publish-flow-text {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text);
+}
+
+.wp-publish-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.wp-publish-link:hover {
+  text-decoration: underline;
+}
+
+.wp-publish-flow-code {
+  align-self: flex-start;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .wp-publish-actions {
@@ -602,7 +757,7 @@
   cursor: pointer;
   transition: background var(--transition-base), border-color var(--transition-base);
   background: var(--accent);
-  color: var(--bg);
+  color: var(--text-on-emphasis);
   border: 1px solid transparent;
 }
 
@@ -634,7 +789,7 @@
 
 .wp-btn-action--primary {
   background: var(--accent);
-  color: var(--bg);
+  color: var(--text-on-emphasis);
   border-color: transparent;
   width: 100%;
   justify-content: center;
@@ -667,4 +822,10 @@
   color: var(--text-muted);
   margin: 0;
   line-height: 1.4;
+}
+
+@media (max-width: 560px) {
+  .wp-publish-settings {
+    grid-template-columns: 1fr;
+  }
 }

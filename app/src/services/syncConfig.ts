@@ -50,6 +50,14 @@ export interface SyncedWorkspace {
   branch?: string
 }
 
+export interface GitHubCreatedRepo {
+  name: string
+  fullName: string
+  htmlUrl: string
+  cloneUrl: string
+  private: boolean
+}
+
 // ── Auth ───────────────────────────────────────────────────────────────────────
 
 export async function getSession(): Promise<Session | null> {
@@ -401,6 +409,18 @@ export function storeGitAccountToken(label: string, token: string): void {
 
 export function clearGitAccountToken(label: string): void {
   localStorage.removeItem(`${GIT_TOKEN_PREFIX}${label}`)
+}
+
+export async function createGitHubRepo(
+  repoName: string,
+  isPrivate: boolean,
+  token: string,
+): Promise<GitHubCreatedRepo> {
+  return invoke<GitHubCreatedRepo>('github_create_repo', {
+    repoName,
+    privateRepo: isPrivate,
+    token,
+  })
 }
 
 /** Return all git account labels that have stored tokens on this device. */
