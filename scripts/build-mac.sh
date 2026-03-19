@@ -83,11 +83,8 @@ npm install --legacy-peer-deps
 echo ""
 BUNDLES="app"
 [[ "$BUILD_DMG" == "true" ]] && BUNDLES="dmg"
-# For release, keep using the working dmg bundle path.
-# Tauri still generates updater artifacts with createUpdaterArtifacts enabled.
+
 if [[ "$DO_RELEASE" == "true" ]]; then
-  BUNDLES="dmg"
-  # Load signing key if not already set
   if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
     SIGNING_KEY_FILE="$HOME/.tauri/cafezin.key"
     if [[ -f "$SIGNING_KEY_FILE" ]]; then
@@ -100,9 +97,19 @@ if [[ "$DO_RELEASE" == "true" ]]; then
       fi
     fi
   fi
+
+  echo "▸ Cleaning previous updater artifacts..."
+  find "$APP_DIR/src-tauri/target/release/bundle/macos" -maxdepth 1 \( -name '*.tar.gz' -o -name '*.tar.gz.sig' \) -delete 2>/dev/null || true
+
+  echo "▸ Running Tauri production build (bundles: app) for fresh updater artifacts..."
+  npm run tauri build -- --bundles app
+
+  echo "▸ Running Tauri production build (bundles: dmg) for installer..."
+  npm run tauri build -- --bundles dmg
+else
+  echo "▸ Running Tauri production build (bundles: $BUNDLES)..."
+  npm run tauri build -- --bundles "$BUNDLES"
 fi
-echo "▸ Running Tauri production build (bundles: $BUNDLES)..."
-npm run tauri build -- --bundles "$BUNDLES"
 
 # ── Locate the built bundle ──────────────────────────────────────────────────
 BUNDLE_DIR="$APP_DIR/src-tauri/target/release/bundle"
