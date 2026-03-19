@@ -51,22 +51,33 @@ jobs:
         run: npm run tauri build -- --bundles msi,nsis
         working-directory: app
 
+      - name: List bundle artifacts (debug)
+        shell: bash
+        run: find app/src-tauri/target/release/bundle -type f | sort
+
       - name: Collect installers + updater bundles
         id: installers
         shell: bash
         run: |
-          MSI=$(find app/src-tauri/target/release/bundle/msi -name "*.msi" | head -1)
+          MSI=$(find app/src-tauri/target/release/bundle/msi -name "*.msi" | grep -v ".zip" | head -1)
           MSI_ZIP=$(find app/src-tauri/target/release/bundle/msi -name "*.msi.zip" | head -1)
           MSI_SIG=$(find app/src-tauri/target/release/bundle/msi -name "*.msi.zip.sig" | head -1)
           EXE=$(find app/src-tauri/target/release/bundle/nsis -name "*.exe" | grep -v ".zip" | head -1)
-          NSIS_ZIP=$(find app/src-tauri/target/release/bundle/nsis -name "*.nsis.zip" | head -1)
-          NSIS_SIG=$(find app/src-tauri/target/release/bundle/nsis -name "*.nsis.zip.sig" | head -1)
+          NSIS_ZIP=$(find app/src-tauri/target/release/bundle/nsis -name "*.zip" | grep -v ".sig" | head -1)
+          NSIS_SIG=$(find app/src-tauri/target/release/bundle/nsis -name "*.zip.sig" | head -1)
           echo "msi=$MSI"         >> $GITHUB_OUTPUT
           echo "msi_zip=$MSI_ZIP" >> $GITHUB_OUTPUT
           echo "msi_sig=$MSI_SIG" >> $GITHUB_OUTPUT
           echo "exe=$EXE"         >> $GITHUB_OUTPUT
           echo "nsis_zip=$NSIS_ZIP" >> $GITHUB_OUTPUT
           echo "nsis_sig=$NSIS_SIG" >> $GITHUB_OUTPUT
+          echo "--- Found files ---"
+          echo "MSI:      $MSI"
+          echo "MSI_ZIP:  $MSI_ZIP"
+          echo "MSI_SIG:  $MSI_SIG"
+          echo "EXE:      $EXE"
+          echo "NSIS_ZIP: $NSIS_ZIP"
+          echo "NSIS_SIG: $NSIS_SIG"
 
       - name: Validate updater artifacts
         shell: bash
