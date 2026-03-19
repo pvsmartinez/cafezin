@@ -338,6 +338,29 @@
   background: var(--green);
 }
 
+.sm-secondary-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-base), background var(--transition-base);
+}
+
+.sm-secondary-btn:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--surface2) 80%, var(--accent) 20%);
+}
+
+.sm-support-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 /* ── Keyboard shortcuts table ────────────────────── */
 .sm-shortcuts {
   width: 100%;

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contato — Cafezin</title>
+  <meta name="description" content="Fale com o Cafezin para suporte, feedback, parcerias ou dúvidas." />
+
+  <link rel="canonical" href="https://cafezin.pmatz.com/br/contact" />
+  <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/contact" />
+  <link rel="alternate" hreflang="pt-BR" href="https://cafezin.pmatz.com/br/contact" />
+  <link rel="alternate" hreflang="x-default" href="https://cafezin.pmatz.com/contact" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icon.png" />
+  <meta name="theme-color" content="#1c1610" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Vollkorn:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="/br">
+        <img src="coffe.png" alt="Logo do Cafezin" class="nav-logo-img" width="28" height="28" />
+        <span class="nav-logo-name">Cafezin</span>
+      </a>
+      <div class="nav-links">
+        <a class="nav-link" href="/br/pricing">Preços</a>
+        <a class="nav-link" href="/br/contact">Contato</a>
+        <div class="locale-switch" aria-label="Seletor de idioma">
+          <a class="locale-option" href="/contact" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
+          <a class="locale-option active" href="/br/contact" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
+        </div>
+        <a class="btn btn-ghost nav-cta" href="/br#download" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">Baixar agora</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="page-hero">
+    <div class="page-hero-inner">
+      <div class="page-hero-label">Contato</div>
+      <h1 class="page-hero-title">Fale com o Cafezin</h1>
+      <p class="page-hero-sub">
+        Dúvidas, feedback, parcerias ou suporte.<br />
+        Envie uma mensagem e ela chega direto ao Pedro.
+      </p>
+    </div>
+  </section>
+
+  <main>
+    <div class="prose contact-layout">
+      <div>
+        <div class="info-box">
+          <p>
+            <strong>Caminho mais rápido:</strong> use o formulário abaixo. As mensagens são encaminhadas para o Pedro via Telegram.
+            Se preferir e-mail, escreva para <a href="mailto:pmatz.email@gmail.com">pmatz.email@gmail.com</a>.
+          </p>
+        </div>
+
+        <h2>Para que usar este canal</h2>
+        <ul>
+          <li>Feedback de produto e pedidos de funcionalidade</li>
+          <li>Dúvidas sobre download, Premium ou cobrança</li>
+          <li>Parcerias e convites</li>
+          <li>Solicitações de privacidade e dados</li>
+        </ul>
+      </div>
+
+      <form id="contact-form" class="contact-form">
+        <div class="contact-field">
+          <label for="name">Seu nome</label>
+          <input id="name" name="name" type="text" autocomplete="name" required />
+        </div>
+
+        <div class="contact-field">
+          <label for="email">Seu e-mail (opcional)</label>
+          <input id="email" name="email" type="email" autocomplete="email" />
+        </div>
+
+        <div class="contact-field contact-honeypot" aria-hidden="true">
+          <label for="company">Empresa</label>
+          <input id="company" name="company" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <div class="contact-field">
+          <label for="message">Mensagem</label>
+          <textarea id="message" name="message" rows="8" required></textarea>
+        </div>
+
+        <button id="contact-submit" class="btn btn-download contact-submit" type="submit">
+          <span class="btn-text">
+            <span class="btn-sub">Formulário público</span>
+            <span class="btn-main">Enviar mensagem</span>
+          </span>
+        </button>
+
+        <p id="contact-status" class="contact-status">As mensagens enviadas aqui chegam no Telegram do Pedro e também podem ser respondidas por e-mail.</p>
+      </form>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-logo">
+        <img src="coffe.png" alt="Cafezin" class="footer-logo-img" />
+        <span>Cafezin</span>
+      </div>
+      <nav class="footer-links">
+        <a href="/br">Início</a>
+        <a href="/br/pricing">Preços</a>
+        <a href="/br/privacy-policy">Privacidade</a>
+        <a href="/br/contact">Contato</a>
+      </nav>
+      <p class="footer-copy">© 2026 Pedro Martinez. Feito com café no Brasil.</p>
+    </div>
+  </footer>
+
+  <script src="/landing-analytics.js"></script>
+  <script>
+    (function () {
+      var form = document.getElementById('contact-form');
+      var submitBtn = document.getElementById('contact-submit');
+      var statusEl = document.getElementById('contact-status');
+
+      function setStatus(text, kind) {
+        statusEl.textContent = text;
+        statusEl.className = 'contact-status' + (kind ? ' ' + kind : '');
+      }
+
+      function setBusy(busy) {
+        submitBtn.disabled = busy;
+        submitBtn.style.opacity = busy ? '0.7' : '1';
+      }
+
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        setBusy(true);
+        setStatus('Enviando sua mensagem…');
+
+        var payload = {
+          name: document.getElementById('name').value.trim(),
+          email: document.getElementById('email').value.trim(),
+          message: document.getElementById('message').value.trim(),
+          company: document.getElementById('company').value.trim(),
+          locale: 'pt-BR',
+          pagePath: window.location.pathname,
+        };
+
+        try {
+          var response = await fetch('https://dxxwlnvemqgpdrnkzrcr.supabase.co/functions/v1/contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            var body = await response.json().catch(function () { return {}; });
+            throw new Error(body.error || 'Falha ao enviar a mensagem.');
+          }
+
+          form.reset();
+          if (window.cafezinTrack) {
+            window.cafezinTrack('contact_submit', { hasEmail: !!payload.email });
+          }
+          setStatus('Mensagem enviada. O Pedro vai recebê-la no Telegram.', 'ok');
+        } catch (error) {
+          setStatus(error.message || 'Falha ao enviar. Tente novamente ou escreva para pmatz.email@gmail.com.', 'error');
+        } finally {
+          setBusy(false);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

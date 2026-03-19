@@ -30,6 +30,8 @@ interface SettingsModalProps {
   workspace: Workspace | null;
   onAppSettingsChange: (s: AppSettings) => void;
   onWorkspaceChange: (ws: Workspace) => void;
+  onOpenHelp: () => void;
+  onContactUs: () => void;
   onClose: () => void;
   /** Open directly on a specific tab. Defaults to 'general'. */
   initialTab?: Tab;
@@ -57,6 +59,8 @@ export default function SettingsModal({
   workspace,
   onAppSettingsChange,
   onWorkspaceChange,
+  onOpenHelp,
+  onContactUs,
   onClose,
   initialTab,
 }: SettingsModalProps) {
@@ -752,6 +756,19 @@ export default function SettingsModal({
                     <tr><td><kbd>Duplo clique</kbd> <span className="sm-shortcut-note">{t('settings.scRenameFileNote')}</span></td><td>{t('settings.scRenameFile')}</td></tr>
                   </tbody>
                 </table>
+              </section>
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">{t('settings.sectionHelp')}</h3>
+                <p className="sm-section-desc">{t('settings.helpDesc')}</p>
+                <div className="sm-support-actions">
+                  <button className="sm-secondary-btn" onClick={onOpenHelp}>
+                    {t('settings.helpTourBtn')}
+                  </button>
+                  <button className="sm-secondary-btn" onClick={onContactUs}>
+                    {t('settings.contactUsBtn')}
+                  </button>
+                </div>
               </section>
 
             </div>

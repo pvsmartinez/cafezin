@@ -53,6 +53,13 @@ interface AuthUserRow {
   confirmed_at?: string | null
 }
 
+interface LandingEventRow {
+  created_at: string
+  event_name: string
+  page_path: string
+  platform: string | null
+}
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -154,6 +161,83 @@ async function estimateMrrCentavos(
   return total
 }
 
+async function listAnalytics(): Promise<{
+  since_7d: string
+  since_30d: string
+  page_views_7d: number
+  page_views_30d: number
+  download_clicks_7d: number
+  premium_checkout_starts_7d: number
+  premium_checkout_successes_30d: number
+  contact_submits_30d: number
+  downloads_by_platform_30d: Record<string, number>
+  top_pages_30d: Array<{ path: string; views: number }>
+}> {
+  const now = Date.now()
+  const since7d = new Date(now - 7 * 24 * 60 * 60 * 1000)
+  const since30d = new Date(now - 30 * 24 * 60 * 60 * 1000)
+
+  const { data, error } = await serviceClient()
+    .from('landing_events')
+    .select('created_at, event_name, page_path, platform')
+    .gte('created_at', since30d.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(5000)
+
+  if (error) throw new Error(error.message)
+
+  const rows = (data ?? []) as LandingEventRow[]
+  const pageCounts = new Map<string, number>()
+  const downloadsByPlatform = { mac: 0, windows: 0, ios: 0, android: 0, other: 0 }
+
+  let pageViews7d = 0
+  let pageViews30d = 0
+  let downloads7d = 0
+  let checkoutStarts7d = 0
+  let checkoutSuccess30d = 0
+  let contactSubmits30d = 0
+
+  for (const row of rows) {
+    const createdAt = new Date(row.created_at).getTime()
+    const in7d = createdAt >= since7d.getTime()
+
+    if (row.event_name === 'page_view') {
+      pageViews30d += 1
+      if (in7d) pageViews7d += 1
+      pageCounts.set(row.page_path, (pageCounts.get(row.page_path) ?? 0) + 1)
+    }
+
+    if (row.event_name === 'download_click') {
+      if (in7d) downloads7d += 1
+      const platform = (row.platform ?? 'other') as keyof typeof downloadsByPlatform
+      if (platform in downloadsByPlatform) downloadsByPlatform[platform] += 1
+      else downloadsByPlatform.other += 1
+    }
+
+    if (row.event_name === 'premium_checkout_start' && in7d) checkoutStarts7d += 1
+    if (row.event_name === 'premium_checkout_success') checkoutSuccess30d += 1
+    if (row.event_name === 'contact_submit') contactSubmits30d += 1
+  }
+
+  const topPages = Array.from(pageCounts.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 8)
+    .map(([path, views]) => ({ path, views }))
+
+  return {
+    since_7d: since7d.toISOString(),
+    since_30d: since30d.toISOString(),
+    page_views_7d: pageViews7d,
+    page_views_30d: pageViews30d,
+    download_clicks_7d: downloads7d,
+    premium_checkout_starts_7d: checkoutStarts7d,
+    premium_checkout_successes_30d: checkoutSuccess30d,
+    contact_submits_30d: contactSubmits30d,
+    downloads_by_platform_30d: downloadsByPlatform,
+    top_pages_30d: topPages,
+  }
+}
+
 // ─── GET /users ────────────────────────────────────────────────────────────────
 async function listUsers(): Promise<Response> {
   const client = serviceClient()
@@ -181,8 +265,12 @@ async function listUsers(): Promise<Response> {
   }))
 
   const mrrCentavos = await estimateMrrCentavos(typedSubs)
+  const analytics = await listAnalytics().catch((error) => {
+    console.error('Failed to load landing analytics:', error)
+    return null
+  })
 
-  return json({ users: result, total: result.length, mrr_centavos: mrrCentavos })
+  return json({ users: result, total: result.length, mrr_centavos: mrrCentavos, analytics })
 }
 
 // ─── PATCH /users/:id/subscription ────────────────────────────────────────────

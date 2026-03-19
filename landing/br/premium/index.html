@@ -346,6 +346,7 @@
     checkoutBtn.addEventListener('click', async () => {
       setBusy(checkoutBtn, 'Abrindo checkout…', true);
       try {
+        window.cafezinTrack?.('premium_checkout_start', { locale: 'pt-BR' });
         await callBillingFunction('create-checkout');
       } catch (error) {
         setMessage(error.message || 'Falha ao abrir checkout.', 'error');
@@ -386,5 +387,6 @@
 
     await render();
   </script>
+  <script src="/landing-analytics.js"></script>
 </body>
 </html>

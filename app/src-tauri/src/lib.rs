@@ -1288,6 +1288,14 @@ pub fn run() {
                     &[&image_search_item, &tools_sep1, &export_pdf_item, &export_sep, &export_modal_item],
                 )?;
 
+                // Help menu
+                let help_tour_item = MenuItem::with_id(app, "help_tour", "How to Use Cafezin\u{2026}", true, None::<&str>)?;
+                let contact_us_item = MenuItem::with_id(app, "contact_us", "Contact Us\u{2026}", true, None::<&str>)?;
+                let help_menu = Submenu::with_items(
+                    app, "Help", true,
+                    &[&help_tour_item, &contact_us_item],
+                )?;
+
                 // View menu
                 let toggle_sidebar_item = MenuItem::with_id(app, "toggle_sidebar", "Toggle Sidebar",  true, Some("cmd+b"))?;
                 let toggle_copilot_item = MenuItem::with_id(app, "toggle_copilot", "Toggle Copilot",  true, Some("cmd+k"))?;
@@ -1301,7 +1309,7 @@ pub fn run() {
                     &[&toggle_sidebar_item, &toggle_copilot_item, &view_sep1, &view_edit_item, &view_preview_item, &view_sep2_item, &format_item],
                 )?;
 
-                let menu = Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu, &tools_menu])?;
+                let menu = Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu, &tools_menu, &help_menu])?;
                 app.set_menu(menu)?;
 
                 // Emit to the webview so the frontend can respond
@@ -1320,6 +1328,8 @@ pub fn run() {
                         "view_edit"          => { let _ = handle.emit("menu-view-edit", ()); }
                         "view_preview"       => { let _ = handle.emit("menu-view-preview", ()); }
                         "format_file"        => { let _ = handle.emit("menu-format-file", ()); }
+                        "help_tour"          => { let _ = handle.emit("menu-help-tour", ()); }
+                        "contact_us"         => { let _ = handle.emit("menu-contact-us", ()); }
                         _ => {}
                     }
                 });

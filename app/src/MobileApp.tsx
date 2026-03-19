@@ -11,6 +11,7 @@ import MobileFileBrowser from './components/mobile/MobileFileBrowser';
 import MobilePreview from './components/mobile/MobilePreview';
 import MobileCopilot from './components/mobile/MobileCopilot';
 import MobileVoiceMemo from './components/mobile/MobileVoiceMemo';
+import MobileOnboarding from './components/mobile/MobileOnboarding';
 import ToastList from './components/mobile/ToastList';
 import { useToast } from './hooks/useToast';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -19,6 +20,7 @@ import './mobile.css';
 type Tab = 'files' | 'copilot' | 'voice'
 
 const LAST_WS_KEY = 'mobile-last-workspace-path';
+const MOBILE_ONBOARDING_KEY = 'cafezin-mobile-onboarding-v1-seen';
 
 /**
  * Strip the config dir suffix if it was accidentally stored.
@@ -51,6 +53,7 @@ export default function MobileApp() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loadingWs, setLoadingWs] = useState(true);
   const [wsError, setWsError] = useState<string | null>(null);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(() => localStorage.getItem(MOBILE_ONBOARDING_KEY) === '1');
 
   // gitUrl → 'clone' | 'pull'
   const [gitBusy, setGitBusy] = useState<Record<string, 'clone' | 'pull'>>({});
@@ -383,6 +386,11 @@ export default function MobileApp() {
     }
   }
 
+  function handleFinishOnboarding() {
+    localStorage.setItem(MOBILE_ONBOARDING_KEY, '1');
+    setHasSeenOnboarding(true);
+  }
+
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loadingWs) {
     return (
@@ -397,6 +405,10 @@ export default function MobileApp() {
 
   // ── No workspace: show connect screen ────────────────────────────────────
   if (!workspace) {
+    if (!hasSeenOnboarding) {
+      return <MobileOnboarding onFinish={handleFinishOnboarding} />;
+    }
+
     // ── Not signed in — email + password form ────────────────────────────
     if (!isLoggedIn) {
       return (

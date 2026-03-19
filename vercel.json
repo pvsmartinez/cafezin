@@ -64,6 +64,36 @@
       "permanent": false
     },
     {
+      "source": "/contact",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/contact",
+      "permanent": false
+    },
+    {
+      "source": "/contact",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/contact",
+      "permanent": false
+    },
+    {
       "source": "/ios",
       "has": [
         {
@@ -271,6 +301,246 @@
         }
       ],
       "destination": "/br/premium/obrigado",
+      "permanent": false
+    },
+    {
+      "source": "/writers",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/escritores",
+      "permanent": false
+    },
+    {
+      "source": "/writers",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/escritores",
+      "permanent": false
+    },
+    {
+      "source": "/educators",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/educadores",
+      "permanent": false
+    },
+    {
+      "source": "/educators",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/educadores",
+      "permanent": false
+    },
+    {
+      "source": "/content-creators",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/criadores-de-conteudo",
+      "permanent": false
+    },
+    {
+      "source": "/content-creators",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/criadores-de-conteudo",
+      "permanent": false
+    },
+    {
+      "source": "/knowledge-work",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/gestao-do-conhecimento",
+      "permanent": false
+    },
+    {
+      "source": "/knowledge-work",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/gestao-do-conhecimento",
+      "permanent": false
+    },
+    {
+      "source": "/compare-notion-ai",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/comparar-notion-ai",
+      "permanent": false
+    },
+    {
+      "source": "/compare-notion-ai",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/comparar-notion-ai",
+      "permanent": false
+    },
+    {
+      "source": "/compare-obsidian",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/comparar-obsidian",
+      "permanent": false
+    },
+    {
+      "source": "/compare-obsidian",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/comparar-obsidian",
+      "permanent": false
+    },
+    {
+      "source": "/compare-scrivener",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/comparar-scrivener",
+      "permanent": false
+    },
+    {
+      "source": "/compare-scrivener",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/comparar-scrivener",
+      "permanent": false
+    },
+    {
+      "source": "/compare-google-docs-ai",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/comparar-google-docs-ai",
+      "permanent": false
+    },
+    {
+      "source": "/compare-google-docs-ai",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/comparar-google-docs-ai",
       "permanent": false
     }
   ]

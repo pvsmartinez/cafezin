@@ -1,0 +1,226 @@
+.dom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal) + 5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7, 8, 10, 0.56);
+  backdrop-filter: blur(8px);
+}
+
+.dom-modal {
+  width: min(860px, 92vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(var(--accent-rgb), 0.12);
+  background:
+    radial-gradient(78% 72% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 68%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    var(--surface);
+  box-shadow: 0 34px 80px rgba(0, 0, 0, 0.34);
+}
+
+.dom-header,
+.dom-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dom-kicker {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.dom-step,
+.dom-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.dom-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.dom-body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.95fr) minmax(0, 1.4fr);
+  gap: 22px;
+  align-items: stretch;
+}
+
+.dom-visual,
+.dom-copy {
+  min-height: 0;
+}
+
+.dom-visual {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(var(--accent-rgb), 0.16), transparent 38%),
+    rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dom-icon-wrap {
+  width: 88px;
+  height: 88px;
+  border-radius: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+}
+
+.dom-accent {
+  align-self: flex-start;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.18);
+}
+
+.dom-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 4px;
+  overflow: auto;
+}
+
+.dom-eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.dom-title {
+  margin: 0;
+  font-size: clamp(30px, 4.2vw, 44px);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
+.dom-body-text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.68;
+}
+
+.dom-bullets {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.dom-bullet {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.dom-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dom-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.14);
+  transition: width 140ms ease, background-color 140ms ease;
+}
+
+.dom-dot.is-active {
+  width: 30px;
+  background: var(--accent);
+}
+
+.dom-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dom-btn {
+  border-radius: 12px;
+  border: 1px solid var(--border2);
+  padding: 10px 16px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dom-btn-secondary {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.dom-btn-primary {
+  background: var(--accent);
+  color: var(--text-on-emphasis);
+  border-color: transparent;
+}
+
+@media (max-width: 760px) {
+  .dom-modal {
+    width: min(680px, 94vw);
+    padding: 18px;
+  }
+
+  .dom-body {
+    grid-template-columns: 1fr;
+  }
+
+  .dom-visual {
+    min-height: 180px;
+  }
+
+  .dom-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dom-actions {
+    width: 100%;
+  }
+}

@@ -63,6 +63,14 @@ Current public pages
 
 - Home: https://cafezin.pmatz.com/
 - Pricing: https://cafezin.pmatz.com/pricing
+- Writers: https://cafezin.pmatz.com/writers
+- Educators: https://cafezin.pmatz.com/educators
+- Content creators: https://cafezin.pmatz.com/content-creators
+- Knowledge work: https://cafezin.pmatz.com/knowledge-work
+- Compare with Notion AI: https://cafezin.pmatz.com/compare-notion-ai
+- Compare with Obsidian: https://cafezin.pmatz.com/compare-obsidian
+- Compare with Scrivener: https://cafezin.pmatz.com/compare-scrivener
+- Compare with Google Docs + AI: https://cafezin.pmatz.com/compare-google-docs-ai
 - PT-BR Home: https://cafezin.pmatz.com/br
 - PT-BR Pricing: https://cafezin.pmatz.com/br/pricing
 - Privacy Policy: https://cafezin.pmatz.com/privacy-policy

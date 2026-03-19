@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } fro
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { copyFile, writeFile as writeBinaryFile, mkdir, exists, readDir } from './services/fs';
 import Editor from './components/Editor';
 import type { EditorHandle } from './components/Editor';
@@ -22,6 +23,7 @@ import UpdateModal from './components/UpdateModal';
 import UpdateReleaseModal from './components/UpdateReleaseModal';
 import ForceUpdateModal from './components/ForceUpdateModal';
 import MobilePendingModal from './components/MobilePendingModal';
+import DesktopOnboardingModal from './components/DesktopOnboardingModal';
 import { loadPendingTasks } from './services/mobilePendingTasks';
 import type { MobilePendingTask } from './services/mobilePendingTasks';
 import SettingsModal from './components/SettingsModal';
@@ -85,6 +87,8 @@ setupI18n(loadAppSettings().locale);
 
 const FORCE_UPDATE_URL = 'https://raw.githubusercontent.com/pvsmartinez/cafezin/main/update/latest.json';
 const UPDATE_SUGGESTION_KEY = 'cafezin-last-suggested-update-version';
+const DESKTOP_ONBOARDING_KEY = 'cafezin-desktop-onboarding-v1-seen';
+const LEGACY_SYNC_PROMPT_KEY = 'cafezin-sync-onboarding-skipped';
 
 /** True when running inside a Tauri WebView (not a plain browser). */
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -285,6 +289,8 @@ export default function App() {
   const [forceUpdateRequired, setForceUpdateRequired] = useState('');
   const [forceUpdateChannel, setForceUpdateChannel] = useState('release');
   const [showMobilePending, setShowMobilePending] = useState(false);
+  const [desktopOnboardingSeen, setDesktopOnboardingSeen] = useState(() => localStorage.getItem(DESKTOP_ONBOARDING_KEY) === '1');
+  const [showDesktopOnboarding, setShowDesktopOnboarding] = useState(false);
 
   // Voice memos recorded on mobile without transcripts
   const [pendingVoiceMemos, setPendingVoiceMemos] = useState<PendingVoiceMemo[]>([]);
@@ -570,19 +576,50 @@ export default function App() {
   // No-ops when not logged in or offline.
   useEffect(() => { syncSecretsFromCloud(); }, []);
 
+  useEffect(() => {
+    if (splash || forceUpdateOpen || desktopOnboardingSeen) return;
+    setShowDesktopOnboarding(true);
+  }, [desktopOnboardingSeen, forceUpdateOpen, splash]);
+
+  const handleCloseDesktopOnboarding = useCallback(() => {
+    localStorage.setItem(DESKTOP_ONBOARDING_KEY, '1');
+    localStorage.setItem(LEGACY_SYNC_PROMPT_KEY, '1');
+    setDesktopOnboardingSeen(true);
+    setShowDesktopOnboarding(false);
+  }, []);
+
+  const handleOpenDesktopHelp = useCallback(() => {
+    setShowDesktopOnboarding(true);
+  }, []);
+
+  const handleContactUs = useCallback(() => {
+    const contactUrl = (appSettings.locale ?? 'en') === 'pt-BR'
+      ? 'https://cafezin.pmatz.com/br/contact'
+      : 'https://cafezin.pmatz.com/contact';
+    openUrl(contactUrl).catch(() => window.open(contactUrl, '_blank', 'noopener,noreferrer'));
+  }, [appSettings.locale]);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    const uns = [
+      listen('menu-help-tour', () => handleOpenDesktopHelp()),
+      listen('menu-contact-us', () => handleContactUs()),
+    ];
+    return () => { uns.forEach((p) => p.then((fn) => fn()).catch(() => {})); };
+  }, [handleContactUs, handleOpenDesktopHelp]);
+
   // First-launch sync prompt: if sync was never configured and user hasn't
   // dismissed it, open Settings directly on the Sync tab.
   useEffect(() => {
-    const SKIP_KEY = 'cafezin-sync-onboarding-skipped';
-    const alreadySkipped = localStorage.getItem(SKIP_KEY);
+    const alreadySkipped = localStorage.getItem(LEGACY_SYNC_PROMPT_KEY);
     const alreadyConnected = localStorage.getItem('cafezin-sync-account-token');
+    if (!desktopOnboardingSeen) return;
     if (!alreadySkipped && !alreadyConnected) {
       // Mark as shown so we don't prompt again
-      localStorage.setItem(SKIP_KEY, '1');
+      localStorage.setItem(LEGACY_SYNC_PROMPT_KEY, '1');
       openSettings('sync');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [desktopOnboardingSeen, openSettings]);
 
   // Apply/remove light theme class on body
   useEffect(() => {
@@ -1836,8 +1873,17 @@ export default function App() {
         workspace={workspace}
         onAppSettingsChange={handleAppSettingsChange}
         onWorkspaceChange={(ws) => { setWorkspace(ws); }}
+        onOpenHelp={handleOpenDesktopHelp}
+        onContactUs={handleContactUs}
         onClose={() => setShowSettings(false)}
         initialTab={settingsInitialTab}
+      />
+
+      <DesktopOnboardingModal
+        open={showDesktopOnboarding}
+        locale={appSettings.locale ?? 'en'}
+        firstRun={!desktopOnboardingSeen}
+        onClose={handleCloseDesktopOnboarding}
       />
 
       {exportModalOpen && workspace && (
