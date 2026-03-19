@@ -30,6 +30,15 @@ if [[ -f "$ROOT_DIR/.env.local" ]]; then
   set -a; source "$ROOT_DIR/.env.local"; set +a
 fi
 
+# ── Fallback to canonical workspace secrets for signing ─────────────────────
+PEDRIN_ENV="/Users/pedromartinez/Dev/pmatz/pedrin/.env"
+if [[ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" && -f "$PEDRIN_ENV" ]]; then
+  PEDRIN_TAURI_PASSWORD="$(grep '^TAURI_SIGNING_PRIVATE_KEY_PASSWORD=' "$PEDRIN_ENV" | head -1 | cut -d= -f2- || true)"
+  if [[ -n "$PEDRIN_TAURI_PASSWORD" ]]; then
+    export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$PEDRIN_TAURI_PASSWORD"
+  fi
+fi
+
 # ── Ensure Rust toolchain is on PATH ────────────────────────────────────────
 if [[ -f "$HOME/.cargo/env" ]]; then
   source "$HOME/.cargo/env"
