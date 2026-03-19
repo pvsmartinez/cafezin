@@ -20,11 +20,37 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ADMIN_SECRET              = Deno.env.get('ADMIN_SECRET')!
+const PADDLE_API_KEY            = Deno.env.get('PADDLE_API_KEY') ?? ''
+const PADDLE_PRICE_ID           = Deno.env.get('PADDLE_PRICE_ID') ?? ''
+const PADDLE_ENVIRONMENT        = Deno.env.get('PADDLE_ENVIRONMENT') ?? 'production'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'x-admin-secret, content-type',
   'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
+}
+
+interface SubscriptionRow {
+  user_id: string
+  plan: string | null
+  status: string | null
+  provider: string | null
+  provider_customer_id: string | null
+  provider_subscription_id: string | null
+  provider_price_id: string | null
+  current_period_end: string | null
+  cancel_at_period_end: boolean | null
+  trial_end: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface AuthUserRow {
+  id: string
+  email?: string
+  created_at: string
+  last_sign_in_at: string | null
+  confirmed_at?: string | null
 }
 
 function json(data: unknown, status = 200): Response {
@@ -50,6 +76,84 @@ function serviceClient() {
   })
 }
 
+function getPaddleBaseUrl() {
+  return PADDLE_ENVIRONMENT === 'sandbox'
+    ? 'https://sandbox-api.paddle.com'
+    : 'https://api.paddle.com'
+}
+
+function extractMinorUnits(preview: any): number | null {
+  const data = preview?.data ?? {}
+  const item = data?.items?.[0] ?? {}
+  const detailLineItem = data?.details?.line_items?.[0] ?? {}
+  const candidates = [
+    detailLineItem?.totals?.total,
+    item?.totals?.total,
+    data?.details?.totals?.total,
+  ]
+
+  for (const value of candidates) {
+    if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value)
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+
+  return null
+}
+
+async function fetchPaddlePriceMinorUnits(priceId: string): Promise<number | null> {
+  if (!PADDLE_API_KEY || !priceId) return null
+
+  const paddleRes = await fetch(`${getPaddleBaseUrl()}/pricing-preview`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${PADDLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      items: [{ price_id: priceId, quantity: 1 }],
+      currency_code: 'BRL',
+    }),
+  })
+
+  if (!paddleRes.ok) {
+    console.error(`Paddle pricing preview failed for ${priceId}:`, await paddleRes.text())
+    return null
+  }
+
+  return extractMinorUnits(await paddleRes.json())
+}
+
+async function estimateMrrCentavos(
+  subs: Array<{
+    plan: string | null
+    status: string | null
+    provider: string | null
+    provider_price_id: string | null
+  }>,
+): Promise<number | null> {
+  const activeCounts = new Map<string, number>()
+
+  for (const sub of subs) {
+    if (sub.plan !== 'premium' || sub.status !== 'active' || sub.provider !== 'paddle') continue
+
+    const priceId = sub.provider_price_id || PADDLE_PRICE_ID
+    if (!priceId) continue
+
+    activeCounts.set(priceId, (activeCounts.get(priceId) ?? 0) + 1)
+  }
+
+  if (activeCounts.size === 0) return 0
+
+  let total = 0
+  for (const [priceId, count] of activeCounts.entries()) {
+    const unitAmount = await fetchPaddlePriceMinorUnits(priceId)
+    if (unitAmount == null) return null
+    total += unitAmount * count
+  }
+
+  return total
+}
+
 // ─── GET /users ────────────────────────────────────────────────────────────────
 async function listUsers(): Promise<Response> {
   const client = serviceClient()
@@ -63,9 +167,11 @@ async function listUsers(): Promise<Response> {
 
   if (subErr) return err(subErr.message, 500)
 
-  const subsMap = new Map((subs ?? []).map((s) => [s.user_id, s]))
+  const typedSubs = (subs ?? []) as SubscriptionRow[]
+  const typedUsers = users as AuthUserRow[]
+  const subsMap = new Map(typedSubs.map((sub) => [sub.user_id, sub]))
 
-  const result = users.map((u) => ({
+  const result = typedUsers.map((u) => ({
     id:            u.id,
     email:         u.email,
     created_at:    u.created_at,
@@ -74,7 +180,9 @@ async function listUsers(): Promise<Response> {
     subscription:  subsMap.get(u.id) ?? null,
   }))
 
-  return json({ users: result, total: result.length })
+  const mrrCentavos = await estimateMrrCentavos(typedSubs)
+
+  return json({ users: result, total: result.length, mrr_centavos: mrrCentavos })
 }
 
 // ─── PATCH /users/:id/subscription ────────────────────────────────────────────
