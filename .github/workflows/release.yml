@@ -45,7 +45,7 @@ jobs:
         run: npm install --legacy-peer-deps
         working-directory: app
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
       - name: Build Windows MSI + NSIS (signed)
         run: npm run tauri build -- --bundles msi,nsis
