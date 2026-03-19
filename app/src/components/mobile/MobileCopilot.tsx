@@ -142,6 +142,9 @@ export default function MobileCopilot({
   onFileWritten,
 }: MobileCopilotProps) {
   const copilotOAuthClientId = workspace?.config.githubOAuth?.clientId?.trim() || undefined;
+  const premiumUrl = navigator.language.startsWith('pt')
+    ? 'https://cafezin.pmatz.com/br/premium'
+    : 'https://cafezin.pmatz.com/premium';
   const mobileTools = useMemo(
     () => getWorkspaceTools(workspace?.config, workspace?.config.exportConfig).filter(
       (t) => !CANVAS_TOOLS.has(t.function.name) && t.function.name !== 'run_command',
@@ -428,7 +431,7 @@ export default function MobileCopilot({
               : 'Crie sua conta Premium no site para usar IA no Cafezin.'}
           </div>
           <a
-            href="https://cafezin.pmatz.com/premium"
+            href={premiumUrl}
             target="_blank"
             rel="noreferrer"
             className="btn-primary"

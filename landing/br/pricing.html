@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Preços — Cafezin</title>
-  <meta name="description" content="Comece grátis com Markdown, canvas, slides, arquivos locais e git embutido. Faça upgrade para desbloquear AI com contexto completo e edições revisáveis." />
+  <title>Preços — Cafezin, workspace de escrita com IA</title>
+  <meta name="description" content="Preços do Cafezin, workspace local-first de escrita, notas e criação com IA. Comece grátis com Markdown, canvas, slides, arquivos locais e git embutido. Faça upgrade para desbloquear edições de IA revisáveis e fluxos com contexto completo." />
 
   <link rel="canonical" href="https://cafezin.pmatz.com/br/pricing" />
   <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/pricing" />
@@ -16,8 +16,8 @@
 
   <meta property="og:type"        content="website" />
   <meta property="og:url"         content="https://cafezin.pmatz.com/br/pricing" />
-  <meta property="og:title"       content="Preços — Cafezin" />
-  <meta property="og:description" content="Grátis para o workspace principal. Premium para AI com contexto completo, edições revisáveis e fluxos por voz." />
+  <meta property="og:title"       content="Preços — Cafezin, workspace de escrita com IA" />
+  <meta property="og:description" content="Grátis para o workspace local-first principal. Premium para IA com contexto completo, edições revisáveis, fluxos por voz e acesso BYOK a múltiplos modelos." />
   <meta property="og:image"       content="https://cafezin.pmatz.com/icon.png" />
   <meta property="og:locale"      content="pt_BR" />
 
@@ -25,6 +25,90 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Vollkorn:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "Cafezin",
+        "url": "https://cafezin.pmatz.com/br/pricing",
+        "description": "Cafezin é um workspace local-first de escrita, notas e criação com IA, com documentos em Markdown, canvas visual, slides, git embutido e edições de IA revisáveis.",
+        "applicationCategory": "ProductivityApplication",
+        "operatingSystem": "macOS, Windows",
+        "inLanguage": "pt-BR",
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Gratuito",
+            "price": "0",
+            "priceCurrency": "BRL"
+          },
+          {
+            "@type": "Offer",
+            "name": "Premium",
+            "priceCurrency": "BRL",
+            "description": "Valor em reais calculado no checkout pela Paddle"
+          }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Posso testar antes de assinar?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. Você pode baixar o Cafezin gratuitamente e usar o editor, o canvas e as funcionalidades principais sem pagar. O Premium adiciona os fluxos integrados de IA sobre o workspace local-first."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Quais formas de pagamento são aceitas?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Cartões de crédito internacionais como Visa, Mastercard e Amex. O pagamento é processado com segurança pela Paddle."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso cancelar a qualquer momento?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. Você pode cancelar a qualquer momento sem multa. O acesso ao Premium continua até o fim do período já pago."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Existe política de reembolso?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. O Cafezin oferece garantia de satisfação de 30 dias. Se o produto não for adequado, você pode solicitar reembolso."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Os meus dados ficam em segurança?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Seus arquivos ficam no seu próprio dispositivo e não em servidores do Cafezin. Chaves de API são criptografadas localmente e apenas dados de conta, como e-mail e status da assinatura, ficam armazenados."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "O preço pode mudar?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Assinantes ativos mantêm o preço contratado enquanto a assinatura permanecer ativa. Qualquer ajuste é comunicado com antecedência."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
 
@@ -171,7 +255,7 @@
             </li>
           </ul>
 
-          <a href="/premium" class="btn pricing-btn pricing-btn-accent">
+          <a href="/br/premium" class="btn pricing-btn pricing-btn-accent">
             Começar agora
           </a>
           <p id="premium-price-note" class="pricing-fine">Cobrança via Paddle · Valor em reais no checkout · Cancele a qualquer momento</p>

@@ -17,6 +17,9 @@ jobs:
   build-windows:
     name: Windows (.msi + .exe)
     runs-on: windows-latest
+    permissions:
+      contents: read
+      packages: read
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -41,6 +44,8 @@ jobs:
       - name: Install npm dependencies
         run: npm install --legacy-peer-deps
         working-directory: app
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Windows MSI + NSIS (signed)
         run: npm run tauri build -- --bundles msi,nsis

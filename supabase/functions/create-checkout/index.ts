@@ -31,6 +31,14 @@ Deno.serve(async (req) => {
     return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
   }
 
+  let locale = 'en';
+  try {
+    const body = await req.json();
+    if (body?.locale === 'pt-BR') locale = 'pt-BR';
+  } catch {
+    // Body is optional; default to English route.
+  }
+
   // ── Auth: get calling user from JWT ──────────────────────────────────────
   const authHeader = req.headers.get('Authorization') ?? '';
   const supabase   = createClient(
@@ -56,6 +64,9 @@ Deno.serve(async (req) => {
   const baseUrl = env === 'sandbox'
     ? 'https://sandbox-api.paddle.com'
     : 'https://api.paddle.com';
+  const successUrl = locale === 'pt-BR'
+    ? 'https://cafezin.pmatz.com/br/premium/obrigado'
+    : 'https://cafezin.pmatz.com/premium/obrigado';
 
   const paddleRes = await fetch(`${baseUrl}/transactions`, {
     method: 'POST',
@@ -69,7 +80,7 @@ Deno.serve(async (req) => {
       // Passed back verbatim in every webhook event as data.custom_data
       custom_data: { user_id: user.id },
       checkout: {
-        url: 'https://cafezin.pmatz.com/premium/obrigado',
+        url: successUrl,
       },
     }),
   });

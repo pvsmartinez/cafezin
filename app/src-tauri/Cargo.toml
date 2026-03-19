@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cafezin — AI-assisted creative workspace"
 authors = ["Pedro Martinez"]
 edition = "2021"

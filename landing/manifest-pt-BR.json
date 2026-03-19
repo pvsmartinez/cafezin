@@ -1,7 +1,7 @@
 {
   "name": "Cafezin",
   "short_name": "Cafezin",
-  "description": "Workspace local para escrever e criar com AI para escritores, educadores e criadores.",
+  "description": "Workspace local-first de escrita, notas e criação com IA para escritores, educadores e criadores.",
   "start_url": "/br",
   "scope": "/",
   "display": "standalone",

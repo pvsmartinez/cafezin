@@ -1,7 +1,7 @@
 {
   "name": "Cafezin",
   "short_name": "Cafezin",
-  "description": "Local-first writing and AI workspace for writers, educators, and creators.",
+  "description": "Local-first AI writing and knowledge workspace for writers, educators, and creators.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -82,25 +82,30 @@ export default function SettingsModal({
   const [regState, setRegState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
   const [regError, setRegError] = useState('')
 
+  const billingLocale = appSettings.locale ?? 'en'
+  const premiumPageUrl = billingLocale === 'pt-BR'
+    ? 'https://cafezin.pmatz.com/br/premium'
+    : 'https://cafezin.pmatz.com/premium'
+
   const openBillingUrl = useCallback((url: string) => {
     openUrl(url).catch(() => window.open(url, '_blank'))
   }, [])
 
   const openPremiumPage = useCallback(() => {
-    openBillingUrl('https://cafezin.pmatz.com/premium')
-  }, [openBillingUrl])
+    openBillingUrl(premiumPageUrl)
+  }, [openBillingUrl, premiumPageUrl])
 
   const handleOpenCheckout = useCallback(async () => {
     setBillingBusy('checkout')
     try {
-      const url = await createCheckoutUrl()
+      const url = await createCheckoutUrl(billingLocale)
       openBillingUrl(url)
     } catch {
       openPremiumPage()
     } finally {
       setBillingBusy(null)
     }
-  }, [openBillingUrl, openPremiumPage])
+  }, [billingLocale, openBillingUrl, openPremiumPage])
 
   const handleOpenCustomerPortal = useCallback(async () => {
     setBillingBusy('portal')
@@ -1258,7 +1263,7 @@ export default function SettingsModal({
                         <div className="sm-row-label">
                           <span>Renova em</span>
                           <span className="sm-row-desc">
-                            {new Date(account.currentPeriodEnd).toLocaleDateString('pt-BR')}
+                            {new Date(account.currentPeriodEnd).toLocaleDateString(billingLocale)}
                             {account.cancelAtPeriodEnd && ' (cancelamento agendado)'}
                           </span>
                         </div>
@@ -1301,7 +1306,7 @@ export default function SettingsModal({
                     {!account.isPremium && (
                       <div style={{ marginTop: 12 }}>
                         <a
-                          href="https://cafezin.pmatz.com/premium"
+                          href={premiumPageUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="sm-save-btn"

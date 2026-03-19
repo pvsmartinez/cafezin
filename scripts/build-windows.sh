@@ -29,9 +29,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo ""
-echo "╔════════════════════════════════════╗"
-echo "║   Cafezin  — Windows build (CI)    ║"
-echo "╚════════════════════════════════════╝"
+echo "====================================="
+echo "Cafezin - Windows build (CI)"
+echo "====================================="
 echo ""
 
 if ! command -v gh &>/dev/null; then
@@ -48,7 +48,7 @@ if [[ -z "$TAG" ]]; then
   exit 1
 fi
 
-echo "▸ Disparando workflow no GitHub Actions para tag $TAG…"
+echo "Triggering GitHub Actions workflow for tag ${TAG}..."
 PRE_IDS="$(gh run list --workflow release.yml --repo "$REPO" --limit 20 --json databaseId --jq '.[].databaseId' 2>/dev/null | tr '\n' ' ')"
 gh workflow run release.yml \
   --repo "$REPO" \
@@ -73,7 +73,7 @@ echo "  https://github.com/$REPO/releases/tag/$TAG"
 [[ -n "$RUN_ID" ]] && echo "  Run ID: $RUN_ID"
 if [[ "$WAIT" == "true" && -n "$RUN_ID" ]]; then
   echo ""
-  echo "▸ Aguardando workflow terminar…"
+  echo "Waiting for workflow to finish..."
   gh run watch "$RUN_ID" --repo "$REPO" --exit-status
   echo "✓ Windows release finalizado. latest.json deve ter sido atualizado pelo workflow."
 fi

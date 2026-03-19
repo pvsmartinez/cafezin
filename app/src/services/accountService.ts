@@ -118,9 +118,10 @@ export async function fetchAccountState(): Promise<AccountState> {
  * Returns the hosted checkout URL to open in the browser.
  * Throws if the user is not authenticated or the request fails.
  */
-export async function createCheckoutUrl(): Promise<string> {
+export async function createCheckoutUrl(locale: 'en' | 'pt-BR' = 'en'): Promise<string> {
   const { data, error } = await supabase.functions.invoke('create-checkout', {
     method: 'POST',
+    body: { locale },
   });
   if (error) throw error;
   if (!data?.url) throw new Error('No checkout URL returned');

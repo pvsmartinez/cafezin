@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Premium — Cafezin</title>
-  <meta name="description" content="Sign in to start or manage your Cafezin Premium subscription." />
+  <meta name="description" content="Entre para assinar ou gerenciar sua assinatura Premium do Cafezin." />
   <meta name="robots" content="noindex, follow" />
-  <link rel="canonical" href="https://cafezin.pmatz.com/premium" />
+  <link rel="canonical" href="https://cafezin.pmatz.com/br/premium" />
   <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/premium" />
   <link rel="alternate" hreflang="pt-BR" href="https://cafezin.pmatz.com/br/premium" />
   <link rel="alternate" hreflang="x-default" href="https://cafezin.pmatz.com/premium" />
@@ -155,46 +155,46 @@
   <main class="premium-shell">
     <section class="premium-card">
       <div class="premium-kicker">Cafezin Premium</div>
-      <h1 class="premium-title">Subscribe or manage your account</h1>
+      <h1 class="premium-title">Assine ou gerencie sua conta</h1>
       <p class="premium-sub">
-        Sign in with your Cafezin account to start Premium for
-        <strong id="premium-page-price">your localized price at checkout</strong>,
-        or open the portal to update billing details and cancel whenever you want.
+        Entre com sua conta Cafezin para iniciar o Premium por
+        <strong id="premium-page-price">seu valor local no checkout</strong>,
+        ou abrir o portal para atualizar pagamento e cancelar quando quiser.
       </p>
 
-      <div id="status" class="premium-status">Checking session…</div>
+      <div id="status" class="premium-status">Verificando sessão…</div>
 
       <form id="auth-form" class="premium-form">
         <div class="premium-field">
-          <label class="premium-label" for="email">Email</label>
+          <label class="premium-label" for="email">E-mail</label>
           <input class="premium-input" id="email" type="email" autocomplete="email" required />
         </div>
         <div class="premium-field">
-          <label class="premium-label" for="password">Password</label>
+          <label class="premium-label" for="password">Senha</label>
           <input class="premium-input" id="password" type="password" autocomplete="current-password" required />
         </div>
         <div class="premium-row">
-          <button id="login-btn" class="premium-btn" type="submit">Sign in</button>
-          <button id="signup-btn" class="premium-btn premium-btn-secondary" type="button">Create account</button>
+          <button id="login-btn" class="premium-btn" type="submit">Entrar</button>
+          <button id="signup-btn" class="premium-btn premium-btn-secondary" type="button">Criar conta</button>
         </div>
       </form>
 
       <div id="actions" class="premium-row" hidden>
-        <button id="checkout-btn" class="premium-btn">Start Premium ↗</button>
-        <button id="portal-btn" class="premium-btn premium-btn-secondary">Manage subscription ↗</button>
-        <button id="refresh-btn" class="premium-btn premium-btn-secondary">Refresh status</button>
-        <button id="signout-btn" class="premium-btn premium-btn-secondary">Sign out</button>
+        <button id="checkout-btn" class="premium-btn">Assinar Premium ↗</button>
+        <button id="portal-btn" class="premium-btn premium-btn-secondary">Gerenciar assinatura ↗</button>
+        <button id="refresh-btn" class="premium-btn premium-btn-secondary">Atualizar status</button>
+        <button id="signout-btn" class="premium-btn premium-btn-secondary">Sair</button>
       </div>
 
       <div id="message" class="premium-note">
-        Premium unlocks the integrated AI inside Cafezin. You still use your own API key.
+        O Premium libera a IA integrada no Cafezin. Você continua usando sua própria chave de API.
       </div>
 
       <div class="premium-links">
-        <a href="/pricing">See plan details</a>
-        <a href="/refund">Refund policy</a>
-        <a href="/terms-of-service">Terms</a>
-        <a href="/br/premium" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
+        <a href="/br/pricing">Ver detalhes do plano</a>
+        <a href="/br/refund">Política de reembolso</a>
+        <a href="/br/terms-of-service">Termos</a>
+        <a href="/premium" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
       </div>
     </section>
   </main>
@@ -224,10 +224,12 @@
     const portalBtn = document.getElementById('portal-btn');
     const refreshBtn = document.getElementById('refresh-btn');
     const signoutBtn = document.getElementById('signout-btn');
-    const locale = 'en';
+    const locale = 'pt-BR';
 
     window.loadCafezinPricePreview({
       amountSelector: '#premium-page-price',
+      country: 'BR',
+      currency: 'BRL',
     });
 
     function setMessage(text, kind = 'note') {
@@ -257,7 +259,7 @@
         body: { locale },
       });
       if (error) throw error;
-      if (!data?.url) throw new Error('No URL returned');
+      if (!data?.url) throw new Error('Nenhuma URL retornada');
       window.location.href = data.url;
     }
 
@@ -266,8 +268,8 @@
       if (!user) {
         authForm.hidden = false;
         actionsEl.hidden = true;
-        statusEl.textContent = 'Sign in to subscribe to or manage Premium.';
-        setMessage('If you do not have an account yet, create one now and complete the subscription right after.');
+        statusEl.textContent = 'Faça login para assinar ou gerenciar o Premium.';
+        setMessage('Se você ainda não tem conta, crie uma agora e finalize a assinatura em seguida.');
         return;
       }
 
@@ -278,33 +280,33 @@
         const account = await getAccountState();
         const premium = !!account?.isPremium;
         const renewsAt = account?.currentPeriodEnd
-          ? new Date(account.currentPeriodEnd).toLocaleDateString('en-US')
+          ? new Date(account.currentPeriodEnd).toLocaleDateString('pt-BR')
           : null;
 
         statusEl.innerHTML = premium
-          ? `Account: <strong>${user.email}</strong><br>Plan: <strong>Premium</strong>${renewsAt ? `<br>Renews on: <strong>${renewsAt}</strong>` : ''}${account?.cancelAtPeriodEnd ? '<br>Cancellation scheduled for the end of the current period.' : ''}`
-          : `Account: <strong>${user.email}</strong><br>Plan: <strong>Free</strong>`;
+          ? `Conta: <strong>${user.email}</strong><br>Plano: <strong>Premium</strong>${renewsAt ? `<br>Renova em: <strong>${renewsAt}</strong>` : ''}${account?.cancelAtPeriodEnd ? '<br>Cancelamento agendado para o fim do período atual.' : ''}`
+          : `Conta: <strong>${user.email}</strong><br>Plano: <strong>Free</strong>`;
 
         checkoutBtn.hidden = premium;
         portalBtn.hidden = !premium;
 
         setMessage(
           premium
-            ? 'Open the Paddle portal to update your card, download invoices, or cancel the subscription.'
-            : 'Your account is ready. Click “Start Premium” to open Paddle checkout.',
+            ? 'Abra o portal da Paddle para atualizar cartão, baixar faturas ou cancelar a assinatura.'
+            : 'Sua conta está pronta. Clique em “Assinar Premium” para abrir o checkout da Paddle.',
           premium ? 'ok' : 'note'
         );
       } catch (error) {
-        statusEl.textContent = `Account: ${user.email}`;
+        statusEl.textContent = `Conta: ${user.email}`;
         checkoutBtn.hidden = false;
         portalBtn.hidden = true;
-        setMessage(error.message || 'Could not verify the account status.', 'error');
+        setMessage(error.message || 'Não foi possível verificar o status da conta.', 'error');
       }
     }
 
     authForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-      setBusy(loginBtn, 'Signing in…', true);
+      setBusy(loginBtn, 'Entrando…', true);
       signupBtn.disabled = true;
       setMessage('');
       try {
@@ -315,15 +317,15 @@
         if (error) throw error;
         await render();
       } catch (error) {
-        setMessage(error.message || 'Sign-in failed.', 'error');
+        setMessage(error.message || 'Falha no login.', 'error');
       } finally {
-        setBusy(loginBtn, 'Signing in…', false);
+        setBusy(loginBtn, 'Entrando…', false);
         signupBtn.disabled = false;
       }
     });
 
     signupBtn.addEventListener('click', async () => {
-      setBusy(signupBtn, 'Creating…', true);
+      setBusy(signupBtn, 'Criando…', true);
       loginBtn.disabled = true;
       setMessage('');
       try {
@@ -332,50 +334,50 @@
           password: passwordEl.value,
         });
         if (error) throw error;
-        setMessage('Account created. If it is already confirmed, continue with sign-in.', 'ok');
+        setMessage('Conta criada. Se ela já estiver confirmada, prossiga com o login.', 'ok');
       } catch (error) {
-        setMessage(error.message || 'Account creation failed.', 'error');
+        setMessage(error.message || 'Falha ao criar conta.', 'error');
       } finally {
-        setBusy(signupBtn, 'Creating…', false);
+        setBusy(signupBtn, 'Criando…', false);
         loginBtn.disabled = false;
       }
     });
 
     checkoutBtn.addEventListener('click', async () => {
-      setBusy(checkoutBtn, 'Opening checkout…', true);
+      setBusy(checkoutBtn, 'Abrindo checkout…', true);
       try {
         await callBillingFunction('create-checkout');
       } catch (error) {
-        setMessage(error.message || 'Failed to open checkout.', 'error');
+        setMessage(error.message || 'Falha ao abrir checkout.', 'error');
       } finally {
-        setBusy(checkoutBtn, 'Opening checkout…', false);
+        setBusy(checkoutBtn, 'Abrindo checkout…', false);
       }
     });
 
     portalBtn.addEventListener('click', async () => {
-      setBusy(portalBtn, 'Opening portal…', true);
+      setBusy(portalBtn, 'Abrindo portal…', true);
       try {
         await callBillingFunction('create-customer-portal');
       } catch (error) {
-        setMessage(error.message || 'Failed to open portal.', 'error');
+        setMessage(error.message || 'Falha ao abrir portal.', 'error');
       } finally {
-        setBusy(portalBtn, 'Opening portal…', false);
+        setBusy(portalBtn, 'Abrindo portal…', false);
       }
     });
 
     refreshBtn.addEventListener('click', async () => {
-      setBusy(refreshBtn, 'Refreshing…', true);
+      setBusy(refreshBtn, 'Atualizando…', true);
       try {
         await render();
       } finally {
-        setBusy(refreshBtn, 'Refreshing…', false);
+        setBusy(refreshBtn, 'Atualizando…', false);
       }
     });
 
     signoutBtn.addEventListener('click', async () => {
       await supabase.auth.signOut();
       await render();
-      setMessage('Signed out.');
+      setMessage('Sessão encerrada.');
     });
 
     supabase.auth.onAuthStateChange(() => {

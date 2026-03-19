@@ -34,18 +34,21 @@ interface PremiumGateProps {
 export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateProps) {
   const notLoggedIn = !account.authenticated;
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const locale = navigator.language.startsWith('pt') ? 'pt-BR' : 'en';
 
   async function openUpgrade() {
     // Unauthenticated users go to the pricing page; authenticated users get a
     // pre-filled checkout with their email and user_id already set.
-    const landingUrl = 'https://cafezin.pmatz.com/premium';
+    const landingUrl = locale === 'pt-BR'
+      ? 'https://cafezin.pmatz.com/br/premium'
+      : 'https://cafezin.pmatz.com/premium';
     if (notLoggedIn) {
       openUrl(landingUrl).catch(() => window.open(landingUrl, '_blank'));
       return;
     }
     setCheckoutLoading(true);
     try {
-      const url = await createCheckoutUrl();
+      const url = await createCheckoutUrl(locale);
       openUrl(url).catch(() => window.open(url, '_blank'));
     } catch {
       // Fallback to landing page pricing section

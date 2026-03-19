@@ -212,6 +212,66 @@
       ],
       "destination": "/br/refund",
       "permanent": false
+    },
+    {
+      "source": "/premium",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/premium",
+      "permanent": false
+    },
+    {
+      "source": "/premium",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/premium",
+      "permanent": false
+    },
+    {
+      "source": "/premium/obrigado",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/premium/obrigado",
+      "permanent": false
+    },
+    {
+      "source": "/premium/obrigado",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/premium/obrigado",
+      "permanent": false
     }
   ]
 }
