@@ -753,10 +753,10 @@ export default function MobileApp() {
               <div className="mb-warning-panel w-full max-w-[360px] rounded-xl px-[14px] py-3 flex flex-col gap-2.5">
                 <div className="flex items-center gap-2 text-[13px] font-semibold">
                   <Warning size={16} color="var(--mb-warning-text)" />
-                  Conta GitHub não conectada
+                  Autorização necessária neste dispositivo
                 </div>
                 <div className="text-xs text-muted text-left">
-                  Para clonar e sincronizar repositórios privados, conecte sua conta GitHub a este dispositivo.
+                  Para baixar estes workspaces aqui, autorize o GitHub neste dispositivo.
                 </div>
                 {labelsNeedingAuth.map(label => (
                   <button
@@ -767,7 +767,7 @@ export default function MobileApp() {
                   >
                     {gitAuthBusy === label
                       ? <><div className="spinner w-3.5 h-3.5" /> Aguarde…</>
-                      : <><GithubLogo size={16} /> Conectar conta "{label}"</>
+                      : <><GithubLogo size={16} /> Autorizar GitHub{labelsNeedingAuth.length > 1 ? ` (${label})` : ''}</>
                     }
                   </button>
                 ))}

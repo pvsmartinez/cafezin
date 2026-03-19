@@ -91,6 +91,7 @@ export async function fetchAccountState(): Promise<AccountState> {
     const { data, error } = await supabase.rpc('get_my_account_state');
 
     if (error || !data) {
+      console.error('[accountService] get_my_account_state RPC failed:', error);
       // Prefer cached state on error (covers offline + network blips)
       return readCache() ?? { ...FREE_ACCOUNT_STATE, authenticated: true };
     }

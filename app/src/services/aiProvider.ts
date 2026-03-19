@@ -20,13 +20,14 @@ import type { CopilotModel } from '../types';
 
 // ── Provider types ────────────────────────────────────────────────────────────
 
-export type AIProviderType = 'copilot' | 'openai' | 'anthropic' | 'groq';
+export type AIProviderType = 'copilot' | 'openai' | 'anthropic' | 'groq' | 'google';
 
 export const PROVIDER_LABELS: Record<AIProviderType, string> = {
   copilot:   'GitHub Copilot',
   openai:    'OpenAI',
   anthropic: 'Anthropic (Claude)',
   groq:      'Groq',
+  google:    'Google (Gemini)',
 };
 
 export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
@@ -34,6 +35,7 @@ export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
   openai:    ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini', 'o3-mini', 'o3'],
   anthropic: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5'],
   groq:      ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'meta-llama/llama-4-scout-17b-16e-instruct'],
+  google:    ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
 };
 
 export const PROVIDER_DEFAULT_MODELS: Record<AIProviderType, string> = {
@@ -41,18 +43,21 @@ export const PROVIDER_DEFAULT_MODELS: Record<AIProviderType, string> = {
   openai:    'gpt-4.1',
   anthropic: 'claude-sonnet-4-5',
   groq:      'llama-3.3-70b-versatile',
+  google:    'gemini-2.5-flash',
 };
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
 const PROVIDER_STORAGE_KEY = 'cafezin-ai-provider';
-const MODEL_STORAGE_KEY    = 'cafezin-ai-model';
+const MODEL_STORAGE_KEY    = 'cafezin-ai-model'; // legacy key — used only for copilot
+const MODEL_KEY_PREFIX     = 'cafezin-ai-model-'; // per-provider keys for BYOK
 
 /** Storage key for each non-Copilot provider's API key. */
 const PROVIDER_KEY_MAP: Record<Exclude<AIProviderType, 'copilot'>, string> = {
   openai:    'cafezin-openai-key',
   anthropic: 'cafezin-anthropic-key',
   groq:      'cafezin-groq-key',
+  google:    'cafezin-google-key',
 };
 
 // ── Accessors ─────────────────────────────────────────────────────────────────
@@ -63,22 +68,25 @@ export function getActiveProvider(): AIProviderType {
 
 export function setActiveProvider(p: AIProviderType): void {
   localStorage.setItem(PROVIDER_STORAGE_KEY, p);
+  window.dispatchEvent(new CustomEvent('cafezin-provider-changed', { detail: p }));
 }
 
 export function getActiveModel(): string {
   const provider = getActiveProvider();
-  const stored = localStorage.getItem(MODEL_STORAGE_KEY) || PROVIDER_DEFAULT_MODELS[provider];
-  return provider === 'copilot'
-    ? resolveCopilotModelForChatCompletions(stored)
-    : stored;
+  if (provider === 'copilot') {
+    const stored = localStorage.getItem(MODEL_STORAGE_KEY) || PROVIDER_DEFAULT_MODELS['copilot'];
+    return resolveCopilotModelForChatCompletions(stored);
+  }
+  return localStorage.getItem(MODEL_KEY_PREFIX + provider) || PROVIDER_DEFAULT_MODELS[provider];
 }
 
 export function setActiveModel(m: string): void {
   const provider = getActiveProvider();
-  const value = provider === 'copilot'
-    ? resolveCopilotModelForChatCompletions(m)
-    : m;
-  localStorage.setItem(MODEL_STORAGE_KEY, value);
+  if (provider === 'copilot') {
+    localStorage.setItem(MODEL_STORAGE_KEY, resolveCopilotModelForChatCompletions(m));
+  } else {
+    localStorage.setItem(MODEL_KEY_PREFIX + provider, m);
+  }
 }
 
 /** Returns the stored API key for a non-Copilot provider. */
@@ -268,6 +276,8 @@ export async function streamChat(
   onError: (err: Error) => void,
   model?: string,
   signal?: AbortSignal,
+  /** GitHub OAuth client ID — only used when provider === 'copilot'. */
+  oauthClientId?: string,
 ): Promise<void> {
   const provider = getActiveProvider();
   const resolvedModel = provider === 'copilot'
@@ -283,6 +293,7 @@ export async function streamChat(
       resolvedModel as CopilotModel,
       undefined,
       signal,
+      oauthClientId,
     );
   }
 
@@ -297,6 +308,12 @@ export async function streamChat(
 
   if (provider === 'anthropic') {
     return streamAnthropic(key, messages, resolvedModel, onChunk, onDone, onError, signal);
+  }
+
+  if (provider === 'google') {
+    // Google Gemini via OpenAI-compatible endpoint
+    const url = `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`;
+    return streamOpenAICompatible(url, key, messages, resolvedModel, onChunk, onDone, onError, signal);
   }
 
   const url = provider === 'openai'

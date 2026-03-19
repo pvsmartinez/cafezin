@@ -989,21 +989,36 @@ body.theme-light .ai-session-stat-chip {
   color: var(--text);
 }
 
-.ai-groq-desc {
+.ai-groq-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   font-size: var(--font-size-sm);
   color: var(--text-muted);
-  line-height: 1.6;
-  margin: 0;
+  line-height: 1.5;
 }
 
-.ai-groq-link {
-  background: none;
+.ai-groq-cta {
+  display: block;
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
   border: none;
-  padding: 0;
-  color: var(--accent);
-  cursor: pointer;
+  border-radius: var(--radius-md);
+  padding: 9px 14px;
   font-size: var(--font-size-sm);
-  text-decoration: underline;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: opacity 0.15s;
+}
+.ai-groq-cta:hover { opacity: 0.88; }
+
+.ai-groq-paste-row {
+  display: flex;
+  gap: var(--space-3);
 }
 
 .ai-groq-input {
@@ -1015,13 +1030,50 @@ body.theme-light .ai-session-stat-chip {
   padding: 7px 10px;
   outline: none;
   font-family: var(--font-mono);
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   box-sizing: border-box;
 }
 
 .ai-groq-input:focus {
   border-color: var(--accent);
 }
+
+.ai-groq-paste-btn {
+  background: var(--surface3, var(--surface2));
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  padding: 7px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ai-groq-paste-btn:hover { color: var(--text); }
+
+.ai-groq-lang-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.ai-groq-lang-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.ai-groq-lang-select {
+  flex: 1;
+  background: var(--input-bg, var(--bg-2));
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.ai-groq-lang-select:focus { outline: none; border-color: var(--accent); }
 
 .ai-groq-actions {
   display: flex;

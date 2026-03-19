@@ -7,6 +7,26 @@ const GROQ_KEY_STORAGE = 'cafezin-groq-key';
 export function getGroqKey(): string { return localStorage.getItem(GROQ_KEY_STORAGE) ?? ''; }
 export function saveGroqKey(k: string) { void saveApiSecret(GROQ_KEY_STORAGE, k.trim()); }
 
+// ── Groq language storage ─────────────────────────────────────────────────────
+const GROQ_LANG_STORAGE = 'cafezin-groq-lang';
+/** Maps navigator.language → Whisper language code */
+function guessLang(): string {
+  const l = navigator.language ?? 'en';
+  if (l.startsWith('pt')) return 'pt';
+  if (l.startsWith('es')) return 'es';
+  if (l.startsWith('fr')) return 'fr';
+  if (l.startsWith('de')) return 'de';
+  if (l.startsWith('it')) return 'it';
+  if (l.startsWith('ja')) return 'ja';
+  if (l.startsWith('ko')) return 'ko';
+  if (l.startsWith('zh')) return 'zh';
+  if (l.startsWith('ru')) return 'ru';
+  if (l.startsWith('ar')) return 'ar';
+  return 'en';
+}
+export function getGroqLang(): string { return localStorage.getItem(GROQ_LANG_STORAGE) || guessLang(); }
+export function saveGroqLang(lang: string) { localStorage.setItem(GROQ_LANG_STORAGE, lang); }
+
 // ── useVoiceInput ─────────────────────────────────────────────────────────────
 interface UseVoiceInputParams {
   onTranscript: (text: string) => void;
@@ -19,6 +39,8 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
   const [groqKey, setGroqKey]             = useState(() => getGroqKey());
   const [showGroqSetup, setShowGroqSetup] = useState(false);
   const [groqKeyInput, setGroqKeyInput]   = useState('');
+  const [groqLang, setGroqLangState]      = useState(() => getGroqLang());
+  const [groqLangInput, setGroqLangInput] = useState(() => getGroqLang());
 
   const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
   const audioChunksRef    = useRef<Blob[]>([]);
@@ -53,9 +75,7 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
   }, []);
 
   // ── Mic permission warm-up ────────────────────────────────────────────────
-  // Call getUserMedia once as soon as a Groq key exists, then immediately
-  // stop the tracks. This registers the permission with macOS/WKWebView so
-  // subsequent recording clicks don't re-show the system prompt.
+  // Called on the first actual mic click — not eagerly on key load.
   const warmUpMicPermission = useCallback(async () => {
     if (micPermissionRef.current) return;
     try {
@@ -64,11 +84,6 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
       micPermissionRef.current = true;
     } catch { /* denied — will surface on actual record click */ }
   }, []);
-
-  useEffect(() => {
-    if (groqKey) warmUpMicPermission();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groqKey]);
 
   // ── Recording ─────────────────────────────────────────────────────────────
   const startRecording = useCallback(async () => {
@@ -109,6 +124,7 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
             audioBase64: b64,
             mimeType,
             apiKey: groqKey,
+            language: groqLang,
           });
           onTranscript(transcript);
         } catch (err) {
@@ -134,7 +150,7 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
     } catch (err) {
       onError(`Microphone access denied: ${err}`);
     }
-  }, [groqKey, drawViz, onTranscript, onError]);
+  }, [groqKey, groqLang, drawViz, onTranscript, onError]);
 
   const stopRecording = useCallback(() => {
     mediaRecorderRef.current?.stop();
@@ -161,10 +177,11 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
 
   function saveGroqKeyAndClose() {
     saveGroqKey(groqKeyInput);
+    saveGroqLang(groqLangInput);
     setGroqKey(groqKeyInput.trim());
+    setGroqLangState(groqLangInput);
     setShowGroqSetup(false);
     setGroqKeyInput('');
-    warmUpMicPermission();
   }
 
   return {
@@ -175,6 +192,9 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
     setShowGroqSetup,
     groqKeyInput,
     setGroqKeyInput,
+    groqLang,
+    groqLangInput,
+    setGroqLangInput,
     vizCanvasRef,
     handleMicClick,
     saveGroqKeyAndClose,

@@ -982,7 +982,7 @@ fn build_channel() -> &'static str {
 /// Transcribe a base64-encoded audio blob (webm/ogg/mp4) via Groq's Whisper endpoint.
 /// Returns the transcript text, or an error string.
 #[tauri::command]
-async fn transcribe_audio(audio_base64: String, mime_type: String, api_key: String) -> Result<String, String> {
+async fn transcribe_audio(audio_base64: String, mime_type: String, api_key: String, language: String) -> Result<String, String> {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     let audio_bytes = STANDARD.decode(&audio_base64).map_err(|e| format!("base64 decode: {e}"))?;
 
@@ -998,7 +998,7 @@ async fn transcribe_audio(audio_base64: String, mime_type: String, api_key: Stri
     let form = reqwest::multipart::Form::new()
         .part("file", part)
         .text("model", "whisper-large-v3-turbo")
-        .text("language", "pt")
+        .text("language", language)
         .text("response_format", "text");
 
     let client = reqwest::Client::new();

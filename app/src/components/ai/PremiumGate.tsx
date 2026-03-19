@@ -81,18 +81,38 @@ export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateP
 
         <p className="premium-gate-desc">
           {notLoggedIn
-            ? 'Para usar qualquer recurso de IA no Cafezin, você precisa de uma conta Premium. Crie sua conta e escolha seu plano no site.'
+            ? 'Para usar a IA no Cafezin, faça login na sua conta ou crie uma conta Premium.'
             : 'Seu plano atual não inclui IA. Faça upgrade para Premium e use sua própria chave de API — sem cobranças extras de uso da nossa parte.'}
         </p>
 
-        <button
-          className="ai-auth-btn premium-gate-cta"
-          onClick={() => void openUpgrade()}
-          disabled={checkoutLoading}
-        >
-          {checkoutLoading ? 'Aguarde…' : notLoggedIn ? 'Ver planos ↗' : 'Assinar por $5/mês ↗'}
-          {!checkoutLoading && <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />}
-        </button>
+        {notLoggedIn ? (
+          <>
+            <button
+              className="ai-auth-btn premium-gate-cta"
+              onClick={() => window.dispatchEvent(new CustomEvent('cafezin:open-settings', { detail: 'account' }))}
+            >
+              Fazer login na minha conta
+            </button>
+            <button
+              className="ai-auth-btn premium-gate-cta"
+              onClick={() => void openUpgrade()}
+              disabled={checkoutLoading}
+              style={{ marginTop: 6, opacity: 0.75 }}
+            >
+              {checkoutLoading ? 'Aguarde…' : 'Criar conta Premium ↗'}
+              {!checkoutLoading && <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />}
+            </button>
+          </>
+        ) : (
+          <button
+            className="ai-auth-btn premium-gate-cta"
+            onClick={() => void openUpgrade()}
+            disabled={checkoutLoading}
+          >
+            {checkoutLoading ? 'Aguarde…' : 'Assinar por $5/mês ↗'}
+            {!checkoutLoading && <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />}
+          </button>
+        )}
 
         {/* BYOK explanation */}
         <div className="premium-gate-byok">

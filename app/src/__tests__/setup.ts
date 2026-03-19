@@ -14,6 +14,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   remove: vi.fn(),
   copyFile: vi.fn(),
   rename: vi.fn(),
+  watch: vi.fn(),
 }));
 
 // ── Mock Tauri plugin-http ───────────────────────────────────────────────────

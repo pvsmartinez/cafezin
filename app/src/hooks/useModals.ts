@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 
-export type SettingsTab = 'general' | 'workspace' | 'sync';
+export type SettingsTab = 'general' | 'workspace' | 'sync' | 'account';
 
 export interface UseModalsReturn {
   // Update modal

@@ -660,34 +660,79 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       {voice.showGroqSetup && (
         <div className="ai-groq-overlay">
           <div className="ai-groq-card">
-            <div className="ai-groq-title">🎤 Enable Voice Input</div>
-            <p className="ai-groq-desc">
-              Voice uses <strong>Groq Whisper</strong> for fast, free transcription.
-              Get a free API key at{' '}
+            <div className="ai-groq-title">🎤 Entrada por voz</div>
+
+            <ol className="ai-groq-steps">
+              <li>Crie uma chave gratuita no Groq (sem cartão)</li>
+              <li>Copie a chave gerada</li>
+              <li>Cole aqui e pronto</li>
+            </ol>
+
+            <button
+              className="ai-groq-cta"
+              onClick={() => openUrl('https://console.groq.com/keys').catch(() =>
+                window.open('https://console.groq.com/keys', '_blank')
+              )}
+            >
+              Criar chave gratuita ↗
+            </button>
+
+            <div className="ai-groq-paste-row">
+              <input
+                className="ai-groq-input"
+                type="password"
+                placeholder="gsk_…"
+                value={voice.groqKeyInput}
+                onChange={(e) => voice.setGroqKeyInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && voice.groqKeyInput.trim()) voice.saveGroqKeyAndClose(); }}
+                autoFocus
+              />
               <button
-                className="ai-groq-link"
-                onClick={() => openUrl('https://console.groq.com/keys').catch(() =>
-                  window.open('https://console.groq.com/keys', '_blank')
-                )}
+                className="ai-groq-paste-btn"
+                title="Colar do teclado"
+                onClick={async () => {
+                  try {
+                    const text = await navigator.clipboard.readText();
+                    if (text.trim()) voice.setGroqKeyInput(text.trim());
+                  } catch { /* clipboard not accessible */ }
+                }}
               >
-                console.groq.com/keys ↗
+                Colar
               </button>
-            </p>
-            <input
-              className="ai-groq-input"
-              type="password"
-              placeholder="gsk_…"
-              value={voice.groqKeyInput}
-              onChange={(e) => voice.setGroqKeyInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && voice.groqKeyInput.trim()) voice.saveGroqKeyAndClose(); }}
-              autoFocus
-            />
+            </div>
+
+            <div className="ai-groq-lang-row">
+              <span className="ai-groq-lang-label">Idioma da fala:</span>
+              <select
+                className="ai-groq-lang-select"
+                value={voice.groqLangInput}
+                onChange={(e) => voice.setGroqLangInput(e.target.value)}
+              >
+                <option value="pt">Português</option>
+                <option value="en">English</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+                <option value="it">Italiano</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+                <option value="zh">中文</option>
+                <option value="ru">Русский</option>
+                <option value="ar">العربية</option>
+                <option value="nl">Nederlands</option>
+                <option value="pl">Polski</option>
+                <option value="tr">Türkçe</option>
+                <option value="sv">Svenska</option>
+                <option value="hi">हिन्दी</option>
+              </select>
+            </div>
+
             <div className="ai-groq-actions">
               <button className="ai-auth-btn" disabled={!voice.groqKeyInput.trim()} onClick={voice.saveGroqKeyAndClose}>
-                Save key
+                Salvar
               </button>
               <button className="ai-btn-ghost" onClick={() => { voice.setShowGroqSetup(false); voice.setGroqKeyInput(''); }}>
-                Cancel
+                Cancelar
               </button>
             </div>
           </div>

@@ -22,6 +22,7 @@ const PROVIDER_KEY_MAP: Record<Exclude<AIProviderType, 'copilot'>, string> = {
   openai: 'cafezin-openai-key',
   anthropic: 'cafezin-anthropic-key',
   groq: 'cafezin-groq-key',
+  google: 'cafezin-google-key',
 };
 
 function sanitizeRepoName(name: string): string {
@@ -288,7 +289,9 @@ export default function MobileSettingsSheet({
                 <div className="mt-1 text-[12px] leading-[1.5] text-muted">
                   {workspace.hasGit
                     ? 'Sync ativado — workspace conectado ao GitHub.'
-                    : 'Ative o sync para acessar este workspace em todos os seus dispositivos.'}
+                    : isLoggedIn
+                    ? 'Ative o sync para acessar este workspace em todos os seus dispositivos.'
+                    : 'Entre na sua conta Cafezin para ativar sync entre dispositivos.'}
                 </div>
               </div>
 
@@ -309,9 +312,20 @@ export default function MobileSettingsSheet({
                         : <><CloudArrowUp size={14} /> Atualizar lista do Cafezin</>}
                     </button>
                   )}
+                  {!isLoggedIn && (
+                    <div className="rounded-xl border border-app-border bg-surface-2 px-3 py-3 text-[12px] leading-[1.5] text-muted">
+                      Faça login na conta Cafezin para este workspace aparecer na sua lista em outros dispositivos.
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
+                  {!isLoggedIn && (
+                    <div className="rounded-xl border border-app-border bg-surface-2 px-3 py-3 text-[12px] leading-[1.5] text-muted">
+                      O GitHub guarda os arquivos, mas a conta Cafezin é quem conecta este workspace aos seus outros dispositivos.
+                    </div>
+                  )}
+
                   {gitFlowState && (
                     <div className="rounded-xl border border-app-border bg-surface-2 px-3 py-3 text-[12px] leading-[1.5] text-muted">
                       <div>Abra o GitHub e insira este código:</div>
@@ -328,10 +342,12 @@ export default function MobileSettingsSheet({
                   <button
                     className="btn-primary text-[14px]"
                     onClick={() => void handleActivateSync()}
-                    disabled={publishBusy || gitFlowBusy}
+                    disabled={publishBusy || gitFlowBusy || !isLoggedIn}
                   >
                     {(publishBusy || gitFlowBusy)
                       ? <><div className="spinner w-4 h-4" /> {gitFlowBusy ? 'Aguardando GitHub…' : 'Ativando sync…'}</>
+                      : !isLoggedIn
+                      ? <><CloudArrowUp size={14} /> Entre para ativar sync</>
                       : <><CloudArrowUp size={14} /> Ativar sync</>}
                   </button>
 

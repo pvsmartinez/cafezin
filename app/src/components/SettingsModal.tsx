@@ -6,9 +6,12 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import {
   getActiveProvider, setActiveProvider, getActiveModel, setActiveModel,
-  getProviderKey, PROVIDER_LABELS, PROVIDER_MODELS, PROVIDER_DEFAULT_MODELS,
+  getProviderKey, PROVIDER_LABELS, PROVIDER_DEFAULT_MODELS,
   type AIProviderType,
 } from '../services/aiProvider';
+import {
+  PROVIDER_CATALOG, getFavoriteModelIds, setFavoriteModelIds,
+} from '../services/ai/providerModels';
 import { resolveCopilotModelForChatCompletions } from '../services/copilot';
 import { writeTextFile } from '../services/fs';
 import { saveWorkspaceConfig } from '../services/workspace';
@@ -132,6 +135,7 @@ export default function SettingsModal({
   const [activateSyncBusy, setActivateSyncBusy] = useState(false)
   const [activateSyncFlowState, setActivateSyncFlowState] = useState<SyncDeviceFlowState | null>(null)
   const [showSyncAdvanced, setShowSyncAdvanced] = useState(false)
+  const [showGitDetails, setShowGitDetails] = useState(false)
   const [syncAdvancedMode, setSyncAdvancedMode] = useState<'create' | 'existing'>('create')
   const [syncAdvancedRepoName, setSyncAdvancedRepoName] = useState('')
   const [syncAdvancedPrivate, setSyncAdvancedPrivate] = useState(true)
@@ -154,7 +158,7 @@ export default function SettingsModal({
   }, [])
 
   useEffect(() => {
-    if (open && tab === 'sync' && syncStatus === 'idle') loadSyncState();
+    if (open && (tab === 'sync' || tab === 'account') && syncStatus === 'idle') loadSyncState();
   }, [open, tab, syncStatus, loadSyncState]);
 
   async function handleAuth() {
@@ -315,6 +319,12 @@ export default function SettingsModal({
   const [aiModel, setAIModel] = useState(() => getActiveModel());
   const [aiKeySaved, setAIKeySaved] = useState(false);
   const [aiModelSaved, setAIModelSaved] = useState(false);
+  // Favorites for non-Copilot providers (shown in the chat model picker)
+  const [aiFavoriteIds, setAIFavoriteIds] = useState<string[]>(() => {
+    const p = getActiveProvider();
+    return p !== 'copilot' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot'>) : [];
+  });
+  const [customModelInput, setCustomModelInput] = useState('');
 
   function handleAIProviderChange(p: AIProviderType) {
     setAIProviderLocal(p);
@@ -322,6 +332,18 @@ export default function SettingsModal({
     void saveApiSecret('cafezin-ai-provider', p);
     setAIProviderKey(p !== 'copilot' ? getProviderKey(p) : '');
     setAIModel(PROVIDER_DEFAULT_MODELS[p]);
+    setAIFavoriteIds(p !== 'copilot' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot'>) : []);
+    setCustomModelInput('');
+  }
+
+  function addCustomModel() {
+    if (aiProvider === 'copilot') return;
+    const id = customModelInput.trim();
+    if (!id || aiFavoriteIds.includes(id)) { setCustomModelInput(''); return; }
+    const next = [...aiFavoriteIds, id];
+    setAIFavoriteIds(next);
+    setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot'>, next);
+    setCustomModelInput('');
   }
 
   function handleSaveAIKey() {
@@ -330,6 +352,7 @@ export default function SettingsModal({
       openai: 'cafezin-openai-key',
       anthropic: 'cafezin-anthropic-key',
       groq: 'cafezin-groq-key',
+      google: 'cafezin-google-key',
     };
     void saveApiSecret(keyMap[aiProvider], aiProviderKey.trim());
     setAIKeySaved(true);
@@ -739,6 +762,11 @@ export default function SettingsModal({
                           <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>
                         </span>
                       )}
+                      {aiProvider === 'google' && (
+                        <span className="sm-row-desc"> —{' '}
+                          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">aistudio.google.com</a>
+                        </span>
+                      )}
                     </label>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input
@@ -746,7 +774,7 @@ export default function SettingsModal({
                         type="password"
                         value={aiProviderKey}
                         onChange={(e) => setAIProviderKey(e.target.value)}
-                        placeholder={aiProvider === 'openai' ? 'sk-...' : aiProvider === 'anthropic' ? 'sk-ant-...' : 'gsk_...'}
+                        placeholder={aiProvider === 'openai' ? 'sk-...' : aiProvider === 'anthropic' ? 'sk-ant-...' : aiProvider === 'google' ? 'AIza...' : 'gsk_...'}
                         style={{ flex: 1 }}
                       />
                       <button
@@ -767,31 +795,105 @@ export default function SettingsModal({
                   </div>
                 )}
 
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">{t('settings.defaultModelLabel')}</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      className="sm-input"
-                      type="text"
-                      list="ai-models-datalist"
-                      value={aiModel}
-                      onChange={(e) => setAIModel(e.target.value)}
-                      placeholder={PROVIDER_DEFAULT_MODELS[aiProvider]}
-                      style={{ flex: 1 }}
-                    />
-                    <datalist id="ai-models-datalist">
-                      {PROVIDER_MODELS[aiProvider].map((m) => (
-                        <option key={m} value={m} />
-                      ))}
-                    </datalist>
-                    <button
-                      className={`sm-save-btn ${aiModelSaved ? 'saved' : ''}`}
-                      onClick={handleSaveAIModel}
-                    >
-                      {aiModelSaved ? t('settings.saved') : t('settings.save')}
-                    </button>
+                {/* Copilot: free-text model input with datalist */}
+                {aiProvider === 'copilot' && (
+                  <div className="sm-row sm-row--col">
+                    <label className="sm-label">{t('settings.defaultModelLabel')}</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        className="sm-input"
+                        type="text"
+                        list="ai-models-datalist"
+                        value={aiModel}
+                        onChange={(e) => setAIModel(e.target.value)}
+                        placeholder={PROVIDER_DEFAULT_MODELS[aiProvider]}
+                        style={{ flex: 1 }}
+                      />
+                      <datalist id="ai-models-datalist" />
+                      <button
+                        className={`sm-save-btn ${aiModelSaved ? 'saved' : ''}`}
+                        onClick={handleSaveAIModel}
+                      >
+                        {aiModelSaved ? t('settings.saved') : t('settings.save')}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* BYOK providers: checkboxes per catalog model + custom ID input */}
+                {aiProvider !== 'copilot' && (() => {
+                  const catalog = PROVIDER_CATALOG[aiProvider as Exclude<AIProviderType, 'copilot'>] ?? [];
+                  const catalogIds = new Set(catalog.map((m) => m.id));
+                  const customFavIds = aiFavoriteIds.filter((id) => !catalogIds.has(id));
+                  return (
+                    <div className="sm-row sm-row--col">
+                      <label className="sm-label">
+                        Modelos favoritos
+                        <span className="sm-row-desc"> — aparecem no seletor do chat</span>
+                      </label>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                        {catalog.map((m) => (
+                          <label
+                            key={m.id}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.875rem' }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={aiFavoriteIds.includes(m.id)}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? [...aiFavoriteIds, m.id]
+                                  : aiFavoriteIds.filter((id) => id !== m.id);
+                                setAIFavoriteIds(next);
+                                setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot'>, next);
+                              }}
+                            />
+                            <span>{m.name}</span>
+                            <span style={{ fontSize: '0.75rem', opacity: 0.55 }}>
+                              {m.supportsVision ? '🎑 vision' : '📝 texto'}
+                            </span>
+                          </label>
+                        ))}
+                        {customFavIds.map((id) => (
+                          <label
+                            key={id}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.875rem' }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked
+                              onChange={() => {
+                                const next = aiFavoriteIds.filter((i) => i !== id);
+                                setAIFavoriteIds(next);
+                                setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot'>, next);
+                              }}
+                            />
+                            <span>{id}</span>
+                            <span style={{ fontSize: '0.75rem', opacity: 0.45 }}>custom</span>
+                          </label>
+                        ))}
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                          <input
+                            className="sm-input"
+                            type="text"
+                            placeholder="ID do modelo (ex: gpt-4.5-preview)"
+                            value={customModelInput}
+                            onChange={(e) => setCustomModelInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') addCustomModel(); }}
+                            style={{ flex: 1 }}
+                          />
+                          <button
+                            className="sm-save-btn"
+                            onClick={addCustomModel}
+                            disabled={!customModelInput.trim()}
+                          >
+                            + Adicionar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </section>
 
               <section className="sm-section">
@@ -1129,69 +1231,22 @@ export default function SettingsModal({
 
               <section className="sm-section">
                 <h3 className="sm-section-title">Conta Cafezin</h3>
-                <p className="sm-section-desc">
-                  Entre com e-mail e senha para sincronizar seus workspaces entre dispositivos.
-                  A lista de workspaces fica armazenada de forma segura no Supabase.
-                </p>
 
                 {syncStatus === 'checking' && (
                   <div className="sm-sync-status">Conectando…</div>
                 )}
 
                 {syncStatus === 'not_connected' && (
-                  <div className="sm-sync-pat-form">
-                    <div className="sm-sync-auth-tabs">
-                      <button
-                        className={`sm-sync-auth-tab ${authMode === 'login' ? 'active' : ''}`}
-                        onClick={() => { setAuthMode('login'); setSyncError(null) }}
-                      >Entrar</button>
-                      <button
-                        className={`sm-sync-auth-tab ${authMode === 'signup' ? 'active' : ''}`}
-                        onClick={() => { setAuthMode('signup'); setSyncError(null) }}
-                      >Criar conta</button>
-                    </div>
-                    <input
-                      className="sm-input"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') void handleAuth() }}
-                    />
-                    <input
-                      className="sm-input"
-                      type="password"
-                      placeholder="Senha"
-                      value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') void handleAuth() }}
-                      style={{ marginTop: 6 }}
-                    />
+                  <p className="sm-section-desc">
+                    Faça login na aba{' '}
                     <button
-                      className="sm-sync-btn sm-save-btn"
-                      onClick={() => void handleAuth()}
-                      disabled={authBusy || !emailInput.trim() || !passwordInput.trim()}
-                      style={{ marginTop: 8 }}
+                      style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, font: 'inherit', textDecoration: 'underline' }}
+                      onClick={() => setTab('account')}
                     >
-                      {authBusy ? 'Aguarde…' : authMode === 'login' ? 'Entrar' : 'Criar conta'}
-                    </button>
-                    {syncError && <p className="sm-sync-error">{syncError}</p>}
-                  </div>
-                )}
-
-                {gitFlowState && (
-                  <div className="sm-sync-flow">
-                    <p className="sm-sync-flow-text">Abra esta URL no navegador e insira o código:</p>
-                    <a
-                      className="sm-sync-flow-url"
-                      href={gitFlowState.verificationUri}
-                      target="_blank" rel="noreferrer"
-                    >
-                      {gitFlowState.verificationUri}
-                    </a>
-                    <div className="sm-sync-flow-code">{gitFlowState.userCode}</div>
-                    <p className="sm-sync-flow-hint">Aguardando autorização…</p>
-                  </div>
+                      Conta
+                    </button>{' '}
+                    para ativar a sincronização de workspaces.
+                  </p>
                 )}
 
                 {syncStatus === 'connected' && (
@@ -1219,7 +1274,9 @@ export default function SettingsModal({
                           <div className="sm-sync-ws-info">
                             <span className="sm-sync-ws-name">{ws.name}</span>
                             <span className="sm-sync-ws-url">{ws.gitUrl}</span>
-                            <span className="sm-sync-ws-label">account: {ws.gitAccountLabel}</span>
+                            {showGitDetails && (
+                              <span className="sm-sync-ws-label">Conta técnica: {ws.gitAccountLabel}</span>
+                            )}
                           </div>
                           <button
                             className="sm-sync-ws-remove"
@@ -1365,39 +1422,50 @@ export default function SettingsModal({
 
               {syncStatus === 'connected' && (
                 <section className="sm-section">
-                  <h3 className="sm-section-title">Contas Git</h3>
-                  <p className="sm-section-desc">
-                    Autentique cada conta git pelo nome para que o mobile possa clonar e sincronizar esses repositórios.
-                  </p>
-                  {gitAccounts.length > 0 && (
-                    <ul className="sm-sync-ws-list" style={{ marginBottom: 12 }}>
-                      {gitAccounts.map((l) => (
-                        <li key={l} className="sm-sync-ws-item">
-                          <span className="sm-sync-dot" />
-                          <span className="sm-sync-ws-name" style={{ marginLeft: 8 }}>{l}</span>
-                          <span className="sm-sync-ws-label" style={{ marginLeft: 'auto' }}>autenticado</span>
-                        </li>
-                      ))}
-                    </ul>
+                  <button
+                    className="sm-secondary-btn"
+                    onClick={() => setShowGitDetails((value) => !value)}
+                    style={{ fontSize: 12 }}
+                  >
+                    {showGitDetails ? '▲ Ocultar opções técnicas' : '▼ Opções técnicas'}
+                  </button>
+
+                  {showGitDetails && (
+                    <>
+                      <p className="sm-section-desc" style={{ marginTop: 12 }}>
+                        Conecte contas Git adicionais e veja os rótulos técnicos usados para clone e sync.
+                      </p>
+                      {gitAccounts.length > 0 && (
+                        <ul className="sm-sync-ws-list" style={{ marginBottom: 12 }}>
+                          {gitAccounts.map((l) => (
+                            <li key={l} className="sm-sync-ws-item">
+                              <span className="sm-sync-dot" />
+                              <span className="sm-sync-ws-name" style={{ marginLeft: 8 }}>{l}</span>
+                              <span className="sm-sync-ws-label" style={{ marginLeft: 'auto' }}>autenticado</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {!gitFlowState && (
+                        <div className="sm-sync-register">
+                          <input
+                            className="sm-input"
+                            value={gitLabel}
+                            onChange={(e) => setGitLabel(e.target.value)}
+                            placeholder="Rótulo da conta (ex: pessoal, trabalho)"
+                          />
+                          <button
+                            className="sm-save-btn"
+                            onClick={handleConnectGitAccount}
+                            disabled={gitFlowBusy || !gitLabel.trim()}
+                          >
+                            {gitFlowBusy ? 'Aguardando…' : 'Conectar'}
+                          </button>
+                        </div>
+                      )}
+                      {syncError && <p className="sm-sync-error" style={{ marginTop: 8 }}>{syncError}</p>}
+                    </>
                   )}
-                  {!gitFlowState && (
-                    <div className="sm-sync-register">
-                      <input
-                        className="sm-input"
-                        value={gitLabel}
-                        onChange={(e) => setGitLabel(e.target.value)}
-                        placeholder="Rótulo da conta (ex: pessoal, trabalho)"
-                      />
-                      <button
-                        className="sm-save-btn"
-                        onClick={handleConnectGitAccount}
-                        disabled={gitFlowBusy || !gitLabel.trim()}
-                      >
-                        {gitFlowBusy ? 'Aguardando…' : 'Conectar'}
-                      </button>
-                    </div>
-                  )}
-                  {syncError && <p className="sm-sync-error" style={{ marginTop: 8 }}>{syncError}</p>}
                 </section>
               )}
 
@@ -1407,6 +1475,70 @@ export default function SettingsModal({
           {/* ── Account tab ── */}
           {tab === 'account' && (
             <div className="sm-section-list">
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">Conta Cafezin</h3>
+
+                {syncStatus === 'checking' && (
+                  <div className="sm-sync-status">Conectando…</div>
+                )}
+
+                {syncStatus === 'connected' && (
+                  <div className="sm-sync-connected">
+                    <div className="sm-sync-connected-info">
+                      <span className="sm-sync-dot" />
+                      <span>Conectado{syncUser ? ` como ${syncUser}` : ''}</span>
+                    </div>
+                    <button className="sm-sync-disconnect" onClick={() => void handleSignOut()}>
+                      Sair
+                    </button>
+                  </div>
+                )}
+
+                {syncStatus === 'not_connected' && (
+                  <div className="sm-sync-pat-form">
+                    <p className="sm-section-desc" style={{ marginTop: 0 }}>
+                      Entre com e-mail e senha para ativar o Premium e sincronizar seus workspaces.
+                    </p>
+                    <div className="sm-sync-auth-tabs">
+                      <button
+                        className={`sm-sync-auth-tab ${authMode === 'login' ? 'active' : ''}`}
+                        onClick={() => { setAuthMode('login'); setSyncError(null) }}
+                      >Entrar</button>
+                      <button
+                        className={`sm-sync-auth-tab ${authMode === 'signup' ? 'active' : ''}`}
+                        onClick={() => { setAuthMode('signup'); setSyncError(null) }}
+                      >Criar conta</button>
+                    </div>
+                    <input
+                      className="sm-input"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') void handleAuth() }}
+                    />
+                    <input
+                      className="sm-input"
+                      type="password"
+                      placeholder="Senha"
+                      value={passwordInput}
+                      onChange={(e) => setPasswordInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') void handleAuth() }}
+                      style={{ marginTop: 6 }}
+                    />
+                    <button
+                      className="sm-sync-btn sm-save-btn"
+                      onClick={() => void handleAuth()}
+                      disabled={authBusy || !emailInput.trim() || !passwordInput.trim()}
+                      style={{ marginTop: 8 }}
+                    >
+                      {authBusy ? 'Aguarde…' : authMode === 'login' ? 'Entrar' : 'Criar conta'}
+                    </button>
+                    {syncError && <p className="sm-sync-error">{syncError}</p>}
+                  </div>
+                )}
+              </section>
 
               <section className="sm-section">
                 <h3 className="sm-section-title">Plano</h3>

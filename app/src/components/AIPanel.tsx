@@ -25,6 +25,9 @@ import {
   clearOAuthToken,
 } from '../services/copilot';
 import type { DeviceFlowState } from '../services/copilot';
+import { getActiveProvider } from '../services/aiProvider';
+import type { AIProviderType } from '../services/aiProvider';
+import { getProviderModelsForPicker } from '../services/ai/providerModels';
 import { readFile, writeFile } from '../services/fs';
 import { getGroqKey } from '../hooks/useVoiceInput';
 import { FALLBACK_MODELS } from '../types';
@@ -223,6 +226,12 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
   useEffect(() => {
     if (!isOpen) return;
+    const provider = getActiveProvider();
+    if (provider !== 'copilot') {
+      setAvailableModels(getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot'>));
+      setModelsLoading(false);
+      return;
+    }
     if (authStatus === 'authenticated') modelsLoadedRef.current = false;
     if (modelsLoadedRef.current) return;
     modelsLoadedRef.current = true;
@@ -232,6 +241,22 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
       .catch(() => setModelsLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, authStatus, copilotOAuthClientId]);
+
+  // Refresh models when the user switches provider or updates favorites in settings.
+  useEffect(() => {
+    function handleProviderChanged() {
+      const provider = getActiveProvider();
+      if (provider !== 'copilot') {
+        setAvailableModels(getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot'>));
+        setModelsLoading(false);
+      } else {
+        // Force Copilot model reload on next panel open.
+        modelsLoadedRef.current = false;
+      }
+    }
+    window.addEventListener('cafezin-provider-changed', handleProviderChanged);
+    return () => window.removeEventListener('cafezin-provider-changed', handleProviderChanged);
+  }, []);
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   const [tabs, setTabs] = useState<AgentTab[]>([{ id: 'agent-1', label: 'Agente 1', status: 'idle', unread: false }]);

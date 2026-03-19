@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
 import {
-  streamCopilotChat,
   runCopilotAgent,
   getLastRateLimit,
   isQuotaError,
@@ -8,6 +7,8 @@ import {
   getModelTokenBudgets,
   modelSupportsVision,
 } from '../services/copilot';
+import { streamChat, getActiveProvider } from '../services/aiProvider';
+import { runProviderAgent } from '../services/ai/runProviderAgent';
 import { appendLogEntry } from '../services/copilotLog';
 import { getWorkspaceTools, buildToolExecutor } from '../utils/workspaceTools';
 import { canvasToDataUrl, compressDataUrl } from '../utils/canvasAI';
@@ -368,40 +369,69 @@ export function useAIStream({
         return true;
       });
 
-      await runCopilotAgent(
-        apiMessages,
-        activeTools,
-        executor,
-        onChunk,
-        (activity: ToolActivity) => {
-          if (runIdRef.current !== runId) return;
-          setLiveItems((prev) => {
-            const pIdx = prev.findIndex(
-              (it) => it.type === 'tool' && it.activity.callId === activity.callId,
-            );
-            if (pIdx >= 0) {
-              const next = [...prev]; next[pIdx] = { type: 'tool', activity }; return next;
-            }
-            return [...prev, { type: 'tool', activity }];
-          });
-        },
-        onDone,
-        onError,
-        model,
-        workspacePath,
-        sessionIdRef.current,
-        signal,
-        () => { if (runIdRef.current === runId) setAgentExhausted(true); },
-        copilotOAuthClientId,
-      );
+      const activeProvider = getActiveProvider();
+      if (activeProvider === 'copilot') {
+        await runCopilotAgent(
+          apiMessages,
+          activeTools,
+          executor,
+          onChunk,
+          (activity: ToolActivity) => {
+            if (runIdRef.current !== runId) return;
+            setLiveItems((prev) => {
+              const pIdx = prev.findIndex(
+                (it) => it.type === 'tool' && it.activity.callId === activity.callId,
+              );
+              if (pIdx >= 0) {
+                const next = [...prev]; next[pIdx] = { type: 'tool', activity }; return next;
+              }
+              return [...prev, { type: 'tool', activity }];
+            });
+          },
+          onDone,
+          onError,
+          model,
+          workspacePath,
+          sessionIdRef.current,
+          signal,
+          () => { if (runIdRef.current === runId) setAgentExhausted(true); },
+          copilotOAuthClientId,
+        );
+      } else {
+        // Non-Copilot provider: full agentic loop via Vercel AI SDK streamText.
+        await runProviderAgent(
+          apiMessages,
+          activeTools,
+          executor,
+          onChunk,
+          (activity: ToolActivity) => {
+            if (runIdRef.current !== runId) return;
+            setLiveItems((prev) => {
+              const pIdx = prev.findIndex(
+                (it) => it.type === 'tool' && it.activity.callId === activity.callId,
+              );
+              if (pIdx >= 0) {
+                const next = [...prev]; next[pIdx] = { type: 'tool', activity }; return next;
+              }
+              return [...prev, { type: 'tool', activity }];
+            });
+          },
+          onDone,
+          onError,
+          model,
+          workspacePath,
+          sessionIdRef.current,
+          signal,
+          () => { if (runIdRef.current === runId) setAgentExhausted(true); },
+        );
+      }
     } else {
-      await streamCopilotChat(
+      await streamChat(
         apiMessages,
         onChunk,
         onDone,
         onError,
         model,
-        undefined,
         signal,
         copilotOAuthClientId,
       );

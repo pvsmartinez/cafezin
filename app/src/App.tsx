@@ -57,7 +57,6 @@ import {
   flatMdFiles,
   refreshFileTree,
 } from './services/workspace';
-import { registerWorkspace } from './services/syncConfig';
 import { useAuthSession } from './hooks/useAuthSession';
 import { onLockedFilesChange, getLockedFiles } from './services/copilotLock';
 import { fetchGhostCompletion } from './services/copilot';
@@ -544,6 +543,18 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Listen for cafezin:open-settings events dispatched by PremiumGate and other components
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const tab = (e as CustomEvent<string>).detail;
+      openSettings(tab as Parameters<typeof openSettings>[0]);
+    };
+    window.addEventListener('cafezin:open-settings', handler);
+    return () => window.removeEventListener('cafezin:open-settings', handler);
+  // openSettings is stable (useCallback in useModals) — safe to omit from deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Listen for native File / View menu events
   useEffect(() => {
     if (!isTauri) return;
@@ -845,9 +856,12 @@ export default function App() {
   // ── Workspace file tree refresh ────────────────────────────────────────────
   // Rebuilds files + fileTree and merges into workspace state.
   // Used after any operation that creates, deletes, or moves a file.
-  const refreshWorkspace = useCallback(async (ws: Workspace) => {
-    const fileTree = await refreshFileTree(ws);
-    const files = flatMdFiles(fileTree);
+  const refreshWorkspace = useCallback(async (
+    ws: Workspace,
+    nextState?: { files: string[]; fileTree: Workspace['fileTree'] },
+  ) => {
+    const fileTree = nextState?.fileTree ?? await refreshFileTree(ws);
+    const files = nextState?.files ?? flatMdFiles(fileTree);
     setWorkspace((prev) => prev ? { ...prev, files, fileTree } : prev);
   }, []);
 
@@ -1314,12 +1328,6 @@ export default function App() {
     if (pending.length > 0) {
       setMobilePendingTasks(pending);
       setShowMobilePending(true);
-    }
-
-    // Silently register in Supabase if user is logged in and workspace has a git remote.
-    // No-ops if not authenticated or no git remote — never blocks the UI.
-    if (ws.hasGit) {
-      registerWorkspace(ws.path, ws.name, 'personal').catch(() => { /* not fatal */ });
     }
 
     // Restore last session (open tabs + active file) — read all files in parallel
