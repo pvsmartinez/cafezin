@@ -83,9 +83,10 @@ npm install --legacy-peer-deps
 echo ""
 BUNDLES="app"
 [[ "$BUILD_DMG" == "true" ]] && BUNDLES="dmg"
-# For release, also produce the updater bundle (.tar.gz + .sig for auto-update)
+# For release, keep using the working dmg bundle path.
+# Tauri still generates updater artifacts with createUpdaterArtifacts enabled.
 if [[ "$DO_RELEASE" == "true" ]]; then
-  BUNDLES="app,dmg"
+  BUNDLES="dmg"
   # Load signing key if not already set
   if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
     SIGNING_KEY_FILE="$HOME/.tauri/cafezin.key"
