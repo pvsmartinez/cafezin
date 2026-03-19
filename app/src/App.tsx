@@ -83,6 +83,7 @@ function loadAppSettings(): AppSettings {
 setupI18n(loadAppSettings().locale);
 
 const FORCE_UPDATE_URL = 'https://raw.githubusercontent.com/pvsmartinez/cafezin/main/update/latest.json';
+const UPDATE_SUGGESTION_KEY = 'cafezin-last-suggested-update-version';
 
 /** True when running inside a Tauri WebView (not a plain browser). */
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -455,9 +456,10 @@ export default function App() {
   }), [fileTypeInfo?.kind, wordCount, lineCount, canvasSlideCount, fileStat, tsDiags, tsEnabled]);
 
   // ── In-app update ───────────────────────────────────────────
-  // dev  → open UpdateModal (runs build script)
-  // mas  → open Mac App Store page
-  // ios  → open iOS App Store page
+  // dev      → open UpdateModal (runs local build script)
+  // release  → open UpdateReleaseModal (GitHub Releases / Tauri updater)
+  // mas      → open Mac App Store page
+  // ios      → open iOS App Store page
   const APP_STORE_URL = 'https://apps.apple.com/app/id6759814955';
   async function handleUpdate() {
     let channel = 'dev';
@@ -470,11 +472,51 @@ export default function App() {
     } else if (channel === 'ios') {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
       openUrl(APP_STORE_URL).catch(() => {});
+    } else if (channel === 'release') {
+      setShowUpdateReleaseModal(true);
     } else {
-      // dev + release desktop builds — update via local build script
+      // dev desktop builds — update via local build script
       setShowUpdateModal(true);
     }
   }
+
+  // Friendly update suggestion on startup for installed desktop release builds.
+  // We only prompt once per available version; force updates are handled by the
+  // separate min-version gate above.
+  useEffect(() => {
+    if (!isTauri) return;
+
+    let cancelled = false;
+
+    async function maybeSuggestReleaseUpdate() {
+      try {
+        const channel = await invoke<string>('build_channel').catch(() => 'release');
+        if (channel !== 'release') return;
+
+        const [{ check }, { getVersion }] = await Promise.all([
+          import('@tauri-apps/plugin-updater'),
+          import('@tauri-apps/api/app'),
+        ]);
+
+        const [update, currentVersion] = await Promise.all([check(), getVersion()]);
+        if (cancelled || !update?.available || !update.version) return;
+        if (compareVersions(update.version, currentVersion) <= 0) return;
+
+        const lastSuggested = localStorage.getItem(UPDATE_SUGGESTION_KEY);
+        if (lastSuggested === update.version) return;
+
+        localStorage.setItem(UPDATE_SUGGESTION_KEY, update.version);
+        setTimeout(() => {
+          if (!cancelled) setShowUpdateReleaseModal(true);
+        }, 1800);
+      } catch {
+        // Silent fail — update suggestion should never block normal startup
+      }
+    }
+
+    void maybeSuggestReleaseUpdate();
+    return () => { cancelled = true; };
+  }, []);
 
   // Listen for the native menu "Update Cafezin…" event
   useEffect(() => {
