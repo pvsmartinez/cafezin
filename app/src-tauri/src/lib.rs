@@ -850,13 +850,27 @@ async fn git_pull(path: String, token: Option<String>) -> Result<String, String>
 }
 
 
-// ── GitHub Device Flow (credentials stay in Rust, never exposed to the renderer) ──────────────
+// ── GitHub Device Flow (public client_id only; no client_secret in the app) ───────────────────
 
-// Credentials are injected at compile time from cafezin/.env.local (git-ignored).
-// See build.rs — it reads the file and emits `cargo:rustc-env=GITHUB_OAUTH_CLIENT_*`.
-// To set up: copy .env.local.example → .env.local and fill in your OAuth App values.
-const GITHUB_CLIENT_ID: &str = env!("GITHUB_OAUTH_CLIENT_ID");
-const GITHUB_CLIENT_SECRET: &str = env!("GITHUB_OAUTH_CLIENT_SECRET");
+// Optional default client ID injected at compile time from cafezin/.env.local.
+// Workspaces may override it by passing their own public client_id from the renderer.
+const DEFAULT_GITHUB_CLIENT_ID: Option<&str> = option_env!("GITHUB_OAUTH_CLIENT_ID");
+
+fn resolve_github_client_id(client_id: Option<String>) -> Result<String, String> {
+    let provided = client_id.unwrap_or_default().trim().to_string();
+    if !provided.is_empty() {
+        return Ok(provided);
+    }
+
+    if let Some(default_id) = DEFAULT_GITHUB_CLIENT_ID {
+        let trimmed = default_id.trim();
+        if !trimmed.is_empty() {
+            return Ok(trimmed.to_string());
+        }
+    }
+
+    Err("GitHub OAuth client_id is not configured".to_string())
+}
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct DeviceFlowInit {
@@ -884,15 +898,16 @@ pub struct GitHubCreatedRepo {
 }
 
 /// Step 1: Request a user_code / device_code pair from GitHub.
-/// The client_id and client_secret stay in Rust — the renderer only receives display data.
+/// The renderer may provide a public client_id override. No client_secret is used.
 /// `scope` examples: "copilot" (Copilot API access), "repo" (git clone/push private repos).
 #[tauri::command]
-async fn github_device_flow_init(scope: String) -> Result<DeviceFlowInit, String> {
+async fn github_device_flow_init(scope: String, client_id: Option<String>) -> Result<DeviceFlowInit, String> {
+    let client_id = resolve_github_client_id(client_id)?;
     let client = reqwest::Client::new();
     let res = client
         .post("https://github.com/login/device/code")
         .header("Accept", "application/json")
-        .json(&serde_json::json!({ "client_id": GITHUB_CLIENT_ID, "scope": scope }))
+        .json(&serde_json::json!({ "client_id": client_id, "scope": scope }))
         .send()
         .await
         .map_err(|e| format!("device flow init request failed: {e}"))?;
@@ -904,16 +919,16 @@ async fn github_device_flow_init(scope: String) -> Result<DeviceFlowInit, String
     res.json::<DeviceFlowInit>().await.map_err(|e| format!("device flow init parse error: {e}"))
 }
 
-/// Step 2: Poll for the access token. The client secret stays in Rust.
+/// Step 2: Poll for the access token using only the public client_id.
 #[tauri::command]
-async fn github_device_flow_poll(device_code: String) -> Result<DeviceFlowPollResult, String> {
+async fn github_device_flow_poll(device_code: String, client_id: Option<String>) -> Result<DeviceFlowPollResult, String> {
+    let client_id = resolve_github_client_id(client_id)?;
     let client = reqwest::Client::new();
     let res = client
         .post("https://github.com/login/oauth/access_token")
         .header("Accept", "application/json")
         .json(&serde_json::json!({
-            "client_id":     GITHUB_CLIENT_ID,
-            "client_secret": GITHUB_CLIENT_SECRET,
+            "client_id":     client_id,
             "device_code":   device_code,
             "grant_type":    "urn:ietf:params:oauth:grant-type:device_code",
         }))

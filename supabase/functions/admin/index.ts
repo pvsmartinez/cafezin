@@ -59,7 +59,7 @@ async function listUsers(): Promise<Response> {
 
   const { data: subs, error: subErr } = await client
     .from('user_subscriptions')
-    .select('user_id, plan, status, provider, current_period_end, cancel_at_period_end, trial_end, created_at, updated_at')
+    .select('user_id, plan, status, provider, provider_customer_id, provider_subscription_id, provider_price_id, current_period_end, cancel_at_period_end, trial_end, created_at, updated_at')
 
   if (subErr) return err(subErr.message, 500)
 

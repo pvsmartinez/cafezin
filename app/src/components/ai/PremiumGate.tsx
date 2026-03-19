@@ -38,7 +38,7 @@ export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateP
   async function openUpgrade() {
     // Unauthenticated users go to the pricing page; authenticated users get a
     // pre-filled checkout with their email and user_id already set.
-    const landingUrl = 'https://cafezin.app/#pricing';
+    const landingUrl = 'https://cafezin.pmatz.com/premium';
     if (notLoggedIn) {
       openUrl(landingUrl).catch(() => window.open(landingUrl, '_blank'));
       return;
@@ -87,7 +87,7 @@ export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateP
           onClick={() => void openUpgrade()}
           disabled={checkoutLoading}
         >
-          {checkoutLoading ? 'Aguarde…' : notLoggedIn ? 'Ver planos ↗' : 'Assinar por $10/mês ↗'}
+          {checkoutLoading ? 'Aguarde…' : notLoggedIn ? 'Ver planos ↗' : 'Assinar por $5/mês ↗'}
           {!checkoutLoading && <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />}
         </button>
 

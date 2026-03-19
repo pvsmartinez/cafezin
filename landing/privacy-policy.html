@@ -1,12 +1,15 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Política de Privacidade — Cafezin</title>
-  <meta name="description" content="Como o Cafezin coleta, usa e protege seus dados, em conformidade com a LGPD." />
+  <title>Privacy Policy - Cafezin</title>
+  <meta name="description" content="How Cafezin collects, uses, and protects your data, including our compliance with Brazil's LGPD." />
 
   <link rel="canonical" href="https://cafezin.pmatz.com/privacy-policy" />
+  <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/privacy-policy" />
+  <link rel="alternate" hreflang="pt-BR" href="https://cafezin.pmatz.com/br/privacy-policy" />
+  <link rel="alternate" hreflang="x-default" href="https://cafezin.pmatz.com/privacy-policy" />
   <link rel="icon" type="image/png" sizes="32x32" href="icon.png" />
   <meta name="theme-color" content="#1c1610" />
   <meta name="robots" content="noindex" />
@@ -22,12 +25,16 @@
   <nav class="nav">
     <div class="nav-inner">
       <a class="nav-logo" href="/">
-        <img src="coffe.png" alt="Logo do Cafezin" class="nav-logo-img" width="28" height="28" />
+        <img src="coffe.png" alt="Cafezin logo" class="nav-logo-img" width="28" height="28" />
         <span class="nav-logo-name">Cafezin</span>
       </a>
       <div class="nav-links">
-        <a class="nav-link" href="/pricing">Preços</a>
-        <a class="btn btn-ghost nav-cta" href="/#download">Baixar agora</a>
+        <a class="nav-link" href="/pricing">Pricing</a>
+        <div class="locale-switch" aria-label="Language selector">
+          <a class="locale-option active" href="/privacy-policy" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
+          <a class="locale-option" href="/br/privacy-policy" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
+        </div>
+        <a class="btn btn-ghost nav-cta" href="/#download" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">Download now</a>
       </div>
     </div>
   </nav>
@@ -36,10 +43,10 @@
   <section class="page-hero">
     <div class="page-hero-inner">
       <div class="page-hero-label">Legal</div>
-      <h1 class="page-hero-title">Política de Privacidade</h1>
+      <h1 class="page-hero-title">Privacy Policy</h1>
       <p class="page-hero-sub">
-        Como coletamos, usamos e protegemos seus dados,<br />
-        em conformidade com a LGPD (Lei nº 13.709/2018).
+        How we collect, use, and protect your data,<br />
+        including our compliance with Brazil's LGPD (Law No. 13.709/2018).
       </p>
     </div>
   </section>
@@ -47,210 +54,198 @@
   <!-- ── Content ────────────────────────────────────────────────────────── -->
   <main>
     <div class="prose">
-      <p class="last-updated">Última atualização: 18 de março de 2026</p>
+      <p class="last-updated">Last updated: March 18, 2026</p>
 
       <div class="info-box">
         <p>
-          <strong>Resumo simples:</strong> o Cafezin é um app de produtividade que roda
-          localmente no seu dispositivo. Seus arquivos e documentos <em>nunca</em> saem do
-          seu computador. Coletamos apenas o mínimo necessário para autenticação e
-          gestão de assinatura.
+          <strong>Short version:</strong> Cafezin is a productivity app that runs locally on
+          your device. Your files and documents <em>never</em> leave your computer. We collect
+          only the minimum required for authentication and subscription management.
         </p>
       </div>
 
-      <h2>1. Quem é o controlador dos dados</h2>
+      <h2>1. Who controls your data</h2>
       <p>
-        O responsável pelo tratamento dos seus dados pessoais é:
+        The controller responsible for processing your personal data is:
       </p>
       <p>
         <strong>Pedro Martinez</strong><br />
-        E-mail: <a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a><br />
-        Brasil
+        Email: <a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a><br />
+        Brazil
       </p>
 
-      <h2>2. Quais dados coletamos</h2>
+      <h2>2. What data we collect</h2>
 
-      <h3>2.1 Dados de conta (autenticação)</h3>
+      <h3>2.1 Account data (authentication)</h3>
       <p>
-        Quando você cria uma conta no Cafezin:
+        When you create a Cafezin account, we collect:
       </p>
       <ul>
-        <li>Endereço de e-mail</li>
-        <li>Nome (opcional, se fornecido durante o cadastro)</li>
-        <li>Data e hora do cadastro</li>
-        <li>Identificador único de usuário gerado automaticamente</li>
+        <li>Email address</li>
+        <li>Name, if you choose to provide it during signup</li>
+        <li>Signup date and time</li>
+        <li>An automatically generated unique user identifier</li>
       </ul>
       <p>
-        Esses dados são armazenados no <strong>Supabase</strong> (ver seção 5).
+        This data is stored in <strong>Supabase</strong> (see section 5).
       </p>
 
-      <h3>2.2 Dados de assinatura</h3>
+      <h3>2.2 Subscription data</h3>
       <p>
-        Se você assinar o Cafezin Premium:
+        If you subscribe to Cafezin Premium:
       </p>
       <ul>
-        <li>Status da assinatura (ativo, cancelado, etc.)</li>
-        <li>Datas do período de cobrança</li>
-        <li>Identificadores de assinatura gerados pela Paddle</li>
+        <li>Subscription status, such as active or canceled</li>
+        <li>Billing period dates</li>
+        <li>Subscription identifiers generated by Paddle</li>
       </ul>
       <p>
-        <strong>Não temos acesso aos seus dados de pagamento</strong> (número do cartão,
-        dados bancários, etc.). Esses dados são processados exclusivamente pela Paddle
-        (ver seção 5).
+        <strong>We do not have access to your payment details</strong> such as card numbers
+        or bank information. That information is processed exclusively by Paddle
+        (see section 5).
       </p>
 
-      <h3>2.3 Dados de uso da AI</h3>
+      <h3>2.3 AI usage data</h3>
       <p>
-        Quando você usa o assistente AI do Cafezin Premium, as mensagens que você envia
-        são transmitidas à API do GitHub Copilot (Microsoft) para geração de respostas.
-        O Cafezin em si <strong>não armazena</strong> o conteúdo das suas conversas com
-        a AI. Consulte a
+        When you use Cafezin Premium's AI assistant, the messages you send are transmitted
+        to the GitHub Copilot API (Microsoft) to generate responses. Cafezin itself does
+        <strong>not store</strong> the content of your AI conversations. See the
         <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener">
-          Política de Privacidade do GitHub
+          GitHub Privacy Statement
         </a>
-        para entender como a Microsoft processa esses dados.
+        to understand how Microsoft processes that data.
       </p>
 
-      <h3>2.4 Dados que NÃO coletamos</h3>
+      <h3>2.4 Data we do NOT collect</h3>
       <ul>
-        <li>Conteúdo dos seus arquivos e documentos Markdown</li>
-        <li>Conteúdo do seu canvas ou slides</li>
-        <li>Dados de uso, analytics ou telemetria</li>
-        <li>Dados de localização</li>
-        <li>Histórico de navegação</li>
+        <li>The content of your files and Markdown documents</li>
+        <li>The content of your canvas or slide decks</li>
+        <li>Usage analytics or telemetry</li>
+        <li>Location data</li>
+        <li>Browsing history</li>
       </ul>
       <p>
-        O Cafezin é um app desktop que roda localmente. Seus arquivos ficam no seu
-        dispositivo e não são enviados a nenhum servidor do Cafezin.
+        Cafezin is a desktop app that runs locally. Your files stay on your device and are
+        not sent to any Cafezin server.
       </p>
 
-      <h2>3. Como usamos seus dados</h2>
+      <h2>3. How we use your data</h2>
       <ul>
-        <li><strong>Autenticação:</strong> verificar sua identidade ao entrar no app</li>
-        <li><strong>Assinatura:</strong> habilitar os recursos Premium para assinantes ativos</li>
-        <li><strong>Comunicação transacional:</strong> enviar confirmações de pagamento e avisos
-          sobre sua conta (apenas quando necessário)</li>
-        <li><strong>Suporte:</strong> responder dúvidas e solicitações enviadas por e-mail</li>
+        <li><strong>Authentication:</strong> to verify your identity when you sign in</li>
+        <li><strong>Subscription management:</strong> to enable Premium features for active subscribers</li>
+        <li><strong>Transactional communication:</strong> to send payment confirmations and account notices when necessary</li>
+        <li><strong>Support:</strong> to respond to questions and requests sent by email</li>
       </ul>
       <p>
-        <strong>Não vendemos, alugamos ou compartilhamos seus dados com terceiros para fins
-        de marketing ou publicidade.</strong>
+        <strong>We do not sell, rent, or share your data with third parties for marketing or advertising.</strong>
       </p>
 
-      <h2>4. Base legal (LGPD, art. 7º)</h2>
+      <h2>4. Legal basis under the LGPD</h2>
       <ul>
-        <li><strong>Execução de contrato:</strong> processamento necessário para fornecer o serviço
-          que você solicitou (criação de conta, assinatura Premium)</li>
-        <li><strong>Consentimento:</strong> quando aplicável, coletamos seu consentimento explícito</li>
-        <li><strong>Legítimo interesse:</strong> prevenção de fraudes e segurança do serviço</li>
-        <li><strong>Obrigação legal:</strong> quando exigido por lei ou ordem judicial</li>
+        <li><strong>Performance of a contract:</strong> processing needed to provide the service you requested, such as account creation and Premium access</li>
+        <li><strong>Consent:</strong> when applicable, we obtain your explicit consent</li>
+        <li><strong>Legitimate interest:</strong> fraud prevention and service security</li>
+        <li><strong>Legal obligation:</strong> when required by law or court order</li>
       </ul>
 
-      <h2>5. Subprocessadores (terceiros)</h2>
+      <h2>5. Subprocessors and third parties</h2>
       <p>
-        Utilizamos os seguintes serviços de terceiros para operar o Cafezin:
+        We use the following third-party services to operate Cafezin:
       </p>
       <ul>
         <li>
-          <strong>Supabase</strong> (Estados Unidos) — autenticação e banco de dados de conta.
-          <a href="https://supabase.com/privacy" target="_blank" rel="noopener">Política de Privacidade</a>
+          <strong>Supabase</strong> (United States) for authentication and account data storage.
+          <a href="https://supabase.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>
         </li>
         <li>
-          <strong>Paddle</strong> (Reino Unido) — processamento de pagamentos e gestão de
-          assinaturas. Paddle atua como <em>Merchant of Record</em>, sendo o responsável
-          pela cobrança em seu nome.
-          <a href="https://www.paddle.com/legal/privacy" target="_blank" rel="noopener">Política de Privacidade</a>
+          <strong>Paddle</strong> (United Kingdom) for payment processing and subscription management.
+          Paddle acts as the <em>Merchant of Record</em>.
+          <a href="https://www.paddle.com/legal/privacy" target="_blank" rel="noopener">Privacy Policy</a>
         </li>
         <li>
-          <strong>GitHub / Microsoft</strong> (Estados Unidos) — API do GitHub Copilot para
-          funcionalidades de AI no plano Premium.
-          <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener">Política de Privacidade</a>
+          <strong>GitHub / Microsoft</strong> (United States) for GitHub Copilot API access in Premium AI features.
+          <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener">Privacy Policy</a>
         </li>
       </ul>
 
-      <h2>6. Transferências internacionais de dados</h2>
+      <h2>6. International data transfers</h2>
       <p>
-        Alguns dos subprocessadores listados acima estão localizados fora do Brasil.
-        Essas transferências ocorrem com base em cláusulas contratuais padrão e mecanismos
-        de adequação reconhecidos pela ANPD, conforme permitido pela LGPD (art. 33).
+        Some subprocessors listed above are located outside Brazil. Those transfers rely on
+        standard contractual clauses and other adequacy mechanisms recognized by the ANPD,
+        as permitted by the LGPD.
       </p>
 
-      <h2>7. Retenção de dados</h2>
+      <h2>7. Data retention</h2>
       <ul>
-        <li><strong>Dados de conta:</strong> mantidos enquanto sua conta estiver ativa e por
-          até 30 dias após a exclusão</li>
-        <li><strong>Dados de assinatura:</strong> mantidos por até 5 anos para fins fiscais e
-          contábeis, conforme exigido pela legislação brasileira</li>
-        <li><strong>Logs de segurança:</strong> mantidos por até 12 meses</li>
+        <li><strong>Account data:</strong> retained while your account is active and for up to 30 days after deletion</li>
+        <li><strong>Subscription data:</strong> retained for up to 5 years for tax and accounting obligations under Brazilian law</li>
+        <li><strong>Security logs:</strong> retained for up to 12 months</li>
       </ul>
 
-      <h2>8. Seus direitos (LGPD, art. 18)</h2>
+      <h2>8. Your rights under the LGPD</h2>
       <p>
-        Como titular de dados, você tem os seguintes direitos:
+        As a data subject, you have the following rights:
       </p>
       <ul>
-        <li><strong>Acesso:</strong> saber quais dados temos sobre você</li>
-        <li><strong>Correção:</strong> corrigir dados incompletos ou incorretos</li>
-        <li><strong>Exclusão:</strong> solicitar a exclusão dos seus dados</li>
-        <li><strong>Portabilidade:</strong> receber seus dados em formato estruturado</li>
-        <li><strong>Revogação do consentimento:</strong> retirar seu consentimento a qualquer momento</li>
-        <li><strong>Oposição:</strong> opor-se a determinados tratamentos</li>
-        <li><strong>Informação sobre compartilhamento:</strong> saber com quem seus dados foram
-          compartilhados</li>
+        <li><strong>Access:</strong> know what data we hold about you</li>
+        <li><strong>Correction:</strong> fix incomplete or inaccurate data</li>
+        <li><strong>Deletion:</strong> request deletion of your data</li>
+        <li><strong>Portability:</strong> receive your data in a structured format</li>
+        <li><strong>Withdrawal of consent:</strong> revoke consent at any time</li>
+        <li><strong>Objection:</strong> object to certain processing activities</li>
+        <li><strong>Information about sharing:</strong> know with whom your data has been shared</li>
       </ul>
       <p>
-        Para exercer qualquer um desses direitos, entre em contato pelo e-mail
+        To exercise any of these rights, contact us at
         <a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a>.
-        Respondemos em até 15 dias úteis.
+        We respond within up to 15 business days.
       </p>
 
-      <h2>9. Segurança</h2>
+      <h2>9. Security</h2>
       <p>
-        Adotamos medidas técnicas e organizacionais adequadas para proteger seus dados
-        contra acesso não autorizado, perda ou divulgação, incluindo:
+        We adopt appropriate technical and organizational measures to protect your data
+        against unauthorized access, loss, or disclosure, including:
       </p>
       <ul>
-        <li>Comunicações criptografadas via HTTPS/TLS</li>
-        <li>Controle de acesso por Row Level Security (RLS) no banco de dados</li>
-        <li>Autenticação segura via Supabase Auth (bcrypt + JWT)</li>
-        <li>Segredos e chaves de API armazenados em ambiente seguro, nunca no código</li>
+        <li>Encrypted communications over HTTPS/TLS</li>
+        <li>Row Level Security (RLS) on the database</li>
+        <li>Secure authentication through Supabase Auth (bcrypt + JWT)</li>
+        <li>Secrets and API keys stored in a secure environment, never in source code</li>
       </ul>
 
       <h2>10. Cookies</h2>
       <p>
-        O site da landing page do Cafezin (cafezin.pmatz.com) não usa cookies de
-        rastreamento, analytics ou publicidade. O app desktop pode armazenar dados
-        localmente via <code>localStorage</code> para cache de sessão — esses dados
-        ficam exclusivamente no seu dispositivo.
+        The Cafezin landing site does not use tracking, analytics, or advertising cookies.
+        It does use a small language preference cookie to remember whether you prefer the
+        English or Portuguese version of the site. The desktop app may also store local session
+        cache in <code>localStorage</code>, and that data remains only on your device.
       </p>
 
-      <h2>11. Crianças</h2>
+      <h2>11. Children</h2>
       <p>
-        O Cafezin não é direcionado a menores de 13 anos e não coleta intencionalmente
-        dados de crianças. Se você acreditar que coletamos dados de um menor, entre em
-        contato para que possamos excluí-los imediatamente.
+        Cafezin is not directed to children under 13 and does not knowingly collect data from
+        children. If you believe we collected data from a minor, contact us so we can remove it.
       </p>
 
-      <h2>12. Alterações nesta política</h2>
+      <h2>12. Changes to this policy</h2>
       <p>
-        Podemos atualizar esta Política de Privacidade periodicamente. Quando houver
-        mudanças materiais, notificaremos você por email e atualizaremos a data de
-        "Última atualização" no topo desta página. O uso continuado do Cafezin após
-        as alterações constitui aceitação da nova política.
+        We may update this Privacy Policy from time to time. When material changes occur,
+        we will notify you by email and update the “Last updated” date at the top of this page.
+        Continued use of Cafezin after the changes take effect constitutes acceptance of the new policy.
       </p>
 
-      <h2>13. Contato e encarregado de dados (DPO)</h2>
+      <h2>13. Contact and data protection contact</h2>
       <p>
-        Para dúvidas, solicitações ou reclamações relacionadas a privacidade:
+        For questions, requests, or complaints related to privacy:
       </p>
       <p>
         <strong>Pedro Martinez</strong><br />
-        E-mail: <a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a>
+        Email: <a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a>
       </p>
       <p>
-        Você também pode registrar reclamação diretamente à
+        You may also file a complaint directly with Brazil's
         <a href="https://www.gov.br/anpd" target="_blank" rel="noopener">ANPD
-        (Autoridade Nacional de Proteção de Dados)</a>.
+        (National Data Protection Authority)</a>.
       </p>
     </div>
   </main>
@@ -263,12 +258,12 @@
         <span>Cafezin</span>
       </div>
       <nav class="footer-links">
-        <a href="/pricing">Preços</a>
-        <a href="/privacy-policy">Privacidade</a>
-        <a href="/terms-of-service">Termos de Uso</a>
-        <a href="/refund">Reembolso</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/privacy-policy">Privacy</a>
+        <a href="/terms-of-service">Terms</a>
+        <a href="/refund">Refunds</a>
       </nav>
-      <p class="footer-copy">© 2026 Pedro Martinez. Feito com ☕ no Brasil.</p>
+      <p class="footer-copy">© 2026 Pedro Martinez. Built with coffee in Brazil.</p>
     </div>
   </footer>
 

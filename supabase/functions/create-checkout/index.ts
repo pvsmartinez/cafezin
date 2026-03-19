@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
       // Passed back verbatim in every webhook event as data.custom_data
       custom_data: { user_id: user.id },
       checkout: {
-        url: 'https://cafezin.app/premium/obrigado',
+        url: 'https://cafezin.pmatz.com/premium/obrigado',
       },
     }),
   });

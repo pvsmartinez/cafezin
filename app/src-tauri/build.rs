@@ -1,18 +1,16 @@
 fn main() {
-    // ── Load GitHub OAuth credentials from .env.local ─────────────────────
-    // Secrets are NOT hardcoded in source — they live in .env.local (git-ignored).
-    // build.rs reads the file and re-exports the values as compile-time env vars
-    // so lib.rs can use env!("GITHUB_OAUTH_CLIENT_ID") etc.
+    // ── Load optional default GitHub OAuth client_id from .env.local ───────
+    // The device flow only needs a public client_id. No client_secret is
+    // compiled into the app.
     //
     // Resolution order:
-    //   1. GITHUB_OAUTH_CLIENT_ID / GITHUB_OAUTH_CLIENT_SECRET already set in
+    //   1. GITHUB_OAUTH_CLIENT_ID already set in
     //      the shell environment (e.g. CI) → used as-is (no file needed).
     //   2. cafezin/.env.local  (root of the cafezin project, two levels up from src-tauri/)
     //   3. cafezin/app/.env.local  (Vite env file, adjacent to app/)
     //
     // Keys recognised in the .env.local file:
     //   GITHUB_OAUTH_CLIENT_ID      — GitHub OAuth App client_id  (scope: copilot)
-    //   GITHUB_OAUTH_CLIENT_SECRET  — GitHub OAuth App client_secret
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
     let src_tauri = std::path::Path::new(&manifest_dir);
     // src-tauri/ → app/ → cafezin/
@@ -28,10 +26,7 @@ fn main() {
     };
 
     println!("cargo:rerun-if-env-changed=GITHUB_OAUTH_CLIENT_ID");
-    println!("cargo:rerun-if-env-changed=GITHUB_OAUTH_CLIENT_SECRET");
-
     let mut oauth_client_id = std::env::var("GITHUB_OAUTH_CLIENT_ID").ok();
-    let mut oauth_client_secret = std::env::var("GITHUB_OAUTH_CLIENT_SECRET").ok();
 
     for env_file in &env_files {
         if let Ok(contents) = std::fs::read_to_string(env_file) {
@@ -48,9 +43,6 @@ fn main() {
                         "GITHUB_OAUTH_CLIENT_ID" if oauth_client_id.is_none() => {
                             oauth_client_id = Some(val.to_string());
                         }
-                        "GITHUB_OAUTH_CLIENT_SECRET" if oauth_client_secret.is_none() => {
-                            oauth_client_secret = Some(val.to_string());
-                        }
                         _ => {}
                     }
                 }
@@ -60,9 +52,6 @@ fn main() {
 
     if let Some(val) = oauth_client_id {
         println!("cargo:rustc-env=GITHUB_OAUTH_CLIENT_ID={val}");
-    }
-    if let Some(val) = oauth_client_secret {
-        println!("cargo:rustc-env=GITHUB_OAUTH_CLIENT_SECRET={val}");
     }
 
     // ── iOS link flags ─────────────────────────────────────────────────────

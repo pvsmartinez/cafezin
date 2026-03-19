@@ -215,6 +215,12 @@ export interface VercelWorkspaceConfig {
   };
 }
 
+/** GitHub OAuth App settings scoped to a workspace. */
+export interface GitHubOAuthWorkspaceConfig {
+  /** Public OAuth App client ID used for Copilot device-flow login. */
+  clientId?: string;
+}
+
 /** Optional per-workspace capabilities that enhance built-in file types. */
 export interface WorkspaceFeatureConfig {
   /** Markdown-specific render features such as Mermaid diagrams. */
@@ -260,6 +266,8 @@ export interface WorkspaceConfig {
   inboxFile?: string;
   /** Vercel publish config — workspace-level override (token, teamId) */
   vercelConfig?: VercelWorkspaceConfig;
+  /** GitHub OAuth App config used by Copilot in this workspace. */
+  githubOAuth?: GitHubOAuthWorkspaceConfig;
   /** Optional feature flags / capabilities enabled only for this workspace. */
   features?: WorkspaceFeatureConfig;
   /**

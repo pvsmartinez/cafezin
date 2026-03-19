@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Premium — Cafezin</title>
+  <meta name="description" content="Entre na sua conta Cafezin para assinar ou gerenciar o Premium." />
+  <link rel="canonical" href="https://cafezin.pmatz.com/premium" />
+  <link rel="icon" href="/icon.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .premium-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+      background:
+        radial-gradient(circle at top, rgba(var(--accent-rgb), 0.14), transparent 30%),
+        linear-gradient(180deg, rgba(35, 29, 21, 0.95), rgba(28, 22, 16, 1));
+    }
+
+    .premium-card {
+      width: min(100%, 560px);
+      background: rgba(35, 29, 21, 0.94);
+      border: 1px solid var(--border2);
+      border-radius: 22px;
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .premium-kicker {
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 0.72rem;
+      font-weight: 800;
+    }
+
+    .premium-title {
+      color: var(--text-bright);
+      font-family: 'Vollkorn', Georgia, serif;
+      font-size: clamp(2rem, 5vw, 3rem);
+      line-height: 1.05;
+    }
+
+    .premium-sub {
+      color: var(--text-muted);
+      line-height: 1.7;
+      max-width: 48ch;
+    }
+
+    .premium-status {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .premium-form {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .premium-field {
+      display: grid;
+      gap: 0.4rem;
+    }
+
+    .premium-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .premium-input {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border2);
+      background: var(--surface2);
+      color: var(--text-bright);
+      padding: 0.8rem 0.95rem;
+      font: inherit;
+      outline: none;
+    }
+
+    .premium-input:focus {
+      border-color: rgba(var(--accent-rgb), 0.75);
+      box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.18);
+    }
+
+    .premium-row {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .premium-btn {
+      appearance: none;
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #11211d;
+      font-weight: 800;
+      font-size: 0.95rem;
+      padding: 0.9rem 1.15rem;
+      cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+
+    .premium-btn:hover { transform: translateY(-1px); }
+    .premium-btn:disabled { opacity: 0.65; cursor: wait; transform: none; }
+
+    .premium-btn-secondary {
+      background: transparent;
+      color: var(--text-bright);
+      border: 1px solid var(--border2);
+    }
+
+    .premium-note,
+    .premium-error,
+    .premium-ok {
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .premium-note { color: var(--text-dim); }
+    .premium-error { color: #ff9d93; }
+    .premium-ok { color: var(--accent); }
+
+    .premium-links {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .premium-links a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="premium-shell">
+    <section class="premium-card">
+      <div class="premium-kicker">Cafezin Premium</div>
+      <h1 class="premium-title">Assine ou gerencie sua conta</h1>
+      <p class="premium-sub">
+        Entre com sua conta Cafezin para iniciar a assinatura Premium por $5/mês
+        ou abrir o portal da Paddle para atualizar pagamento e cancelar quando quiser.
+      </p>
+
+      <div id="status" class="premium-status">Verificando sessão…</div>
+
+      <form id="auth-form" class="premium-form">
+        <div class="premium-field">
+          <label class="premium-label" for="email">E-mail</label>
+          <input class="premium-input" id="email" type="email" autocomplete="email" required />
+        </div>
+        <div class="premium-field">
+          <label class="premium-label" for="password">Senha</label>
+          <input class="premium-input" id="password" type="password" autocomplete="current-password" required />
+        </div>
+        <div class="premium-row">
+          <button id="login-btn" class="premium-btn" type="submit">Entrar</button>
+          <button id="signup-btn" class="premium-btn premium-btn-secondary" type="button">Criar conta</button>
+        </div>
+      </form>
+
+      <div id="actions" class="premium-row" hidden>
+        <button id="checkout-btn" class="premium-btn">Assinar Premium ↗</button>
+        <button id="portal-btn" class="premium-btn premium-btn-secondary">Gerenciar assinatura ↗</button>
+        <button id="refresh-btn" class="premium-btn premium-btn-secondary">Atualizar status</button>
+        <button id="signout-btn" class="premium-btn premium-btn-secondary">Sair</button>
+      </div>
+
+      <div id="message" class="premium-note">
+        O Premium libera a IA integrada no app. Você continua usando sua própria chave de API.
+      </div>
+
+      <div class="premium-links">
+        <a href="/pricing">Ver detalhes do plano</a>
+        <a href="/refund">Política de reembolso</a>
+        <a href="/terms-of-service">Termos</a>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const SUPABASE_URL = 'https://dxxwlnvemqgpdrnkzrcr.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_4IegSXogmwjkVkRiKG_p8g_rUuJNO5u';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
+
+    const statusEl = document.getElementById('status');
+    const authForm = document.getElementById('auth-form');
+    const actionsEl = document.getElementById('actions');
+    const messageEl = document.getElementById('message');
+    const emailEl = document.getElementById('email');
+    const passwordEl = document.getElementById('password');
+    const loginBtn = document.getElementById('login-btn');
+    const signupBtn = document.getElementById('signup-btn');
+    const checkoutBtn = document.getElementById('checkout-btn');
+    const portalBtn = document.getElementById('portal-btn');
+    const refreshBtn = document.getElementById('refresh-btn');
+    const signoutBtn = document.getElementById('signout-btn');
+
+    function setMessage(text, kind = 'note') {
+      messageEl.className = kind === 'error'
+        ? 'premium-error'
+        : kind === 'ok'
+          ? 'premium-ok'
+          : 'premium-note';
+      messageEl.textContent = text;
+    }
+
+    function setBusy(button, busyText, busy) {
+      if (!button.dataset.defaultText) button.dataset.defaultText = button.textContent;
+      button.disabled = busy;
+      button.textContent = busy ? busyText : button.dataset.defaultText;
+    }
+
+    async function getAccountState() {
+      const { data, error } = await supabase.rpc('get_my_account_state');
+      if (error) throw error;
+      return data;
+    }
+
+    async function callBillingFunction(name) {
+      const { data, error } = await supabase.functions.invoke(name, { method: 'POST' });
+      if (error) throw error;
+      if (!data?.url) throw new Error('Nenhuma URL retornada');
+      window.location.href = data.url;
+    }
+
+    async function render() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        authForm.hidden = false;
+        actionsEl.hidden = true;
+        statusEl.textContent = 'Faça login para assinar ou gerenciar o Premium.';
+        setMessage('Se você ainda não tem conta, crie uma agora e finalize a assinatura em seguida.');
+        return;
+      }
+
+      authForm.hidden = true;
+      actionsEl.hidden = false;
+
+      try {
+        const account = await getAccountState();
+        const premium = !!account?.isPremium;
+        const renewsAt = account?.currentPeriodEnd
+          ? new Date(account.currentPeriodEnd).toLocaleDateString('pt-BR')
+          : null;
+
+        statusEl.innerHTML = premium
+          ? `Conta: <strong>${user.email}</strong><br>Plano: <strong>Premium</strong>${renewsAt ? `<br>Renova em: <strong>${renewsAt}</strong>` : ''}${account?.cancelAtPeriodEnd ? '<br>Cancelamento agendado no fim do período.' : ''}`
+          : `Conta: <strong>${user.email}</strong><br>Plano: <strong>Free</strong>`;
+
+        checkoutBtn.hidden = premium;
+        portalBtn.hidden = !premium;
+
+        setMessage(
+          premium
+            ? 'Abra o portal da Paddle para atualizar cartão, baixar invoices ou cancelar a assinatura.'
+            : 'Sua conta está pronta. Clique em “Assinar Premium” para abrir o checkout Paddle.',
+          premium ? 'ok' : 'note'
+        );
+      } catch (error) {
+        statusEl.textContent = `Conta: ${user.email}`;
+        checkoutBtn.hidden = false;
+        portalBtn.hidden = true;
+        setMessage(error.message || 'Não foi possível verificar o status da conta.', 'error');
+      }
+    }
+
+    authForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setBusy(loginBtn, 'Entrando…', true);
+      signupBtn.disabled = true;
+      setMessage('');
+      try {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: emailEl.value.trim(),
+          password: passwordEl.value,
+        });
+        if (error) throw error;
+        await render();
+      } catch (error) {
+        setMessage(error.message || 'Falha no login.', 'error');
+      } finally {
+        setBusy(loginBtn, 'Entrando…', false);
+        signupBtn.disabled = false;
+      }
+    });
+
+    signupBtn.addEventListener('click', async () => {
+      setBusy(signupBtn, 'Criando…', true);
+      loginBtn.disabled = true;
+      setMessage('');
+      try {
+        const { error } = await supabase.auth.signUp({
+          email: emailEl.value.trim(),
+          password: passwordEl.value,
+        });
+        if (error) throw error;
+        setMessage('Conta criada. Se você já estiver confirmada, prossiga com o login.', 'ok');
+      } catch (error) {
+        setMessage(error.message || 'Falha ao criar conta.', 'error');
+      } finally {
+        setBusy(signupBtn, 'Criando…', false);
+        loginBtn.disabled = false;
+      }
+    });
+
+    checkoutBtn.addEventListener('click', async () => {
+      setBusy(checkoutBtn, 'Abrindo checkout…', true);
+      try {
+        await callBillingFunction('create-checkout');
+      } catch (error) {
+        setMessage(error.message || 'Falha ao abrir checkout.', 'error');
+      } finally {
+        setBusy(checkoutBtn, 'Abrindo checkout…', false);
+      }
+    });
+
+    portalBtn.addEventListener('click', async () => {
+      setBusy(portalBtn, 'Abrindo portal…', true);
+      try {
+        await callBillingFunction('create-customer-portal');
+      } catch (error) {
+        setMessage(error.message || 'Falha ao abrir portal.', 'error');
+      } finally {
+        setBusy(portalBtn, 'Abrindo portal…', false);
+      }
+    });
+
+    refreshBtn.addEventListener('click', async () => {
+      setBusy(refreshBtn, 'Atualizando…', true);
+      try {
+        await render();
+      } finally {
+        setBusy(refreshBtn, 'Atualizando…', false);
+      }
+    });
+
+    signoutBtn.addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      await render();
+      setMessage('Sessão encerrada.');
+    });
+
+    supabase.auth.onAuthStateChange(() => {
+      void render();
+    });
+
+    await render();
+  </script>
+</body>
+</html>

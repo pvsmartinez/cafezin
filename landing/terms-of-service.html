@@ -1,12 +1,15 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Termos de Uso — Cafezin</title>
-  <meta name="description" content="Termos de Uso do Cafezin — condições para utilização do app e da assinatura Premium." />
+  <title>Terms of Service - Cafezin</title>
+  <meta name="description" content="Cafezin Terms of Service, including conditions for using the app and the Premium subscription." />
 
   <link rel="canonical" href="https://cafezin.pmatz.com/terms-of-service" />
+  <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/terms-of-service" />
+  <link rel="alternate" hreflang="pt-BR" href="https://cafezin.pmatz.com/br/terms-of-service" />
+  <link rel="alternate" hreflang="x-default" href="https://cafezin.pmatz.com/terms-of-service" />
   <link rel="icon" type="image/png" sizes="32x32" href="icon.png" />
   <meta name="theme-color" content="#1c1610" />
   <meta name="robots" content="noindex" />
@@ -22,12 +25,16 @@
   <nav class="nav">
     <div class="nav-inner">
       <a class="nav-logo" href="/">
-        <img src="coffe.png" alt="Logo do Cafezin" class="nav-logo-img" width="28" height="28" />
+        <img src="coffe.png" alt="Cafezin logo" class="nav-logo-img" width="28" height="28" />
         <span class="nav-logo-name">Cafezin</span>
       </a>
       <div class="nav-links">
-        <a class="nav-link" href="/pricing">Preços</a>
-        <a class="btn btn-ghost nav-cta" href="/#download">Baixar agora</a>
+        <a class="nav-link" href="/pricing">Pricing</a>
+        <div class="locale-switch" aria-label="Language selector">
+          <a class="locale-option active" href="/terms-of-service" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
+          <a class="locale-option" href="/br/terms-of-service" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
+        </div>
+        <a class="btn btn-ghost nav-cta" href="/#download" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">Download now</a>
       </div>
     </div>
   </nav>
@@ -36,10 +43,10 @@
   <section class="page-hero">
     <div class="page-hero-inner">
       <div class="page-hero-label">Legal</div>
-      <h1 class="page-hero-title">Termos de Uso</h1>
+      <h1 class="page-hero-title">Terms of Service</h1>
       <p class="page-hero-sub">
-        Ao usar o Cafezin, você concorda com estas condições.<br />
-        Leia com atenção — escrevemos em português, sem juridiquês.
+        By using Cafezin, you agree to these terms.<br />
+        We wrote them to be readable, direct, and practical.
       </p>
     </div>
   </section>
@@ -47,162 +54,152 @@
   <!-- ── Content ────────────────────────────────────────────────────────── -->
   <main>
     <div class="prose">
-      <p class="last-updated">Última atualização: 18 de março de 2026</p>
+      <p class="last-updated">Last updated: March 18, 2026</p>
 
-      <h2>1. Sobre o Cafezin</h2>
+      <h2>1. About Cafezin</h2>
       <p>
-        O Cafezin é um aplicativo de produtividade para escritores, educadores e criadores
-        de conteúdo, que inclui editor Markdown, canvas visual e AI integrada. O app roda
-        localmente no seu dispositivo (macOS, Windows, iOS, Android).
+        Cafezin is a productivity app for writers, educators, and content creators. It includes
+        a Markdown editor, a visual canvas, and built-in AI. The app runs locally on your device
+        across macOS, Windows, iOS, and Android experiences.
       </p>
       <p>
-        O Cafezin é desenvolvido e mantido por <strong>Pedro Martinez</strong>
-        (<a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a>), Brasil.
-      </p>
-
-      <h2>2. Aceitação dos Termos</h2>
-      <p>
-        Ao baixar, instalar ou usar o Cafezin, você declara que leu, entendeu e concorda
-        com estes Termos de Uso, bem como com nossa
-        <a href="/privacy-policy">Política de Privacidade</a>.
-        Se não concordar, não use o app.
-      </p>
-      <p>
-        Você deve ter pelo menos 13 anos para usar o Cafezin. Se você tiver entre 13 e
-        18 anos, precisa do consentimento de um responsável legal.
+        Cafezin is developed and maintained by <strong>Pedro Martinez</strong>
+        (<a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a>), Brazil.
       </p>
 
-      <h2>3. Planos e Assinatura Premium</h2>
-
-      <h3>3.1 Plano Gratuito</h3>
+      <h2>2. Acceptance of these terms</h2>
       <p>
-        O Cafezin oferece um plano gratuito com todas as funcionalidades de edição e
-        organização: editor Markdown, canvas visual (tldraw), slides, git embutido e
-        workspaces ilimitados. O plano gratuito não tem prazo de expiração.
-      </p>
-
-      <h3>3.2 Plano Premium</h3>
-      <p>
-        O plano Premium adiciona acesso à AI integrada (GitHub Copilot) e outras
-        funcionalidades exclusivas. A assinatura é cobrada mensalmente via
-        <strong>Paddle</strong>, que atua como <em>Merchant of Record</em> (vendedor
-        oficial) das transações.
+        By downloading, installing, or using Cafezin, you confirm that you have read,
+        understood, and agreed to these Terms of Service as well as our
+        <a href="/privacy-policy">Privacy Policy</a>. If you do not agree, do not use the app.
       </p>
       <p>
-        Ao assinar o Premium, você concorda também com os
+        You must be at least 13 years old to use Cafezin. If you are between 13 and 18,
+        you need permission from a parent or legal guardian.
+      </p>
+
+      <h2>3. Plans and Premium subscription</h2>
+
+      <h3>3.1 Free plan</h3>
+      <p>
+        Cafezin offers a free plan with all core editing and organization features, including
+        the Markdown editor, visual canvas (tldraw), slides, built-in git, and unlimited workspaces.
+        The free plan does not expire.
+      </p>
+
+      <h3>3.2 Premium plan</h3>
+      <p>
+        The Premium plan adds access to built-in AI and other exclusive capabilities.
+        The subscription is billed monthly via <strong>Paddle</strong>, which acts as the
+        <em>Merchant of Record</em> for the transaction.
+      </p>
+      <p>
+        By subscribing to Premium, you also agree to the
         <a href="https://www.paddle.com/legal/terms" target="_blank" rel="noopener">
-          Termos de Uso da Paddle</a>.
+          Paddle Terms</a>.
       </p>
 
-      <h3>3.3 Cancelamento</h3>
+      <h3>3.3 Cancellation</h3>
       <p>
-        Você pode cancelar a assinatura a qualquer momento pelo portal de gerenciamento
-        da Paddle (acessível via Configurações → Conta no app). Após o cancelamento,
-        você mantém acesso Premium até o fim do período já pago. Não há cobranças
-        adicionais após o cancelamento.
+        You may cancel your subscription at any time using Paddle's customer portal,
+        accessible from the Premium page on the site or through Settings -> Account in the app.
+        After cancellation, Premium access remains active until the end of the paid period,
+        and no additional charges will be made.
       </p>
 
-      <h3>3.4 Alterações de preço</h3>
+      <h3>3.4 Pricing changes</h3>
       <p>
-        Podemos ajustar o preço do plano Premium. Assinantes ativos serão notificados
-        com pelo menos 30 dias de antecedência antes de qualquer mudança entrar em vigor,
-        e terão a opção de cancelar sem custo adicional.
+        We may adjust the price of the Premium plan. Active subscribers will be notified at
+        least 30 days before any pricing change takes effect and will have the option to cancel
+        without additional cost.
       </p>
 
-      <h2>4. Uso Aceitável</h2>
-      <p>Você concorda em usar o Cafezin apenas para fins lícitos e não vai:</p>
+      <h2>4. Acceptable use</h2>
+      <p>You agree to use Cafezin only for lawful purposes and you will not:</p>
       <ul>
-        <li>Tentar contornar ou burlar as proteções de licenciamento do app</li>
-        <li>Usar a AI para gerar conteúdo ilegal, hateful, discriminatório ou que
-          viole direitos de terceiros</li>
-        <li>Revender, sublicenciar ou redistribuir o app sem autorização expressa</li>
-        <li>Engenharia reversa, descompilar ou desmontar o app além do permitido por lei</li>
-        <li>Usar o app para interferir em sistemas de terceiros ou cometer fraudes</li>
+        <li>Attempt to bypass or defeat licensing protections in the app</li>
+        <li>Use the AI to generate illegal, hateful, discriminatory, or rights-violating content</li>
+        <li>Resell, sublicense, or redistribute the app without express permission</li>
+        <li>Reverse engineer, decompile, or disassemble the app beyond what the law allows</li>
+        <li>Use the app to interfere with third-party systems or commit fraud</li>
       </ul>
 
-      <h2>5. Sua Propriedade Intelectual</h2>
+      <h2>5. Your intellectual property</h2>
       <p>
-        <strong>Tudo que você cria no Cafezin é seu.</strong> O Cafezin não reivindica
-        nenhum direito sobre seus documentos, arquivos, ideias ou conteúdo criado com
-        o app. Seus arquivos ficam no seu dispositivo, em formato Markdown puro.
+        <strong>Everything you create in Cafezin belongs to you.</strong> Cafezin claims no rights
+        over your documents, files, ideas, or content created with the app. Your files stay on
+        your device in plain Markdown format.
       </p>
 
-      <h2>6. Propriedade Intelectual do Cafezin</h2>
+      <h2>6. Cafezin intellectual property</h2>
       <p>
-        O app Cafezin, seu código-fonte, design, logotipo, nome e marca são de
-        propriedade de Pedro Martinez. Estes Termos não concedem a você nenhum
-        direito sobre a propriedade intelectual do Cafezin além do uso do app
-        conforme descrito aqui.
+        The Cafezin app, including its source code, design, logo, name, and brand, is owned by
+        Pedro Martinez. These Terms do not grant you any rights in Cafezin's intellectual property
+        beyond the limited right to use the app as described here.
       </p>
 
-      <h2>7. Disponibilidade e Atualizações</h2>
+      <h2>7. Availability and updates</h2>
       <p>
-        Por ser um app desktop, o Cafezin funciona localmente e não depende de
-        conectividade constante. No entanto:
+        Because Cafezin is a desktop app, it works locally and does not depend on constant
+        connectivity. However:
       </p>
       <ul>
-        <li>Alguns recursos (AI, sincronização de conta) requerem conexão com a internet</li>
-        <li>Podemos atualizar o app para corrigir bugs, melhorar funcionalidades ou
-          adicionar novos recursos</li>
-        <li>Podemos descontinuar funcionalidades com aviso prévio razoável</li>
+        <li>Some features, such as AI and account sync, require an internet connection</li>
+        <li>We may update the app to fix bugs, improve features, or add new capabilities</li>
+        <li>We may discontinue features with reasonable prior notice</li>
       </ul>
       <p>
-        Não garantimos disponibilidade ininterrupta dos serviços conectados (Supabase,
-        GitHub Copilot API), mas faremos o razoável para manter o serviço estável.
+        We do not guarantee uninterrupted availability of connected services such as Supabase
+        or the GitHub Copilot API, but we will take reasonable steps to keep the service stable.
       </p>
 
-      <h2>8. Isenção de Garantias</h2>
+      <h2>8. Disclaimer of warranties</h2>
       <p>
-        O Cafezin é fornecido <strong>"no estado em que se encontra"</strong>
-        (<em>as is</em>), sem garantias expressas ou implícitas de qualquer tipo,
-        incluindo, sem limitação, garantias de comercialização, adequação a um
-        propósito específico ou não violação de direitos.
+        Cafezin is provided <strong>"as is"</strong>, without express or implied warranties of any kind,
+        including warranties of merchantability, fitness for a particular purpose, or non-infringement.
       </p>
       <p>
-        Você usa o app por sua própria conta e risco. Recomendamos manter backups
-        regulares dos seus arquivos.
+        You use the app at your own risk. We strongly recommend keeping regular backups of your files.
       </p>
 
-      <h2>9. Limitação de Responsabilidade</h2>
+      <h2>9. Limitation of liability</h2>
       <p>
-        Na máxima extensão permitida por lei, Pedro Martinez não será responsável por:
+        To the maximum extent permitted by law, Pedro Martinez will not be liable for:
       </p>
       <ul>
-        <li>Perda de dados, lucros ou receitas</li>
-        <li>Danos indiretos, incidentais ou consequenciais decorrentes do uso ou
-          impossibilidade de uso do app</li>
-        <li>Conteúdo gerado pela AI que seja incorreto, prejudicial ou inadequado</li>
+        <li>Loss of data, profits, or revenue</li>
+        <li>Indirect, incidental, or consequential damages arising from use of or inability to use the app</li>
+        <li>AI-generated content that is incorrect, harmful, or unsuitable</li>
       </ul>
       <p>
-        Nossa responsabilidade total, em qualquer hipótese, estará limitada ao valor
-        pago pelo assinante nos últimos 12 meses.
+        Our total liability, in any situation, will be limited to the amount paid by the subscriber
+        during the previous 12 months.
       </p>
 
-      <h2>10. Lei Aplicável e Foro</h2>
+      <h2>10. Governing law and venue</h2>
       <p>
-        Estes Termos são regidos pela legislação brasileira, incluindo o Código de Defesa
-        do Consumidor (Lei nº 8.078/1990) e a LGPD (Lei nº 13.709/2018).
+        These Terms are governed by Brazilian law, including the Consumer Defense Code
+        (Law No. 8.078/1990) and the LGPD (Law No. 13.709/2018).
       </p>
       <p>
-        Eventuais disputas serão submetidas ao foro da comarca de São Paulo, SP, com
-        renúncia a qualquer outro, por mais privilegiado que seja.
-      </p>
-
-      <h2>11. Alterações nos Termos</h2>
-      <p>
-        Podemos modificar estes Termos de Uso a qualquer momento. Mudanças materiais
-        serão comunicadas por e-mail e publicadas nesta página com data de vigência.
-        O uso continuado do Cafezin após a data de vigência constitui aceitação dos
-        novos Termos.
+        Any dispute will be submitted to the courts of São Paulo, SP, Brazil, unless mandatory
+        consumer protection law requires another venue.
       </p>
 
-      <h2>12. Contato</h2>
+      <h2>11. Changes to these terms</h2>
       <p>
-        Dúvidas sobre estes Termos? Fale com a gente:
+        We may modify these Terms of Service at any time. Material changes will be communicated
+        by email and published on this page with an effective date. Continued use of Cafezin after
+        that effective date constitutes acceptance of the updated Terms.
+      </p>
+
+      <h2>12. Contact</h2>
+      <p>
+        Questions about these Terms? Contact us:
       </p>
       <p>
         <strong>Pedro Martinez</strong><br />
-        E-mail: <a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a>
+        Email: <a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a>
       </p>
     </div>
   </main>
@@ -215,12 +212,12 @@
         <span>Cafezin</span>
       </div>
       <nav class="footer-links">
-        <a href="/pricing">Preços</a>
-        <a href="/privacy-policy">Privacidade</a>
-        <a href="/terms-of-service">Termos de Uso</a>
-        <a href="/refund">Reembolso</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/privacy-policy">Privacy</a>
+        <a href="/terms-of-service">Terms</a>
+        <a href="/refund">Refunds</a>
       </nav>
-      <p class="footer-copy">© 2026 Pedro Martinez. Feito com ☕ no Brasil.</p>
+      <p class="footer-copy">© 2026 Pedro Martinez. Built with coffee in Brazil.</p>
     </div>
   </footer>
 

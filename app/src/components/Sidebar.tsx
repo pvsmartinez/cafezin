@@ -798,13 +798,13 @@ export default function Sidebar({
         <button
           className={`sidebar-tab${sidebarMode === 'explorer' ? ' active' : ''}`}
           onClick={() => { onSidebarModeChange('explorer'); onExpandSidebar?.(); }}
-          title="Explorer"
-        ><FolderSimple weight="regular" size={16} /><span className="sidebar-label"> Files</span></button>
+          title={t('sidebar.explorerTitle')}
+        ><FolderSimple weight="regular" size={16} /><span className="sidebar-label"> {t('sidebar.tabFiles')}</span></button>
         <button
           className={`sidebar-tab${sidebarMode === 'search' ? ' active' : ''}`}
           onClick={() => { onSidebarModeChange('search'); onExpandSidebar?.(); }}
           title={t('sidebar.searchTitle')}
-        ><MagnifyingGlass weight="regular" size={16} /><span className="sidebar-label"> Search</span></button>
+        ><MagnifyingGlass weight="regular" size={16} /><span className="sidebar-label"> {t('sidebar.tabSearchLabel')}</span></button>
       </div>
 
       {/* ── SEARCH MODE ─────────────────────────────────────────── */}
@@ -824,9 +824,9 @@ export default function Sidebar({
       <div className="sidebar-explorer-label">
         <span>{t('sidebar.explorerLabel')}</span>
         <div className="sidebar-explorer-actions">
-          <button className="sidebar-explorer-action" title="New file" onClick={() => startCreating('')}><FilePlus weight="thin" size={13} /></button>
-          <button className="sidebar-explorer-action" title="New folder" onClick={() => startCreating('', 'folder')}><FolderPlus weight="thin" size={13} /></button>
-          <button className="sidebar-explorer-action" title="Collapse all folders" onClick={() => setExpandedDirs(new Set())}><Minus weight="thin" size={13} /></button>
+          <button className="sidebar-explorer-action" title={t('sidebar.newFileTitle')} onClick={() => startCreating('')}><FilePlus weight="thin" size={13} /></button>
+          <button className="sidebar-explorer-action" title={t('sidebar.newFolderTitle')} onClick={() => startCreating('', 'folder')}><FolderPlus weight="thin" size={13} /></button>
+          <button className="sidebar-explorer-action" title={t('sidebar.collapseAllTitle')} onClick={() => setExpandedDirs(new Set())}><Minus weight="thin" size={13} /></button>
         </div>
       </div>
 
@@ -867,7 +867,7 @@ export default function Sidebar({
         }}
       >
         {workspace.fileTree.length === 0 && (
-          <div className="sidebar-empty">No files yet</div>
+          <div className="sidebar-empty">{t('sidebar.emptyState')}</div>
         )}
         {workspace.fileTree.map((node) => (
           <TreeNodeItem
@@ -911,9 +911,9 @@ export default function Sidebar({
         {creatingIn !== null && (
           <div className="sidebar-creator">
             <div className="sidebar-creator-context">
-              <span className="sidebar-creator-kind">{creatingKind === 'folder' ? <><FolderPlus weight="thin" size={13} /> folder</> : <><FilePlus weight="thin" size={13} /> file</>}</span>
-              {creatingIn ? <span className="sidebar-creator-path">in {creatingIn}</span> : <span className="sidebar-creator-path">at root</span>}
-              <button type="button" className="sidebar-creator-cancel" onClick={cancelCreating} title="Cancel (Esc)"><X weight="thin" size={13} /></button>
+              <span className="sidebar-creator-kind">{creatingKind === 'folder' ? <><FolderPlus weight="thin" size={13} /> {t('sidebar.creatorKindFolder')}</> : <><FilePlus weight="thin" size={13} /> {t('sidebar.creatorKindFile')}</>}</span>
+              {creatingIn ? <span className="sidebar-creator-path">{t('sidebar.creatorIn')} {creatingIn}</span> : <span className="sidebar-creator-path">{t('sidebar.creatorAtRoot')}</span>}
+              <button type="button" className="sidebar-creator-cancel" onClick={cancelCreating} title={t('sidebar.creatorCancel')}><X weight="thin" size={13} /></button>
             </div>
             {creatingKind === 'file' && (
               <>
@@ -1062,7 +1062,7 @@ export default function Sidebar({
               <button
                 className="sidebar-ai-edits-header"
                 onClick={() => setAiEditsOpen((v) => !v)}
-                title={aiEditsOpen ? 'Recolher' : 'Ver edições da IA pendentes'}
+                title={aiEditsOpen ? t('sidebar.aiEditsCollapse') : t('sidebar.aiEditsExpand')}
               >
                 <span className="sidebar-ai-edits-label"><Sparkle weight="fill" size={13} /> {t('sidebar.aiEditsLabel')}</span>
                 <span className="sidebar-ai-badge">{unreviewed.length}</span>
@@ -1088,11 +1088,11 @@ export default function Sidebar({
                   <div className="sidebar-ai-edits-actions">
                     {aiNavCount > 0 && (
                       <div className="sidebar-ai-nav-arrows">
-                        <button className="sidebar-ai-nav-arrow" onClick={onAIPrev} disabled={aiNavCount < 2} title="Anterior">
+                        <button className="sidebar-ai-nav-arrow" onClick={onAIPrev} disabled={aiNavCount < 2} title={t('sidebar.aiEditsPrev')}>
                           <CaretLeft weight="thin" size={14} />
                         </button>
                         <span className="sidebar-ai-nav-pos">{aiNavIndex + 1}/{aiNavCount}</span>
-                        <button className="sidebar-ai-nav-arrow" onClick={onAINext} disabled={aiNavCount < 2} title="Próximo">
+                        <button className="sidebar-ai-nav-arrow" onClick={onAINext} disabled={aiNavCount < 2} title={t('sidebar.aiEditsNext')}>
                           <CaretRight weight="thin" size={14} />
                         </button>
                       </div>
@@ -1123,10 +1123,10 @@ export default function Sidebar({
         {workspace.config.vercelConfig?.demoHub?.projectName && (
           <button
             className="sidebar-btn sidebar-btn-custom"
-            title={`Publicar demos em ${workspace.config.vercelConfig.demoHub.projectName}.vercel.app`}
+            title={t('sidebar.publishDemoHubTitle', { projectName: workspace.config.vercelConfig.demoHub.projectName })}
             onClick={onPublishDemoHub}
           >
-            <ArrowRight weight="thin" size={13} /> Publicar Demos
+            <ArrowRight weight="thin" size={13} /> {t('sidebar.publishDemoHub')}
           </button>
         )}
       </div>
@@ -1151,48 +1151,48 @@ export default function Sidebar({
             ? contextMenu.path
             : (contextMenu.path.includes('/') ? contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/')) : '');
           startCreating(inPath, 'file');
-        }}><span className="sidebar-ctx-icon"><FilePlus weight="thin" size={13} /></span> New file here</button>
+        }}><span className="sidebar-ctx-icon"><FilePlus weight="thin" size={13} /></span> {t('sidebar.ctxNewFileHere')}</button>
         <button onClick={() => {
           const inPath = contextMenu.isDir
             ? contextMenu.path
             : (contextMenu.path.includes('/') ? contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/')) : '');
           startCreating(inPath, 'folder');
-        }}><span className="sidebar-ctx-icon"><FolderPlus weight="thin" size={13} /></span> New folder here</button>
+        }}><span className="sidebar-ctx-icon"><FolderPlus weight="thin" size={13} /></span> {t('sidebar.ctxNewFolderHere')}</button>
         <div className="sidebar-context-separator" />
         <button onClick={() => {
           const name = contextMenu.path.split('/').pop() ?? contextMenu.path;
           startRename(contextMenu.path, name);
-        }}><span className="sidebar-ctx-icon"><PencilSimple weight="thin" size={13} /></span> Rename</button>
+        }}><span className="sidebar-ctx-icon"><PencilSimple weight="thin" size={13} /></span> {t('sidebar.ctxRename')}</button>
         <button onClick={() => {
           revealItemInDir(`${workspace.path}/${contextMenu.path}`);
           setContextMenu(null);
-        }}><span className="sidebar-ctx-icon"><FolderSimple weight="thin" size={13} /></span> Show in Finder</button>
+        }}><span className="sidebar-ctx-icon"><FolderSimple weight="thin" size={13} /></span> {t('sidebar.ctxShowInFinder')}</button>
         <button onClick={() => {
           const dir = contextMenu.isDir
             ? contextMenu.path
             : (contextMenu.path.includes('/') ? contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/')) : '');
           onOpenTerminalAt?.(dir);
           setContextMenu(null);
-        }}><span className="sidebar-ctx-icon"><TerminalWindow weight="thin" size={13} /></span> Open in Terminal</button>
+        }}><span className="sidebar-ctx-icon"><TerminalWindow weight="thin" size={13} /></span> {t('sidebar.ctxOpenInTerminal')}</button>
         {!contextMenu.isDir && (
           <button onClick={() => {
             navigator.clipboard.writeText(contextMenu.path).catch(() => {});
             setContextMenu(null);
-          }}><span className="sidebar-ctx-icon"><Copy weight="thin" size={13} /></span> Copy path</button>
+          }}><span className="sidebar-ctx-icon"><Copy weight="thin" size={13} /></span> {t('sidebar.ctxCopyPath')}</button>
         )}
         <button onClick={() => {
           const folders = getAllFolders(workspace.fileTree, contextMenu.path);
           const pickerH = Math.min(folders.length * 32 + 88, 320);
           setMovePicker({ path: contextMenu.path, x: contextMenu.x, y: Math.min(contextMenu.y, window.innerHeight - pickerH - 6) });
           setContextMenu(null);
-        }}><span className="sidebar-ctx-icon"><ArrowRight weight="thin" size={13} /></span> Move to…</button>
+        }}><span className="sidebar-ctx-icon"><ArrowRight weight="thin" size={13} /></span> {t('sidebar.ctxMoveTo')}</button>
         <div className="sidebar-context-separator" />
         {contextMenu.isDir
-          ? <button onClick={() => handleDuplicateFolder(contextMenu.path)}><span className="sidebar-ctx-icon"><Copy weight="thin" size={13} /></span> Duplicate folder</button>
-          : <button onClick={() => handleDuplicateFile(contextMenu.path)}><span className="sidebar-ctx-icon"><Copy weight="thin" size={13} /></span> Duplicate</button>
+          ? <button onClick={() => handleDuplicateFolder(contextMenu.path)}><span className="sidebar-ctx-icon"><Copy weight="thin" size={13} /></span> {t('sidebar.ctxDuplicateFolder')}</button>
+          : <button onClick={() => handleDuplicateFile(contextMenu.path)}><span className="sidebar-ctx-icon"><Copy weight="thin" size={13} /></span> {t('sidebar.ctxDuplicate')}</button>
         }
         <div className="sidebar-context-separator" />
-        <button className="sidebar-context-delete" onClick={() => handleDeleteFile(contextMenu.path)}><span className="sidebar-ctx-icon"><X weight="thin" size={13} /></span> Delete</button>
+        <button className="sidebar-context-delete" onClick={() => handleDeleteFile(contextMenu.path)}><span className="sidebar-ctx-icon"><X weight="thin" size={13} /></span> {t('sidebar.ctxDelete')}</button>
       </div>
     )}
     {/* ── Move-to folder picker ── */}
@@ -1205,19 +1205,19 @@ export default function Sidebar({
           style={{ left: movePicker.x, top: movePicker.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="sidebar-move-picker-title">Move "{name}" to…</div>
+          <div className="sidebar-move-picker-title">{t('sidebar.pickerTitle', { name })}</div>
           <div className="sidebar-move-picker-list">
             <button onClick={() => handleMoveToFolder(movePicker.path, '')}>
-              <span className="sidebar-move-picker-icon"><FolderSimple weight="thin" size={13} /></span> / root
+              <span className="sidebar-move-picker-icon"><FolderSimple weight="thin" size={13} /></span> {t('sidebar.pickerRoot')}
             </button>
             {folders.map((f) => (
               <button key={f} onClick={() => handleMoveToFolder(movePicker.path, f)}>
                 <span className="sidebar-move-picker-icon"><FolderSimple weight="thin" size={13} /></span> {f}
               </button>
             ))}
-            {folders.length === 0 && <div className="sidebar-move-picker-empty">No other folders</div>}
+            {folders.length === 0 && <div className="sidebar-move-picker-empty">{t('sidebar.pickerNoFolders')}</div>}
           </div>
-          <button className="sidebar-move-picker-cancel" onClick={() => setMovePicker(null)}>Cancel</button>
+          <button className="sidebar-move-picker-cancel" onClick={() => setMovePicker(null)}>{t('sidebar.pickerCancel')}</button>
         </div>
       );
     })()}

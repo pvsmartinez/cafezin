@@ -335,10 +335,21 @@ describe('getStoredOAuthToken / clearOAuthToken', () => {
     expect(getStoredOAuthToken()).toBe('ghp_test123');
   });
 
+  it('returns the namespaced token for a workspace client ID', () => {
+    localStorage.setItem('copilot-github-oauth-token:Iv1.testclient', 'gho_client_scoped');
+    expect(getStoredOAuthToken('Iv1.testclient')).toBe('gho_client_scoped');
+  });
+
   it('clearOAuthToken removes the token from localStorage', () => {
     localStorage.setItem('copilot-github-oauth-token', 'ghp_test123');
     clearOAuthToken();
     expect(getStoredOAuthToken()).toBeNull();
+  });
+
+  it('clearOAuthToken removes the namespaced token from localStorage', () => {
+    localStorage.setItem('copilot-github-oauth-token:Iv1.testclient', 'gho_client_scoped');
+    clearOAuthToken('Iv1.testclient');
+    expect(getStoredOAuthToken('Iv1.testclient')).toBeNull();
   });
 });
 

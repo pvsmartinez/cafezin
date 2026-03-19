@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cafezin for Android - Coming Soon</title>
-  <meta name="description" content="Cafezin is coming to Android. Native Markdown editing, built-in AI, and sync with the desktop experience. Coming soon to Google Play." />
+  <title>Cafezin para iPhone — Em Breve</title>
+  <meta name="description" content="Cafezin está chegando para iPhone. Editor Markdown nativo, AI integrada e sincronia com o desktop. Em breve na App Store." />
 
   <!-- Canonical -->
-  <link rel="canonical" href="https://cafezin.pmatz.com/android" />
-  <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/android" />
-  <link rel="alternate" hreflang="pt-BR" href="https://cafezin.pmatz.com/br/android" />
-  <link rel="alternate" hreflang="x-default" href="https://cafezin.pmatz.com/android" />
+  <link rel="canonical" href="https://cafezin.pmatz.com/br/ios" />
+  <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/ios" />
+  <link rel="alternate" hreflang="pt-BR" href="https://cafezin.pmatz.com/br/ios" />
+  <link rel="alternate" hreflang="x-default" href="https://cafezin.pmatz.com/ios" />
 
   <!-- Favicon & icons -->
   <link rel="icon" type="image/png" sizes="32x32" href="icon.png" />
@@ -20,19 +20,19 @@
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://cafezin.pmatz.com/android" />
-  <meta property="og:title" content="Cafezin for Android - Coming Soon" />
-  <meta property="og:description" content="Cafezin is coming to Android. Native Markdown editing, built-in AI, and sync with the desktop experience. Coming soon to Google Play." />
+  <meta property="og:url" content="https://cafezin.pmatz.com/br/ios" />
+  <meta property="og:title" content="Cafezin para iPhone — Em Breve" />
+  <meta property="og:description" content="Cafezin está chegando para iPhone. Editor Markdown nativo, AI integrada e sincronia com o desktop. Em breve na App Store." />
   <meta property="og:image" content="https://cafezin.pmatz.com/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale" content="pt_BR" />
   <meta property="og:site_name" content="Cafezin" />
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Cafezin for Android - Coming Soon" />
-  <meta name="twitter:description" content="Cafezin is coming to Android. Native Markdown editing, built-in AI, and sync with the desktop experience." />
+  <meta name="twitter:title" content="Cafezin para iPhone — Em Breve" />
+  <meta name="twitter:description" content="Cafezin está chegando para iPhone. Editor Markdown nativo, AI integrada e sincronia com o desktop." />
   <meta name="twitter:image" content="https://cafezin.pmatz.com/og-image.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -40,7 +40,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Vollkorn:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <style>
-    html, body { height: 100%; overflow: auto; }
+    html, body {
+      height: 100%;
+      overflow: auto;
+    }
 
     .soon-page {
       min-height: 100vh;
@@ -53,21 +56,28 @@
       position: relative;
       overflow: hidden;
     }
+
+    /* Glows */
     .soon-glow-1 {
       position: absolute;
-      width: 560px; height: 560px;
-      background: radial-gradient(ellipse at center, rgba(130, 207, 165, 0.07) 0%, transparent 70%);
-      top: 50%; left: 50%;
+      width: 560px;
+      height: 560px;
+      background: radial-gradient(ellipse at center, rgba(78, 207, 184, 0.07) 0%, transparent 70%);
+      top: 50%;
+      left: 50%;
       transform: translate(-50%, -50%);
       pointer-events: none;
     }
     .soon-glow-2 {
       position: absolute;
-      width: 300px; height: 300px;
-      background: radial-gradient(ellipse at center, rgba(78, 207, 184, 0.05) 0%, transparent 70%);
-      bottom: 0; right: 5%;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(ellipse at center, rgba(218, 178, 110, 0.06) 0%, transparent 70%);
+      bottom: 0;
+      right: 5%;
       pointer-events: none;
     }
+
     .soon-inner {
       position: relative;
       z-index: 1;
@@ -75,19 +85,24 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      gap: 0;
     }
+
+    /* App icon */
     .soon-icon-wrap {
       position: relative;
       margin-bottom: 36px;
     }
     .soon-app-icon {
-      width: 96px; height: 96px;
+      width: 96px;
+      height: 96px;
       border-radius: 22px;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 30px rgba(130, 207, 165, 0.12);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 30px rgba(78, 207, 184, 0.12);
     }
     .soon-phone-badge {
       position: absolute;
-      bottom: -6px; right: -10px;
+      bottom: -6px;
+      right: -10px;
       background: #231d15;
       border: 1px solid #3f3426;
       border-radius: 12px;
@@ -95,27 +110,32 @@
       font-size: 18px;
       line-height: 1;
     }
+
+    /* Badge */
     .soon-badge {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(130, 207, 165, 0.1);
-      border: 1px solid rgba(130, 207, 165, 0.28);
+      background: rgba(78, 207, 184, 0.12);
+      border: 1px solid rgba(78, 207, 184, 0.28);
       border-radius: 999px;
       padding: 5px 14px;
       font-size: 12px;
       font-weight: 700;
-      color: #82cfa5;
+      color: #4ecfb8;
       text-transform: uppercase;
       letter-spacing: 0.1em;
       margin-bottom: 28px;
     }
     .soon-badge-dot {
-      width: 6px; height: 6px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
-      background: #82cfa5;
+      background: #4ecfb8;
       animation: pulse 2s infinite;
     }
+
+    /* Title */
     .soon-title {
       font-family: 'Vollkorn', Georgia, serif;
       font-size: clamp(32px, 6vw, 52px);
@@ -126,8 +146,9 @@
     }
     .soon-title em {
       font-style: italic;
-      color: #82cfa5;
+      color: #4ecfb8;
     }
+
     .soon-sub {
       font-size: 16px;
       color: #856e53;
@@ -135,6 +156,8 @@
       margin-bottom: 48px;
       max-width: 400px;
     }
+
+    /* Features preview */
     .soon-features {
       display: flex;
       flex-direction: column;
@@ -153,9 +176,23 @@
       padding: 14px 18px;
       text-align: left;
     }
-    .soon-feature-item span:first-child { font-size: 20px; flex-shrink: 0; }
-    .soon-feature-text { font-size: 14px; color: #cdb89f; line-height: 1.4; }
-    .soon-feature-text strong { display: block; font-weight: 700; color: #dcc9ac; margin-bottom: 2px; }
+    .soon-feature-item span:first-child {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .soon-feature-text {
+      font-size: 14px;
+      color: #cdb89f;
+      line-height: 1.4;
+    }
+    .soon-feature-text strong {
+      display: block;
+      font-weight: 700;
+      color: #dcc9ac;
+      margin-bottom: 2px;
+    }
+
+    /* Back link */
     .soon-back {
       display: inline-flex;
       align-items: center;
@@ -166,12 +203,24 @@
       font-weight: 600;
       transition: color 0.15s ease;
     }
-    .soon-back:hover { color: #82cfa5; }
-    .soon-back svg { width: 16px; height: 16px; transition: transform 0.15s ease; }
-    .soon-back:hover svg { transform: translateX(-3px); }
+    .soon-back:hover {
+      color: #4ecfb8;
+    }
+    .soon-back svg {
+      width: 16px;
+      height: 16px;
+      transition: transform 0.15s ease;
+    }
+    .soon-back:hover svg {
+      transform: translateX(-3px);
+    }
+
+    /* Nav simples */
     .soon-nav {
       position: fixed;
-      top: 0; left: 0; right: 0;
+      top: 0;
+      left: 0;
+      right: 0;
       z-index: 100;
       background: rgba(28, 22, 16, 0.85);
       backdrop-filter: blur(16px);
@@ -197,7 +246,11 @@
       font-weight: 700;
       font-size: 18px;
     }
-    .soon-nav-logo img { width: 26px; height: 26px; border-radius: 6px; }
+    .soon-nav-logo img {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+    }
     .soon-nav-links {
       display: flex;
       align-items: center;
@@ -211,21 +264,23 @@
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }
-    .soon-nav-link:hover { color: #82cfa5; }
+    .soon-nav-link:hover {
+      color: #4ecfb8;
+    }
   </style>
 </head>
 <body>
 
   <nav class="soon-nav">
     <div class="soon-nav-inner">
-      <a class="soon-nav-logo" href="/">
+      <a class="soon-nav-logo" href="/br">
         <img src="coffe.png" alt="Cafezin" />
         Cafezin
       </a>
       <div class="soon-nav-links">
-        <div class="locale-switch" aria-label="Language selector">
-          <a class="locale-option active" href="/android" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
-          <a class="locale-option" href="/br/android" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
+        <div class="locale-switch" aria-label="Seletor de idioma">
+          <a class="locale-option" href="/ios" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
+          <a class="locale-option active" href="/br/ios" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
         </div>
       </div>
     </div>
@@ -238,53 +293,52 @@
     <div class="soon-inner">
       <div class="soon-icon-wrap">
         <img src="coffe.png" alt="Cafezin" class="soon-app-icon" />
-        <div class="soon-phone-badge">🤖</div>
+        <div class="soon-phone-badge">📱</div>
       </div>
 
       <div class="soon-badge">
         <span class="soon-badge-dot"></span>
-        In development
+        Em desenvolvimento
       </div>
 
       <h1 class="soon-title">
-        Cafezin for<br/><em>Android</em> is coming
+        Cafezin para<br/><em>iPhone</em> está chegando
       </h1>
 
       <p class="soon-sub">
-        The Android version is in progress.
-        Coming soon to Google Play so you can create
-        from anywhere, on any device.
+        A versão iOS está sendo construída com todo o cuidado de quem
+        leva a sério o seu trabalho criativo. Em breve na App Store.
       </p>
 
       <div class="soon-features">
         <div class="soon-feature-item">
           <span>✍️</span>
           <div class="soon-feature-text">
-            <strong>Markdown editor</strong>
-            Write and edit your documents directly on Android.
+            <strong>Editor Markdown nativo</strong>
+            Escreva e edite seus documentos diretamente no iPhone.
           </div>
         </div>
         <div class="soon-feature-item">
           <span>🤖</span>
           <div class="soon-feature-text">
-            <strong>Built-in AI</strong>
-            GitHub Copilot in your pocket to draft, revise, and expand with AI.
+            <strong>AI integrada</strong>
+            GitHub Copilot no bolso — escreva, revise e expanda com a AI.
           </div>
         </div>
         <div class="soon-feature-item">
           <span>🔄</span>
           <div class="soon-feature-text">
-            <strong>Synced with desktop</strong>
-            Access your workspaces wherever you are.
+            <strong>Sincronizado com o desktop</strong>
+            Acesse todos os seus workspaces de onde estiver.
           </div>
         </div>
       </div>
 
-      <a class="soon-back" href="/">
+      <a class="soon-back" href="/br">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
-        Back to the main page
+        Voltar para a página principal
       </a>
     </div>
   </main>

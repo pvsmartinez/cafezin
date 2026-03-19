@@ -145,6 +145,7 @@ export function useAIStream({
   activeFileContent,
   canUseAI = true,
 }: UseAIStreamParams) {
+  const copilotOAuthClientId = workspaceConfig?.githubOAuth?.clientId?.trim() || undefined;
   const [isStreaming, setIsStreamingState] = useState(false);
   const [agentExhausted, setAgentExhausted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -391,9 +392,19 @@ export function useAIStream({
         sessionIdRef.current,
         signal,
         () => { if (runIdRef.current === runId) setAgentExhausted(true); },
+        copilotOAuthClientId,
       );
     } else {
-      await streamCopilotChat(apiMessages, onChunk, onDone, onError, model, undefined, signal);
+      await streamCopilotChat(
+        apiMessages,
+        onChunk,
+        onDone,
+        onError,
+        model,
+        undefined,
+        signal,
+        copilotOAuthClientId,
+      );
     }
   }
 

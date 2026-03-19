@@ -89,7 +89,10 @@ export function getProviderKey(p: Exclude<AIProviderType, 'copilot'>): string {
 /** True when the current provider has its required credential stored. */
 export function isAIConfigured(): boolean {
   const p = getActiveProvider();
-  if (p === 'copilot') return !!localStorage.getItem('copilot-github-oauth-token');
+  if (p === 'copilot') {
+    return !!localStorage.getItem('copilot-github-oauth-token') ||
+      Object.keys(localStorage).some((key) => key.startsWith('copilot-github-oauth-token:'));
+  }
   return !!getProviderKey(p);
 }
 

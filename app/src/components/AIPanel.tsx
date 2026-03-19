@@ -181,6 +181,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   pendingVoiceMemos,
   onVoiceMemoHandled,
 }, ref) {
+  const copilotOAuthClientId = workspaceConfig?.githubOAuth?.clientId?.trim() || undefined;
 
   // ── Account / premium entitlement ─────────────────────────────────────────
   const { account, loading: accountLoading, refresh: refreshAccount } = useAccountState();
@@ -192,15 +193,15 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
   useEffect(() => {
     if (!isOpen) return;
-    setAuthStatus(getStoredOAuthToken() ? 'authenticated' : 'unauthenticated');
-  }, [isOpen]);
+    setAuthStatus(getStoredOAuthToken(copilotOAuthClientId) ? 'authenticated' : 'unauthenticated');
+  }, [isOpen, copilotOAuthClientId]);
 
   async function handleSignIn() {
     setAuthError(null);
     setAuthStatus('connecting');
     setDeviceFlow(null);
     try {
-      await startDeviceFlow((state) => setDeviceFlow(state));
+      await startDeviceFlow(copilotOAuthClientId ?? '', (state) => setDeviceFlow(state));
       setAuthStatus('authenticated');
       setDeviceFlow(null);
     } catch (err) {
@@ -211,7 +212,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   }
 
   function handleSignOut() {
-    clearOAuthToken();
+    clearOAuthToken(copilotOAuthClientId);
     setAuthStatus('unauthenticated');
   }
 
@@ -226,11 +227,11 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     if (modelsLoadedRef.current) return;
     modelsLoadedRef.current = true;
     setModelsLoading(true);
-    fetchCopilotModels()
+    fetchCopilotModels(copilotOAuthClientId)
       .then((models) => { setAvailableModels(models); setModelsLoading(false); })
       .catch(() => setModelsLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, authStatus]);
+  }, [isOpen, authStatus, copilotOAuthClientId]);
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   const [tabs, setTabs] = useState<AgentTab[]>([{ id: 'agent-1', label: 'Agente 1', status: 'idle', unread: false }]);

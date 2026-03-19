@@ -1,0 +1,18 @@
+{
+  "name": "Cafezin",
+  "short_name": "Cafezin",
+  "description": "Ferramenta de produtividade com AI para escritores, educadores e criadores de conteúdo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#1c1610",
+  "background_color": "#1c1610",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}

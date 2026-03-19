@@ -6,7 +6,17 @@
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>https://cafezin.pmatz.com/br</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
     <loc>https://cafezin.pmatz.com/ios</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://cafezin.pmatz.com/br/ios</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -16,7 +26,22 @@
     <priority>0.5</priority>
   </url>
   <url>
+    <loc>https://cafezin.pmatz.com/br/android</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
     <loc>https://cafezin.pmatz.com/pricing</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://cafezin.pmatz.com/premium</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://cafezin.pmatz.com/br/pricing</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -26,12 +51,27 @@
     <priority>0.3</priority>
   </url>
   <url>
+    <loc>https://cafezin.pmatz.com/br/privacy-policy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
     <loc>https://cafezin.pmatz.com/terms-of-service</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
+    <loc>https://cafezin.pmatz.com/br/terms-of-service</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
     <loc>https://cafezin.pmatz.com/refund</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://cafezin.pmatz.com/br/refund</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Política de Privacidade — Cafezin</title>
+  <meta name="description" content="Como o Cafezin coleta, usa e protege seus dados, em conformidade com a LGPD." />
+
+  <link rel="canonical" href="https://cafezin.pmatz.com/br/privacy-policy" />
+  <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/privacy-policy" />
+  <link rel="alternate" hreflang="pt-BR" href="https://cafezin.pmatz.com/br/privacy-policy" />
+  <link rel="alternate" hreflang="x-default" href="https://cafezin.pmatz.com/privacy-policy" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icon.png" />
+  <meta name="theme-color" content="#1c1610" />
+  <meta name="robots" content="noindex" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Vollkorn:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Nav ───────────────────────────────────────────────────────────── -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="/br">
+        <img src="coffe.png" alt="Logo do Cafezin" class="nav-logo-img" width="28" height="28" />
+        <span class="nav-logo-name">Cafezin</span>
+      </a>
+      <div class="nav-links">
+        <a class="nav-link" href="/br/pricing">Preços</a>
+        <div class="locale-switch" aria-label="Seletor de idioma">
+          <a class="locale-option" href="/privacy-policy" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
+          <a class="locale-option active" href="/br/privacy-policy" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
+        </div>
+        <a class="btn btn-ghost nav-cta" href="/br#download" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">Baixar agora</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Page Hero ─────────────────────────────────────────────────────── -->
+  <section class="page-hero">
+    <div class="page-hero-inner">
+      <div class="page-hero-label">Legal</div>
+      <h1 class="page-hero-title">Política de Privacidade</h1>
+      <p class="page-hero-sub">
+        Como coletamos, usamos e protegemos seus dados,<br />
+        em conformidade com a LGPD (Lei nº 13.709/2018).
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Content ────────────────────────────────────────────────────────── -->
+  <main>
+    <div class="prose">
+      <p class="last-updated">Última atualização: 18 de março de 2026</p>
+
+      <div class="info-box">
+        <p>
+          <strong>Resumo simples:</strong> o Cafezin é um app de produtividade que roda
+          localmente no seu dispositivo. Seus arquivos e documentos <em>nunca</em> saem do
+          seu computador. Coletamos apenas o mínimo necessário para autenticação e
+          gestão de assinatura.
+        </p>
+      </div>
+
+      <h2>1. Quem é o controlador dos dados</h2>
+      <p>
+        O responsável pelo tratamento dos seus dados pessoais é:
+      </p>
+      <p>
+        <strong>Pedro Martinez</strong><br />
+        E-mail: <a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a><br />
+        Brasil
+      </p>
+
+      <h2>2. Quais dados coletamos</h2>
+
+      <h3>2.1 Dados de conta (autenticação)</h3>
+      <p>
+        Quando você cria uma conta no Cafezin:
+      </p>
+      <ul>
+        <li>Endereço de e-mail</li>
+        <li>Nome (opcional, se fornecido durante o cadastro)</li>
+        <li>Data e hora do cadastro</li>
+        <li>Identificador único de usuário gerado automaticamente</li>
+      </ul>
+      <p>
+        Esses dados são armazenados no <strong>Supabase</strong> (ver seção 5).
+      </p>
+
+      <h3>2.2 Dados de assinatura</h3>
+      <p>
+        Se você assinar o Cafezin Premium:
+      </p>
+      <ul>
+        <li>Status da assinatura (ativo, cancelado, etc.)</li>
+        <li>Datas do período de cobrança</li>
+        <li>Identificadores de assinatura gerados pela Paddle</li>
+      </ul>
+      <p>
+        <strong>Não temos acesso aos seus dados de pagamento</strong> (número do cartão,
+        dados bancários, etc.). Esses dados são processados exclusivamente pela Paddle
+        (ver seção 5).
+      </p>
+
+      <h3>2.3 Dados de uso da AI</h3>
+      <p>
+        Quando você usa o assistente AI do Cafezin Premium, as mensagens que você envia
+        são transmitidas à API do GitHub Copilot (Microsoft) para geração de respostas.
+        O Cafezin em si <strong>não armazena</strong> o conteúdo das suas conversas com
+        a AI. Consulte a
+        <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener">
+          Política de Privacidade do GitHub
+        </a>
+        para entender como a Microsoft processa esses dados.
+      </p>
+
+      <h3>2.4 Dados que NÃO coletamos</h3>
+      <ul>
+        <li>Conteúdo dos seus arquivos e documentos Markdown</li>
+        <li>Conteúdo do seu canvas ou slides</li>
+        <li>Dados de uso, analytics ou telemetria</li>
+        <li>Dados de localização</li>
+        <li>Histórico de navegação</li>
+      </ul>
+      <p>
+        O Cafezin é um app desktop que roda localmente. Seus arquivos ficam no seu
+        dispositivo e não são enviados a nenhum servidor do Cafezin.
+      </p>
+
+      <h2>3. Como usamos seus dados</h2>
+      <ul>
+        <li><strong>Autenticação:</strong> verificar sua identidade ao entrar no app</li>
+        <li><strong>Assinatura:</strong> habilitar os recursos Premium para assinantes ativos</li>
+        <li><strong>Comunicação transacional:</strong> enviar confirmações de pagamento e avisos
+          sobre sua conta (apenas quando necessário)</li>
+        <li><strong>Suporte:</strong> responder dúvidas e solicitações enviadas por e-mail</li>
+      </ul>
+      <p>
+        <strong>Não vendemos, alugamos ou compartilhamos seus dados com terceiros para fins
+        de marketing ou publicidade.</strong>
+      </p>
+
+      <h2>4. Base legal (LGPD, art. 7º)</h2>
+      <ul>
+        <li><strong>Execução de contrato:</strong> processamento necessário para fornecer o serviço
+          que você solicitou (criação de conta, assinatura Premium)</li>
+        <li><strong>Consentimento:</strong> quando aplicável, coletamos seu consentimento explícito</li>
+        <li><strong>Legítimo interesse:</strong> prevenção de fraudes e segurança do serviço</li>
+        <li><strong>Obrigação legal:</strong> quando exigido por lei ou ordem judicial</li>
+      </ul>
+
+      <h2>5. Subprocessadores (terceiros)</h2>
+      <p>
+        Utilizamos os seguintes serviços de terceiros para operar o Cafezin:
+      </p>
+      <ul>
+        <li>
+          <strong>Supabase</strong> (Estados Unidos) — autenticação e banco de dados de conta.
+          <a href="https://supabase.com/privacy" target="_blank" rel="noopener">Política de Privacidade</a>
+        </li>
+        <li>
+          <strong>Paddle</strong> (Reino Unido) — processamento de pagamentos e gestão de
+          assinaturas. Paddle atua como <em>Merchant of Record</em>, sendo o responsável
+          pela cobrança em seu nome.
+          <a href="https://www.paddle.com/legal/privacy" target="_blank" rel="noopener">Política de Privacidade</a>
+        </li>
+        <li>
+          <strong>GitHub / Microsoft</strong> (Estados Unidos) — API do GitHub Copilot para
+          funcionalidades de AI no plano Premium.
+          <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener">Política de Privacidade</a>
+        </li>
+      </ul>
+
+      <h2>6. Transferências internacionais de dados</h2>
+      <p>
+        Alguns dos subprocessadores listados acima estão localizados fora do Brasil.
+        Essas transferências ocorrem com base em cláusulas contratuais padrão e mecanismos
+        de adequação reconhecidos pela ANPD, conforme permitido pela LGPD (art. 33).
+      </p>
+
+      <h2>7. Retenção de dados</h2>
+      <ul>
+        <li><strong>Dados de conta:</strong> mantidos enquanto sua conta estiver ativa e por
+          até 30 dias após a exclusão</li>
+        <li><strong>Dados de assinatura:</strong> mantidos por até 5 anos para fins fiscais e
+          contábeis, conforme exigido pela legislação brasileira</li>
+        <li><strong>Logs de segurança:</strong> mantidos por até 12 meses</li>
+      </ul>
+
+      <h2>8. Seus direitos (LGPD, art. 18)</h2>
+      <p>
+        Como titular de dados, você tem os seguintes direitos:
+      </p>
+      <ul>
+        <li><strong>Acesso:</strong> saber quais dados temos sobre você</li>
+        <li><strong>Correção:</strong> corrigir dados incompletos ou incorretos</li>
+        <li><strong>Exclusão:</strong> solicitar a exclusão dos seus dados</li>
+        <li><strong>Portabilidade:</strong> receber seus dados em formato estruturado</li>
+        <li><strong>Revogação do consentimento:</strong> retirar seu consentimento a qualquer momento</li>
+        <li><strong>Oposição:</strong> opor-se a determinados tratamentos</li>
+        <li><strong>Informação sobre compartilhamento:</strong> saber com quem seus dados foram
+          compartilhados</li>
+      </ul>
+      <p>
+        Para exercer qualquer um desses direitos, entre em contato pelo e-mail
+        <a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a>.
+        Respondemos em até 15 dias úteis.
+      </p>
+
+      <h2>9. Segurança</h2>
+      <p>
+        Adotamos medidas técnicas e organizacionais adequadas para proteger seus dados
+        contra acesso não autorizado, perda ou divulgação, incluindo:
+      </p>
+      <ul>
+        <li>Comunicações criptografadas via HTTPS/TLS</li>
+        <li>Controle de acesso por Row Level Security (RLS) no banco de dados</li>
+        <li>Autenticação segura via Supabase Auth (bcrypt + JWT)</li>
+        <li>Segredos e chaves de API armazenados em ambiente seguro, nunca no código</li>
+      </ul>
+
+      <h2>10. Cookies</h2>
+      <p>
+        O site da landing page do Cafezin (cafezin.pmatz.com) não usa cookies de
+        rastreamento, analytics ou publicidade. O app desktop pode armazenar dados
+        localmente via <code>localStorage</code> para cache de sessão — esses dados
+        ficam exclusivamente no seu dispositivo.
+      </p>
+
+      <h2>11. Crianças</h2>
+      <p>
+        O Cafezin não é direcionado a menores de 13 anos e não coleta intencionalmente
+        dados de crianças. Se você acreditar que coletamos dados de um menor, entre em
+        contato para que possamos excluí-los imediatamente.
+      </p>
+
+      <h2>12. Alterações nesta política</h2>
+      <p>
+        Podemos atualizar esta Política de Privacidade periodicamente. Quando houver
+        mudanças materiais, notificaremos você por email e atualizaremos a data de
+        "Última atualização" no topo desta página. O uso continuado do Cafezin após
+        as alterações constitui aceitação da nova política.
+      </p>
+
+      <h2>13. Contato e encarregado de dados (DPO)</h2>
+      <p>
+        Para dúvidas, solicitações ou reclamações relacionadas a privacidade:
+      </p>
+      <p>
+        <strong>Pedro Martinez</strong><br />
+        E-mail: <a href="mailto:pvsmartinez@gmail.com">pvsmartinez@gmail.com</a>
+      </p>
+      <p>
+        Você também pode registrar reclamação diretamente à
+        <a href="https://www.gov.br/anpd" target="_blank" rel="noopener">ANPD
+        (Autoridade Nacional de Proteção de Dados)</a>.
+      </p>
+    </div>
+  </main>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-logo">
+        <img src="coffe.png" alt="Cafezin" class="footer-logo-img" />
+        <span>Cafezin</span>
+      </div>
+      <nav class="footer-links">
+        <a href="/br/pricing">Preços</a>
+        <a href="/br/privacy-policy">Privacidade</a>
+        <a href="/br/terms-of-service">Termos de Uso</a>
+        <a href="/br/refund">Reembolso</a>
+      </nav>
+      <p class="footer-copy">© 2026 Pedro Martinez. Feito com ☕ no Brasil.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

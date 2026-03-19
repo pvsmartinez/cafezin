@@ -114,7 +114,7 @@ export async function fetchAccountState(): Promise<AccountState> {
 }
 
 /**
- * Creates a Lemon Squeezy checkout session for the current user.
+ * Creates a Paddle checkout session for the current user.
  * Returns the hosted checkout URL to open in the browser.
  * Throws if the user is not authenticated or the request fails.
  */
@@ -124,5 +124,19 @@ export async function createCheckoutUrl(): Promise<string> {
   });
   if (error) throw error;
   if (!data?.url) throw new Error('No checkout URL returned');
+  return data.url as string;
+}
+
+/**
+ * Creates a Paddle customer portal session for the current user.
+ * Returns the hosted customer portal URL to open in the browser.
+ * Throws if the user is not authenticated, not premium, or the request fails.
+ */
+export async function createCustomerPortalUrl(): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('create-customer-portal', {
+    method: 'POST',
+  });
+  if (error) throw error;
+  if (!data?.url) throw new Error('No customer portal URL returned');
   return data.url as string;
 }

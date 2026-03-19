@@ -449,11 +449,10 @@ export async function startGitAccountFlow(
   return token
 }
 
-// ── GitHub device flow — routed through Rust so client_id/secret never touch the renderer ──
+// ── GitHub device flow — routed through Rust with a public client_id only ──
 //
-// The Rust commands github_device_flow_init(scope) and github_device_flow_poll(device_code)
-// hold the OAuth App credentials. The frontend only receives display data (user_code, URL)
-// and the final access_token.
+// GitHub's device flow does not require client_secret. The Rust commands accept
+// an optional public client_id override; git sync uses the app default.
 
 function waitOrResume(ms: number): Promise<void> {
   return new Promise<void>((resolve) => {
@@ -483,7 +482,7 @@ async function runDeviceFlow(
     verification_uri: string
     expires_in: number
     interval: number
-  }>('github_device_flow_init', { scope })
+  }>('github_device_flow_init', { scope, clientId: null })
 
   const intervalMs = (d.interval + 1) * 1000
   const expiresAt = Date.now() + d.expires_in * 1000
@@ -496,7 +495,7 @@ async function runDeviceFlow(
       access_token?: string
       error?: string
       error_description?: string
-    }>('github_device_flow_poll', { deviceCode: d.device_code })
+    }>('github_device_flow_poll', { deviceCode: d.device_code, clientId: null })
     if (poll.access_token) return poll.access_token
     if (poll.error === 'slow_down') { await waitOrResume(3000); continue }
     if (poll.error === 'authorization_pending') continue

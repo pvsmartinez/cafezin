@@ -1,65 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cafezin - Write, think, create with AI</title>
-  <meta name="description" content="Cafezin is an AI productivity tool for writers, educators, and content creators. Markdown editor, visual canvas, and built-in AI. Free to create, premium to expand." />
+  <title>Cafezin — Escreva, pense, crie com AI</title>
+  <meta name="description" content="Cafezin é a ferramenta de produtividade com AI para escritores, educadores e criadores de conteúdo. Editor Markdown, canvas e AI integrada. Grátis para criar, Premium para ampliar." />
 
-  <link rel="canonical" href="https://cafezin.pmatz.com/" />
+  <!-- Canonical -->
+  <link rel="canonical" href="https://cafezin.pmatz.com/br" />
   <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/" />
   <link rel="alternate" hreflang="pt-BR" href="https://cafezin.pmatz.com/br" />
   <link rel="alternate" hreflang="x-default" href="https://cafezin.pmatz.com/" />
 
+  <!-- Favicon & icons -->
   <link rel="icon" type="image/png" sizes="32x32" href="icon.png" />
   <link rel="apple-touch-icon" href="icon.png" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#1c1610" />
 
+  <!-- Open Graph -->
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://cafezin.pmatz.com/" />
-  <meta property="og:title" content="Cafezin - Write, think, create with AI" />
-  <meta property="og:description" content="Cafezin is an AI productivity tool for writers, educators, and content creators. Markdown editor, visual canvas, and built-in AI. Free to create, premium to expand." />
+  <meta property="og:url" content="https://cafezin.pmatz.com/br" />
+  <meta property="og:title" content="Cafezin — Escreva, pense, crie com AI" />
+  <meta property="og:description" content="Cafezin é a ferramenta de produtividade com AI para escritores, educadores e criadores de conteúdo. Editor Markdown, canvas e AI integrada. Grátis para criar, Premium para ampliar." />
   <meta property="og:image" content="https://cafezin.pmatz.com/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale" content="pt_BR" />
   <meta property="og:site_name" content="Cafezin" />
 
+  <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Cafezin - Write, think, create with AI" />
-  <meta name="twitter:description" content="Cafezin is an AI productivity tool for writers, educators, and content creators. Markdown editor, visual canvas, and built-in AI. Free to create, premium to expand." />
+  <meta name="twitter:title" content="Cafezin — Escreva, pense, crie com AI" />
+  <meta name="twitter:description" content="Cafezin é a ferramenta de produtividade com AI para escritores, educadores e criadores de conteúdo. Editor Markdown, canvas e AI integrada. Grátis para criar, Premium para ampliar." />
   <meta name="twitter:image" content="https://cafezin.pmatz.com/og-image.png" />
 
+  <!-- Fonts: Nunito (UI) + Vollkorn (serif headings) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Vollkorn:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="style.css" />
 
+  <!-- Schema.org: SoftwareApplication -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "name": "Cafezin",
-    "url": "https://cafezin.pmatz.com/",
-    "description": "AI productivity software for writers, educators, and content creators. Markdown editor, visual canvas, and built-in AI running directly on your device.",
+    "url": "https://cafezin.pmatz.com/br",
+    "description": "Ferramenta de produtividade com AI para escritores, educadores e criadores de conteúdo. Editor Markdown, canvas visual e AI integrada, tudo rodando no seu dispositivo.",
     "applicationCategory": "ProductivityApplication",
     "operatingSystem": "macOS, Windows",
-    "inLanguage": "en",
+    "inLanguage": "pt-BR",
     "offers": [
       {
         "@type": "Offer",
-        "name": "Free plan",
+        "name": "Plano Grátis",
         "price": "0",
-        "priceCurrency": "USD"
+        "priceCurrency": "BRL"
       },
       {
         "@type": "Offer",
         "name": "Premium",
         "price": "5",
         "priceCurrency": "USD",
-        "description": "Full access to the built-in AI with BYOK support for GitHub Copilot, OpenAI, or Anthropic"
+        "description": "Acesso completo à AI integrada — BYOK (GitHub Copilot, OpenAI ou Anthropic)"
       }
     ],
     "author": {
@@ -72,81 +78,84 @@
 </head>
 <body>
 
+  <!-- ── Nav ─────────────────────────────────────────────────────────────── -->
   <nav class="nav">
     <div class="nav-inner">
       <a class="nav-logo" href="#">
-        <img src="coffe.png" alt="Cafezin logo" class="nav-logo-img" width="28" height="28" />
+        <img src="coffe.png" alt="Logo do Cafezin" class="nav-logo-img" width="28" height="28" />
         <span class="nav-logo-name">Cafezin</span>
       </a>
       <div class="nav-links">
-        <a class="nav-link" href="/pricing">Pricing</a>
-        <div class="locale-switch" aria-label="Language selector">
-          <a class="locale-option active" href="/" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
-          <a class="locale-option" href="/br" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
+        <a class="nav-link" href="/br/pricing">Preços</a>
+        <div class="locale-switch" aria-label="Seletor de idioma">
+          <a class="locale-option" href="/" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
+          <a class="locale-option active" href="/br" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
         </div>
-        <a class="btn btn-ghost nav-cta" href="#download" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">Download now</a>
+        <a class="btn btn-ghost nav-cta" href="#download" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">Baixar agora</a>
       </div>
     </div>
   </nav>
 
+  <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
   <section class="hero">
     <div class="hero-inner">
       <div class="hero-badge">
         <span class="badge-dot"></span>
-        AI by your side, all the time
+        Inteligência artificial ao seu lado, sempre
       </div>
 
       <h1 class="hero-title">
-        Write, think, and create<br/>
-        <em>without limits</em>
+        Escreva, pense e crie<br/>
+        <em>sem limites</em>
       </h1>
 
       <p class="hero-subtitle">
-        Cafezin is the quiet space where ideas take shape: a Markdown editor,
-        a visual canvas, and built-in AI running directly on your device.
-        <strong>Free to create.</strong>
-        <strong>Premium to go further with AI.</strong>
+        Cafezin é o espaço silencioso onde suas ideias ganham forma —
+        editor Markdown, canvas visual e AI integrada, tudo rodando
+        direto no seu dispositivo. <strong>Grátis para criar.</strong>
+        <strong>Premium para ampliar com IA.</strong>
       </p>
 
+      <!-- Download buttons -->
       <div class="download-group" id="download">
-        <p class="download-label">Available on</p>
+        <p class="download-label">Disponível para</p>
         <div class="download-buttons">
-          <a href="https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin.dmg" class="btn btn-download" data-platform="mac" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">
+          <a href="https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin.dmg" class="btn btn-download" data-platform="mac">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
               <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
             </svg>
             <span class="btn-text">
-              <span class="btn-sub">Download for</span>
+              <span class="btn-sub">Download para</span>
               <span class="btn-main">macOS</span>
             </span>
           </a>
 
-          <a href="https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin_setup.exe" class="btn btn-download" data-platform="windows" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">
+          <a href="https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin_setup.exe" class="btn btn-download" data-platform="windows">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/>
             </svg>
             <span class="btn-text">
-              <span class="btn-sub">Download for</span>
+              <span class="btn-sub">Download para</span>
               <span class="btn-main">Windows</span>
             </span>
           </a>
 
-          <a href="/ios" class="btn btn-download" data-platform="ios" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">
+          <a href="/br/ios" class="btn btn-download" data-platform="ios">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
               <path d="M17 1.01L7 1c-1.1 0-1.99.9-1.99 2v18c0 1.1.89 2 1.99 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
             </svg>
             <span class="btn-text">
-              <span class="btn-sub">Coming to</span>
+              <span class="btn-sub">Download para</span>
               <span class="btn-main">iPhone</span>
             </span>
           </a>
 
-          <a href="/android" class="btn btn-download" data-platform="android" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">
+          <a href="/br/android" class="btn btn-download" data-platform="android">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
               <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5S5 17.33 5 16.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48C13.85 1.23 12.95 1 12 1c-.96 0-1.86.23-2.66.63L7.85.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31C7.15 3.37 6 5.06 6 7h12c0-1.94-1.15-3.63-2.47-4.84zM10 5H9V4h1v1zm5 0h-1V4h1v1z"/>
             </svg>
             <span class="btn-text">
-              <span class="btn-sub">Coming to</span>
+              <span class="btn-sub">Download para</span>
               <span class="btn-main">Android</span>
             </span>
           </a>
@@ -154,10 +163,12 @@
       </div>
     </div>
 
+    <!-- Decorative glow -->
     <div class="hero-glow hero-glow-1"></div>
     <div class="hero-glow hero-glow-2"></div>
   </section>
 
+  <!-- ── App screenshot mockup ──────────────────────────────────────────── -->
   <section class="mockup-section">
     <div class="mockup-wrap">
       <div class="mockup-window">
@@ -165,29 +176,29 @@
           <span class="titlebar-dot red"></span>
           <span class="titlebar-dot yellow"></span>
           <span class="titlebar-dot green"></span>
-          <span class="titlebar-title">Cafezin - my-book.md</span>
+          <span class="titlebar-title">Cafezin — meu-livro.md</span>
         </div>
         <div class="mockup-body">
           <div class="mockup-sidebar">
-            <div class="mockup-sidebar-item active">📄 my-book.md</div>
-            <div class="mockup-sidebar-item">📄 chapter-02.md</div>
-            <div class="mockup-sidebar-item">🎨 story-map.tldr</div>
-            <div class="mockup-sidebar-item">📄 outline.md</div>
-            <div class="mockup-sidebar-item dim">📁 drafts/</div>
+            <div class="mockup-sidebar-item active">📄 meu-livro.md</div>
+            <div class="mockup-sidebar-item">📄 capítulo-02.md</div>
+            <div class="mockup-sidebar-item">🎨 mapa-de-ideias.tldr</div>
+            <div class="mockup-sidebar-item">📄 roteiro.md</div>
+            <div class="mockup-sidebar-item dim">📁 rascunhos/</div>
           </div>
           <div class="mockup-editor">
-            <div class="mockup-line heading"># Chapter 1 - The Beginning</div>
+            <div class="mockup-line heading"># Capítulo 1 — O Começo</div>
             <div class="mockup-line"></div>
-            <div class="mockup-line">It had been an ordinary afternoon until everything changed.</div>
-            <div class="mockup-line">The sun was slowly setting beyond the horizon,</div>
-            <div class="mockup-line">painting the sky in orange and red.</div>
+            <div class="mockup-line">Era uma tarde comum quando tudo mudou.</div>
+            <div class="mockup-line">O sol se punha devagar sobre o horizonte,</div>
+            <div class="mockup-line">tingindo o céu de laranja e vermelho.</div>
             <div class="mockup-line"></div>
-            <div class="mockup-line ai-mark">Joana stood by the window, deep in thought.</div>
-            <div class="mockup-line ai-mark">Something felt different about that evening.</div>
+            <div class="mockup-line ai-mark">Joana observava pela janela, pensativa.</div>
+            <div class="mockup-line ai-mark">Havia algo diferente naquele entardecer.</div>
             <div class="mockup-line"></div>
-            <div class="mockup-line heading2">## The discovery</div>
+            <div class="mockup-line heading2">## A descoberta</div>
             <div class="mockup-line"></div>
-            <div class="mockup-line">The envelope had been sitting on the table for hours.</div>
+            <div class="mockup-line">O envelope estava sobre a mesa faz horas.</div>
             <div class="mockup-cursor">|</div>
           </div>
           <div class="mockup-ai">
@@ -195,116 +206,119 @@
               <span class="ai-dot"></span>
               Copilot
             </div>
-            <div class="mockup-ai-bubble user">Continue the paragraph with more tension</div>
-            <div class="mockup-ai-bubble assistant">She finally opened it. Her hands trembled slightly as she unfolded the yellowed paper...</div>
+            <div class="mockup-ai-bubble user">Continue o parágrafo com mais tensão</div>
+            <div class="mockup-ai-bubble assistant">Ela finalmente o abriu. As mãos tremiam levemente enquanto desdobrava o papel amarelado...</div>
           </div>
         </div>
       </div>
     </div>
   </section>
 
+  <!-- ── Features ──────────────────────────────────────────────────────── -->
   <section class="features" id="features">
     <div class="section-inner">
-      <div class="section-label">Why Cafezin</div>
-      <h2 class="section-title">Everything you need.<br/>Nothing you do not.</h2>
+      <div class="section-label">Por que Cafezin</div>
+      <h2 class="section-title">Tudo que você precisa.<br/>Nada que você não quer.</h2>
 
       <div class="features-grid">
         <div class="feature-card">
           <div class="feature-icon">✍️</div>
-          <h3 class="feature-title">Markdown editor</h3>
+          <h3 class="feature-title">Editor Markdown</h3>
           <p class="feature-desc">
-            A clean, focused editor with syntax highlighting, keyboard shortcuts, and live preview.
-            Write without distractions.
+            Um editor limpo e focado, com syntax highlighting, atalhos de teclado e preview em tempo real.
+            Escreva sem distrações.
           </p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🗺️</div>
-          <h3 class="feature-title">Visual canvas</h3>
+          <h3 class="feature-title">Canvas visual</h3>
           <p class="feature-desc">
-            Organize ideas on an infinite canvas. Build mind maps, planning boards, and slides
-            directly inside the app.
+            Organize ideias num canvas infinito. Crie mapas mentais, quadros de planejamento e slides
+            direto do app.
           </p>
         </div>
 
         <div class="feature-card featured">
-          <div class="feature-badge">Featured</div>
+          <div class="feature-badge">Destaque</div>
           <div class="feature-icon">🤖</div>
-          <h3 class="feature-title">Built-in AI</h3>
+          <h3 class="feature-title">AI integrada</h3>
           <p class="feature-desc">
-            GitHub Copilot built in to draft, revise, expand, and summarize. The AI can see your
-            canvas and documents with full context.
+            GitHub Copilot embutido para escrever, revisar, expandir e resumir. A AI enxerga seu
+            canvas e seus documentos — contexto completo, sempre.
           </p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🔒</div>
-          <h3 class="feature-title">Local-first</h3>
+          <h3 class="feature-title">Tudo local</h3>
           <p class="feature-desc">
-            Your files stay on your computer. No mandatory cloud, no lock-in.
-            Plain Markdown that remains readable anywhere.
+            Seus arquivos ficam no seu computador. Sem nuvem obrigatória, sem lock-in.
+            Formato Markdown puro — legível em qualquer editor.
           </p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🕹️</div>
-          <h3 class="feature-title">Built-in git</h3>
+          <h3 class="feature-title">Git embutido</h3>
           <p class="feature-desc">
-            Automatic version history in every workspace. Your writing process stays preserved,
-            not just the final result.
+            Controle de versão automático em cada workspace. Seu histórico de escrita, sempre
+            preservado.
           </p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🎙️</div>
-          <h3 class="feature-title">Voice input</h3>
+          <h3 class="feature-title">Entrada por voz</h3>
           <p class="feature-desc">
-            Dictate ideas and let the AI organize them. Perfect for the moments when typing is
-            not the best interface.
+            Dite suas ideias e deixe o AI organizar. Perfeito para momentos em que digitar
+            não é prático.
           </p>
         </div>
       </div>
     </div>
   </section>
 
+  <!-- ── For whom ───────────────────────────────────────────────────────── -->
   <section class="for-whom">
     <div class="section-inner">
-      <div class="section-label">Who it is for</div>
-      <h2 class="section-title">Made for people who create</h2>
+      <div class="section-label">Para quem é</div>
+      <h2 class="section-title">Feito para quem cria</h2>
 
       <div class="personas-grid">
         <div class="persona-card">
           <span class="persona-emoji">📖</span>
-          <h3>Writers</h3>
-          <p>Books, essays, and scripts with AI that keeps the tone and voice of your narrative close at hand.</p>
+          <h3>Escritores</h3>
+          <p>Livros, contos, roteiros — escreva longos textos com AI que mantém o tom e a voz da sua narrativa.</p>
         </div>
         <div class="persona-card">
           <span class="persona-emoji">🎓</span>
-          <h3>Educators</h3>
-          <p>Build classes, courses, and study materials with a canvas for structure and an editor for the final content.</p>
+          <h3>Educadores</h3>
+          <p>Monte aulas, cursos e apostilas com canvas para mapas de conteúdo e editor para o material.</p>
         </div>
         <div class="persona-card">
           <span class="persona-emoji">💡</span>
-          <h3>Content creators</h3>
-          <p>Plan, write, and refine posts, newsletters, and scripts with AI that accelerates your work without replacing you.</p>
+          <h3>Criadores de conteúdo</h3>
+          <p>Planeje, escreva e revise posts, newsletters e scripts com AI que acelera sem substituir você.</p>
         </div>
         <div class="persona-card">
           <span class="persona-emoji">🗂️</span>
-          <h3>Knowledge work</h3>
-          <p>A personal second brain, internal wiki, or linked-notes system that stays under your control on your own device.</p>
+          <h3>Gestão do conhecimento</h3>
+          <p>Second brain pessoal, wiki interna, notas interligadas — seu sistema de conhecimento no seu computador.</p>
         </div>
       </div>
     </div>
   </section>
 
+  <!-- ── CTA final ─────────────────────────────────────────────────────── -->
   <section class="cta-section">
     <div class="cta-inner">
       <div class="cta-glow"></div>
       <img src="coffe.png" alt="Cafezin" class="cta-logo" />
-      <h2 class="cta-title">Ready to start?</h2>
+      <h2 class="cta-title">Pronto para começar?</h2>
       <p class="cta-sub">
-        Start free. No card, no signup friction.<br />
-        Upgrade to AI whenever you are ready.
+        Comece grátis. Sem cartão, sem cadastro.<br />
+        Quando quiser ampliar com IA, o Premium está a um clique.
       </p>
 
       <div class="download-buttons cta-buttons">
@@ -313,7 +327,7 @@
             <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
           </svg>
           <span class="btn-text">
-            <span class="btn-sub">Download for</span>
+            <span class="btn-sub">Download para</span>
             <span class="btn-main">macOS</span>
           </span>
         </a>
@@ -323,27 +337,27 @@
             <path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/>
           </svg>
           <span class="btn-text">
-            <span class="btn-sub">Download for</span>
+            <span class="btn-sub">Download para</span>
             <span class="btn-main">Windows</span>
           </span>
         </a>
 
-        <a href="/ios" class="btn btn-download" data-platform="ios">
+        <a href="/br/ios" class="btn btn-download" data-platform="ios">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M17 1.01L7 1c-1.1 0-1.99.9-1.99 2v18c0 1.1.89 2 1.99 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
           </svg>
           <span class="btn-text">
-            <span class="btn-sub">Coming to</span>
+            <span class="btn-sub">Download para</span>
             <span class="btn-main">iPhone</span>
           </span>
         </a>
 
-        <a href="/android" class="btn btn-download" data-platform="android">
+        <a href="/br/android" class="btn btn-download" data-platform="android">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5S5 17.33 5 16.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48C13.85 1.23 12.95 1 12 1c-.96 0-1.86.23-2.66.63L7.85.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31C7.15 3.37 6 5.06 6 7h12c0-1.94-1.15-3.63-2.47-4.84zM10 5H9V4h1v1zm5 0h-1V4h1v1z"/>
           </svg>
           <span class="btn-text">
-            <span class="btn-sub">Coming to</span>
+            <span class="btn-sub">Download para</span>
             <span class="btn-main">Android</span>
           </span>
         </a>
@@ -351,6 +365,7 @@
     </div>
   </section>
 
+  <!-- ── Footer ─────────────────────────────────────────────────────────── -->
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-logo">
@@ -358,12 +373,12 @@
         <span>Cafezin</span>
       </div>
       <nav class="footer-links">
-        <a href="/pricing">Pricing</a>
-        <a href="/br/privacy-policy">Privacy (PT-BR)</a>
-        <a href="/br/terms-of-service">Terms (PT-BR)</a>
-        <a href="/br/refund">Refunds (PT-BR)</a>
+        <a href="/br/pricing">Preços</a>
+        <a href="/br/privacy-policy">Privacidade</a>
+        <a href="/br/terms-of-service">Termos de Uso</a>
+        <a href="/br/refund">Reembolso</a>
       </nav>
-      <p class="footer-copy">© 2026 Pedro Martinez. Built with coffee in Brazil.</p>
+      <p class="footer-copy">© 2026 Pedro Martinez. Feito com ☕ no Brasil.</p>
     </div>
   </footer>
 

@@ -4,7 +4,6 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import type { ToolDefinition, ToolExecutor } from '../utils/workspaceTools';
 import { appendArchiveEntry } from './copilotLog';
-import { saveApiSecret } from './apiSecrets';
 
 const COPILOT_API_URL = 'https://api.githubcopilot.com/chat/completions';
 const CHAT_COMPLETIONS_BLOCKED_MODELS = new Set(['gpt-5.4']);
@@ -561,9 +560,17 @@ export function sanitizeLoop(msgs: ChatMessage[]): ChatMessage[] {
 
 // ── OAuth / Device Flow ──────────────────────────────────────────────────────────
 // The Copilot session-token endpoint only accepts OAuth App tokens, not PATs.
-// Credentials (client_id + client_secret) live exclusively in the Rust backend.
-// The frontend calls invoke('github_device_flow_init') and invoke('github_device_flow_poll').
-const OAUTH_TOKEN_KEY = 'copilot-github-oauth-token';
+// GitHub device flow only needs a public client_id, supplied by the workspace.
+const LEGACY_OAUTH_TOKEN_KEY = 'copilot-github-oauth-token';
+
+function normalizeOAuthClientId(clientId?: string | null): string {
+  return clientId?.trim() ?? '';
+}
+
+function getOAuthTokenStorageKey(clientId?: string | null): string {
+  const normalized = normalizeOAuthClientId(clientId);
+  return normalized ? `${LEGACY_OAUTH_TOKEN_KEY}:${normalized}` : LEGACY_OAUTH_TOKEN_KEY;
+}
 
 export interface DeviceFlowState {
   userCode: string;
@@ -571,16 +578,18 @@ export interface DeviceFlowState {
   expiresIn: number; // seconds
 }
 
-export function getStoredOAuthToken(): string | null {
-  return localStorage.getItem(OAUTH_TOKEN_KEY);
+export function getStoredOAuthToken(clientId?: string | null): string | null {
+  const namespaced = localStorage.getItem(getOAuthTokenStorageKey(clientId));
+  if (namespaced) return namespaced;
+  return localStorage.getItem(LEGACY_OAUTH_TOKEN_KEY);
 }
 
-export function clearOAuthToken(): void {
-  localStorage.removeItem(OAUTH_TOKEN_KEY);
+export function clearOAuthToken(clientId?: string | null): void {
+  localStorage.removeItem(getOAuthTokenStorageKey(clientId));
+  localStorage.removeItem(LEGACY_OAUTH_TOKEN_KEY);
   _sessionToken = null;
   _sessionTokenExpiry = 0;
-  // Also remove from cloud so other devices lose access when you sign out
-  void saveApiSecret(OAUTH_TOKEN_KEY, '');
+  _tokenRefreshPending = null;
 }
 
 /**
@@ -589,15 +598,21 @@ export function clearOAuthToken(): void {
  * Resolves when the token is stored; throws on error or timeout.
  */
 export async function startDeviceFlow(
+  clientId: string,
   onState: (state: DeviceFlowState) => void
 ): Promise<void> {
+  const normalizedClientId = normalizeOAuthClientId(clientId);
+  if (!normalizedClientId) {
+    throw new Error('Configure o GitHub OAuth Client ID nas configurações do workspace antes de conectar o Copilot.');
+  }
+
   const d = await invoke<{
     device_code: string;
     user_code: string;
     verification_uri: string;
     expires_in: number;
     interval: number;
-  }>('github_device_flow_init', { scope: 'copilot' });
+  }>('github_device_flow_init', { scope: 'copilot', clientId: normalizedClientId });
 
   onState({ userCode: d.user_code, verificationUri: d.verification_uri, expiresIn: d.expires_in });
 
@@ -611,14 +626,13 @@ export async function startDeviceFlow(
       access_token?: string;
       error?: string;
       error_description?: string;
-    }>('github_device_flow_poll', { deviceCode: d.device_code });
+    }>('github_device_flow_poll', { deviceCode: d.device_code, clientId: normalizedClientId });
 
     if (poll.access_token) {
-      // Persist via saveApiSecret so the token is encrypted and synced to
-      // Supabase — other devices pull it automatically on next login/startup.
-      void saveApiSecret(OAUTH_TOKEN_KEY, poll.access_token);
+      localStorage.setItem(getOAuthTokenStorageKey(normalizedClientId), poll.access_token);
       _sessionToken = null;
       _sessionTokenExpiry = 0;
+      _tokenRefreshPending = null;
       return;
     }
     if (poll.error === 'slow_down') { await new Promise((r) => setTimeout(r, 3000)); continue; }
@@ -639,7 +653,7 @@ let _sessionTokenExpiry = 0;
  */
 let _tokenRefreshPending: Promise<string> | null = null;
 
-async function getCopilotSessionToken(): Promise<string> {
+async function getCopilotSessionToken(oauthClientId?: string | null): Promise<string> {
   const now = Date.now();
   // Fast path: cached token is still valid
   if (_sessionToken && now < _sessionTokenExpiry - 60_000) return _sessionToken;
@@ -649,7 +663,7 @@ async function getCopilotSessionToken(): Promise<string> {
 
   _tokenRefreshPending = (async () => {
     try {
-      const oauthToken = getStoredOAuthToken();
+      const oauthToken = getStoredOAuthToken(oauthClientId);
       if (!oauthToken) throw new Error('NOT_AUTHENTICATED');
 
       const res = await fetch('https://api.github.com/copilot_internal/v2/token', {
@@ -664,7 +678,7 @@ async function getCopilotSessionToken(): Promise<string> {
         const body = await res.text();
         // Token revoked or expired — clear it so the UI shows sign-in again
         if (res.status === 401 || res.status === 403) {
-          clearOAuthToken();
+          clearOAuthToken(oauthClientId);
           throw new Error('NOT_AUTHENTICATED');
         }
         throw new Error(`Copilot token exchange failed (${res.status}): ${body}`);
@@ -711,10 +725,11 @@ export async function streamCopilotChat(
   model: CopilotModel = DEFAULT_MODEL,
   tools?: ToolDefinition[],
   signal?: AbortSignal,
+  oauthClientId?: string,
 ): Promise<void> {
   try {
     if (signal?.aborted) return;
-    const sessionToken = await getCopilotSessionToken();
+    const sessionToken = await getCopilotSessionToken(oauthClientId);
     const resolvedModel = resolveCopilotModelForChatCompletions(model);
     if (resolvedModel !== model) {
       console.warn(`[Copilot] model "${model}" is not accessible via /chat/completions; using "${resolvedModel}" instead`);
@@ -880,7 +895,8 @@ export async function streamCopilotChat(
  */
 export async function copilotComplete(
   messages: ChatMessage[],
-  model: CopilotModel = DEFAULT_MODEL
+  model: CopilotModel = DEFAULT_MODEL,
+  oauthClientId?: string,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     let result = '';
@@ -889,7 +905,10 @@ export async function copilotComplete(
       (chunk) => { result += chunk; },
       () => resolve(result),
       reject,
-      model
+      model,
+      undefined,
+      undefined,
+      oauthClientId,
     );
   });
 }
@@ -904,8 +923,9 @@ export async function fetchGhostCompletion(
   suffix: string,
   language: string,
   signal: AbortSignal,
+  oauthClientId?: string,
 ): Promise<string> {
-  const sessionToken = await getCopilotSessionToken();
+  const sessionToken = await getCopilotSessionToken(oauthClientId);
 
   // Truncate context to keep the request lean and fast
   const prefixSnip = prefix.slice(-1500);
@@ -1050,9 +1070,9 @@ export function familyKey(id: string): string {
 }
 
 /** Fetches available models from the GitHub Copilot /models endpoint. */
-export async function fetchCopilotModels(): Promise<CopilotModelInfo[]> {
+export async function fetchCopilotModels(oauthClientId?: string): Promise<CopilotModelInfo[]> {
   try {
-    const sessionToken = await getCopilotSessionToken();
+    const sessionToken = await getCopilotSessionToken(oauthClientId);
     const res = await fetch('https://api.githubcopilot.com/models', {
       headers: {
         Authorization: `Bearer ${sessionToken}`,
@@ -1333,9 +1353,10 @@ export async function runCopilotAgent(
   sessionId?: string,
   signal?: AbortSignal,
   onExhausted?: () => void,
+  oauthClientId?: string,
 ): Promise<void> {
   try {
-    const sessionToken = await getCopilotSessionToken();
+    const sessionToken = await getCopilotSessionToken(oauthClientId);
     const resolvedModel = resolveCopilotModelForChatCompletions(model);
     if (resolvedModel !== model) {
       console.warn(`[agent] model "${model}" is not accessible via /chat/completions; using "${resolvedModel}" instead`);

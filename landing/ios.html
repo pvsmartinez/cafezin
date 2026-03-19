@@ -1,13 +1,16 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cafezin para iPhone — Em Breve</title>
-  <meta name="description" content="Cafezin está chegando para iPhone. Editor Markdown nativo, AI integrada e sincronia com o desktop. Em breve na App Store." />
+  <title>Cafezin for iPhone - Coming Soon</title>
+  <meta name="description" content="Cafezin is coming to iPhone. Native Markdown editing, built-in AI, and sync with the desktop experience. Coming soon to the App Store." />
 
   <!-- Canonical -->
   <link rel="canonical" href="https://cafezin.pmatz.com/ios" />
+  <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/ios" />
+  <link rel="alternate" hreflang="pt-BR" href="https://cafezin.pmatz.com/br/ios" />
+  <link rel="alternate" hreflang="x-default" href="https://cafezin.pmatz.com/ios" />
 
   <!-- Favicon & icons -->
   <link rel="icon" type="image/png" sizes="32x32" href="icon.png" />
@@ -18,18 +21,18 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://cafezin.pmatz.com/ios" />
-  <meta property="og:title" content="Cafezin para iPhone — Em Breve" />
-  <meta property="og:description" content="Cafezin está chegando para iPhone. Editor Markdown nativo, AI integrada e sincronia com o desktop. Em breve na App Store." />
+  <meta property="og:title" content="Cafezin for iPhone - Coming Soon" />
+  <meta property="og:description" content="Cafezin is coming to iPhone. Native Markdown editing, built-in AI, and sync with the desktop experience. Coming soon to the App Store." />
   <meta property="og:image" content="https://cafezin.pmatz.com/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:locale" content="en_US" />
   <meta property="og:site_name" content="Cafezin" />
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Cafezin para iPhone — Em Breve" />
-  <meta name="twitter:description" content="Cafezin está chegando para iPhone. Editor Markdown nativo, AI integrada e sincronia com o desktop." />
+  <meta name="twitter:title" content="Cafezin for iPhone - Coming Soon" />
+  <meta name="twitter:description" content="Cafezin is coming to iPhone. Native Markdown editing, built-in AI, and sync with the desktop experience." />
   <meta name="twitter:image" content="https://cafezin.pmatz.com/og-image.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -231,6 +234,7 @@
       height: 60px;
       display: flex;
       align-items: center;
+      justify-content: space-between;
     }
     .soon-nav-logo {
       display: flex;
@@ -247,6 +251,22 @@
       height: 26px;
       border-radius: 6px;
     }
+    .soon-nav-links {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .soon-nav-link {
+      color: #856e53;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .soon-nav-link:hover {
+      color: #4ecfb8;
+    }
   </style>
 </head>
 <body>
@@ -257,6 +277,12 @@
         <img src="coffe.png" alt="Cafezin" />
         Cafezin
       </a>
+      <div class="soon-nav-links">
+        <div class="locale-switch" aria-label="Language selector">
+          <a class="locale-option active" href="/ios" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
+          <a class="locale-option" href="/br/ios" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
+        </div>
+      </div>
     </div>
   </nav>
 
@@ -272,38 +298,38 @@
 
       <div class="soon-badge">
         <span class="soon-badge-dot"></span>
-        Em desenvolvimento
+        In development
       </div>
 
       <h1 class="soon-title">
-        Cafezin para<br/><em>iPhone</em> está chegando
+        Cafezin for<br/><em>iPhone</em> is coming
       </h1>
 
       <p class="soon-sub">
-        A versão iOS está sendo construída com todo o cuidado de quem
-        leva a sério o seu trabalho criativo. Em breve na App Store.
+        The iOS version is being built with the same care that serious creative work deserves.
+        Coming soon to the App Store.
       </p>
 
       <div class="soon-features">
         <div class="soon-feature-item">
           <span>✍️</span>
           <div class="soon-feature-text">
-            <strong>Editor Markdown nativo</strong>
-            Escreva e edite seus documentos diretamente no iPhone.
+            <strong>Native Markdown editor</strong>
+            Write and edit your documents directly on iPhone.
           </div>
         </div>
         <div class="soon-feature-item">
           <span>🤖</span>
           <div class="soon-feature-text">
-            <strong>AI integrada</strong>
-            GitHub Copilot no bolso — escreva, revise e expanda com a AI.
+            <strong>Built-in AI</strong>
+            GitHub Copilot in your pocket to draft, revise, and expand with AI.
           </div>
         </div>
         <div class="soon-feature-item">
           <span>🔄</span>
           <div class="soon-feature-text">
-            <strong>Sincronizado com o desktop</strong>
-            Acesse todos os seus workspaces de onde estiver.
+            <strong>Synced with desktop</strong>
+            Access your workspaces wherever you are.
           </div>
         </div>
       </div>
@@ -312,7 +338,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
-        Voltar para a página principal
+        Back to the main page
       </a>
     </div>
   </main>

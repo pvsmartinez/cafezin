@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { GearSix, X } from '@phosphor-icons/react';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   getActiveProvider, setActiveProvider, getActiveModel, setActiveModel,
   getProviderKey, PROVIDER_LABELS, PROVIDER_MODELS, PROVIDER_DEFAULT_MODELS,
@@ -19,6 +20,7 @@ import {
 } from '../services/syncConfig'
 import type { Workspace, AppSettings, SidebarButton, VercelWorkspaceConfig, WorkspaceFeatureConfig } from '../types';
 import { saveApiSecret } from '../services/apiSecrets';
+import { createCheckoutUrl, createCustomerPortalUrl } from '../services/accountService';
 import { useAccountState } from '../hooks/useAccountState';
 import './SettingsModal.css';
 
@@ -75,9 +77,42 @@ export default function SettingsModal({
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [authBusy, setAuthBusy] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [billingBusy, setBillingBusy] = useState<'checkout' | 'portal' | null>(null)
   const [regLabel, setRegLabel] = useState('personal')
   const [regState, setRegState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
   const [regError, setRegError] = useState('')
+
+  const openBillingUrl = useCallback((url: string) => {
+    openUrl(url).catch(() => window.open(url, '_blank'))
+  }, [])
+
+  const openPremiumPage = useCallback(() => {
+    openBillingUrl('https://cafezin.pmatz.com/premium')
+  }, [openBillingUrl])
+
+  const handleOpenCheckout = useCallback(async () => {
+    setBillingBusy('checkout')
+    try {
+      const url = await createCheckoutUrl()
+      openBillingUrl(url)
+    } catch {
+      openPremiumPage()
+    } finally {
+      setBillingBusy(null)
+    }
+  }, [openBillingUrl, openPremiumPage])
+
+  const handleOpenCustomerPortal = useCallback(async () => {
+    setBillingBusy('portal')
+    try {
+      const url = await createCustomerPortalUrl()
+      openBillingUrl(url)
+    } catch {
+      openPremiumPage()
+    } finally {
+      setBillingBusy(null)
+    }
+  }, [openBillingUrl, openPremiumPage])
   const [gitLabel, setGitLabel] = useState('')
   const [gitFlowState, setGitFlowState] = useState<SyncDeviceFlowState | null>(null)
   const [gitFlowBusy, setGitFlowBusy] = useState(false)
@@ -178,6 +213,7 @@ export default function SettingsModal({
   const [wsInboxFile, setWsInboxFile] = useState('');
   const [wsGitBranch, setWsGitBranch] = useState('');
   const [wsMarkdownMermaid, setWsMarkdownMermaid] = useState(false);
+  const [wsGitHubClientId, setWsGitHubClientId] = useState('');
   const [wsVercelToken, setWsVercelToken] = useState('');
   const [wsVercelTeamId, setWsVercelTeamId] = useState('');
   const [wsVercelDemoHubProject, setWsVercelDemoHubProject] = useState('');
@@ -255,6 +291,7 @@ export default function SettingsModal({
     setWsInboxFile(workspace.config.inboxFile ?? '');
     setWsGitBranch(workspace.config.gitBranch ?? '');
     setWsMarkdownMermaid(workspace.config.features?.markdown?.mermaid ?? false);
+    setWsGitHubClientId(workspace.config.githubOAuth?.clientId ?? '');
     setWsVercelToken(workspace.config.vercelConfig?.token ?? '');
     setWsVercelTeamId(workspace.config.vercelConfig?.teamId ?? '');
     setWsVercelDemoHubProject(workspace.config.vercelConfig?.demoHub?.projectName ?? '');
@@ -322,6 +359,9 @@ export default function SettingsModal({
           sidebarButtons: wsSidebarButtons.length > 0 ? wsSidebarButtons : undefined,
           inboxFile: wsInboxFile.trim() || undefined,
           gitBranch: wsGitBranch.trim() || undefined,
+          githubOAuth: wsGitHubClientId.trim()
+            ? { clientId: wsGitHubClientId.trim() }
+            : undefined,
           features: buildWorkspaceFeatures(workspace.config.features),
           vercelConfig: (wsVercelToken.trim() || wsVercelTeamId.trim() || wsVercelDemoHubProject.trim())
             ? {
@@ -782,6 +822,23 @@ export default function SettingsModal({
 
                 <div className="sm-row sm-row--col">
                   <label className="sm-label">
+                    GitHub OAuth Client ID
+                    <span className="sm-row-desc"> — obrigatório para o login do Copilot neste workspace</span>
+                  </label>
+                  <input
+                    className="sm-input"
+                    value={wsGitHubClientId}
+                    onChange={(e) => setWsGitHubClientId(e.target.value)}
+                    placeholder="Iv1.1234567890abcdef"
+                  />
+                  <p className="sm-section-desc" style={{ marginTop: 8 }}>
+                    Crie um OAuth App no GitHub, habilite <strong>Device Flow</strong> e cole aqui apenas o <strong>Client ID</strong>.
+                    O Cafezin não usa mais <strong>client secret</strong> no app baixado pelo usuário.
+                  </p>
+                </div>
+
+                <div className="sm-row sm-row--col">
+                  <label className="sm-label">
                     Instruções do agente (AGENT.md)
                     <span className="sm-row-desc"> — prompt de sistema injetado em cada sessão do Copilot</span>
                   </label>
@@ -1219,10 +1276,32 @@ export default function SettingsModal({
                       </button>
                     </div>
 
+                    {account.isPremium ? (
+                      <div style={{ marginTop: 12 }}>
+                        <button
+                          className="sm-save-btn"
+                          onClick={() => void handleOpenCustomerPortal()}
+                          disabled={billingBusy !== null}
+                        >
+                          {billingBusy === 'portal' ? 'Abrindo portal…' : 'Gerenciar assinatura ↗'}
+                        </button>
+                      </div>
+                    ) : account.authenticated ? (
+                      <div style={{ marginTop: 12 }}>
+                        <button
+                          className="sm-save-btn"
+                          onClick={() => void handleOpenCheckout()}
+                          disabled={billingBusy !== null}
+                        >
+                          {billingBusy === 'checkout' ? 'Abrindo checkout…' : 'Assinar Premium ↗'}
+                        </button>
+                      </div>
+                    ) : null}
+
                     {!account.isPremium && (
                       <div style={{ marginTop: 12 }}>
                         <a
-                          href="https://cafezin.app/premium"
+                          href="https://cafezin.pmatz.com/premium"
                           target="_blank"
                           rel="noreferrer"
                           className="sm-save-btn"

@@ -10,6 +10,7 @@ import {
   runCopilotAgent,
   startDeviceFlow,
   clearOAuthToken,
+  getStoredOAuthToken,
   fetchCopilotModels,
   resolveCopilotModelForChatCompletions,
 } from '../../services/copilot';
@@ -140,6 +141,7 @@ export default function MobileCopilot({
   contextFileContent,
   onFileWritten,
 }: MobileCopilotProps) {
+  const copilotOAuthClientId = workspace?.config.githubOAuth?.clientId?.trim() || undefined;
   const mobileTools = useMemo(
     () => getWorkspaceTools(workspace?.config, workspace?.config.exportConfig).filter(
       (t) => !CANVAS_TOOLS.has(t.function.name) && t.function.name !== 'run_command',
@@ -149,26 +151,36 @@ export default function MobileCopilot({
 
   // ── Auth ─────────────────────────────────────────────────────────────────
   const { account, loading: accountLoading, refresh: refreshAccount } = useAccountState();
-  const [authStatus, setAuthStatus] = useState<'checking' | 'unauthenticated' | 'connecting' | 'authenticated'>(
-    () => isAIConfigured() ? 'authenticated' : 'unauthenticated',
-  );
+  const [authStatus, setAuthStatus] = useState<'checking' | 'unauthenticated' | 'connecting' | 'authenticated'>('checking');
   const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const provider = getActiveProvider();
+    if (provider !== 'copilot') {
+      setAuthStatus(isAIConfigured() ? 'authenticated' : 'unauthenticated');
+      return;
+    }
+    setAuthStatus(getStoredOAuthToken(copilotOAuthClientId) ? 'authenticated' : 'unauthenticated');
+  }, [copilotOAuthClientId]);
 
   async function handleSignIn() {
+    setAuthError(null);
     setAuthStatus('connecting');
     setDeviceFlow(null);
     try {
-      await startDeviceFlow(state => setDeviceFlow(state));
+      await startDeviceFlow(copilotOAuthClientId ?? '', state => setDeviceFlow(state));
       setAuthStatus('authenticated');
       setDeviceFlow(null);
-    } catch {
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : String(err));
       setAuthStatus('unauthenticated');
       setDeviceFlow(null);
     }
   }
 
   function handleSignOut() {
-    clearOAuthToken();
+    clearOAuthToken(copilotOAuthClientId);
     setAuthStatus('unauthenticated');
     setMessages([]);
   }
@@ -182,11 +194,11 @@ export default function MobileCopilot({
   useEffect(() => {
     if (authStatus !== 'authenticated' || modelsLoadedRef.current) return;
     modelsLoadedRef.current = true;
-    fetchCopilotModels().then(m => {
+    fetchCopilotModels(copilotOAuthClientId).then(m => {
       setModels(m);
       setModel((current) => resolveCopilotModelForChatCompletions(current, m));
     }).catch(() => {});
-  }, [authStatus]);
+  }, [authStatus, copilotOAuthClientId]);
 
   // ── Messages ─────────────────────────────────────────────────────────────
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -311,6 +323,8 @@ export default function MobileCopilot({
         workspace.path,
         undefined,
         abort.signal,
+        undefined,
+        copilotOAuthClientId,
       );
     } else {
       // No workspace — plain streaming chat (supports all providers)
@@ -414,7 +428,7 @@ export default function MobileCopilot({
               : 'Crie sua conta Premium no site para usar IA no Cafezin.'}
           </div>
           <a
-            href="https://cafezin.app/premium"
+            href="https://cafezin.pmatz.com/premium"
             target="_blank"
             rel="noreferrer"
             className="btn-primary"
@@ -465,6 +479,11 @@ export default function MobileCopilot({
               <div className="text-sm text-muted max-w-[260px] leading-[1.5]">
                 Connect your GitHub Copilot account to start chatting.
               </div>
+              {authError && (
+                <div className="text-sm text-danger max-w-[280px] leading-[1.5]">
+                  {authError}
+                </div>
+              )}
               <button className="btn-primary" onClick={handleSignIn}>
                 Sign in with GitHub
               </button>

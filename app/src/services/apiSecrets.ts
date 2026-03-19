@@ -23,8 +23,6 @@ export const SYNCED_SECRET_KEYS = [
   'cafezin-groq-key',
   'cafezin_pexels_key',
   'cafezin-vercel-token',
-  // GitHub OAuth token used for Copilot — sync so device-flow is done only once
-  'copilot-github-oauth-token',
   // BYOK provider keys — user can choose any provider instead of Copilot
   'cafezin-openai-key',
   'cafezin-anthropic-key',
