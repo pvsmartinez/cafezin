@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Preços — Cafezin</title>
-  <meta name="description" content="Cafezin é grátis para criar. Assine o Premium por $5/mês para desbloquear a AI integrada — traga sua chave de API." />
+  <meta name="description" content="Comece grátis com Markdown, canvas, slides, arquivos locais e git embutido. Faça upgrade para desbloquear AI com contexto completo e edições revisáveis." />
 
   <link rel="canonical" href="https://cafezin.pmatz.com/br/pricing" />
   <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/pricing" />
@@ -17,8 +17,8 @@
   <meta property="og:type"        content="website" />
   <meta property="og:url"         content="https://cafezin.pmatz.com/br/pricing" />
   <meta property="og:title"       content="Preços — Cafezin" />
-  <meta property="og:description" content="Grátis para criar. Premium para ampliar com IA." />
-  <meta property="og:image"       content="https://cafezin.pmatz.com/og-image.png" />
+  <meta property="og:description" content="Grátis para o workspace principal. Premium para AI com contexto completo, edições revisáveis e fluxos por voz." />
+  <meta property="og:image"       content="https://cafezin.pmatz.com/icon.png" />
   <meta property="og:locale"      content="pt_BR" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -50,10 +50,10 @@
   <section class="page-hero">
     <div class="page-hero-inner">
       <div class="page-hero-label">Planos</div>
-      <h1 class="page-hero-title">Simples, justo e transparente</h1>
+      <h1 class="page-hero-title">Preço simples para um fluxo mais profundo</h1>
       <p class="page-hero-sub">
-        Comece grátis, sem cartão de crédito. Quando precisar de AI,
-        o Premium está a um clique — sem surpresas na cobrança.
+        Comece grátis com o workspace local-first completo. Faça upgrade quando quiser usar AI
+        para escrever, revisar e organizar com o contexto dos seus arquivos e do canvas.
       </p>
     </div>
   </section>
@@ -73,8 +73,7 @@
           </div>
 
           <p class="pricing-desc">
-            Tudo que você precisa para escrever, organizar e pensar —
-            sem pagar nada.
+            Tudo que você precisa para escrever, organizar e pensar antes de pagar qualquer coisa.
           </p>
 
           <ul class="pricing-features">
@@ -100,22 +99,26 @@
             </li>
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
+              Arquivos locais no seu próprio dispositivo
+            </li>
+            <li class="pricing-feature">
+              <span class="pf-check">✓</span>
               Arquivos Markdown puros (sem lock-in)
             </li>
             <li class="pricing-feature">
               <span class="pf-no">—</span>
-              <span class="pf-disabled">AI integrada (GitHub Copilot)</span>
+              <span class="pf-disabled">Chat, escrita e revisão com AI integrada</span>
             </li>
             <li class="pricing-feature">
               <span class="pf-no">—</span>
-              <span class="pf-disabled">Entrada por voz com transcrição AI</span>
+              <span class="pf-disabled">Fluxos de AI guiados por voz</span>
             </li>
           </ul>
 
           <a href="/br#download" class="btn pricing-btn pricing-btn-ghost">
             Baixar grátis
           </a>
-          <p class="pricing-fine">Disponível para macOS, Windows, iOS e Android</p>
+          <p class="pricing-fine">Disponível hoje em macOS e Windows. iPhone e Android estão em andamento.</p>
         </div>
 
         <!-- Premium -->
@@ -124,13 +127,13 @@
           <div class="pricing-plan">Premium</div>
 
           <div class="pricing-price">
-            <span class="pricing-amount">$5</span>
-            <span class="pricing-period">/mês</span>
+            <span id="premium-price-amount" class="pricing-amount">Em R$</span>
+            <span id="premium-price-period" class="pricing-period">no checkout</span>
           </div>
 
           <p class="pricing-desc">
-            Tudo do plano gratuito, mais a integração com AI —
-            traga sua chave de API e use seus modelos favoritos.
+            Tudo do plano gratuito, mais uma AI capaz de escrever, revisar, resumir e se apoiar no seu workspace.
+            No Brasil, mostramos abaixo o valor em reais calculado pela Paddle.
           </p>
 
           <ul class="pricing-features">
@@ -144,15 +147,19 @@
             </li>
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
-              Contexto completo — a AI lê sua tela e seus documentos
+              Contexto completo entre documentos e canvas
             </li>
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
-              Múltiplos modelos (GPT-4o, Claude, Gemini e mais)
+              Edições de AI marcadas para revisão antes de virar versão final
             </li>
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
-              Entrada por voz com transcrição AI
+              Escrita e transcrição por voz dentro do assistente
+            </li>
+            <li class="pricing-feature">
+              <span class="pf-check">✓</span>
+              Múltiplos modelos (GPT, Claude, Gemini e mais)
             </li>
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
@@ -167,15 +174,15 @@
           <a href="/premium" class="btn pricing-btn pricing-btn-accent">
             Começar agora
           </a>
-          <p class="pricing-fine">Cobrança via Paddle · Cartão internacional · Cancele a qualquer momento</p>
+          <p id="premium-price-note" class="pricing-fine">Cobrança via Paddle · Valor em reais no checkout · Cancele a qualquer momento</p>
         </div>
 
       </div>
 
       <p class="pricing-byok-note">
         <strong>Nota sobre a AI (BYOK):</strong> o Cafezin conecta à sua própria chave de API —
-        GitHub Copilot, OpenAI ou Anthropic. O $5/mês é pelo software; você gerencia
-        sua chave de API diretamente no provedor de sua escolha.
+        GitHub Copilot, OpenAI, Anthropic ou outro provedor compatível. A assinatura paga o software;
+        o consumo dos modelos continua sob sua gestão, direto no provedor escolhido.
       </p>
     </div>
   </section>
@@ -192,8 +199,7 @@
           <p class="faq-q">Posso testar antes de assinar?</p>
           <p class="faq-a">
             Sim. Baixe o Cafezin gratuitamente e use o editor, canvas e todas as
-            funcionalidades de produtividade sem pagar nada. A integração com AI
-            é a única feature exclusiva do Premium.
+            funcionalidades de produtividade sem pagar nada. O Premium adiciona os fluxos integrados de AI sobre esse workspace base.
           </p>
         </div>
 
@@ -255,7 +261,7 @@
       <h2 class="cta-title">Pronto para começar?</h2>
       <p class="cta-sub">
         Baixe grátis. Sem cartão, sem cadastro.<br />
-        Desbloqueie a AI quando quiser.
+        Ative a AI quando o seu fluxo pedir.
       </p>
       <div class="download-buttons cta-buttons">
         <a href="https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin.dmg" class="btn btn-download">
@@ -286,6 +292,19 @@
       <p class="footer-copy">© 2026 Pedro Martinez. Feito com ☕ no Brasil.</p>
     </div>
   </footer>
+
+  <script src="/price-preview.js"></script>
+  <script>
+    window.loadCafezinPricePreview({
+      amountSelector: '#premium-price-amount',
+      periodSelector: '#premium-price-period',
+      noteSelector: '#premium-price-note',
+      country: 'BR',
+      currency: 'BRL',
+      periodText: '/mês',
+      noteText: 'Cobrança via Paddle · Preço final em reais · Cancele a qualquer momento',
+    });
+  </script>
 
 </body>
 </html>

@@ -63,15 +63,25 @@ jobs:
           echo "nsis_zip=$NSIS_ZIP" >> $GITHUB_OUTPUT
           echo "nsis_sig=$NSIS_SIG" >> $GITHUB_OUTPUT
 
+      - name: Validate updater artifacts
+        shell: bash
+        run: |
+          test -n "${{ steps.installers.outputs.exe }}"
+          test -f "${{ steps.installers.outputs.exe }}"
+          test -n "${{ steps.installers.outputs.nsis_zip }}"
+          test -f "${{ steps.installers.outputs.nsis_zip }}"
+          test -n "${{ steps.installers.outputs.nsis_sig }}"
+          test -f "${{ steps.installers.outputs.nsis_sig }}"
+
       - name: Rename files for release
         shell: bash
         run: |
           [ -f "${{ steps.installers.outputs.msi }}"      ] && cp "${{ steps.installers.outputs.msi }}"      Cafezin_setup.msi       || true
           [ -f "${{ steps.installers.outputs.msi_zip }}"  ] && cp "${{ steps.installers.outputs.msi_zip }}"  Cafezin_setup.msi.zip   || true
           [ -f "${{ steps.installers.outputs.msi_sig }}"  ] && cp "${{ steps.installers.outputs.msi_sig }}"  Cafezin_setup.msi.zip.sig || true
-          [ -f "${{ steps.installers.outputs.exe }}"      ] && cp "${{ steps.installers.outputs.exe }}"      Cafezin_setup.exe       || true
-          [ -f "${{ steps.installers.outputs.nsis_zip }}" ] && cp "${{ steps.installers.outputs.nsis_zip }}" Cafezin_setup.exe.zip   || true
-          [ -f "${{ steps.installers.outputs.nsis_sig }}" ] && cp "${{ steps.installers.outputs.nsis_sig }}" Cafezin_setup.exe.zip.sig || true
+          cp "${{ steps.installers.outputs.exe }}"      Cafezin_setup.exe
+          cp "${{ steps.installers.outputs.nsis_zip }}" Cafezin_setup.exe.zip
+          cp "${{ steps.installers.outputs.nsis_sig }}" Cafezin_setup.exe.zip.sig
 
       - name: Save NSIS signature for latest.json
         shell: bash
@@ -152,33 +162,30 @@ jobs:
           if [ -f windows-sigs/windows.nsis.zip.sig ]; then
             NSIS_SIG=$(cat windows-sigs/windows.nsis.zip.sig)
           fi
-          export NSIS_SIG
-          python3 -c "
-import json, os
-from datetime import datetime, timezone
+          export VERSION BASE NSIS_SIG
+          python3 <<'PY'
+          import json, os
+          from datetime import datetime, timezone
 
-with open('update/latest.json', 'r') as f:
-    data = json.load(f)
+          with open('update/latest.json', 'r') as f:
+            data = json.load(f)
 
-version = os.environ['VERSION']
-base    = os.environ['BASE']
-sig     = os.environ.get('NSIS_SIG', '')
+          version = os.environ['VERSION']
+          base = os.environ['BASE']
+          sig = os.environ.get('NSIS_SIG', '')
 
-data['version']  = version
-data['pub_date'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-data.setdefault('platforms', {})
-data['platforms']['windows-x86_64'] = {
-    'url':       f'{base}/Cafezin_setup.exe.zip',
-    'signature': sig,
-}
+          data['version'] = version
+          data['pub_date'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+          data.setdefault('platforms', {})
+          data['platforms']['windows-x86_64'] = {
+            'url': f'{base}/Cafezin_setup.exe.zip',
+            'signature': sig,
+          }
 
-with open('update/latest.json', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-"
-        env:
-          VERSION: ${{ inputs.tag }}
-          BASE: https://github.com/pvsmartinez/cafezin/releases/download/${{ inputs.tag }}
+          with open('update/latest.json', 'w') as f:
+            json.dump(data, f, indent=2)
+            f.write('\n')
+          PY
 
       - name: Commit and push update/latest.json
         run: |

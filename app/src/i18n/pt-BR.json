@@ -152,5 +152,16 @@
     "scMultiSelectNote": "(barra lateral)",
     "scRenameFile": "Renomear arquivo",
     "scRenameFileNote": "(duplo clique na aba/arquivo)"
+  },
+  "app": {
+    "saveFailedTitle": "Falha ao salvar: {{error}}\nPressione ⌘S para tentar de novo",
+    "saveFailedLabel": "⚠ Falha ao salvar - clique para tentar de novo",
+    "unsavedTitle": "Alterações não salvas - ⌘S para salvar",
+    "unsavedLabel": "● Não salvo",
+    "savedLabel": "Salvo ✓",
+    "openDevtoolsTitle": "Abrir console do DevTools",
+    "devtoolsLabel": "DevTools",
+    "toggleCopilotTitle": "Alternar painel do Copilot (⌘K)",
+    "copilotLabel": "Copilot"
   }
 }

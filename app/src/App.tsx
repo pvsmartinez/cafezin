@@ -69,6 +69,7 @@ import { useCanvasState } from './hooks/useCanvasState';
 import { useAIMarks } from './hooks/useAIMarks';
 import { useTsDiagnostics } from './hooks/useTsDiagnostics';
 import BacklinksPanel from './components/BacklinksPanel';
+import { useTranslation } from 'react-i18next';
 import './App.css';
 
 function loadAppSettings(): AppSettings {
@@ -106,6 +107,7 @@ function compareVersions(a: string, b: string): number {
 const FALLBACK_CONTENT = `# Untitled Document\n\nStart writing here…\n`;
 
 export default function App() {
+  const { t } = useTranslation();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
 
   // Read localStorage exactly once at mount — all useState/useRef initializers share this.
@@ -1437,16 +1439,18 @@ export default function App() {
             saveError ? (
               <span
                 className="app-save-error"
-                title={`Save failed: ${saveError}\nPress ⌘S to retry`}
+                title={t('app.saveFailedTitle', { error: saveError })}
                 onClick={handleRetrySave}
               >
-                ⚠ Save failed — click to retry
+                {t('app.saveFailedLabel')}
               </span>
             ) : dirtyFiles.has(activeTabId) && !savedToast ? (
-              <span className="app-unsaved" title="Unsaved changes — ⌘S to save">● Unsaved</span>
+              <span className="app-unsaved" title={t('app.unsavedTitle')}>
+                {t('app.unsavedLabel')}
+              </span>
             ) : null
           )}
-          {savedToast && <span className="app-saved-toast">Saved ✓</span>}
+          {savedToast && <span className="app-saved-toast">{t('app.savedLabel')}</span>}
           {demoHubToast && (
             <span
               className={demoHubToast.ok ? 'app-saved-toast' : 'app-save-error'}
@@ -1470,18 +1474,18 @@ export default function App() {
             <button
               className="app-devtools-btn"
               onClick={() => invoke('open_devtools')}
-              title="Open DevTools console"
+              title={t('app.openDevtoolsTitle')}
             >
-              DevTools
+              {t('app.devtoolsLabel')}
             </button>
           )}
           <button
             className={`app-ai-toggle ${aiOpen ? 'active' : ''}`}
             onClick={() => setAiOpen((v) => !v)}
-            title="Toggle Copilot panel (⌘K)"
+            title={t('app.toggleCopilotTitle')}
           >
             <Sparkle weight="thin" size={16} />
-            <span>Copilot</span>
+            <span>{t('app.copilotLabel')}</span>
           </button>
         </div>
       </header>

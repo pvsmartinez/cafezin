@@ -11,15 +11,7 @@
   "platforms": {
     "darwin-aarch64": {
       "signature": "",
-      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.1/Cafezin_0.1.1_aarch64.dmg"
-    },
-    "darwin-x86_64": {
-      "signature": "",
-      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.1/Cafezin_0.1.1_x64.dmg"
-    },
-    "windows-x86_64": {
-      "signature": "",
-      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.1/Cafezin_0.1.1_x64-setup.exe"
+      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.1/Cafezin_0.1.1_aarch64.app.tar.gz"
     }
   }
 }

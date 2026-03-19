@@ -1,13 +1,13 @@
 {
   "name": "Cafezin",
   "short_name": "Cafezin",
-  "description": "Local-first writing and AI workspace for writers, educators, and creators.",
-  "start_url": "/",
+  "description": "Workspace local para escrever e criar com AI para escritores, educadores e criadores.",
+  "start_url": "/br",
   "scope": "/",
   "display": "standalone",
   "theme_color": "#1c1610",
   "background_color": "#1c1610",
-  "lang": "en",
+  "lang": "pt-BR",
   "icons": [
     {
       "src": "icon.png",

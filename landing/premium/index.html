@@ -152,8 +152,9 @@
       <div class="premium-kicker">Cafezin Premium</div>
       <h1 class="premium-title">Assine ou gerencie sua conta</h1>
       <p class="premium-sub">
-        Entre com sua conta Cafezin para iniciar a assinatura Premium por $5/mês
-        ou abrir o portal da Paddle para atualizar pagamento e cancelar quando quiser.
+        Entre com sua conta Cafezin para iniciar a assinatura Premium por
+        <strong id="premium-page-price">valor em reais no checkout</strong>,
+        ou abrir o portal para atualizar pagamento e cancelar quando quiser.
       </p>
 
       <div id="status" class="premium-status">Verificando sessão…</div>
@@ -192,6 +193,7 @@
     </section>
   </main>
 
+  <script src="/price-preview.js"></script>
   <script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -216,6 +218,12 @@
     const portalBtn = document.getElementById('portal-btn');
     const refreshBtn = document.getElementById('refresh-btn');
     const signoutBtn = document.getElementById('signout-btn');
+
+    window.loadCafezinPricePreview({
+      amountSelector: '#premium-page-price',
+      country: 'BR',
+      currency: 'BRL',
+    });
 
     function setMessage(text, kind = 'note') {
       messageEl.className = kind === 'error'

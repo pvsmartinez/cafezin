@@ -52,3 +52,6 @@ enabled = false
 
 [functions.admin]
 verify_jwt = false
+
+[functions.price-preview]
+verify_jwt = false

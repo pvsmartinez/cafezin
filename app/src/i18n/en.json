@@ -152,5 +152,16 @@
     "scMultiSelectNote": "(sidebar)",
     "scRenameFile": "Rename file",
     "scRenameFileNote": "(double-click tab/file)"
+  },
+  "app": {
+    "saveFailedTitle": "Save failed: {{error}}\nPress ⌘S to retry",
+    "saveFailedLabel": "⚠ Save failed - click to retry",
+    "unsavedTitle": "Unsaved changes - ⌘S to save",
+    "unsavedLabel": "● Unsaved",
+    "savedLabel": "Saved ✓",
+    "openDevtoolsTitle": "Open DevTools console",
+    "devtoolsLabel": "DevTools",
+    "toggleCopilotTitle": "Toggle Copilot panel (⌘K)",
+    "copilotLabel": "Copilot"
   }
 }

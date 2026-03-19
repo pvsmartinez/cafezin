@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# build-mac.sh   –   Build Cafezin as a native macOS app + DMG
+# build-mac.sh   –   Build Cafezin as a native macOS app + updater artifacts
 # Usage:
-#   ./scripts/build-mac.sh              # build .app + .dmg
+#   ./scripts/build-mac.sh              # build local bundle
 #   ./scripts/build-mac.sh --install    # build + install to ~/Applications
 #   ./scripts/build-mac.sh --dmg        # build .dmg only
-#   ./scripts/build-mac.sh --release    # build (signed) + upload to GitHub Releases
-#                                         and update update/latest.json
+#   ./scripts/build-mac.sh --release    # build signed updater bundle + upload to GitHub Releases
+#                                         and update update/latest.json with .app.tar.gz + .sig
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -136,8 +136,9 @@ fi
 if [[ "$DO_RELEASE" == "true" && -n "$DMG_PATH" ]]; then
   if ! command -v gh &>/dev/null; then
     echo ""
-    echo "  ⚠ GitHub CLI not found — skipping release upload."
+    echo "  ERROR: GitHub CLI not found — cannot publish release artifacts."
     echo "  Install: brew install gh && gh auth login"
+    exit 1
   else
     VERSION="$(python3 -c "import json; print(json.load(open('$APP_DIR/src-tauri/tauri.conf.json'))['version'])")"
     TAG="v$VERSION"
@@ -185,8 +186,20 @@ if [[ "$DO_RELEASE" == "true" && -n "$DMG_PATH" ]]; then
         || { echo "⚠  Signing failed — update/latest.json will not be updated."; TARGZ_SIG_PATH=""; }
     fi
 
-    [[ -n "$TARGZ_PATH" ]]     && { cp "$TARGZ_PATH"     "$ROOT_DIR/$TARGZ_DEST"; FILES="$FILES $ROOT_DIR/$TARGZ_DEST"; }
-    [[ -n "$TARGZ_SIG_PATH" ]]  && { cp "$TARGZ_SIG_PATH" "$ROOT_DIR/$SIG_DEST";  FILES="$FILES $ROOT_DIR/$SIG_DEST"; }
+    if [[ -z "$TARGZ_PATH" || -z "$TARGZ_SIG_PATH" ]]; then
+      echo ""
+      echo "ERROR: macOS release requires updater artifacts (.app.tar.gz + .sig)."
+      echo "       Refusing to publish a release that only has the pretty installer (.dmg)."
+      echo ""
+      echo "       Expected:"
+      echo "         tar.gz: ${TARGZ_PATH:-<missing>}"
+      echo "         sig:    ${TARGZ_SIG_PATH:-<missing>}"
+      exit 1
+    fi
+
+    cp "$TARGZ_PATH" "$ROOT_DIR/$TARGZ_DEST"
+    cp "$TARGZ_SIG_PATH" "$ROOT_DIR/$SIG_DEST"
+    FILES="$FILES $ROOT_DIR/$TARGZ_DEST $ROOT_DIR/$SIG_DEST"
 
     echo ""
     echo "▸ Uploading to GitHub release ${TAG}..."
@@ -199,10 +212,9 @@ if [[ "$DO_RELEASE" == "true" && -n "$DMG_PATH" ]]; then
     echo "✓  Uploaded to https://github.com/pvsmartinez/cafezin/releases/tag/$TAG"
 
     # ── Update update/latest.json with macOS entry ────────────────────────
-    if [[ -n "$TARGZ_SIG_PATH" ]]; then
-      MAC_SIG="$(cat "$ROOT_DIR/$SIG_DEST")"
-      BASE="https://github.com/pvsmartinez/cafezin/releases/download/${TAG}"
-      python3 -c "
+    MAC_SIG="$(cat "$ROOT_DIR/$SIG_DEST")"
+    BASE="https://github.com/pvsmartinez/cafezin/releases/download/${TAG}"
+    python3 -c "
 import json, os
 from datetime import datetime, timezone
 
@@ -227,15 +239,11 @@ with open('$ROOT_DIR/update/latest.json', 'w') as f:
     f.write('\n')
 print('✓  Updated update/latest.json for', platform)
 "
-      cd "$ROOT_DIR"
-      git add update/latest.json
-      git diff --staged --quiet || git commit -m "chore: update latest.json for $TAG macOS"
-      git push
-      echo "✓  Pushed update/latest.json"
-    else
-      echo "⚠  No .tar.gz.sig found — update/latest.json not updated."
-      echo "   Re-run with TAURI_SIGNING_PRIVATE_KEY set or signing key at $SIGNING_KEY_FILE"
-    fi
+    cd "$ROOT_DIR"
+    git add update/latest.json
+    git diff --staged --quiet || git commit -m "chore: update latest.json for $TAG macOS"
+    git push
+    echo "✓  Pushed update/latest.json"
 
     rm -f "$ROOT_DIR/$DMG_DEST" "$ROOT_DIR/$TARGZ_DEST" "$ROOT_DIR/$SIG_DEST"
   fi
