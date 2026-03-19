@@ -47,7 +47,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENDQjNCOUIyNzk4RDg0OEIKUldTTGhJMTVzcm16ektmUUxKeGJVQmVuYVlnbUFJTkJydUZtTHJFZDFnZythR2YyRTZXajAxZHcK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNDRjE5RjkxMzM1NDNCRjMKUldUek8xUXprWi94UEhhMFp3NFovMzJnQThWTG80QkxDVVVvRURHa2xYSENQVUtOcTZNbnFnd0cK",
       "endpoints": [
         "https://raw.githubusercontent.com/pvsmartinez/cafezin/main/update/latest.json"
       ]
