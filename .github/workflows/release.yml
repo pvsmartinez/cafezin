@@ -186,4 +186,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add update/latest.json
           git diff --staged --quiet || git commit -m "chore: update latest.json for ${{ inputs.tag }} [skip ci]"
+          git pull --rebase
           git push
