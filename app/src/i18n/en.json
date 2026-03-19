@@ -13,6 +13,11 @@
     "syncDirty_one": "{{count}} unsync'd file",
     "syncDirty_other": "{{count}} unsync'd files",
     "upToDate": "up to date",
+    "emptyKicker": "First step",
+    "emptyTitle": "Create your first file to get started",
+    "emptyDesc": "This workspace is still empty. Create an initial document and keep Copilot in the flow from the start.",
+    "createFirstFile": "+ New file",
+    "activateSync": "☁ Activate sync",
     "recentFiles": "Recent files",
     "agentContextLoaded": "AGENT.md loaded as AI context",
     "aiEditsPending": "AI edits pending review"

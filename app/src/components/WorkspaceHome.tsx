@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Play, CloudSlash } from '@phosphor-icons/react';
+import { Play, CloudSlash, Plus } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import type { Workspace, AIEditMark, FileTreeNode } from '../types';
@@ -9,6 +9,8 @@ import { timeAgo } from '../utils/timeAgo';
 interface WorkspaceHomeProps {
   workspace: Workspace;
   onOpenFile: (filename: string) => void;
+  onCreateFirstFile?: () => void;
+  onActivateSync?: () => void;
   aiMarks?: AIEditMark[];
   onOpenAIReview?: () => void;
   onSwitchWorkspace?: () => void;
@@ -43,7 +45,7 @@ function fileIcon(name: string): React.ReactNode {
   return '·';
 }
 
-export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [], onSwitchWorkspace, onClose }: WorkspaceHomeProps) {
+export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile, onActivateSync, aiMarks = [], onSwitchWorkspace, onClose }: WorkspaceHomeProps) {
   const { t } = useTranslation();
   const [sync, setSync] = useState<SyncState>({ loading: true, changedCount: 0, error: false });
 
@@ -57,6 +59,7 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [], onS
   const { config } = workspace;
   const recentFiles = config.recentFiles ?? [];
   const lastEditedAt = config.lastEditedAt;
+  const totalFiles = countFiles(workspace.fileTree);
 
   // Pick a greeting based on time of day
   const hour = new Date().getHours();
@@ -82,6 +85,18 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [], onS
           </button>
         )}
 
+        {totalFiles === 0 && onCreateFirstFile && (
+          <div className="wh-empty-hero">
+            <div className="wh-empty-kicker">{t('wh.emptyKicker')}</div>
+            <h2 className="wh-empty-title">{t('wh.emptyTitle')}</h2>
+            <p className="wh-empty-desc">{t('wh.emptyDesc')}</p>
+            <button className="wh-create-first-btn" onClick={onCreateFirstFile}>
+              <Plus weight="bold" size={14} />
+              <span>{t('wh.createFirstFile')}</span>
+            </button>
+          </div>
+        )}
+
         {/* Local-only warning — shown when workspace has no git remote */}
         {!workspace.hasGit && (
           <div className="wh-local-banner">
@@ -89,6 +104,13 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [], onS
             <div>
             <strong>{t('wh.localBannerTitle')}</strong>
             <span>{t('wh.localBannerDesc')}</span>
+            {onActivateSync && (
+              <div style={{ marginTop: 8 }}>
+                <button className="wh-local-banner-sync-btn" onClick={onActivateSync}>
+                  {t('wh.activateSync')}
+                </button>
+              </div>
+            )}
             </div>
           </div>
         )}
@@ -131,7 +153,7 @@ export default function WorkspaceHome({ workspace, onOpenFile, aiMarks = [], onS
           {/* File count */}
           <div className="wh-stat">
             <span className="wh-stat-label">{t('wh.files')}</span>
-            <span className="wh-stat-value">{countFiles(workspace.fileTree)}</span>
+            <span className="wh-stat-value">{totalFiles}</span>
           </div>
         </div>
 

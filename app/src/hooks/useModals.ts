@@ -39,7 +39,7 @@ export function useModals(): UseModalsReturn {
   const [imgSearchOpen, setImgSearchOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(true);
   const [aiInitialPrompt, setAiInitialPrompt] = useState('');
 
   function openSettings(tab: SettingsTab = 'general') {

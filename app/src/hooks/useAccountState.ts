@@ -9,7 +9,12 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { fetchAccountState, getCachedAccountState } from '../services/accountService';
+import {
+  fetchAccountState,
+  getCachedAccountState,
+  clearAccountCache,
+} from '../services/accountService';
+import { supabase } from '../services/supabase';
 import type { AccountState } from '../types';
 import { FREE_ACCOUNT_STATE } from '../types';
 
@@ -37,6 +42,44 @@ export function useAccountState(): UseAccountStateReturn {
 
   // Fetch in the background on mount
   useEffect(() => { void refresh(); }, [refresh]);
+
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        clearAccountCache();
+        setAccount(FREE_ACCOUNT_STATE);
+        setLoading(false);
+        return;
+      }
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        clearAccountCache();
+        void refresh();
+      }
+    });
+
+    const handleAuthUpdated = () => {
+      clearAccountCache();
+      void refresh();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh();
+      }
+    };
+
+    window.addEventListener('focus', handleAuthUpdated);
+    window.addEventListener('cafezin:auth-updated', handleAuthUpdated as EventListener);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      authListener.subscription.unsubscribe();
+      window.removeEventListener('focus', handleAuthUpdated);
+      window.removeEventListener('cafezin:auth-updated', handleAuthUpdated as EventListener);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refresh]);
 
   return { account, loading, refresh };
 }

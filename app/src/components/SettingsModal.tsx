@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { GearSix, X } from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { invoke } from '@tauri-apps/api/core';
 import {
   getActiveProvider, setActiveProvider, getActiveModel, setActiveModel,
   getProviderKey, PROVIDER_LABELS, PROVIDER_MODELS, PROVIDER_DEFAULT_MODELS,
@@ -13,8 +14,8 @@ import { writeTextFile } from '../services/fs';
 import { saveWorkspaceConfig } from '../services/workspace';
 import {
   signIn, signUp, signOut, getUser,
-  startGitAccountFlow,
-  listSyncedWorkspaces, registerWorkspace, unregisterWorkspace,
+  startGitAccountFlow, createGitHubRepo, getGitAccountToken,
+  listSyncedWorkspaces, registerWorkspace, registerWorkspaceByUrl, unregisterWorkspace,
   listGitAccountLabels,
   type SyncDeviceFlowState, type SyncedWorkspace,
 } from '../services/syncConfig'
@@ -82,7 +83,7 @@ export default function SettingsModal({
   const [authBusy, setAuthBusy] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [billingBusy, setBillingBusy] = useState<'checkout' | 'portal' | null>(null)
-  const [regLabel, setRegLabel] = useState('personal')
+  const regLabel = 'personal'
   const [regState, setRegState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
   const [regError, setRegError] = useState('')
 
@@ -126,6 +127,15 @@ export default function SettingsModal({
   const [gitFlowState, setGitFlowState] = useState<SyncDeviceFlowState | null>(null)
   const [gitFlowBusy, setGitFlowBusy] = useState(false)
   const [gitAccounts, setGitAccounts] = useState<string[]>([])
+
+  // ── Activate sync (connect local workspace to GitHub) ────────────────────
+  const [activateSyncBusy, setActivateSyncBusy] = useState(false)
+  const [activateSyncFlowState, setActivateSyncFlowState] = useState<SyncDeviceFlowState | null>(null)
+  const [showSyncAdvanced, setShowSyncAdvanced] = useState(false)
+  const [syncAdvancedMode, setSyncAdvancedMode] = useState<'create' | 'existing'>('create')
+  const [syncAdvancedRepoName, setSyncAdvancedRepoName] = useState('')
+  const [syncAdvancedPrivate, setSyncAdvancedPrivate] = useState(true)
+  const [syncAdvancedUrl, setSyncAdvancedUrl] = useState('')
 
   const loadSyncState = useCallback(async () => {
     setSyncStatus('checking')
@@ -189,6 +199,60 @@ export default function SettingsModal({
     } catch (e) {
       setRegError(String(e));
       setRegState('error');
+    }
+  }
+
+  function sanitizeRepoName(name: string): string {
+    return name.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
+  }
+
+  async function handleActivateSync() {
+    if (!workspace) return;
+    const label = regLabel.trim() || 'personal';
+    setActivateSyncBusy(true);
+    setSyncError(null);
+    try {
+      let gitUrl: string;
+      if (showSyncAdvanced && syncAdvancedMode === 'existing') {
+        gitUrl = syncAdvancedUrl.trim();
+        if (!gitUrl) throw new Error('Informe a URL do repositório');
+      } else {
+        let token = getGitAccountToken(label);
+        if (!token) {
+          setGitFlowBusy(true);
+          try {
+            token = await startGitAccountFlow(label, (s) => setActivateSyncFlowState(s));
+            setActivateSyncFlowState(null);
+            setGitAccounts((prev) => prev.includes(label) ? prev : [...prev, label]);
+          } finally {
+            setGitFlowBusy(false);
+          }
+        }
+        const repoName = showSyncAdvanced
+          ? sanitizeRepoName(syncAdvancedRepoName || workspace.name)
+          : sanitizeRepoName(workspace.name);
+        const isPrivate = showSyncAdvanced ? syncAdvancedPrivate : true;
+        const repo = await createGitHubRepo(repoName, isPrivate, token!);
+        gitUrl = repo.cloneUrl;
+      }
+      const authToken = getGitAccountToken(label) ?? undefined;
+      await invoke('git_set_remote', { path: workspace.path, url: gitUrl });
+      if (authToken) {
+        await invoke('git_sync', {
+          path: workspace.path,
+          message: 'Initial commit from Cafezin',
+          token: authToken,
+        });
+      }
+      await registerWorkspaceByUrl(workspace.name, gitUrl, label).catch(() => null);
+      const entry = await registerWorkspace(workspace.path, workspace.name, label).catch(() => null);
+      if (entry) setSyncWorkspaces((prev) => [...prev.filter((w) => w.gitUrl !== entry.gitUrl), entry]);
+      onWorkspaceChange({ ...workspace, hasGit: true });
+      setShowSyncAdvanced(false);
+    } catch (e) {
+      setSyncError(String(e));
+    } finally {
+      setActivateSyncBusy(false);
     }
   }
 
@@ -1171,31 +1235,131 @@ export default function SettingsModal({
 
               {syncStatus === 'connected' && workspace && (
                 <section className="sm-section">
-                  <h3 className="sm-section-title">Registrar este workspace</h3>
-                  <p className="sm-section-desc">
-                    Indique a qual conta git este workspace pertence (ex: "pessoal" ou "trabalho").
-                    O app mobile usa esse rótulo para saber quais credenciais usar ao clonar.
-                  </p>
-                  <div className="sm-sync-register">
-                    <input
-                      className="sm-input"
-                      value={regLabel}
-                      onChange={(e) => setRegLabel(e.target.value)}
-                      placeholder='ex: pessoal, trabalho…'
-                      list="sm-git-account-labels"
-                    />
-                    <datalist id="sm-git-account-labels">
-                      {gitAccounts.map((l) => <option key={l} value={l} />)}
-                    </datalist>
-                    <button
-                      className={`sm-save-btn ${regState === 'done' ? 'saved' : ''}`}
-                      onClick={handleRegister}
-                      disabled={regState === 'busy' || !regLabel.trim()}
-                    >
-                      {regState === 'busy' ? 'Registrando…' : regState === 'done' ? '✓ Registrado' : 'Registrar'}
-                    </button>
-                  </div>
-                  {regState === 'error' && <p className="sm-sync-error" style={{ marginTop: 8 }}>{regError}</p>}
+                  <h3 className="sm-section-title">
+                    {workspace.hasGit ? 'Registrar este workspace' : 'Ativar sync deste workspace'}
+                  </h3>
+                  {workspace.hasGit ? (
+                    <>
+                      <p className="sm-section-desc">
+                        Adicione este workspace à lista de sync para que ele apareça em outros dispositivos.
+                      </p>
+                      <div className="sm-sync-register">
+                        <button
+                          className={`sm-save-btn ${regState === 'done' ? 'saved' : ''}`}
+                          onClick={handleRegister}
+                          disabled={regState === 'busy'}
+                        >
+                          {regState === 'busy' ? 'Registrando…' : regState === 'done' ? '✓ Registrado' : 'Registrar'}
+                        </button>
+                      </div>
+                      {regState === 'error' && <p className="sm-sync-error" style={{ marginTop: 8 }}>{regError}</p>}
+                    </>
+                  ) : (
+                    <>
+                      <p className="sm-section-desc">
+                        Crie um repositório privado no GitHub e ative o sync. O Cafezin cuida da conexão — sem configuração manual.
+                      </p>
+
+                      {(activateSyncFlowState || (gitFlowBusy && gitFlowState)) && (
+                        <div className="sm-sync-flow">
+                          <p className="sm-sync-flow-text">Abra esta URL no navegador e insira o código:</p>
+                          <a
+                            className="sm-sync-flow-url"
+                            href={(activateSyncFlowState ?? gitFlowState)!.verificationUri}
+                            target="_blank" rel="noreferrer"
+                          >
+                            {(activateSyncFlowState ?? gitFlowState)!.verificationUri}
+                          </a>
+                          <div className="sm-sync-flow-code">{(activateSyncFlowState ?? gitFlowState)!.userCode}</div>
+                          <p className="sm-sync-flow-hint">Aguardando autorização…</p>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <button
+                          className="sm-save-btn"
+                          onClick={() => void handleActivateSync()}
+                          disabled={activateSyncBusy || gitFlowBusy}
+                          style={{ width: '100%' }}
+                        >
+                          {
+                            gitFlowBusy ? 'Aguardando GitHub…'
+                            : activateSyncBusy ? 'Ativando sync…'
+                            : '☁ Ativar sync'
+                          }
+                        </button>
+
+                        <button
+                          className="sm-secondary-btn"
+                          onClick={() => setShowSyncAdvanced((v) => !v)}
+                          style={{ fontSize: 12, alignSelf: 'flex-start' }}
+                        >
+                          {showSyncAdvanced ? '▲ Ocultar opções' : '▼ Opções avançadas'}
+                        </button>
+
+                        {showSyncAdvanced && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button
+                                className={`sm-secondary-btn ${syncAdvancedMode === 'create' ? 'active' : ''}`}
+                                onClick={() => setSyncAdvancedMode('create')}
+                                style={{ flex: 1, fontSize: 12 }}
+                              >
+                                Criar repo
+                              </button>
+                              <button
+                                className={`sm-secondary-btn ${syncAdvancedMode === 'existing' ? 'active' : ''}`}
+                                onClick={() => setSyncAdvancedMode('existing')}
+                                style={{ flex: 1, fontSize: 12 }}
+                              >
+                                URL existente
+                              </button>
+                            </div>
+
+                            {syncAdvancedMode === 'create' ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <label className="sm-label">Nome do repositório</label>
+                                <input
+                                  className="sm-input"
+                                  value={syncAdvancedRepoName}
+                                  onChange={(e) => setSyncAdvancedRepoName(e.target.value.toLowerCase().replace(/[^a-z0-9._-]+/g, '-'))}
+                                  placeholder={workspace.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-')}
+                                />
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <button
+                                    className={`sm-secondary-btn ${syncAdvancedPrivate ? 'active' : ''}`}
+                                    onClick={() => setSyncAdvancedPrivate(true)}
+                                    style={{ flex: 1, fontSize: 12 }}
+                                  >
+                                    🔒 Privado
+                                  </button>
+                                  <button
+                                    className={`sm-secondary-btn ${!syncAdvancedPrivate ? 'active' : ''}`}
+                                    onClick={() => setSyncAdvancedPrivate(false)}
+                                    style={{ flex: 1, fontSize: 12 }}
+                                  >
+                                    🌐 Público
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <label className="sm-label">URL do repositório existente</label>
+                                <input
+                                  className="sm-input"
+                                  value={syncAdvancedUrl}
+                                  onChange={(e) => setSyncAdvancedUrl(e.target.value)}
+                                  placeholder="https://github.com/usuario/repo.git"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {syncError && <p className="sm-sync-error" style={{ marginTop: 8 }}>{syncError}</p>}
+                    </>
+                  )}
                 </section>
               )}
 

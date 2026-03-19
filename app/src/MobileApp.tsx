@@ -1,17 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Coffee, Folders, Robot, Microphone, ArrowDown, ArrowClockwise, ArrowsClockwise, House, FolderSimple, SignOut, ArrowRight, GithubLogo, Copy, CheckCircle, Warning } from '@phosphor-icons/react';
+import { documentDir } from '@tauri-apps/api/path';
+import { Coffee, Folders, Robot, Microphone, ArrowDown, ArrowClockwise, ArrowsClockwise, House, FolderSimple, SignOut, ArrowRight, GithubLogo, Copy, CheckCircle, Warning, GearSix, Plus } from '@phosphor-icons/react';
 import { readTextFile, remapToCurrentDocDir } from './services/fs';
-import { loadWorkspace } from './services/workspace';
+import { exists, mkdir } from './services/fs';
+import { getRecents, loadWorkspace } from './services/workspace';
 import { useAuthSession } from './hooks/useAuthSession';
 import { gitClone, gitPull, gitSync, getGitAccountToken, setLocalClonedPath, startGitAccountFlow, type SyncDeviceFlowState } from './services/syncConfig';
 import { CONFIG_DIR } from './services/config';
-import type { Workspace } from './types';
+import type { Workspace, RecentWorkspace } from './types';
 import { syncSecretsFromCloud } from './services/apiSecrets';
 import MobileFileBrowser from './components/mobile/MobileFileBrowser';
 import MobilePreview from './components/mobile/MobilePreview';
 import MobileCopilot from './components/mobile/MobileCopilot';
 import MobileVoiceMemo from './components/mobile/MobileVoiceMemo';
 import MobileOnboarding from './components/mobile/MobileOnboarding';
+import MobileSettingsSheet from './components/mobile/MobileSettingsSheet';
 import ToastList from './components/mobile/ToastList';
 import { useToast } from './hooks/useToast';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -54,6 +57,12 @@ export default function MobileApp() {
   const [loadingWs, setLoadingWs] = useState(true);
   const [wsError, setWsError] = useState<string | null>(null);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(() => localStorage.getItem(MOBILE_ONBOARDING_KEY) === '1');
+  const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>(() => getRecents());
+  const [showSettings, setShowSettings] = useState(false);
+  const [createMode, setCreateMode] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // gitUrl → 'clone' | 'pull'
   const [gitBusy, setGitBusy] = useState<Record<string, 'clone' | 'pull'>>({});
@@ -75,6 +84,10 @@ export default function MobileApp() {
   const [passwordInput, setPasswordInput] = useState('');
 
   const { toasts, toast, dismiss } = useToast();
+
+  function refreshRecentWorkspaces() {
+    setRecentWorkspaces(getRecents());
+  }
 
   // Shell topbar scroll-hide (Safari-style)
   const screenRef = useRef<HTMLDivElement>(null);
@@ -188,6 +201,7 @@ export default function MobileApp() {
     try {
       const ws = await loadWorkspace(path);
       setWorkspace(ws);
+      refreshRecentWorkspaces();
       // Persist the remapped path so next boot uses the correct UUID
       localStorage.setItem(LAST_WS_KEY, path);
 
@@ -250,6 +264,123 @@ export default function MobileApp() {
     } finally {
       setLoadingWs(false);
     }
+  }
+
+  async function handleCreateWorkspace() {
+    const rawName = createName.trim();
+    if (!rawName) return;
+
+    const safeName = rawName
+      .replace(/[/:]+/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!safeName) return;
+
+    setCreateBusy(true);
+    setCreateError(null);
+    try {
+      const docs = (await documentDir()).replace(/\/+$/, '');
+      let targetPath = `${docs}/${safeName}`;
+      let suffix = 2;
+      while (await exists(targetPath)) {
+        targetPath = `${docs}/${safeName} ${suffix}`;
+        suffix += 1;
+      }
+
+      await mkdir(targetPath, { recursive: true });
+      const ws = await loadWorkspace(targetPath);
+      setWorkspace(ws);
+      setWsGitUrl(null);
+      localStorage.setItem(LAST_WS_KEY, targetPath);
+      refreshRecentWorkspaces();
+      setCreateName('');
+      setCreateMode(false);
+      toast({ message: 'Workspace criado neste dispositivo.', type: 'success' });
+    } catch (err) {
+      setCreateError(String(err));
+    } finally {
+      setCreateBusy(false);
+    }
+  }
+
+  function handleWorkspaceUpdated(nextWorkspace: Workspace, gitUrl?: string | null) {
+    setWorkspace(nextWorkspace);
+    if (gitUrl) setWsGitUrl(gitUrl);
+    refreshRecentWorkspaces();
+  }
+
+  function renderCreateWorkspaceCard() {
+    return (
+      <div className="w-full max-w-[360px] flex flex-col gap-2.5">
+        <button
+          className="btn-primary w-full text-sm"
+          onClick={() => {
+            setCreateMode((current) => !current);
+            setCreateError(null);
+          }}
+        >
+          <Plus size={15} /> Novo workspace local
+        </button>
+
+        {createMode && (
+          <div className="mb-card flex flex-col gap-2.5 rounded-xl px-[14px] py-3 text-left">
+            <div className="text-[13px] text-muted leading-[1.5]">
+              O workspace será criado na pasta Documentos do app neste dispositivo.
+            </div>
+            <input
+              className="mb-input rounded-lg px-[14px] py-[10px] text-[15px] outline-none"
+              value={createName}
+              onChange={(event) => setCreateName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void handleCreateWorkspace();
+              }}
+              placeholder="Nome do workspace"
+            />
+            {createError && (
+              <div className="text-[12px] text-danger leading-[1.5]">{createError}</div>
+            )}
+            <div className="flex gap-2">
+              <button className="btn-secondary flex-1 text-[13px] py-2" onClick={() => setCreateMode(false)}>
+                Cancelar
+              </button>
+              <button className="btn-primary flex-1 text-[13px] py-2" onClick={() => void handleCreateWorkspace()} disabled={createBusy || !createName.trim()}>
+                {createBusy ? <><div className="spinner w-4 h-4" /> Criando…</> : 'Criar'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderLocalWorkspacesSection() {
+    if (recentWorkspaces.length === 0) return null;
+
+    return (
+      <div className="w-full max-w-[360px] flex flex-col gap-2.5">
+        <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted text-left">
+          Neste dispositivo
+        </div>
+        {recentWorkspaces.map((recent) => (
+          <div key={recent.path} className="mb-card rounded-xl px-[14px] py-3 flex flex-col gap-1.5 text-left">
+            <div className="flex items-center gap-2">
+              <div className="font-semibold text-[15px] flex-1 truncate">{recent.name}</div>
+              <span className={`text-[10px] font-semibold uppercase tracking-[0.08em] ${recent.hasGit ? 'text-accent' : 'text-muted'}`}>
+                {recent.hasGit ? 'git' : 'local'}
+              </span>
+            </div>
+            <div className="text-[11px] text-muted break-all">{recent.path}</div>
+            <button
+              className="btn-secondary mt-1 text-[13px] py-1.5"
+              onClick={() => void openWorkspacePath(recent.path, recent.gitRemote)}
+            >
+              <ArrowRight size={14} /> Abrir
+            </button>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   /** GitHub Device Flow: authenticate a git account label and store the token on device. */
@@ -395,6 +526,15 @@ export default function MobileApp() {
   if (loadingWs) {
     return (
       <div className="mb-shell fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
+        <MobileSettingsSheet
+          open={showSettings}
+          workspace={workspace}
+          isLoggedIn={isLoggedIn}
+          onClose={() => setShowSettings(false)}
+          onWorkspaceUpdated={handleWorkspaceUpdated}
+          onRefreshSyncedList={loadSyncedList}
+          toast={toast}
+        />
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="spinner" />
           <div className="text-sm text-muted">Loading workspace…</div>
@@ -414,13 +554,30 @@ export default function MobileApp() {
       return (
         <div className="mb-shell mb-screen fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
           <ToastList toasts={toasts} onDismiss={dismiss} />
+          <MobileSettingsSheet
+            open={showSettings}
+            workspace={workspace}
+            isLoggedIn={isLoggedIn}
+            onClose={() => setShowSettings(false)}
+            onWorkspaceUpdated={handleWorkspaceUpdated}
+            onRefreshSyncedList={loadSyncedList}
+            toast={toast}
+          />
           <div className="flex-1 overflow-y-auto scroll-touch flex flex-col">
             <div className="flex flex-col items-center gap-5 px-6 py-10 text-center flex-1">
+              <div className="w-full max-w-[300px] flex justify-end">
+                <button className="icon-btn" onClick={() => setShowSettings(true)} title="Ajustes">
+                  <GearSix size={18} />
+                </button>
+              </div>
               <div className="opacity-30"><Coffee weight="thin" size={48} /></div>
               <div className="text-xl font-semibold">Bem-vindo ao Cafezin</div>
               <div className="text-sm text-muted max-w-[280px] leading-[1.55]">
                 Entre com sua conta para acessar seus workspaces.
               </div>
+
+              {renderCreateWorkspaceCard()}
+              {renderLocalWorkspacesSection()}
 
               {/* ── OAuth providers ── */}
               <div className="flex gap-2.5 w-full max-w-[300px]">
@@ -513,6 +670,15 @@ export default function MobileApp() {
     return (
       <div className="mb-shell mb-screen fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
         <ToastList toasts={toasts} onDismiss={dismiss} />
+        <MobileSettingsSheet
+          open={showSettings}
+          workspace={workspace}
+          isLoggedIn={isLoggedIn}
+          onClose={() => setShowSettings(false)}
+          onWorkspaceUpdated={handleWorkspaceUpdated}
+          onRefreshSyncedList={loadSyncedList}
+          toast={toast}
+        />
 
         {/* ── GitHub Device Flow modal ── */}
         {gitAuthModal && (
@@ -550,8 +716,18 @@ export default function MobileApp() {
 
         <div className="flex-1 overflow-y-auto scroll-touch flex flex-col">
           <div className="flex flex-col items-center gap-4 px-6 py-10 text-center flex-1">
-            <div className="opacity-30"><Folders weight="thin" size={48} /></div>
-            <div className="text-xl font-semibold">Workspaces</div>
+            <div className="w-full max-w-[360px] flex items-center justify-between">
+              <div className="text-left">
+                <div className="text-[12px] uppercase tracking-[0.12em] text-muted">Cafezin mobile</div>
+                <div className="text-xl font-semibold">Workspaces</div>
+              </div>
+              <button className="icon-btn" onClick={() => setShowSettings(true)} title="Ajustes">
+                <GearSix size={18} />
+              </button>
+            </div>
+
+            {renderCreateWorkspaceCard()}
+            {renderLocalWorkspacesSection()}
 
             {wsError && (
               <div className="bg-[rgba(var(--red-rgb),0.15)] border border-[rgba(var(--red-rgb),0.3)] text-danger rounded-lg px-[14px] py-[10px] text-[13px] max-w-[300px] text-left">
@@ -721,6 +897,15 @@ export default function MobileApp() {
   return (
     <div className="mb-shell fixed inset-0 flex flex-col overflow-hidden bg-app-bg">
       <ToastList toasts={toasts} onDismiss={dismiss} />
+      <MobileSettingsSheet
+        open={showSettings}
+        workspace={workspace}
+        isLoggedIn={isLoggedIn}
+        onClose={() => setShowSettings(false)}
+        onWorkspaceUpdated={handleWorkspaceUpdated}
+        onRefreshSyncedList={loadSyncedList}
+        toast={toast}
+      />
 
       {/* Shell-level workspace topbar — overlay (Safari-style), always on top */}
       {workspace && (
@@ -763,6 +948,14 @@ export default function MobileApp() {
             disabled={isSyncing}
           >
             <ArrowClockwise weight="thin" size={18} />
+          </button>
+          <button
+            className="icon-btn"
+            onClick={() => setShowSettings(true)}
+            title="Ajustes"
+            disabled={isSyncing}
+          >
+            <GearSix weight="thin" size={18} />
           </button>
         </div>
       )}

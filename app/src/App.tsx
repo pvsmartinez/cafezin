@@ -53,6 +53,7 @@ import {
   writeFile,
   saveWorkspaceConfig,
   trackFileOpen,
+  createFile,
   flatMdFiles,
   refreshFileTree,
 } from './services/workspace';
@@ -1057,6 +1058,25 @@ export default function App() {
     if (!isSameWorkspace) clearAll();
   }
 
+  async function handleCreateFirstWorkspaceFile() {
+    if (!workspace) return;
+
+    let filename = 'untitled.md';
+    let suffix = 2;
+    while (await exists(`${workspace.path}/${filename}`)) {
+      filename = `untitled-${suffix}.md`;
+      suffix += 1;
+    }
+
+    try {
+      await createFile(workspace, filename);
+      await refreshWorkspace(workspace);
+      await handleOpenFile(filename);
+    } catch (err) {
+      setSaveError(`Could not create "${filename}": ${(err as Error)?.message ?? String(err)}`);
+    }
+  }
+
   // scheduleAutosave is provided by useAutosave (declared near useDragResize)
 
   // ── Auto-save (debounced 1s) ─────────────────────────────────
@@ -1693,9 +1713,11 @@ export default function App() {
           <WorkspaceHome
             workspace={workspace}
             onOpenFile={handleOpenFile}
+            onCreateFirstFile={handleCreateFirstWorkspaceFile}
             aiMarks={aiMarks}
             onOpenAIReview={() => { setAiHighlight(true); setAiNavIndex(0); }}
             onSwitchWorkspace={handleSwitchWorkspace}
+            onActivateSync={() => openSettings('sync')}
             onClose={() => setHomeVisible(false)}
           />
         ) : !activeFile ? (
