@@ -20,6 +20,25 @@ import 'katex/dist/katex.min.css';
 import type { WorkspaceFeatureConfig } from '../types';
 import { renderMarkdownToHtml } from './markdownRender';
 
+interface ExportPDFHooks {
+  onProgress?: (phase: string, detail?: string) => void;
+  shouldCancel?: () => boolean;
+}
+
+function throwIfCancelled(shouldCancel?: () => boolean): void {
+  if (shouldCancel?.()) {
+    throw new Error('Export canceled by user.');
+  }
+}
+
+async function yieldToUI(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      setTimeout(resolve, 0);
+    });
+  });
+}
+
 /** A4 page dimensions at 96 dpi (CSS pixels) */
 const A4_W_PX = 794;
 const A4_H_CSS = Math.round(A4_W_PX * 297 / 210); // ≈ 1123 px
@@ -233,12 +252,20 @@ export async function exportMarkdownToPDF(
     prependHtml?: string;
     /** Optional per-workspace render capabilities. */
     features?: WorkspaceFeatureConfig;
+    /** Optional lifecycle hooks for progress / cancellation. */
+    hooks?: ExportPDFHooks;
   },
 ): Promise<void> {
+  const hooks = options?.hooks;
+  throwIfCancelled(hooks?.shouldCancel);
+  hooks?.onProgress?.('render-markdown', 'Rendering markdown…');
   // ── 1. Render markdown with optional workspace capabilities ───────────────
   const rawHtml = await renderMarkdownToHtml(content, { features: options?.features });
+  throwIfCancelled(hooks?.shouldCancel);
+  await yieldToUI();
 
   // ── 2. Mount off-screen container ───────────────────────────────────────────
+  hooks?.onProgress?.('prepare-layout', 'Preparing print layout…');
   const wrapper = document.createElement('div');
   wrapper.style.cssText = [
     'position:fixed',
@@ -262,8 +289,10 @@ export async function exportMarkdownToPDF(
 
   try {
     // ── 3. Resolve relative <img src> to asset:// URLs ─────────────────────────
+    hooks?.onProgress?.('load-assets', 'Loading images and assets…');
     const imgs = Array.from(body.querySelectorAll<HTMLImageElement>('img'));
     await Promise.all(imgs.map(async (img) => {
+      throwIfCancelled(hooks?.shouldCancel);
       const src = img.getAttribute('src') ?? '';
       if (!src || src.startsWith('http') || src.startsWith('data:') || src.startsWith('asset:')) return;
       const absPath = src.startsWith('/')
@@ -277,12 +306,18 @@ export async function exportMarkdownToPDF(
         img.onerror = () => resolve(); // don't abort on missing images
       });
     }));
+    throwIfCancelled(hooks?.shouldCancel);
+    await yieldToUI();
 
     // ── 4. Measure element positions BEFORE capturing (while still in DOM) ──
+    hooks?.onProgress?.('measure-layout', 'Measuring page breaks…');
     const elemBounds = measureChildren(body);
     const contentHeightCss = wrapper.scrollHeight;
+    throwIfCancelled(hooks?.shouldCancel);
+    await yieldToUI();
 
     // ── 5. Capture with html2canvas ──────────────────────────────────────────
+    hooks?.onProgress?.('capture-pages', 'Capturing pages…');
     const canvas = await html2canvas(wrapper, {
       scale: 2,               // retina sharpness
       useCORS: true,
@@ -292,8 +327,11 @@ export async function exportMarkdownToPDF(
       windowWidth: A4_W_PX,
       logging: false,
     });
+    throwIfCancelled(hooks?.shouldCancel);
+    await yieldToUI();
 
     // ── 6. Build element-aware page breaks, then paginate ────────────────────
+    hooks?.onProgress?.('paginate', 'Paginating PDF…');
     const pxScale   = canvas.height / Math.max(1, contentHeightCss);
     const breaks    = computeSmartBreaks(elemBounds, contentHeightCss, A4_H_CSS);
     const pdf       = new jsPDF({ orientation: 'portrait', unit: 'px', format: 'a4' });
@@ -302,6 +340,7 @@ export async function exportMarkdownToPDF(
     const a4CanvasH = Math.round(A4_H_CSS * pxScale);
 
     for (let i = 0; i < breaks.length; i++) {
+      throwIfCancelled(hooks?.shouldCancel);
       const cssTop = breaks[i];
       const cssBot = i + 1 < breaks.length ? breaks[i + 1] : contentHeightCss;
 
@@ -327,9 +366,16 @@ export async function exportMarkdownToPDF(
 
       if (i > 0) pdf.addPage();
       pdf.addImage(sliceData, 'PNG', 0, 0, pageW, pageH);
+
+      if (i < breaks.length - 1) {
+        hooks?.onProgress?.('paginate', `Paginating page ${i + 1} of ${breaks.length}…`);
+        await yieldToUI();
+      }
     }
 
     // ── 7. Write to disk ─────────────────────────────────────────────────────
+    throwIfCancelled(hooks?.shouldCancel);
+    hooks?.onProgress?.('write-file', 'Writing PDF to disk…');
     const pdfBytes = new Uint8Array(pdf.output('arraybuffer') as ArrayBuffer);
     await writeFile(destAbsPath, pdfBytes);
 

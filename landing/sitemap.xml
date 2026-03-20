@@ -144,40 +144,4 @@
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
-  <url>
-    <loc>https://cafezin.pmatz.com/privacy-policy</loc>
-    <lastmod>2026-03-18</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://cafezin.pmatz.com/br/privacy-policy</loc>
-    <lastmod>2026-03-18</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://cafezin.pmatz.com/terms-of-service</loc>
-    <lastmod>2026-03-18</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://cafezin.pmatz.com/br/terms-of-service</loc>
-    <lastmod>2026-03-18</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://cafezin.pmatz.com/refund</loc>
-    <lastmod>2026-03-18</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://cafezin.pmatz.com/br/refund</loc>
-    <lastmod>2026-03-18</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
 </urlset>

@@ -34,6 +34,21 @@ export interface ExportResult {
   elapsed: number;
 }
 
+export interface ExportProgressInfo {
+  done: number;
+  total: number;
+  label: string;
+  phase: string;
+  detail?: string;
+}
+
+export class ExportCancelledError extends Error {
+  constructor(message = 'Export canceled by user.') {
+    super(message);
+    this.name = 'ExportCancelledError';
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
@@ -66,6 +81,27 @@ function stripExt(filename: string): string {
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function throwIfCancelled(opts?: Pick<RunExportOptions, 'shouldCancel'>): void {
+  if (opts?.shouldCancel?.()) {
+    throw new ExportCancelledError();
+  }
+}
+
+async function yieldToUI(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      setTimeout(resolve, 0);
+    });
+  });
+}
+
+function reportProgress(
+  opts: Pick<RunExportOptions, 'onProgress'> | undefined,
+  progress: ExportProgressInfo,
+): void {
+  opts?.onProgress?.(progress);
 }
 
 function renderGitTemplate(template: string, target: ExportTarget, wsPath: string): string {
@@ -258,12 +294,14 @@ async function exportPDF(
   files: string[],
   target: ExportTarget,
   workspaceConfig?: WorkspaceConfig,
+  opts?: RunExportOptions,
 ): Promise<ExportResult> {
   const t0 = Date.now();
   const outputs: string[] = [];
   const errors: string[] = [];
   const absOutDir = `${wsPath}/${target.outputDir}`;
   await ensureDir(absOutDir);
+  throwIfCancelled(opts);
 
   if (files.length === 0) {
     return { targetId: target.id, outputs: [], errors: ['No files matched this target. Check the include extensions or pinned file list.'], elapsed: Date.now() - t0 };
@@ -293,11 +331,21 @@ async function exportPDF(
   if (target.merge && files.length >= 1) {
     // ── Merge: concatenate all markdown into one PDF ──────────────────────
     const parts: string[] = [];
-    for (const rel of files) {
+    for (let index = 0; index < files.length; index++) {
+      throwIfCancelled(opts);
+      const rel = files[index];
+      reportProgress(opts, {
+        done: index,
+        total: files.length,
+        label: rel,
+        phase: 'read-source',
+        detail: `Loading ${rel}…`,
+      });
       try {
         const raw = await readTextFile(`${wsPath}/${rel}`);
         parts.push(preProcessMarkdown(raw, target.preProcess));
       } catch (e) { errors.push(`${rel}: ${e}`); }
+      await yieldToUI();
     }
     if (parts.length > 0) {
       // Join chapters with double newlines. Chapter-level headings (# H1)
@@ -306,29 +354,84 @@ async function exportPDF(
       const name = target.mergeName?.trim() || 'merged';
       const outRel = await versionedPath(wsPath, target.outputDir, name, 'pdf', target.versionOutput);
       try {
+        reportProgress(opts, {
+          done: files.length,
+          total: files.length,
+          label: outRel,
+          phase: 'render-pdf',
+          detail: `Rendering merged PDF (${files.length} file${files.length === 1 ? '' : 's'})…`,
+        });
         await exportMarkdownToPDF(merged, `${wsPath}/${outRel}`, wsPath, {
           customCss,
           features: workspaceConfig?.features,
           prependHtml: buildPrependHtml(merged),
+          hooks: {
+            shouldCancel: opts?.shouldCancel,
+            onProgress: (phase, detail) => {
+              reportProgress(opts, {
+                done: files.length,
+                total: files.length,
+                label: outRel,
+                phase,
+                detail,
+              });
+            },
+          },
         });
         outputs.push(outRel);
       } catch (e) { errors.push(`merge: ${e}`); }
     }
   } else {
     // ── One PDF per file ──────────────────────────────────────────────────
-    for (const rel of files) {
+    for (let index = 0; index < files.length; index++) {
+      throwIfCancelled(opts);
+      const rel = files[index];
       const baseName = stripExt(basename(rel));
       const outRel = await versionedPath(wsPath, target.outputDir, baseName, 'pdf', target.versionOutput);
       try {
+        reportProgress(opts, {
+          done: index,
+          total: files.length,
+          label: rel,
+          phase: 'read-source',
+          detail: `Loading ${rel}…`,
+        });
         const raw = await readTextFile(`${wsPath}/${rel}`);
         const content = preProcessMarkdown(raw, target.preProcess);
+        reportProgress(opts, {
+          done: index,
+          total: files.length,
+          label: rel,
+          phase: 'render-pdf',
+          detail: `Rendering ${rel}…`,
+        });
         await exportMarkdownToPDF(content, `${wsPath}/${outRel}`, wsPath, {
           customCss,
           features: workspaceConfig?.features,
           prependHtml: buildPrependHtml(content),
+          hooks: {
+            shouldCancel: opts?.shouldCancel,
+            onProgress: (phase, detail) => {
+              reportProgress(opts, {
+                done: index,
+                total: files.length,
+                label: rel,
+                phase,
+                detail,
+              });
+            },
+          },
         });
         outputs.push(outRel);
       } catch (e) { errors.push(`${rel}: ${e}`); }
+      reportProgress(opts, {
+        done: index + 1,
+        total: files.length,
+        label: rel,
+        phase: 'done-file',
+        detail: `${rel} finished.`,
+      });
+      await yieldToUI();
     }
   }
   return { targetId: target.id, outputs, errors, elapsed: Date.now() - t0 };
@@ -345,6 +448,7 @@ async function exportCanvasPNG(
   const errors: string[] = [];
   const absOutDir = `${wsPath}/${target.outputDir}`;
   await ensureDir(absOutDir);
+  throwIfCancelled(opts);
 
   const liveEditor = () => opts.canvasEditorRef?.current ?? opts.canvasEditor ?? null;
 
@@ -353,15 +457,39 @@ async function exportCanvasPNG(
   }
 
   for (let fi = 0; fi < files.length; fi++) {
+    throwIfCancelled(opts);
     const rel = files[fi];
     let opened = false;
     if (rel !== opts.activeCanvasRel || !liveEditor()) {
       if (opts.onOpenFileForExport) {
+        reportProgress(opts, {
+          done: fi,
+          total: files.length,
+          label: rel,
+          phase: 'open-canvas',
+          detail: `Opening ${rel}…`,
+        });
         try { await opts.onOpenFileForExport(rel); opened = true; }
-        catch (e) { errors.push(`${rel}: could not open canvas — ${e}`); opts.onProgress?.(fi + 1, files.length, rel); continue; }
+        catch (e) {
+          errors.push(`${rel}: could not open canvas — ${e}`);
+          reportProgress(opts, {
+            done: fi + 1,
+            total: files.length,
+            label: rel,
+            phase: 'error',
+            detail: `Could not open ${rel}.`,
+          });
+          continue;
+        }
       } else {
         errors.push(`${rel}: canvas must be open in the editor to export PNG.`);
-        opts.onProgress?.(fi + 1, files.length, rel);
+        reportProgress(opts, {
+          done: fi + 1,
+          total: files.length,
+          label: rel,
+          phase: 'error',
+          detail: `${rel} must be open before exporting.`,
+        });
         continue;
       }
     }
@@ -369,29 +497,69 @@ async function exportCanvasPNG(
     if (!editor) {
       errors.push(`${rel}: editor not available after open`);
       if (opened) opts.onRestoreAfterExport?.(); // must restore even without entering the try block
-      opts.onProgress?.(fi + 1, files.length, rel);
+      reportProgress(opts, {
+        done: fi + 1,
+        total: files.length,
+        label: rel,
+        phase: 'error',
+        detail: `${rel} did not finish mounting in time.`,
+      });
       continue;
     }
     try {
+      reportProgress(opts, {
+        done: fi,
+        total: files.length,
+        label: rel,
+        phase: 'inspect-canvas',
+        detail: `Inspecting ${rel}…`,
+      });
       const shapes = editor.getCurrentPageShapes();
-      if (!shapes.length) { errors.push(`${rel}: canvas is empty`); opts.onProgress?.(fi + 1, files.length, rel); continue; }
+      if (!shapes.length) {
+        errors.push(`${rel}: canvas is empty`);
+        reportProgress(opts, {
+          done: fi + 1,
+          total: files.length,
+          label: rel,
+          phase: 'error',
+          detail: `${rel} is empty.`,
+        });
+        continue;
+      }
       const frames = (shapes as AnyFrame[]).filter((s) => s.type === 'frame').sort((a, b) => a.x - b.x);
       const ids = frames.length ? frames.map((f) => f.id) : shapes.map((s) => s.id);
 
       for (let i = 0; i < ids.length; i++) {
+        throwIfCancelled(opts);
         const shapeName = frames.length ? ((frames[i] as AnyFrame).props.name || `slide-${i + 1}`) : 'canvas';
         const suffix = ids.length > 1 ? `-${shapeName.replace(/[^a-z0-9]/gi, '-')}` : '';
         const outRel = `${target.outputDir}/${canvasBasename(rel)}${suffix}.png`;
+        reportProgress(opts, {
+          done: fi,
+          total: files.length,
+          label: rel,
+          phase: 'export-slide',
+          detail: ids.length > 1
+            ? `Exporting slide ${i + 1} of ${ids.length} from ${rel}…`
+            : `Exporting ${rel}…`,
+        });
         const { url } = await editor.toImageDataUrl([ids[i]], { format: 'png', pixelRatio: 2, background: true });
         await writeFile(`${wsPath}/${outRel}`, dataUrlToBytes(url));
         outputs.push(outRel);
+        await yieldToUI();
       }
     } catch (e) {
       errors.push(`${rel}: ${e}`);
     } finally {
       if (opened) opts.onRestoreAfterExport?.();
     }
-    opts.onProgress?.(fi + 1, files.length, rel);
+    reportProgress(opts, {
+      done: fi + 1,
+      total: files.length,
+      label: rel,
+      phase: 'done-file',
+      detail: `${rel} finished.`,
+    });
   }
   return { targetId: target.id, outputs, errors, elapsed: Date.now() - t0 };
 }
@@ -407,6 +575,7 @@ async function exportCanvasPDF(
   const errors: string[] = [];
   const absOutDir = `${wsPath}/${target.outputDir}`;
   await ensureDir(absOutDir);
+  throwIfCancelled(opts);
 
   const liveEditor = () => opts.canvasEditorRef?.current ?? opts.canvasEditor ?? null;
   let mergePdf: jsPDF | null = null;
@@ -417,15 +586,39 @@ async function exportCanvasPDF(
   }
 
   for (let fi = 0; fi < files.length; fi++) {
+    throwIfCancelled(opts);
     const rel = files[fi];
     let opened = false;
     if (rel !== opts.activeCanvasRel || !liveEditor()) {
       if (opts.onOpenFileForExport) {
+        reportProgress(opts, {
+          done: fi,
+          total: files.length,
+          label: rel,
+          phase: 'open-canvas',
+          detail: `Opening ${rel}…`,
+        });
         try { await opts.onOpenFileForExport(rel); opened = true; }
-        catch (e) { errors.push(`${rel}: could not open canvas — ${e}`); opts.onProgress?.(fi + 1, files.length, rel); continue; }
+        catch (e) {
+          errors.push(`${rel}: could not open canvas — ${e}`);
+          reportProgress(opts, {
+            done: fi + 1,
+            total: files.length,
+            label: rel,
+            phase: 'error',
+            detail: `Could not open ${rel}.`,
+          });
+          continue;
+        }
       } else {
         errors.push(`${rel}: canvas must be open in the editor to export.`);
-        opts.onProgress?.(fi + 1, files.length, rel);
+        reportProgress(opts, {
+          done: fi + 1,
+          total: files.length,
+          label: rel,
+          phase: 'error',
+          detail: `${rel} must be open before exporting.`,
+        });
         continue;
       }
     }
@@ -433,13 +626,36 @@ async function exportCanvasPDF(
     if (!editor) {
       errors.push(`${rel}: editor not available after open`);
       if (opened) opts.onRestoreAfterExport?.(); // must restore even without entering the try block
-      opts.onProgress?.(fi + 1, files.length, rel);
+      reportProgress(opts, {
+        done: fi + 1,
+        total: files.length,
+        label: rel,
+        phase: 'error',
+        detail: `${rel} did not finish mounting in time.`,
+      });
       continue;
     }
 
     try {
+      reportProgress(opts, {
+        done: fi,
+        total: files.length,
+        label: rel,
+        phase: 'inspect-canvas',
+        detail: `Inspecting ${rel}…`,
+      });
       const shapes = editor.getCurrentPageShapes();
-      if (!shapes.length) { errors.push(`${rel}: canvas is empty`); opts.onProgress?.(fi + 1, files.length, rel); continue; }
+      if (!shapes.length) {
+        errors.push(`${rel}: canvas is empty`);
+        reportProgress(opts, {
+          done: fi + 1,
+          total: files.length,
+          label: rel,
+          phase: 'error',
+          detail: `${rel} is empty.`,
+        });
+        continue;
+      }
       const frames = (shapes as AnyFrame[]).filter((s) => s.type === 'frame').sort((a, b) => a.x - b.x);
       const slideIds = frames.length ? frames.map((f) => f.id) : [null];
       const allIds   = shapes.map((s) => s.id);
@@ -449,20 +665,51 @@ async function exportCanvasPDF(
 
       if (target.merge) {
         if (!mergePdf) { mergePdf = new jsPDF({ orientation, unit: 'px', format: [fw, fh] }); mergePdf.deletePage(1); }
-        for (const sid of slideIds) {
+        for (let slideIndex = 0; slideIndex < slideIds.length; slideIndex++) {
+          throwIfCancelled(opts);
+          const sid = slideIds[slideIndex];
+          reportProgress(opts, {
+            done: fi,
+            total: files.length,
+            label: rel,
+            phase: 'export-slide',
+            detail: slideIds.length > 1
+              ? `Exporting slide ${slideIndex + 1} of ${slideIds.length} from ${rel}…`
+              : `Exporting ${rel}…`,
+          });
           const { url } = await editor.toImageDataUrl(sid ? [sid] : allIds, { format: 'png', pixelRatio: 2, background: true });
           mergePdf.addPage([fw, fh], orientation);
           mergePdf.addImage(url, 'PNG', 0, 0, fw, fh);
+          await yieldToUI();
         }
       } else {
         const pdf = new jsPDF({ orientation, unit: 'px', format: [fw, fh] });
         pdf.deletePage(1);
-        for (const sid of slideIds) {
+        for (let slideIndex = 0; slideIndex < slideIds.length; slideIndex++) {
+          throwIfCancelled(opts);
+          const sid = slideIds[slideIndex];
+          reportProgress(opts, {
+            done: fi,
+            total: files.length,
+            label: rel,
+            phase: 'export-slide',
+            detail: slideIds.length > 1
+              ? `Exporting slide ${slideIndex + 1} of ${slideIds.length} from ${rel}…`
+              : `Exporting ${rel}…`,
+          });
           const { url } = await editor.toImageDataUrl(sid ? [sid] : allIds, { format: 'png', pixelRatio: 2, background: true });
           pdf.addPage([fw, fh], orientation);
           pdf.addImage(url, 'PNG', 0, 0, fw, fh);
+          await yieldToUI();
         }
         const outRel = `${target.outputDir}/${canvasBasename(rel)}.pdf`;
+        reportProgress(opts, {
+          done: fi,
+          total: files.length,
+          label: rel,
+          phase: 'write-file',
+          detail: `Writing ${outRel}…`,
+        });
         await writeFile(`${wsPath}/${outRel}`, new Uint8Array(pdf.output('arraybuffer') as ArrayBuffer));
         outputs.push(outRel);
       }
@@ -471,11 +718,25 @@ async function exportCanvasPDF(
     } finally {
       if (opened) opts.onRestoreAfterExport?.();
     }
-    opts.onProgress?.(fi + 1, files.length, rel);
+    reportProgress(opts, {
+      done: fi + 1,
+      total: files.length,
+      label: rel,
+      phase: 'done-file',
+      detail: `${rel} finished.`,
+    });
   }
 
   if (target.merge && mergePdf) {
     try {
+      throwIfCancelled(opts);
+      reportProgress(opts, {
+        done: files.length,
+        total: files.length,
+        label: mergedRelPath,
+        phase: 'write-file',
+        detail: `Writing merged PDF…`,
+      });
       await writeFile(`${wsPath}/${mergedRelPath}`, new Uint8Array(mergePdf.output('arraybuffer') as ArrayBuffer));
       outputs.push(mergedRelPath);
     } catch (e) { errors.push(`merge write: ${e}`); }
@@ -487,11 +748,13 @@ async function exportZip(
   wsPath: string,
   files: string[],
   target: ExportTarget,
+  opts?: RunExportOptions,
 ): Promise<ExportResult> {
   const t0 = Date.now();
   const errors: string[] = [];
   const absOutDir = `${wsPath}/${target.outputDir}`;
   await ensureDir(absOutDir);
+  throwIfCancelled(opts);
 
   if (files.length === 0) {
     return { targetId: target.id, outputs: [], errors: ['No files matched this target. Check the include extensions or pinned file list.'], elapsed: Date.now() - t0 };
@@ -499,7 +762,16 @@ async function exportZip(
 
   const zip = new JSZip();
   let addedCount = 0;
-  for (const rel of files) {
+  for (let index = 0; index < files.length; index++) {
+    throwIfCancelled(opts);
+    const rel = files[index];
+    reportProgress(opts, {
+      done: index,
+      total: files.length,
+      label: rel,
+      phase: 'zip-add',
+      detail: `Adding ${rel} to zip…`,
+    });
     try {
       // Binary read so images/fonts/PDFs are included correctly
       const bytes = await readBinaryFile(`${wsPath}/${rel}`);
@@ -508,6 +780,7 @@ async function exportZip(
     } catch (e) {
       errors.push(`${rel}: ${e}`);
     }
+    await yieldToUI();
   }
 
   if (addedCount === 0) {
@@ -516,7 +789,22 @@ async function exportZip(
 
   const zipName = target.mergeName?.trim() || 'export';
   const outRel = `${target.outputDir}/${zipName}.zip`;
+  reportProgress(opts, {
+    done: files.length,
+    total: files.length,
+    label: outRel,
+    phase: 'zip-generate',
+    detail: 'Compressing zip…',
+  });
   const zipBytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+  throwIfCancelled(opts);
+  reportProgress(opts, {
+    done: files.length,
+    total: files.length,
+    label: outRel,
+    phase: 'write-file',
+    detail: `Writing ${outRel}…`,
+  });
   await writeFile(`${wsPath}/${outRel}`, zipBytes);
   return { targetId: target.id, outputs: [outRel], errors, elapsed: Date.now() - t0 };
 }
@@ -525,6 +813,7 @@ async function exportCustom(
   wsPath: string,
   files: string[],
   target: ExportTarget,
+  opts?: RunExportOptions,
 ): Promise<ExportResult> {
   const t0 = Date.now();
   const outputs: string[] = [];
@@ -540,10 +829,18 @@ async function exportCustom(
 
   const absOutDir = `${wsPath}/${target.outputDir}`;
   await ensureDir(absOutDir);
+  throwIfCancelled(opts);
 
   if (files.length === 0) {
     // Run the command once with no substitution
     try {
+      reportProgress(opts, {
+        done: 0,
+        total: 1,
+        label: target.name,
+        phase: 'run-command',
+        detail: 'Running custom command…',
+      });
       const result = await invoke<{ stdout: string; stderr: string; exit_code: number }>(
         'shell_run', { cmd, cwd: wsPath },
       );
@@ -551,18 +848,28 @@ async function exportCustom(
       else outputs.push(target.outputDir);
     } catch (e) { errors.push(String(e)); }
   } else {
-    for (const rel of files) {
+    for (let index = 0; index < files.length; index++) {
+      throwIfCancelled(opts);
+      const rel = files[index];
       const outName = stripExt(basename(rel));
       const finalCmd = cmd
         .replace(/\{\{input\}\}/g, rel)
         .replace(/\{\{output\}\}/g, `${target.outputDir}/${outName}`);
       try {
+        reportProgress(opts, {
+          done: index,
+          total: files.length,
+          label: rel,
+          phase: 'run-command',
+          detail: `Running custom command for ${rel}…`,
+        });
         const result = await invoke<{ stdout: string; stderr: string; exit_code: number }>(
           'shell_run', { cmd: finalCmd, cwd: wsPath },
         );
         if (result.exit_code !== 0) errors.push(`${rel}: ${result.stderr || `exit ${result.exit_code}`}`);
         else outputs.push(`${target.outputDir}/${outName}`);
       } catch (e) { errors.push(`${rel}: ${e}`); }
+      await yieldToUI();
     }
   }
   return { targetId: target.id, outputs, errors, elapsed: Date.now() - t0 };
@@ -571,6 +878,7 @@ async function exportCustom(
 async function exportGitPublish(
   wsPath: string,
   target: ExportTarget,
+  opts?: RunExportOptions,
 ): Promise<ExportResult> {
   const t0 = Date.now();
   const gitPublish = target.gitPublish ?? {};
@@ -580,6 +888,14 @@ async function exportGitPublish(
   const skipCommitWhenNoChanges = gitPublish.skipCommitWhenNoChanges !== false;
 
   try {
+    throwIfCancelled(opts);
+    reportProgress(opts, {
+      done: 0,
+      total: 1,
+      label: target.name,
+      phase: 'git-check',
+      detail: 'Checking git repository…',
+    });
     const insideRepo = await runShellCommand(wsPath, 'git rev-parse --is-inside-work-tree');
     if (insideRepo.exit_code !== 0) {
       return {
@@ -590,6 +906,14 @@ async function exportGitPublish(
       };
     }
 
+    throwIfCancelled(opts);
+    reportProgress(opts, {
+      done: 0,
+      total: 1,
+      label: target.name,
+      phase: 'git-stage',
+      detail: 'Staging changes…',
+    });
     const addResult = await runShellCommand(wsPath, 'git add -A');
     if (addResult.exit_code !== 0) {
       return {
@@ -600,6 +924,14 @@ async function exportGitPublish(
       };
     }
 
+    throwIfCancelled(opts);
+    reportProgress(opts, {
+      done: 0,
+      total: 1,
+      label: target.name,
+      phase: 'git-diff',
+      detail: 'Checking staged changes…',
+    });
     const diffResult = await runShellCommand(wsPath, 'git diff --cached --quiet --exit-code');
     if (diffResult.exit_code !== 0 && diffResult.exit_code !== 1) {
       return {
@@ -622,6 +954,14 @@ async function exportGitPublish(
           elapsed: Date.now() - t0,
         };
       }
+      throwIfCancelled(opts);
+      reportProgress(opts, {
+        done: 0,
+        total: 1,
+        label: target.name,
+        phase: 'git-commit',
+        detail: 'Creating commit…',
+      });
       const commitResult = await runShellCommand(wsPath, `git commit -m ${shellQuote(commitMessage)}`);
       if (commitResult.exit_code !== 0) {
         return {
@@ -643,6 +983,14 @@ async function exportGitPublish(
     const pushCmd = branch
       ? `git push ${shellQuote(remote)} ${shellQuote(branch)}`
       : `git push ${shellQuote(remote)}`;
+    throwIfCancelled(opts);
+    reportProgress(opts, {
+      done: 0,
+      total: 1,
+      label: target.name,
+      phase: 'git-push',
+      detail: 'Pushing to remote…',
+    });
     const pushResult = await runShellCommand(wsPath, pushCmd);
     if (pushResult.exit_code !== 0) {
       return {
@@ -702,32 +1050,49 @@ export interface RunExportOptions {
   /** Restore the previous tab after each canvas file export. */
   onRestoreAfterExport?: () => void;
   /**
-   * Progress callback fired after each canvas file is processed.
-   * @param done   Number of canvas files completed so far.
-   * @param total  Total canvas files to process.
-   * @param label  Relative path of the just-finished file.
+   * Progress callback fired throughout the export pipeline.
    */
-  onProgress?: (done: number, total: number, label: string) => void;
+  onProgress?: (progress: ExportProgressInfo) => void;
+  /** Cooperative cancellation hook checked between expensive steps. */
+  shouldCancel?: () => boolean;
 }
 
 export async function runExportTarget(opts: RunExportOptions): Promise<ExportResult> {
   const { workspacePath, target, workspaceConfig } = opts;
+  throwIfCancelled(opts);
+  reportProgress(opts, {
+    done: 0,
+    total: 1,
+    label: target.name,
+    phase: 'scan-files',
+    detail: 'Scanning workspace files…',
+  });
   const allFiles = await listAllFiles(workspacePath);
   const matched  = resolveFiles(allFiles, target);
+  reportProgress(opts, {
+    done: 0,
+    total: Math.max(1, matched.length),
+    label: target.name,
+    phase: 'resolve-files',
+    detail: matched.length === 0
+      ? 'No files matched this target.'
+      : `${matched.length} file${matched.length === 1 ? '' : 's'} matched.`,
+  });
+  await yieldToUI();
 
   switch (target.format) {
     case 'pdf':
-      return exportPDF(workspacePath, matched, target, workspaceConfig);
+      return exportPDF(workspacePath, matched, target, workspaceConfig, opts);
     case 'canvas-png':
       return exportCanvasPNG(workspacePath, matched, target, opts);
     case 'canvas-pdf':
       return exportCanvasPDF(workspacePath, matched, target, opts);
     case 'zip':
-      return exportZip(workspacePath, matched, target);
+      return exportZip(workspacePath, matched, target, opts);
     case 'git-publish':
-      return exportGitPublish(workspacePath, target);
+      return exportGitPublish(workspacePath, target, opts);
     case 'custom':
-      return exportCustom(workspacePath, matched, target);
+      return exportCustom(workspacePath, matched, target, opts);
     default:
       return { targetId: target.id, outputs: [], errors: [`Unknown format: ${(target as ExportTarget).format}`], elapsed: 0 };
   }

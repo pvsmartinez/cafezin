@@ -249,6 +249,26 @@ body.theme-light .app {
   color: var(--accent);
 }
 
+.app-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.app-header-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface2);
+}
+
 /* ── "Saved ✓" toast chip ─────────────────────────────────── */
 .app-saved-toast {
   font-size: var(--font-size-xs);
@@ -512,6 +532,11 @@ body.theme-light .app-ai-toggle {
   background: rgba(0, 0, 0, 0.015);
 }
 
+body.theme-light .app-header-btn {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.015);
+}
+
 body.theme-light .app-ai-toggle.active {
   background: var(--surface);
   border-color: rgba(var(--accent-rgb), 0.3);
@@ -621,14 +646,14 @@ body.theme-light .editor-file-view {
   inset: 0;
   z-index: 9998;
   pointer-events: all; /* block all clicks during export */
-  backdrop-filter: blur(4px) brightness(0.78) saturate(0.85);
-  -webkit-backdrop-filter: blur(4px) brightness(0.78) saturate(0.85);
-  background: rgba(14, 11, 8, 0.55);
+  backdrop-filter: blur(3px) brightness(0.82) saturate(0.9);
+  -webkit-backdrop-filter: blur(3px) brightness(0.82) saturate(0.9);
+  background: rgba(14, 11, 8, 0.46);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
   animation: copilot-lock-fade 2.4s ease-in-out infinite;
 }
 .export-lock-overlay::before {
@@ -637,7 +662,40 @@ body.theme-light .editor-file-view {
   color: rgba(255,255,255,0.5);
   line-height: 1;
 }
-/* Re-use .copilot-lock-label for the text inside */
+
+.export-lock-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: min(520px, calc(100vw - 48px));
+  max-width: min(640px, calc(100vw - 48px));
+  padding: 18px 22px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(24, 20, 16, 0.68);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+.export-lock-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(255, 248, 240, 0.95);
+}
+
+.export-lock-detail {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 248, 240, 0.78);
+}
+
+.export-lock-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 248, 240, 0.58);
+}
 
 /* ── Copilot tab-switch overlay (full-window, fixed) ── */
 .copilot-tab-overlay {

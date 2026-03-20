@@ -1,5 +1,36 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import type { CopilotModel, CopilotModelInfo } from '../../types';
+
+const RECOMMENDED_MODEL_META: Record<string, { badge: string; hint: string }> = {
+  'gpt-5-mini': { badge: 'Padrao', hint: 'Melhor ponto de partida' },
+  'gpt-4.1': { badge: 'Leve', hint: 'Rapido e economico' },
+  'gpt-4o': { badge: 'Visual', hint: 'Bom para texto e imagem' },
+  'claude-sonnet-4-6': { badge: 'Forte', hint: 'Raciocinio equilibrado' },
+  'claude-sonnet-4-5': { badge: 'Forte', hint: 'Raciocinio equilibrado' },
+  'gemini-3-pro': { badge: 'Contexto', hint: 'Bom com contexto longo' },
+  'gemini-2.5-pro': { badge: 'Contexto', hint: 'Bom com contexto longo' },
+  'gemini-2.5-flash': { badge: 'Rapido', hint: 'Resposta curta e veloz' },
+};
+
+function getRecommendationMeta(model: CopilotModelInfo): { badge: string; hint: string } | null {
+  return RECOMMENDED_MODEL_META[model.id] ?? null;
+}
+
+function isAdvancedModel(model: CopilotModelInfo): boolean {
+  if (model.multiplier > 1) return true;
+  return /^o\d/.test(model.id) || /(codex|max|opus|goldeneye)/i.test(model.id) || /^gpt-5\.[1-9](?!-mini)/.test(model.id);
+}
+
+function groupByVendor(models: CopilotModelInfo[]): Array<{ vendor: string; items: CopilotModelInfo[] }> {
+  const buckets = new Map<string, CopilotModelInfo[]>();
+  for (const model of models) {
+    const vendor = model.vendor ?? 'Other';
+    const list = buckets.get(vendor) ?? [];
+    list.push(model);
+    buckets.set(vendor, list);
+  }
+  return Array.from(buckets.entries()).map(([vendor, items]) => ({ vendor, items }));
+}
 
 // ── Rate badge ────────────────────────────────────────────────────────────────
 // Shows billing tier: free (0×), standard (1×), premium (N×)
@@ -20,6 +51,7 @@ interface ModelPickerProps {
 
 export function ModelPicker({ models, value, onChange, loading, onSignOut }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   // Keep a ref in sync so the stable listener always sees the latest value
   // without needing to re-register on every open/close toggle.
@@ -38,18 +70,41 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut }: Mod
 
   const current = models.find((m) => m.id === value) ?? { id: value, name: value, multiplier: 1, isPremium: false };
 
-  const free     = models.filter((m) => m.multiplier === 0);
-  const standard = models.filter((m) => m.multiplier > 0 && m.multiplier <= 1);
-  const premium  = models.filter((m) => m.multiplier > 1);
-  // Only show group labels when 2+ groups are non-empty
-  const nonEmptyGroups = [free, standard, premium].filter((g) => g.length > 0).length;
-  const showLabels = nonEmptyGroups > 1;
+  const pickerSections = useMemo(() => {
+    const selectedAdvanced = models.some((model) => model.id === value && isAdvancedModel(model));
+    const recommended: CopilotModelInfo[] = [];
+    const regular: CopilotModelInfo[] = [];
+    const advanced: CopilotModelInfo[] = [];
 
-  function renderGroup(label: string, items: CopilotModelInfo[]) {
+    for (const model of models) {
+      if (isAdvancedModel(model) && model.id !== value) {
+        advanced.push(model);
+        continue;
+      }
+      if (getRecommendationMeta(model)) {
+        recommended.push(model);
+        continue;
+      }
+      regular.push(model);
+    }
+
+    return {
+      recommended,
+      regularGroups: groupByVendor(regular),
+      advancedGroups: groupByVendor(advanced),
+      selectedAdvanced,
+    };
+  }, [models, value]);
+
+  useEffect(() => {
+    if (!open) return;
+    setShowAdvanced(pickerSections.selectedAdvanced);
+  }, [open, pickerSections.selectedAdvanced]);
+
+  function renderItems(items: CopilotModelInfo[]) {
     if (items.length === 0) return null;
     return (
       <>
-        {showLabels && <div className="ai-model-group-label">{label}</div>}
         {items.map((m) => (
           <button
             key={m.id}
@@ -57,14 +112,33 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut }: Mod
             onClick={() => { onChange(m.id); setOpen(false); }}
           >
             <span className="ai-model-option-name">
-              {m.name}
-              {m.vendor && <span className="ai-model-option-vendor">{m.vendor}</span>}
+              <span className="ai-model-option-title-row">
+                <span>{m.name}</span>
+                {getRecommendationMeta(m) && (
+                  <span className="ai-model-rec-badge">{getRecommendationMeta(m)?.badge}</span>
+                )}
+              </span>
+              <span className="ai-model-option-subtitle">
+                {m.vendor && <span className="ai-model-option-vendor">{m.vendor}</span>}
+                {getRecommendationMeta(m) && <span className="ai-model-option-hint">{getRecommendationMeta(m)?.hint}</span>}
+              </span>
             </span>
             <MultiplierBadge value={m.multiplier} />
           </button>
         ))}
       </>
     );
+  }
+
+  function renderVendorGroups(groups: Array<{ vendor: string; items: CopilotModelInfo[] }>, fallbackLabel: string) {
+    if (groups.length === 0) return null;
+    const showVendorLabels = groups.length > 1;
+    return groups.map((group, index) => (
+      <div key={`${group.vendor}-${index}`}>
+        <div className="ai-model-group-label">{showVendorLabels ? group.vendor : fallbackLabel}</div>
+        {renderItems(group.items)}
+      </div>
+    ));
   }
 
   return (
@@ -82,9 +156,38 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut }: Mod
 
       {open && (
         <div className="ai-model-menu">
-          {renderGroup('Free', free)}
-          {renderGroup('Standard', standard)}
-          {renderGroup('Premium', premium)}
+          {pickerSections.recommended.length > 0 && (
+            <>
+              <div className="ai-model-group-label">Recomendados</div>
+              {renderItems(pickerSections.recommended)}
+            </>
+          )}
+
+          {pickerSections.regularGroups.length > 0 && (
+            <>
+              {pickerSections.recommended.length > 0 && <div className="ai-model-menu-divider" />}
+              {renderVendorGroups(pickerSections.regularGroups, 'Outros modelos')}
+            </>
+          )}
+
+          {pickerSections.advancedGroups.length > 0 && (
+            <>
+              <div className="ai-model-menu-divider" />
+              <button
+                className="ai-model-advanced-toggle"
+                type="button"
+                onClick={() => setShowAdvanced((state) => !state)}
+                aria-expanded={showAdvanced}
+              >
+                <span>Modelos avancados</span>
+                <span className="ai-model-advanced-meta">
+                  {showAdvanced ? 'Ocultar' : `${pickerSections.advancedGroups.reduce((count, group) => count + group.items.length, 0)} ocultos`}
+                </span>
+              </button>
+              {showAdvanced && renderVendorGroups(pickerSections.advancedGroups, 'Avancados')}
+            </>
+          )}
+
           {onSignOut && (
             <>
               <div className="ai-model-menu-divider" />

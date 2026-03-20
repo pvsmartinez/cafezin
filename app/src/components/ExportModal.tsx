@@ -6,10 +6,10 @@
  * via the saveWorkspaceConfig service.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { X, Plus, Play, Trash, CaretDown, CaretUp, CheckCircle, WarningCircle, CircleNotch, FolderOpen, CloudArrowUp, Sparkle } from '@phosphor-icons/react';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import { runExportTarget, listAllFiles, resolveFiles, type ExportResult } from '../utils/exportWorkspace';
+import { runExportTarget, listAllFiles, resolveFiles, ExportCancelledError, type ExportProgressInfo, type ExportResult } from '../utils/exportWorkspace';
 import { deployToVercel, resolveVercelToken } from '../services/publishVercel';
 import { saveWorkspaceConfig } from '../services/workspace';
 import type { Workspace, ExportTarget, ExportFormat, WorkspaceExportConfig } from '../types';
@@ -62,12 +62,16 @@ const FORMAT_DEFAULTS: Record<ExportFormat, { include: string[]; outputDir: stri
   'custom':      { include: [],                     outputDir: 'dist' },
 };
 
-type RunStatus = 'idle' | 'running' | 'done' | 'error';
+type RunStatus = 'idle' | 'running' | 'done' | 'error' | 'canceled';
 
 interface TargetStatus {
   status: RunStatus;
   result?: ExportResult;
-  progress?: { done: number; total: number; label: string };
+  progress?: ExportProgressInfo;
+  startedAt?: number;
+  updatedAt?: number;
+  finishedAt?: number;
+  cancelRequested?: boolean;
 }
 
 type PublishStatus = 'idle' | 'deploying' | 'done' | 'error';
@@ -92,6 +96,19 @@ interface ExportModalProps {
   onClose: () => void;
   /** Called when the user wants to open AI with a pre-filled prompt */
   onOpenAI?: (prompt: string) => void;
+  onExportLockStateChange?: (state: { title: string; detail?: string; cancelRequested?: boolean } | null) => void;
+}
+
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${String(seconds).padStart(2, '0')}s` : `${seconds}s`;
+}
+
+function describeProgress(progress?: ExportProgressInfo): string {
+  if (!progress) return 'Preparing export…';
+  return progress.detail ?? progress.label;
 }
 
 export default function ExportModal({
@@ -103,6 +120,7 @@ export default function ExportModal({
   onRestoreAfterExport,
   onClose,
   onOpenAI,
+  onExportLockStateChange,
 }: ExportModalProps) {
   const savedConfig = workspace.config.exportConfig;
   const [targets, setTargets] = useState<ExportTarget[]>(savedConfig?.targets ?? []);
@@ -112,9 +130,11 @@ export default function ExportModal({
   // Async file-count per target: targetId → number
   const [fileCounts, setFileCounts] = useState<Map<string, number>>(new Map());
   const [isRunningAll, setIsRunningAll] = useState(false);
+  const [clockNow, setClockNow] = useState(() => Date.now());
   const [aiHelperDismissed, setAiHelperDismissed] = useState(
     () => localStorage.getItem(SK.EXPORT_MODAL_AI_HELPER) === '1',
   );
+  const cancelControllersRef = useRef(new Map<string, { cancelled: boolean }>());
 
   function getAIPrompt(): string {
     if (targets.length === 0) {
@@ -153,6 +173,30 @@ export default function ExportModal({
   // Depend only on the file-selection fields that affect which files are matched
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(targets.map(t => ({ id: t.id, format: t.format, include: t.include, includeFiles: t.includeFiles, excludeFiles: t.excludeFiles })))]);
+
+  useEffect(() => {
+    const hasRunning = Array.from(statuses.values()).some((status) => status.status === 'running');
+    if (!hasRunning) return undefined;
+    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [statuses]);
+
+  useEffect(() => {
+    const canvasRun = targets.find((target) => {
+      if (target.format !== 'canvas-png' && target.format !== 'canvas-pdf') return false;
+      return statuses.get(target.id)?.status === 'running';
+    });
+    if (!canvasRun) {
+      onExportLockStateChange?.(null);
+      return;
+    }
+    const status = statuses.get(canvasRun.id);
+    onExportLockStateChange?.({
+      title: `Exporting ${canvasRun.name}`,
+      detail: describeProgress(status?.progress),
+      cancelRequested: status?.cancelRequested,
+    });
+  }, [onExportLockStateChange, statuses, targets]);
 
   // ── Persist helpers ─────────────────────────────────────────────────────────
   const persist = useCallback(async (nextTargets: ExportTarget[]) => {
@@ -214,8 +258,37 @@ export default function ExportModal({
     setStatuses((prev) => new Map(prev).set(id, s));
   }
 
-  async function runTarget(target: ExportTarget) {
-    setStatus(target.id, { status: 'running' });
+  function requestCancel(targetId: string) {
+    const controller = cancelControllersRef.current.get(targetId);
+    if (!controller) return;
+    controller.cancelled = true;
+    setStatuses((prev) => {
+      const current = prev.get(targetId);
+      if (!current) return prev;
+      return new Map(prev).set(targetId, {
+        ...current,
+        cancelRequested: true,
+        updatedAt: Date.now(),
+      });
+    });
+  }
+
+  async function runTarget(target: ExportTarget): Promise<'done' | 'canceled' | 'error'> {
+    const controller = { cancelled: false };
+    cancelControllersRef.current.set(target.id, controller);
+    const startedAt = Date.now();
+    setStatus(target.id, {
+      status: 'running',
+      startedAt,
+      updatedAt: startedAt,
+      progress: {
+        done: 0,
+        total: 1,
+        label: target.name,
+        phase: 'queued',
+        detail: 'Preparing export…',
+      },
+    });
     try {
       const result = await runExportTarget({
         workspacePath: workspace.path,
@@ -225,19 +298,58 @@ export default function ExportModal({
         activeCanvasRel,
         onOpenFileForExport,
         onRestoreAfterExport,
-        onProgress: (done, total, label) => {
-          setStatus(target.id, { status: 'running', progress: { done, total, label } });
+        shouldCancel: () => controller.cancelled,
+        onProgress: (progress) => {
+          setStatus(target.id, {
+            status: 'running',
+            progress,
+            startedAt,
+            updatedAt: Date.now(),
+            cancelRequested: controller.cancelled,
+          });
         },
       });
       setStatus(target.id, {
         status: result.errors.length > 0 ? 'error' : 'done',
         result,
+        progress: {
+          done: Math.max(1, result.outputs.length || 1),
+          total: Math.max(1, result.outputs.length || 1),
+          label: target.name,
+          phase: 'finished',
+          detail: result.errors.length > 0 ? 'Finished with issues.' : 'Finished successfully.',
+        },
+        startedAt,
+        updatedAt: Date.now(),
+        finishedAt: Date.now(),
       });
+      return result.errors.length > 0 ? 'error' : 'done';
     } catch (e) {
+      const isCanceled = e instanceof ExportCancelledError || String(e).includes('Export canceled by user.');
       setStatus(target.id, {
-        status: 'error',
-        result: { targetId: target.id, outputs: [], errors: [String(e)], elapsed: 0 },
+        status: isCanceled ? 'canceled' : 'error',
+        result: {
+          targetId: target.id,
+          outputs: [],
+          errors: isCanceled ? [] : [String(e)],
+          summary: isCanceled ? 'Export canceled by user.' : undefined,
+          elapsed: Date.now() - startedAt,
+        },
+        progress: {
+          done: 0,
+          total: 1,
+          label: target.name,
+          phase: isCanceled ? 'canceled' : 'error',
+          detail: isCanceled ? 'Stopping after the last safe checkpoint.' : 'Export failed.',
+        },
+        startedAt,
+        updatedAt: Date.now(),
+        finishedAt: Date.now(),
+        cancelRequested: controller.cancelled,
       });
+      return isCanceled ? 'canceled' : 'error';
+    } finally {
+      cancelControllersRef.current.delete(target.id);
     }
   }
 
@@ -246,7 +358,8 @@ export default function ExportModal({
     setIsRunningAll(true);
     try {
       for (const t of targets.filter((t) => t.enabled)) {
-        await runTarget(t);
+        const outcome = await runTarget(t);
+        if (outcome === 'canceled') break;
       }
     } finally {
       setIsRunningAll(false);
@@ -317,6 +430,15 @@ export default function ExportModal({
             const targetOutLabel = target.format === 'git-publish'
               ? (gitPublish.branch?.trim() ? `${gitPublish.remote?.trim() || 'origin'}/${gitPublish.branch.trim()}` : `${gitPublish.remote?.trim() || 'origin'} push`)
               : `${target.outputDir}/`;
+            const elapsedMs = s?.startedAt
+              ? ((s.status === 'running' ? clockNow : (s.finishedAt ?? clockNow)) - s.startedAt)
+              : 0;
+            const staleMs = s?.updatedAt ? clockNow - s.updatedAt : 0;
+            const isSlow = s?.status === 'running' && elapsedMs > 15_000;
+            const isStalled = s?.status === 'running' && staleMs > 10_000;
+            const progressPercent = s?.progress
+              ? Math.max(3, Math.min(100, Math.round((s.progress.done / Math.max(1, s.progress.total)) * 100)))
+              : 0;
 
             return (
               <div key={target.id} className={`em-target${isExpanded ? ' expanded' : ''}`}>
@@ -352,16 +474,18 @@ export default function ExportModal({
                   <StatusChip status={s} />
 
                   <button
-                    className="em-run-btn"
-                    onClick={() => runTarget(target)}
-                    disabled={s?.status === 'running'}
-                    title="Run this target"
+                    className={`em-run-btn${s?.status === 'running' ? ' em-run-btn--cancel' : ''}`}
+                    onClick={() => {
+                      if (s?.status === 'running') requestCancel(target.id);
+                      else void runTarget(target);
+                    }}
+                    title={s?.status === 'running' ? 'Cancel this export' : 'Run this target'}
                   >
                     {s?.status === 'running'
                       ? <CircleNotch className="em-spin" />
                       : <Play weight="fill" />
                     }
-                    {s?.status === 'running' ? 'Running…' : 'Run'}
+                    {s?.status === 'running' ? (s.cancelRequested ? 'Stopping…' : 'Cancel') : 'Run'}
                   </button>
 
                   <button
@@ -382,15 +506,30 @@ export default function ExportModal({
 
                 {/* Progress bar while canvas files are being processed */}
                 {s?.status === 'running' && s.progress && (
-                  <div className="em-progress-wrap">
-                    <div
-                      className="em-progress-bar"
-                      style={{ width: `${Math.round((s.progress.done / s.progress.total) * 100)}%` }}
-                    />
-                    <span className="em-progress-label">
-                      {s.progress.done}/{s.progress.total} — {s.progress.label.split('/').pop()}
-                    </span>
-                  </div>
+                  <>
+                    <div className="em-progress-wrap">
+                      <div
+                        className="em-progress-bar"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                      <span className="em-progress-label">
+                        {describeProgress(s.progress)}
+                      </span>
+                    </div>
+                    <div className="em-progress-meta">
+                      <span>{formatElapsed(elapsedMs)} elapsed</span>
+                      <span>{Math.min(s.progress.done, s.progress.total)}/{s.progress.total} file{s.progress.total === 1 ? '' : 's'}</span>
+                      {s.cancelRequested && (
+                        <span className="em-progress-warning">Stopping after the current safe step…</span>
+                      )}
+                      {!s.cancelRequested && isStalled && (
+                        <span className="em-progress-warning">No new progress for a while. This target may be stuck.</span>
+                      )}
+                      {!s.cancelRequested && !isStalled && isSlow && (
+                        <span className="em-progress-warning">Taking longer than usual. Large canvases, many pages or broad include rules can do this.</span>
+                      )}
+                    </div>
+                  </>
                 )}
 
                 {/* Result row after completion */}
@@ -899,6 +1038,7 @@ function StatusChip({ status }: { status?: TargetStatus }) {
   if (!status || status.status === 'idle') return null;
   if (status.status === 'running') return <span className="em-status em-status--running"><CircleNotch className="em-spin" /> Running</span>;
   if (status.status === 'done')    return <span className="em-status em-status--done"><CheckCircle weight="fill" /> Done</span>;
+  if (status.status === 'canceled') return <span className="em-status em-status--canceled"><WarningCircle weight="fill" /> Canceled</span>;
   if (status.status === 'error')   return <span className="em-status em-status--error"><WarningCircle weight="fill" /> Error</span>;
   return null;
 }

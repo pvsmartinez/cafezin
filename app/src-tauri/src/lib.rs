@@ -1269,12 +1269,13 @@ pub fn run() {
                 )?;
 
                 // File menu
+                let new_window_item       = MenuItem::with_id(app, "new_window", "New Window", true, Some("cmd+shift+n"))?;
                 let switch_workspace_item = MenuItem::with_id(app, "switch_workspace", "Switch Workspace\u{2026}", true, Some("cmd+shift+w"))?;
                 let switch_sep            = PredefinedMenuItem::separator(app)?;
                 let new_file_item         = MenuItem::with_id(app, "new_file", "New File", true, Some("cmd+n"))?;
                 let file_menu = Submenu::with_items(
                     app, "File", true,
-                    &[&switch_workspace_item, &switch_sep, &new_file_item],
+                    &[&new_window_item, &switch_workspace_item, &switch_sep, &new_file_item],
                 )?;
 
                 // Tools menu
@@ -1318,6 +1319,7 @@ pub fn run() {
                     match event.id().as_ref() {
                         "update_app"         => { let _ = handle.emit("menu-update-app", ()); }
                         "settings"           => { let _ = handle.emit("menu-settings", ()); }
+                        "new_window"         => { let _ = handle.emit("menu-new-window", ()); }
                         "switch_workspace"   => { let _ = handle.emit("menu-switch-workspace", ()); }
                         "new_file"           => { let _ = handle.emit("menu-new-file", ()); }
                         "image_search"       => { let _ = handle.emit("menu-image-search", ()); }

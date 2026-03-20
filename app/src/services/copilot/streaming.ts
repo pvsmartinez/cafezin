@@ -17,6 +17,7 @@ import {
   resolveCopilotModelForChatCompletions,
   modelApiParams,
   modelSupportsVision,
+  registerIncompatibleChatCompletionsModelFromError,
 } from './models';
 import { parseTextToolCalls, humanizeNetworkError } from './toolParsing';
 import { summarizeAndCompress } from './compression';
@@ -132,6 +133,7 @@ export async function streamCopilotChat(
       if (response.status === 429 || response.status === 402 || isQuotaError(cleanError)) {
         updateRateLimit({ quotaExceeded: true, remaining: 0 });
       }
+      registerIncompatibleChatCompletionsModelFromError(cleanError);
       throw new CopilotDiagnosticError(cleanError, buildRequestDump(cleanMessages, resolvedModel, tools, response.status, errorText));
     }
 
@@ -383,6 +385,7 @@ export async function runCopilotAgent(
             cleanMsg = `Copilot API error ${res.status}: ${errText}`;
           }
         }
+        registerIncompatibleChatCompletionsModelFromError(cleanMsg);
         throw new Error(cleanMsg);
       }
 

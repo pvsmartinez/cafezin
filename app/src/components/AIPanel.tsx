@@ -20,11 +20,13 @@ import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
 
 import {
   fetchCopilotModels,
+  filterChatCompletionsCompatibleModels,
   startDeviceFlow,
   getStoredOAuthToken,
   clearOAuthToken,
 } from '../services/copilot';
 import type { DeviceFlowState } from '../services/copilot';
+import { COPILOT_MODELS_CHANGED_EVENT } from '../services/copilot/constants';
 import { getActiveProvider } from '../services/aiProvider';
 import type { AIProviderType } from '../services/aiProvider';
 import { getProviderModelsForPicker } from '../services/ai/providerModels';
@@ -290,6 +292,16 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     }
     window.addEventListener('cafezin-provider-changed', handleProviderChanged);
     return () => window.removeEventListener('cafezin-provider-changed', handleProviderChanged);
+  }, []);
+
+  useEffect(() => {
+    function handleCopilotModelsChanged() {
+      if (getActiveProvider() !== 'copilot') return;
+      setAvailableModels((current) => filterChatCompletionsCompatibleModels(current));
+      modelsLoadedRef.current = false;
+    }
+    window.addEventListener(COPILOT_MODELS_CHANGED_EVENT, handleCopilotModelsChanged);
+    return () => window.removeEventListener(COPILOT_MODELS_CHANGED_EVENT, handleCopilotModelsChanged);
   }, []);
 
   // ── Tabs ──────────────────────────────────────────────────────────────────

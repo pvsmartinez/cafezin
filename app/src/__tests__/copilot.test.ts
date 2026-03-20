@@ -12,6 +12,10 @@ import {
   isChatCompletionsCompatibleModel,
   filterChatCompletionsCompatibleModels,
   resolveCopilotModelForChatCompletions,
+  getRuntimeBlockedChatCompletionsModels,
+  registerIncompatibleChatCompletionsModel,
+  extractIncompatibleChatCompletionsModel,
+  registerIncompatibleChatCompletionsModelFromError,
   familyKey,
   sanitizeLoop,
   estimateTokens,
@@ -104,6 +108,7 @@ describe('isBlockedModel', () => {
 describe('chat-completions model compatibility', () => {
   it('marks gpt-5.4 as incompatible with the current Copilot endpoint', () => {
     expect(isChatCompletionsCompatibleModel('gpt-5.4')).toBe(false);
+    expect(isChatCompletionsCompatibleModel('gpt-5.4-mini')).toBe(false);
   });
 
   it('keeps currently supported Copilot defaults compatible', () => {
@@ -134,6 +139,21 @@ describe('chat-completions model compatibility', () => {
 
   it('does not keep gpt-5.4 in FALLBACK_MODELS', () => {
     expect(FALLBACK_MODELS.some((model) => model.id === 'gpt-5.4')).toBe(false);
+    expect(FALLBACK_MODELS.some((model) => model.id === 'gpt-5.4-mini')).toBe(false);
+  });
+
+  it('can learn incompatible models dynamically from API errors', () => {
+    expect(getRuntimeBlockedChatCompletionsModels()).toEqual([]);
+    expect(registerIncompatibleChatCompletionsModel('goldeneye')).toBe(true);
+    expect(isChatCompletionsCompatibleModel('goldeneye')).toBe(false);
+    expect(getRuntimeBlockedChatCompletionsModels()).toContain('goldeneye');
+  });
+
+  it('extracts and registers incompatible models from Copilot API error text', () => {
+    const message = 'Copilot API error 400: model "gpt-5.4-mini" is not accessible via the /chat/completions endpoint';
+    expect(extractIncompatibleChatCompletionsModel(message)).toBe('gpt-5.4-mini');
+    expect(registerIncompatibleChatCompletionsModelFromError(message)).toBe('gpt-5.4-mini');
+    expect(isChatCompletionsCompatibleModel('gpt-5.4-mini')).toBe(false);
   });
 });
 

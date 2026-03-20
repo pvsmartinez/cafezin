@@ -29,6 +29,7 @@ import { canvasAIContext } from './utils/canvasAI';
 import { registerCanvasTabControls, getCanvasEditor } from './utils/canvasRegistry';
 import { exportMarkdownToPDF } from './utils/exportPDF';
 import {
+  loadWorkspace,
   readFile,
   writeFile,
   saveWorkspaceConfig,
@@ -58,6 +59,7 @@ import { useProactiveNudge } from './hooks/useProactiveNudge';
 import { AppOverlays } from './components/app/AppOverlays';
 import { AppHeader } from './components/app/AppHeader';
 import { AppEditorArea } from './components/app/AppEditorArea';
+import { consumeLaunchWorkspacePath, openWorkspaceWindow } from './services/windowing';
 import './App.css';
 
 // Eagerly init i18n before first render so translated strings show immediately
@@ -78,9 +80,12 @@ function compareVersions(a: string, b: string): number {
 }
 
 const FALLBACK_CONTENT = `# Untitled Document\n\nStart writing here…\n`;
+const launchWorkspacePath = consumeLaunchWorkspacePath();
 
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [launchWorkspacePending, setLaunchWorkspacePending] = useState<boolean>(!!launchWorkspacePath);
+  const [launchWorkspaceError, setLaunchWorkspaceError] = useState<string | null>(null);
   const {
     initSettings,
     splash,
@@ -120,6 +125,37 @@ export default function App() {
   useEffect(() => {
     document.title = workspace ? workspace.name : 'Cafezin';
   }, [workspace?.name]);
+
+  useEffect(() => {
+    if (!launchWorkspacePath) return;
+    const targetPath = launchWorkspacePath;
+
+    let cancelled = false;
+
+    async function openLaunchedWorkspace() {
+      try {
+        const ws = await loadWorkspace(targetPath);
+        if (cancelled) return;
+        await handleWorkspaceLoaded(ws);
+        setLaunchWorkspaceError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setLaunchWorkspaceError(
+          `Nao foi possivel abrir o workspace solicitado: ${(err as Error)?.message ?? String(err)}`,
+        );
+      } finally {
+        if (!cancelled) setLaunchWorkspacePending(false);
+      }
+    }
+
+    void openLaunchedWorkspace();
+
+    return () => {
+      cancelled = true;
+    };
+  // launchWorkspacePath is consumed once per window creation.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [isAIStreaming, setIsAIStreaming] = useState(false);
   // Always-fresh ref so Tauri menu listeners (registered with stale closure) can
@@ -362,6 +398,11 @@ export default function App() {
   const [pandocError, setPandocError] = useState<string | null>(null);
   // Export lock — shown while auto-opening a canvas for export (blur + coffee animation)
   const [exportLock, setExportLock] = useState(false);
+  const [exportLockState, setExportLockState] = useState<{
+    title: string;
+    detail?: string;
+    cancelRequested?: boolean;
+  } | null>(null);
   const exportRestoreTabRef = useRef<string | null>(null);
   // Always-fresh ref for dirty state so watcher can check without stale closure
   const dirtyFilesRef = useRef<Set<string>>(dirtyFiles);
@@ -456,6 +497,7 @@ export default function App() {
   useEffect(() => {
     if (!isTauri) return;
     const uns = [
+      listen('menu-new-window',     () => { void handleOpenNewWindow(); }),
       listen('menu-new-file',       () => { setSidebarOpen(true); setTimeout(() => newFileRef.current?.(), 80); }),
       listen('menu-export-pdf',     () => { if (fileTypeInfo?.kind === 'markdown') handleExportPDF(); }),
       listen('menu-export-modal',   () => setExportModalOpen(true)),
@@ -827,6 +869,11 @@ export default function App() {
 
     exportRestoreTabRef.current = activeTabId;
     setExportLock(true);
+    setExportLockState((current) => current ?? {
+      title: 'Exporting canvas…',
+      detail: `Opening ${relPath}…`,
+      cancelRequested: false,
+    });
     // Null the ref so we can detect the fresh mount below
     canvasEditorRef.current = null;
 
@@ -862,6 +909,7 @@ export default function App() {
     if (prev) switchToTab(prev);
     exportRestoreTabRef.current = null;
     setExportLock(false);
+    setExportLockState(null);
   }
 
   async function handleExportConfigChange(config: WorkspaceExportConfig): Promise<void> {
@@ -1168,6 +1216,15 @@ export default function App() {
     setIsAIStreaming(false);
     setHomeVisible(true);
   }
+
+  async function handleOpenNewWindow() {
+    try {
+      await openWorkspaceWindow();
+    } catch (err) {
+      setSaveError(`Could not open a new window: ${(err as Error)?.message ?? String(err)}`);
+    }
+  }
+
   // ── Workspace loaded ─────────────────────────────────────────
   async function handleWorkspaceLoaded(ws: Workspace) {
     // Clear any previous workspace state
@@ -1269,7 +1326,9 @@ export default function App() {
     return (
       <>
         {splash && <SplashScreen visible={splashVisible} />}
-        <WorkspacePicker onOpen={handleWorkspaceLoaded} />
+        {!launchWorkspacePending && (
+          <WorkspacePicker onOpen={handleWorkspaceLoaded} externalError={launchWorkspaceError} />
+        )}
         <UpdateModal
           open={showUpdateModal}
           projectRoot={__PROJECT_ROOT__}
@@ -1288,8 +1347,18 @@ export default function App() {
       {splash && <SplashScreen visible={splashVisible} />}
       {/* Export lock overlay — full-window fixed overlay while canvas export runs */}
       {exportLock && (
-        <div className="export-lock-overlay" aria-hidden>
-          <span className="copilot-lock-label">exporting…</span>
+        <div className="export-lock-overlay" aria-live="polite">
+          <div className="export-lock-card">
+            <span className="export-lock-title">{exportLockState?.title ?? 'Exporting…'}</span>
+            {exportLockState?.detail && (
+              <span className="export-lock-detail">{exportLockState.detail}</span>
+            )}
+            <span className="export-lock-hint">
+              {exportLockState?.cancelRequested
+                ? 'Stopping after the current safe step…'
+                : 'The UI is temporarily locked so Cafezin can switch canvases safely.'}
+            </span>
+          </div>
         </div>
       )}
       {focusMode && (
@@ -1322,6 +1391,7 @@ export default function App() {
         isDev={import.meta.env.DEV}
         aiOpen={aiOpen}
         onToggleAi={() => setAiOpen((value) => !value)}
+        onOpenNewWindow={handleOpenNewWindow}
       />
 
       {/* Workspace: editor body + bottom terminal panel */}
@@ -1561,6 +1631,7 @@ export default function App() {
           setAiInitialPrompt(prompt);
           setAiOpen(true);
         }}
+        onExportLockStateChange={setExportLockState}
         imgSearchOpen={imgSearchOpen}
         onCloseImageSearch={() => setImgSearchOpen(false)}
         copilotOverlayActive={copilotOverlayActive}

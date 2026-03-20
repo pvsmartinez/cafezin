@@ -7,14 +7,101 @@ import {
   BLOCKED_PREFIXES,
   BLOCKED_EXACT,
   CHAT_COMPLETIONS_BLOCKED_MODELS,
+  CHAT_COMPLETIONS_RUNTIME_BLOCKLIST_KEY,
+  COPILOT_MODELS_CHANGED_EVENT,
 } from './constants';
 import { getCopilotSessionToken } from './auth';
 import { registerModelTokenMetadata } from './tokenBudget';
 
+function readRuntimeBlockedModels(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(CHAT_COMPLETIONS_RUNTIME_BLOCKLIST_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((item): item is string => typeof item === 'string' && item.length > 0));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeRuntimeBlockedModels(models: Iterable<string>): void {
+  if (typeof window === 'undefined') return;
+  const next = Array.from(new Set(Array.from(models).filter(Boolean))).sort();
+  window.localStorage.setItem(CHAT_COMPLETIONS_RUNTIME_BLOCKLIST_KEY, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent(COPILOT_MODELS_CHANGED_EVENT));
+}
+
+export function getRuntimeBlockedChatCompletionsModels(): string[] {
+  return Array.from(readRuntimeBlockedModels()).sort();
+}
+
+export function registerIncompatibleChatCompletionsModel(modelId: string): boolean {
+  if (!modelId) return false;
+  const blocked = readRuntimeBlockedModels();
+  if (blocked.has(modelId)) return false;
+  blocked.add(modelId);
+  writeRuntimeBlockedModels(blocked);
+  return true;
+}
+
+export function extractIncompatibleChatCompletionsModel(errorText: string): string | null {
+  const match = errorText.match(/model\s+["']([^"']+)["']\s+is not accessible via the \/chat\/completions endpoint/i);
+  return match?.[1] ?? null;
+}
+
+export function registerIncompatibleChatCompletionsModelFromError(errorText: string): string | null {
+  const modelId = extractIncompatibleChatCompletionsModel(errorText);
+  if (!modelId) return null;
+  registerIncompatibleChatCompletionsModel(modelId);
+  return modelId;
+}
+
+function versionScore(id: string): number[] {
+  return id.split(/[^\d]+/).filter(Boolean).map(Number);
+}
+
+function newerVersion(a: string, b: string): boolean {
+  const va = versionScore(a);
+  const vb = versionScore(b);
+  for (let i = 0; i < Math.max(va.length, vb.length); i++) {
+    const diff = (va[i] ?? 0) - (vb[i] ?? 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return false;
+}
+
+function normalizeCopilotModels(models: CopilotModelInfo[]): CopilotModelInfo[] {
+  const byFamily = new Map<string, CopilotModelInfo>();
+  for (const model of filterChatCompletionsCompatibleModels(models)) {
+    const key = familyKey(model.id);
+    const existing = byFamily.get(key);
+    if (!existing || newerVersion(model.id, existing.id)) {
+      byFamily.set(key, model);
+    }
+  }
+
+  return [...byFamily.values()]
+    .sort((a, b) => a.multiplier - b.multiplier || a.name.localeCompare(b.name));
+}
+
+function parseRawModelsPayload(payload: unknown): RawModel[] {
+  if (Array.isArray(payload)) return payload as RawModel[];
+  if (!payload || typeof payload !== 'object') return [];
+  const record = payload as Record<string, unknown>;
+  if (Array.isArray(record.data)) return record.data as RawModel[];
+  if (Array.isArray(record.models)) return record.models as RawModel[];
+  if (Array.isArray(record.value)) return record.value as RawModel[];
+  return [];
+}
+
 // ── Chat completions compatibility ────────────────────────────────────────────
 
 export function isChatCompletionsCompatibleModel(modelId: string): boolean {
-  return !!modelId && !CHAT_COMPLETIONS_BLOCKED_MODELS.has(modelId);
+  return !!modelId &&
+    !CHAT_COMPLETIONS_BLOCKED_MODELS.has(modelId) &&
+    !readRuntimeBlockedModels().has(modelId);
 }
 
 export function filterChatCompletionsCompatibleModels<T extends { id: string }>(models: T[]): T[] {
@@ -116,8 +203,8 @@ export async function fetchCopilotModels(oauthClientId?: string): Promise<Copilo
       },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json() as { data?: RawModel[] };
-    const raw: RawModel[] = json.data ?? [];
+    const json = await res.json() as unknown;
+    const raw = parseRawModelsPayload(json);
 
     const mapped: CopilotModelInfo[] = raw
       .filter((m) =>
@@ -142,34 +229,11 @@ export async function fetchCopilotModels(oauthClientId?: string): Promise<Copilo
         };
       });
 
-    // Deduplicate by family: keep the model with the highest numeric version
-    function versionScore(id: string): number[] {
-      return id.split(/[^\d]+/).filter(Boolean).map(Number);
-    }
-    function newerVersion(a: string, b: string): boolean {
-      const va = versionScore(a);
-      const vb = versionScore(b);
-      for (let i = 0; i < Math.max(va.length, vb.length); i++) {
-        const diff = (va[i] ?? 0) - (vb[i] ?? 0);
-        if (diff !== 0) return diff > 0;
-      }
-      return false;
-    }
-    const byFamily = new Map<string, CopilotModelInfo>();
-    for (const m of filterChatCompletionsCompatibleModels(mapped)) {
-      const key = familyKey(m.id);
-      const existing = byFamily.get(key);
-      if (!existing || newerVersion(m.id, existing.id)) {
-        byFamily.set(key, m);
-      }
-    }
+    const models = normalizeCopilotModels(mapped);
 
-    const models = [...byFamily.values()]
-      .sort((a, b) => a.multiplier - b.multiplier || a.name.localeCompare(b.name));
-
-    return models.length > 0 ? models : FALLBACK_MODELS;
+    return models.length > 0 ? models : normalizeCopilotModels(FALLBACK_MODELS);
   } catch {
-    return FALLBACK_MODELS;
+    return normalizeCopilotModels(FALLBACK_MODELS);
   }
 }
 

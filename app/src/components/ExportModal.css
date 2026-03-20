@@ -149,6 +149,7 @@
 
 .em-status--running { color: var(--accent); }
 .em-status--done    { color: var(--green);  }
+.em-status--canceled { color: var(--yellow); }
 .em-status--error   { color: var(--red);    }
 
 .em-spin {
@@ -177,6 +178,16 @@
 
 .em-run-btn:hover:not(:disabled) { background: rgba(var(--accent-rgb, 212 169 106), 0.2); }
 .em-run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.em-run-btn--cancel {
+  background: rgba(var(--red-rgb), 0.1);
+  color: var(--red);
+  border-color: rgba(var(--red-rgb), 0.26);
+}
+
+.em-run-btn--cancel:hover:not(:disabled) {
+  background: rgba(var(--red-rgb), 0.18);
+}
 
 /* ── Icon buttons ────────────────────────────────────────────────────────── */
 .em-icon-btn {
@@ -275,6 +286,21 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+
+.em-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 5px 10px 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  border-top: 1px solid rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.em-progress-warning {
+  color: var(--yellow);
 }
 
 /* ── Expanded config ─────────────────────────────────────────────────────── */

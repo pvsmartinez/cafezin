@@ -14,7 +14,13 @@ import {
 import {
   PROVIDER_CATALOG, getFavoriteModelIds, setFavoriteModelIds,
 } from '../services/ai/providerModels';
-import { fetchCopilotModels, getStoredOAuthToken, resolveCopilotModelForChatCompletions } from '../services/copilot';
+import {
+  fetchCopilotModels,
+  filterChatCompletionsCompatibleModels,
+  getStoredOAuthToken,
+  resolveCopilotModelForChatCompletions,
+} from '../services/copilot';
+import { COPILOT_MODELS_CHANGED_EVENT } from '../services/copilot/constants';
 import { writeTextFile } from '../services/fs';
 import { saveWorkspaceConfig } from '../services/workspace';
 import {
@@ -496,7 +502,10 @@ export default function SettingsModal({
     setAICopilotModelsLoading(true);
     fetchCopilotModels(workspace?.config.githubOAuth?.clientId?.trim() || undefined)
       .then((models) => {
-        if (!cancelled && models.length > 0) setAICopilotModels(models);
+        if (!cancelled && models.length > 0) {
+          setAICopilotModels(models);
+          setAIModel((current) => resolveCopilotModelForChatCompletions(current, models));
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -506,6 +515,18 @@ export default function SettingsModal({
       cancelled = true;
     };
   }, [open, tab, aiProvider, workspace?.config.githubOAuth?.clientId]);
+
+  useEffect(() => {
+    function handleCopilotModelsChanged() {
+      setAICopilotModels((current) => {
+        const next = filterChatCompletionsCompatibleModels(current);
+        setAIModel((currentModel) => resolveCopilotModelForChatCompletions(currentModel, next));
+        return next;
+      });
+    }
+    window.addEventListener(COPILOT_MODELS_CHANGED_EVENT, handleCopilotModelsChanged);
+    return () => window.removeEventListener(COPILOT_MODELS_CHANGED_EVENT, handleCopilotModelsChanged);
+  }, []);
 
   function buildWorkspaceFeatures(existing?: WorkspaceFeatureConfig): WorkspaceFeatureConfig | undefined {
     const nextCanvas = applyCapabilityOverride(existing?.canvas, wsCanvasAgentTools) as WorkspaceFeatureConfig['canvas'];

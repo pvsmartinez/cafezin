@@ -12,9 +12,11 @@ import {
   clearOAuthToken,
   getStoredOAuthToken,
   fetchCopilotModels,
+  filterChatCompletionsCompatibleModels,
   resolveCopilotModelForChatCompletions,
 } from '../../services/copilot';
 import type { DeviceFlowState } from '../../services/copilot';
+import { COPILOT_MODELS_CHANGED_EVENT } from '../../services/copilot/constants';
 import {
   streamChat,
   getActiveProvider,
@@ -225,6 +227,19 @@ export default function MobileCopilot({
       setModel((current) => resolveCopilotModelForChatCompletions(current, m));
     }).catch(() => {});
   }, [authStatus, copilotOAuthClientId]);
+
+  useEffect(() => {
+    function handleCopilotModelsChanged() {
+      setModels((current) => {
+        const next = filterChatCompletionsCompatibleModels(current);
+        setModel((currentModel) => resolveCopilotModelForChatCompletions(currentModel, next));
+        return next;
+      });
+      modelsLoadedRef.current = false;
+    }
+    window.addEventListener(COPILOT_MODELS_CHANGED_EVENT, handleCopilotModelsChanged);
+    return () => window.removeEventListener(COPILOT_MODELS_CHANGED_EVENT, handleCopilotModelsChanged);
+  }, []);
 
   // ── Messages ─────────────────────────────────────────────────────────────
   const [messages, setMessages] = useState<ChatMessage[]>([]);

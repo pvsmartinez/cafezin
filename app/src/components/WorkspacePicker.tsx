@@ -86,9 +86,10 @@ function buildMergedList(
 
 interface WorkspacePickerProps {
   onOpen: (workspace: Workspace) => void;
+  externalError?: string | null;
 }
 
-export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
+export default function WorkspacePicker({ onOpen, externalError = null }: WorkspacePickerProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recents, setRecents] = useState<RecentWorkspace[]>(getRecents);
@@ -428,7 +429,7 @@ export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
           </div>
         )}
 
-        {error && <div className="wp-error">{error}</div>}
+        {(error ?? externalError) && <div className="wp-error">{error ?? externalError}</div>}
 
         {/* ── Publish-to-cloud form (inline) ── */}
         {publishPath && (

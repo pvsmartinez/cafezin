@@ -53,6 +53,7 @@ export interface AppOverlaysProps {
   onRestoreAfterExport: () => void;
   onCloseExportModal: () => void;
   onOpenAIFromExport: (prompt: string) => void;
+  onExportLockStateChange: (state: { title: string; detail?: string; cancelRequested?: boolean } | null) => void;
   imgSearchOpen: boolean;
   onCloseImageSearch: () => void;
   copilotOverlayActive: boolean;
@@ -98,6 +99,7 @@ export function AppOverlays({
   onRestoreAfterExport,
   onCloseExportModal,
   onOpenAIFromExport,
+  onExportLockStateChange,
   imgSearchOpen,
   onCloseImageSearch,
   copilotOverlayActive,
@@ -164,6 +166,7 @@ export function AppOverlays({
           onRestoreAfterExport={onRestoreAfterExport}
           onClose={onCloseExportModal}
           onOpenAI={onOpenAIFromExport}
+          onExportLockStateChange={onExportLockStateChange}
         />
       )}
 
