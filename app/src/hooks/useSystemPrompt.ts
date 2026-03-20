@@ -10,6 +10,44 @@ import {
   truncateDocumentContext,
 } from '../utils/agentPromptContext';
 
+function buildExportSystemSummary(workspaceExportConfig?: WorkspaceExportConfig): string {
+  const configuredTargets = workspaceExportConfig?.targets ?? [];
+  const configuredSummary = configuredTargets.length === 0
+    ? 'Configured export targets: none yet.'
+    : `Configured export targets (${configuredTargets.length}):\n${configuredTargets.map((target) => {
+      const parts = [
+        `- ${target.name}`,
+        `format=${target.format}`,
+        `enabled=${target.enabled ? 'yes' : 'no'}`,
+        `outputDir=${target.outputDir}`,
+      ];
+      if (target.includeFiles?.length) parts.push(`includeFiles=${target.includeFiles.join(', ')}`);
+      else if (target.include.length) parts.push(`include=${target.include.join(', ')}`);
+      if (target.excludeFiles?.length) parts.push(`excludeFiles=${target.excludeFiles.join(', ')}`);
+      if (target.description) parts.push(`description=${target.description}`);
+      if (target.merge) parts.push(`merge=${target.mergeName?.trim() || 'merged'}`);
+      if (target.customCommand) parts.push(`customCommand=${target.customCommand}`);
+      if (target.gitPublish) {
+        parts.push(`gitRemote=${target.gitPublish.remote || 'origin'}`);
+        if (target.gitPublish.branch) parts.push(`gitBranch=${target.gitPublish.branch}`);
+      }
+      return parts.join(' | ');
+    }).join('\n')}`;
+
+  return `Export system in Cafezin:\n`
+    + `• Supported formats: pdf, canvas-png, canvas-pdf, zip, git-publish, custom.\n`
+    + `• File selection model: includeFiles overrides include extensions; excludeFiles is applied afterwards.\n`
+    + `• pdf supports merge, mergeName, pdfCssFile, toc, titlePage, versionOutput, and preProcess flags (stripFrontmatter, stripDraftSections, stripDetails).\n`
+    + `• canvas-png exports one PNG per slide/frame from .tldr.json files.\n`
+    + `• canvas-pdf exports canvases as slide PDFs and supports merge for one combined PDF.\n`
+    + `• zip bundles matched files into a zip archive.\n`
+    + `• git-publish stages the whole workspace, optionally commits, then pushes. gitPublish supports commitMessage, remote, branch, skipCommitWhenNoChanges.\n`
+    + `• custom runs a shell command in the workspace root. Supported placeholders: {{input}}, {{input_abs}}, {{output}}, {{output_abs}}, {{workspace}}, {{output_dir}} and shell-safe quoted versions {{input_q}}, {{input_abs_q}}, {{output_q}}, {{output_abs_q}}, {{workspace_q}}, {{output_dir_q}}.\n`
+    + `• custom progress protocol: scripts can print lines starting with CAFEZIN_PROGRESS to stdout or stderr. Accepted forms are: 'CAFEZIN_PROGRESS 3/10 message', 'CAFEZIN_PROGRESS 42% message', or JSON like 'CAFEZIN_PROGRESS {"done":3,"total":10,"detail":"Generating images","label":"chapter-01","phase":"render"}'. Cafezin uses this to drive the progress bar.\n`
+    + `• When helping with exports, prefer configure_export_targets to inspect/change targets before suggesting manual UI steps.\n`
+    + configuredSummary;
+}
+
 // ── Memory loader ─────────────────────────────────────────────────────────────
 /** Loads and keeps .cafezin/memory.md in sync whenever the workspace changes. */
 export function useWorkspaceMemory(workspacePath: string | undefined): [string, (v: string) => void] {
@@ -78,9 +116,10 @@ export function useSystemPrompt({
   activeFile,
   memoryContent,
   userProfileContent,
+  workspaceExportConfig,
 }: UseSystemPromptParams): ChatMessage {
   const hasTools = !!workspace;
-  const capabilityState = getAgentCapabilityState(workspace?.config);
+  const capabilityState = getAgentCapabilityState(workspace);
 
   const workspaceFileList = useMemo(() => summarizeWorkspaceFiles(workspace?.fileTree, {
     activeFile,
@@ -234,6 +273,8 @@ NEVER use N add_slide + N add_note when create_lesson does it in one.` : '',
 • Use read_spreadsheet when the user wants a table-aware view of structured data.
 • Use write_spreadsheet for cell edits, row appends, or CSV/TSV rewrites.
 • Plain CSV/TSV can still be read as text with read_workspace_file when raw source matters more than table formatting.` : '',
+
+      hasTools ? buildExportSystemSummary(workspaceExportConfig ?? workspace?.config?.exportConfig) : '',
 
       hasTools
         ? `You have access to workspace tools. ALWAYS call the appropriate tool when the user asks about their documents, wants to find/summarize/cross-reference content, or asks you to create/edit files. Never guess at file contents — read them first. When writing a file, always call the write_workspace_file tool — do not output the file as a code block.

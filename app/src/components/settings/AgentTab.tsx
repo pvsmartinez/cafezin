@@ -9,8 +9,8 @@ export interface AgentTabProps {
   setWsLanguage: (v: string) => void;
   wsAgent: string;
   setWsAgent: (v: string) => void;
-  wsMarkdownMermaid: boolean;
-  setWsMarkdownMermaid: (v: boolean) => void;
+  wsMarkdownMermaid: CapabilityOverrideMode;
+  setWsMarkdownMermaid: (v: CapabilityOverrideMode) => void;
   wsCanvasAgentTools: CapabilityOverrideMode;
   setWsCanvasAgentTools: (v: CapabilityOverrideMode) => void;
   wsSpreadsheetAgentTools: CapabilityOverrideMode;
@@ -19,7 +19,7 @@ export interface AgentTabProps {
   setWsWebAgentTools: (v: CapabilityOverrideMode) => void;
   wsGitHubClientId: string;
   setWsGitHubClientId: (v: string) => void;
-  effectiveCapabilityState: { canvas: boolean; spreadsheet: boolean; web: boolean } | null;
+  effectiveCapabilityState: { markdownMermaid: boolean; canvas: boolean; spreadsheet: boolean; web: boolean } | null;
   getCapabilityModeDescription: (
     mode: CapabilityOverrideMode,
     effective: boolean,
@@ -105,16 +105,17 @@ export function AgentTab({
         <div className="sm-row">
           <div className="sm-row-label">
             <span>{t('settings.workspaceMarkdownMermaidLabel')}</span>
-            <span className="sm-row-desc">{t('settings.workspaceMarkdownMermaidDesc')}</span>
+            <span className="sm-row-desc">{t('settings.workspaceMarkdownMermaidDesc')} {getCapabilityModeDescription(wsMarkdownMermaid, effectiveCapabilityState?.markdownMermaid ?? false, 'ligado', 'desligado')}</span>
           </div>
-          <label className="sm-toggle">
-            <input
-              type="checkbox"
-              checked={wsMarkdownMermaid}
-              onChange={(e) => setWsMarkdownMermaid(e.target.checked)}
-            />
-            <span className="sm-toggle-track" />
-          </label>
+          <select
+            className="sm-select"
+            value={wsMarkdownMermaid}
+            onChange={(e) => setWsMarkdownMermaid(e.target.value as CapabilityOverrideMode)}
+          >
+            <option value="auto">Automático</option>
+            <option value="on">Ligado</option>
+            <option value="off">Desligado</option>
+          </select>
         </div>
 
         <div className="sm-row">

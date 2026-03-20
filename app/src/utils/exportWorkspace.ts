@@ -49,6 +49,16 @@ export class ExportCancelledError extends Error {
   }
 }
 
+interface CustomScriptProgressSignal {
+  done?: number;
+  total?: number;
+  label?: string;
+  phase?: string;
+  detail?: string;
+}
+
+const CUSTOM_PROGRESS_PREFIX = 'CAFEZIN_PROGRESS';
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
@@ -81,6 +91,153 @@ function stripExt(filename: string): string {
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function applyCommandPlaceholders(template: string, values: Record<string, string>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(values)) {
+    result = result.replace(new RegExp(`\\{\\{${escapeRegExp(key)}\\}\\}`, 'g'), value);
+  }
+  return result;
+}
+
+function lastShellOutputLine(stdout: string, stderr: string): string | undefined {
+  const lines = [stderr, stdout]
+    .flatMap((chunk) => chunk.split(/\r?\n/g))
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length > 0 ? lines[lines.length - 1] : undefined;
+}
+
+function shortenShellLine(line: string, max = 140): string {
+  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
+}
+
+function normalizeProgressNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+function normalizeCustomProgressSignal(signal: CustomScriptProgressSignal): CustomScriptProgressSignal | null {
+  const done = normalizeProgressNumber(signal.done);
+  const total = normalizeProgressNumber(signal.total);
+  const normalized: CustomScriptProgressSignal = {
+    done,
+    total,
+    label: signal.label?.trim() || undefined,
+    phase: signal.phase?.trim() || undefined,
+    detail: signal.detail?.trim() || undefined,
+  };
+
+  if (normalized.total !== undefined && normalized.total <= 0) normalized.total = 1;
+  if (normalized.done !== undefined && normalized.done < 0) normalized.done = 0;
+  if (normalized.done !== undefined && normalized.total !== undefined && normalized.done > normalized.total) {
+    normalized.done = normalized.total;
+  }
+
+  return normalized.done !== undefined
+    || normalized.total !== undefined
+    || normalized.label !== undefined
+    || normalized.phase !== undefined
+    || normalized.detail !== undefined
+    ? normalized
+    : null;
+}
+
+function parseCustomProgressLine(line: string): CustomScriptProgressSignal | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith(CUSTOM_PROGRESS_PREFIX)) return null;
+
+  const payload = trimmed.slice(CUSTOM_PROGRESS_PREFIX.length).trim();
+  if (!payload) return { detail: 'Working…' };
+
+  if (payload.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(payload) as CustomScriptProgressSignal;
+      return normalizeCustomProgressSignal(parsed);
+    } catch {
+      return { detail: payload };
+    }
+  }
+
+  const ratioMatch = payload.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)(?:\s+(.*))?$/);
+  if (ratioMatch) {
+    return normalizeCustomProgressSignal({
+      done: Number(ratioMatch[1]),
+      total: Number(ratioMatch[2]),
+      detail: ratioMatch[3]?.trim() || undefined,
+    });
+  }
+
+  const percentMatch = payload.match(/^(\d+(?:\.\d+)?)%(?:\s+(.*))?$/);
+  if (percentMatch) {
+    return normalizeCustomProgressSignal({
+      done: Number(percentMatch[1]),
+      total: 100,
+      detail: percentMatch[2]?.trim() || undefined,
+    });
+  }
+
+  return normalizeCustomProgressSignal({ detail: payload });
+}
+
+function lastMatchingLine(text: string, matcher: (line: string) => boolean): string | undefined {
+  const lines = text.split(/\r?\n/g);
+  for (let index = lines.length - 1; index >= 0; index--) {
+    const line = lines[index].trim();
+    if (line && matcher(line)) return line;
+  }
+  return undefined;
+}
+
+function parseCustomProgressSignal(stdout: string, stderr: string): CustomScriptProgressSignal | null {
+  const stdoutLine = lastMatchingLine(stdout, (line) => line.startsWith(CUSTOM_PROGRESS_PREFIX));
+  if (stdoutLine) return parseCustomProgressLine(stdoutLine);
+
+  const stderrLine = lastMatchingLine(stderr, (line) => line.startsWith(CUSTOM_PROGRESS_PREFIX));
+  if (stderrLine) return parseCustomProgressLine(stderrLine);
+
+  return null;
+}
+
+function buildShellProgressDetail(baseDetail: string, stdout: string, stderr: string): string {
+  const line = lastShellOutputLine(stdout, stderr);
+  return line ? `${baseDetail} Last output: ${shortenShellLine(line)}` : baseDetail;
+}
+
+function buildCustomCommandProgress(
+  base: ExportProgressInfo,
+  stdout: string,
+  stderr: string,
+): ExportProgressInfo {
+  const signal = parseCustomProgressSignal(stdout, stderr);
+  if (!signal) {
+    return {
+      ...base,
+      detail: buildShellProgressDetail(base.detail ?? base.label, stdout, stderr),
+    };
+  }
+
+  return {
+    done: signal.done ?? base.done,
+    total: signal.total ?? base.total,
+    label: signal.label ?? base.label,
+    phase: signal.phase ?? base.phase,
+    detail: signal.detail ?? base.detail ?? base.label,
+  };
+}
+
+function buildShellError(result: { stdout: string; stderr: string; exit_code: number }): string {
+  const output = [result.stderr.trim(), result.stdout.trim()].filter(Boolean).join('\n\n');
+  return output ? `exit ${result.exit_code}: ${output}` : `exit ${result.exit_code}`;
 }
 
 function throwIfCancelled(opts?: Pick<RunExportOptions, 'shouldCancel'>): void {
@@ -129,7 +286,9 @@ async function runShellCommand(
 async function runShellCommandCancelable(
   wsPath: string,
   cmd: string,
-  opts?: Pick<RunExportOptions, 'shouldCancel'>,
+  opts?: Pick<RunExportOptions, 'shouldCancel'> & {
+    onUpdate?: (status: { stdout: string; stderr: string }) => void;
+  },
 ): Promise<{ stdout: string; stderr: string; exit_code: number }> {
   const started = await invoke<{ id: string }>('shell_run_start', {
     cmd,
@@ -153,6 +312,8 @@ async function runShellCommandCancelable(
       stderr: string;
       exit_code: number | null;
     }>('shell_run_status', { id: started.id });
+
+    opts?.onUpdate?.({ stdout: status.stdout, stderr: status.stderr });
 
     if (!status.running) {
       return {
@@ -871,9 +1032,19 @@ async function exportCustom(
   await ensureDir(absOutDir);
   throwIfCancelled(opts);
 
+  const basePlaceholders = {
+    workspace: wsPath,
+    workspace_q: shellQuote(wsPath),
+    output_dir: target.outputDir,
+    output_dir_q: shellQuote(target.outputDir),
+    output_dir_abs: absOutDir,
+    output_dir_abs_q: shellQuote(absOutDir),
+  };
+
   if (files.length === 0) {
     // Run the command once with no substitution
     try {
+      const finalCmd = applyCommandPlaceholders(cmd, basePlaceholders);
       reportProgress(opts, {
         done: 0,
         total: 1,
@@ -881,8 +1052,20 @@ async function exportCustom(
         phase: 'run-command',
         detail: 'Running custom command…',
       });
-      const result = await runShellCommandCancelable(wsPath, cmd, opts);
-      if (result.exit_code !== 0) errors.push(result.stderr || `exit code ${result.exit_code}`);
+      const baseProgress: ExportProgressInfo = {
+        done: 0,
+        total: 1,
+        label: target.name,
+        phase: 'run-command',
+        detail: 'Running custom command…',
+      };
+      const result = await runShellCommandCancelable(wsPath, finalCmd, {
+        shouldCancel: opts?.shouldCancel,
+        onUpdate: ({ stdout, stderr }) => {
+          reportProgress(opts, buildCustomCommandProgress(baseProgress, stdout, stderr));
+        },
+      });
+      if (result.exit_code !== 0) errors.push(buildShellError(result));
       else outputs.push(target.outputDir);
     } catch (e) {
       if (e instanceof ExportCancelledError) throw e;
@@ -893,19 +1076,38 @@ async function exportCustom(
       throwIfCancelled(opts);
       const rel = files[index];
       const outName = stripExt(basename(rel));
-      const finalCmd = cmd
-        .replace(/\{\{input\}\}/g, rel)
-        .replace(/\{\{output\}\}/g, `${target.outputDir}/${outName}`);
+      const outputBaseRel = `${target.outputDir}/${outName}`;
+      const outputBaseAbs = `${wsPath}/${outputBaseRel}`;
+      const inputAbs = `${wsPath}/${rel}`;
+      const finalCmd = applyCommandPlaceholders(cmd, {
+        ...basePlaceholders,
+        input: rel,
+        input_q: shellQuote(rel),
+        input_abs: inputAbs,
+        input_abs_q: shellQuote(inputAbs),
+        output: outputBaseRel,
+        output_q: shellQuote(outputBaseRel),
+        output_abs: outputBaseAbs,
+        output_abs_q: shellQuote(outputBaseAbs),
+      });
       try {
-        reportProgress(opts, {
+        const baseProgress: ExportProgressInfo = {
           done: index,
           total: files.length,
           label: rel,
           phase: 'run-command',
           detail: `Running custom command for ${rel}…`,
+        };
+        reportProgress(opts, {
+          ...baseProgress,
         });
-        const result = await runShellCommandCancelable(wsPath, finalCmd, opts);
-        if (result.exit_code !== 0) errors.push(`${rel}: ${result.stderr || `exit ${result.exit_code}`}`);
+        const result = await runShellCommandCancelable(wsPath, finalCmd, {
+          shouldCancel: opts?.shouldCancel,
+          onUpdate: ({ stdout, stderr }) => {
+            reportProgress(opts, buildCustomCommandProgress(baseProgress, stdout, stderr));
+          },
+        });
+        if (result.exit_code !== 0) errors.push(`${rel}: ${buildShellError(result)}`);
         else outputs.push(`${target.outputDir}/${outName}`);
       } catch (e) {
         if (e instanceof ExportCancelledError) throw e;

@@ -256,13 +256,13 @@
 /* ── Progress bar ────────────────────────────────────────────────────────── */
 .em-progress-wrap {
   position: relative;
-  height: 20px;
+  min-height: 48px;
   margin: 0 0 2px;
   border-top: 1px solid var(--border);
   background: var(--surface-deep);
   overflow: hidden;
   display: flex;
-  align-items: center;
+  align-items: stretch;
 }
 
 .em-progress-bar {
@@ -278,14 +278,31 @@
 .em-progress-label {
   position: relative; /* above the bar */
   z-index: 1;
-  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 7px 10px;
   font-size: calc(var(--font-size-xs) - 1px);
   color: var(--text-muted);
   font-family: var(--font-mono);
+}
+
+.em-progress-summary {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+}
+
+.em-progress-log {
+  color: var(--text);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .em-progress-meta {
@@ -363,6 +380,14 @@
   background: rgba(var(--blue-rgb), 0.06);
   border-color: rgba(var(--blue-rgb), 0.25);
   color: rgba(var(--blue-rgb), 0.85);
+}
+
+.em-hint--code {
+  font-family: var(--font-mono);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
 }
 
 /* Section divider inside the config panel */

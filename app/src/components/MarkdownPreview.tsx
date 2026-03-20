@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import 'katex/dist/katex.min.css';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { WorkspaceFeatureConfig } from '../types';
-import { hasMermaidCodeBlocks, renderMarkdownBaseHtml, renderMarkdownToHtml } from '../utils/markdownRender';
+import {
+  hasMermaidCodeBlocks,
+  isMermaidRenderingEnabled,
+  renderMarkdownBaseHtml,
+  renderMarkdownToHtml,
+} from '../utils/markdownRender';
 import './MarkdownPreview.css';
 
 interface MarkdownPreviewProps {
@@ -27,7 +32,7 @@ export default function MarkdownPreview({ content, onNavigate, currentFilePath, 
   }, [baseHtml]);
 
   useEffect(() => {
-    if (!features?.markdown?.mermaid || !hasMermaidCodeBlocks(content)) return;
+    if (!isMermaidRenderingEnabled(features) || !hasMermaidCodeBlocks(content)) return;
 
     let cancelled = false;
     void renderMarkdownToHtml(content, { features })

@@ -16,7 +16,7 @@ import { readTextFile, writeTextFile, exists, stat } from './fs';
 import { CONFIG_DIR } from './config';
 import type { FileTreeNode } from '../types';
 
-const INDEX_VERSION = 2;
+const INDEX_VERSION = 3;
 const INDEX_FILE = 'workspace-index.json';
 
 /** Maximum number of files to include in the index (prevents runaway indexing). */
@@ -85,6 +85,9 @@ export function extractFileOutline(relPath: string, text: string): string {
     while ((hm = headingRe.exec(text)) !== null) {
       const indent = '  '.repeat(hm[1].length);
       lines.push(`${indent}${hm[1]} ${hm[2].trim()}`);
+    }
+    if (/(^|\n)```mermaid(?:\s|\n)/.test(text)) {
+      lines.push('  [mermaid]');
     }
     // Word count
     const words = text.replace(/<[^>]+>/g, '').split(/\s+/).filter(Boolean).length;

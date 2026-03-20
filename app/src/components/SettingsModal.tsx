@@ -81,15 +81,16 @@ export default function SettingsModal({
   function applyCapabilityOverride(
     existing: Record<string, unknown> | undefined,
     mode: CapabilityOverrideMode,
+    fieldName = 'agentTools',
   ): Record<string, unknown> | undefined {
     if (mode === 'auto') {
       if (!existing) return undefined;
       const next = Object.fromEntries(
-        Object.entries(existing).filter(([key]) => key !== 'agentTools'),
+        Object.entries(existing).filter(([key]) => key !== fieldName),
       );
       return Object.keys(next).length > 0 ? next : undefined;
     }
-    return { ...(existing ?? {}), agentTools: mode === 'on' };
+    return { ...(existing ?? {}), [fieldName]: mode === 'on' };
   }
 
   function getCapabilityModeDescription(
@@ -346,7 +347,7 @@ export default function SettingsModal({
   const [wsSidebarButtons, setWsSidebarButtons] = useState<SidebarButton[]>([]);
   const [wsInboxFile, setWsInboxFile] = useState('');
   const [wsGitBranch, setWsGitBranch] = useState('');
-  const [wsMarkdownMermaid, setWsMarkdownMermaid] = useState(false);
+  const [wsMarkdownMermaid, setWsMarkdownMermaid] = useState<CapabilityOverrideMode>('auto');
   const [wsCanvasAgentTools, setWsCanvasAgentTools] = useState<CapabilityOverrideMode>('auto');
   const [wsSpreadsheetAgentTools, setWsSpreadsheetAgentTools] = useState<CapabilityOverrideMode>('auto');
   const [wsWebAgentTools, setWsWebAgentTools] = useState<CapabilityOverrideMode>('auto');
@@ -481,7 +482,7 @@ export default function SettingsModal({
     setWsSidebarButtons(workspace.config.sidebarButtons ?? []);
     setWsInboxFile(workspace.config.inboxFile ?? '');
     setWsGitBranch(workspace.config.gitBranch ?? '');
-    setWsMarkdownMermaid(workspace.config.features?.markdown?.mermaid ?? false);
+    setWsMarkdownMermaid(getCapabilityOverrideMode(workspace.config.features?.markdown?.mermaid));
     setWsCanvasAgentTools(getCapabilityOverrideMode(workspace.config.features?.canvas?.agentTools));
     setWsSpreadsheetAgentTools(getCapabilityOverrideMode(workspace.config.features?.spreadsheet?.agentTools));
     setWsWebAgentTools(getCapabilityOverrideMode(workspace.config.features?.web?.agentTools));
@@ -529,19 +530,14 @@ export default function SettingsModal({
   }, []);
 
   function buildWorkspaceFeatures(existing?: WorkspaceFeatureConfig): WorkspaceFeatureConfig | undefined {
+    const nextMarkdown = applyCapabilityOverride(existing?.markdown, wsMarkdownMermaid, 'mermaid') as WorkspaceFeatureConfig['markdown'];
     const nextCanvas = applyCapabilityOverride(existing?.canvas, wsCanvasAgentTools) as WorkspaceFeatureConfig['canvas'];
     const nextSpreadsheet = applyCapabilityOverride(existing?.spreadsheet, wsSpreadsheetAgentTools) as WorkspaceFeatureConfig['spreadsheet'];
     const nextWeb = applyCapabilityOverride(existing?.web, wsWebAgentTools) as WorkspaceFeatureConfig['web'];
 
     const nextFeatures: WorkspaceFeatureConfig = {
       ...existing,
-      markdown: wsMarkdownMermaid
-        ? { ...existing?.markdown, mermaid: true }
-        : existing?.markdown
-          ? Object.fromEntries(
-              Object.entries(existing.markdown).filter(([key]) => key !== 'mermaid'),
-            ) as WorkspaceFeatureConfig['markdown']
-          : undefined,
+      markdown: nextMarkdown,
       canvas: nextCanvas,
       spreadsheet: nextSpreadsheet,
       web: nextWeb,

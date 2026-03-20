@@ -111,6 +111,17 @@ function describeProgress(progress?: ExportProgressInfo): string {
   return progress.detail ?? progress.label;
 }
 
+function splitProgressDetail(progress?: ExportProgressInfo): { summary: string; log?: string } {
+  const detail = describeProgress(progress);
+  const marker = ' Last output: ';
+  const index = detail.indexOf(marker);
+  if (index === -1) return { summary: detail };
+  return {
+    summary: detail.slice(0, index),
+    log: detail.slice(index + marker.length),
+  };
+}
+
 export default function ExportModal({
   workspace,
   onWorkspaceChange,
@@ -130,6 +141,7 @@ export default function ExportModal({
   // Async file-count per target: targetId → number
   const [fileCounts, setFileCounts] = useState<Map<string, number>>(new Map());
   const [isRunningAll, setIsRunningAll] = useState(false);
+  const [closeRequested, setCloseRequested] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [aiHelperDismissed, setAiHelperDismissed] = useState(
     () => localStorage.getItem(SK.EXPORT_MODAL_AI_HELPER) === '1',
@@ -180,6 +192,21 @@ export default function ExportModal({
     const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [statuses]);
+
+  useEffect(() => {
+    if (!closeRequested) return;
+    const hasRunning = Array.from(statuses.values()).some((status) => status.status === 'running');
+    if (hasRunning) return;
+    setCloseRequested(false);
+    onClose();
+  }, [closeRequested, onClose, statuses]);
+
+  useEffect(() => () => {
+    cancelControllersRef.current.forEach((controller) => {
+      controller.cancelled = true;
+    });
+    cancelControllersRef.current.clear();
+  }, []);
 
   useEffect(() => {
     const canvasRun = targets.find((target) => {
@@ -271,6 +298,18 @@ export default function ExportModal({
         updatedAt: Date.now(),
       });
     });
+  }
+
+  function handleRequestClose() {
+    const runningIds = Array.from(statuses.entries())
+      .filter(([, status]) => status.status === 'running')
+      .map(([id]) => id);
+    if (runningIds.length === 0) {
+      onClose();
+      return;
+    }
+    setCloseRequested(true);
+    runningIds.forEach((id) => requestCancel(id));
   }
 
   async function runTarget(target: ExportTarget): Promise<'done' | 'canceled' | 'error'> {
@@ -406,13 +445,13 @@ export default function ExportModal({
   const enabledCount = targets.filter((t) => t.enabled).length;
 
   return (
-    <div className="em-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="em-backdrop" onClick={(e) => { if (e.target === e.currentTarget) handleRequestClose(); }}>
       <div className="em-modal">
 
         {/* Header */}
         <div className="em-header">
           <span className="em-title">Export / Build Settings</span>
-          <button className="em-close" onClick={onClose}><X weight="bold" /></button>
+          <button className="em-close" onClick={handleRequestClose} title={closeRequested ? 'Stopping exports before closing' : 'Close'}><X weight="bold" /></button>
         </div>
 
         {/* Target list */}
@@ -439,6 +478,7 @@ export default function ExportModal({
             const progressPercent = s?.progress
               ? Math.max(3, Math.min(100, Math.round((s.progress.done / Math.max(1, s.progress.total)) * 100)))
               : 0;
+            const progressText = splitProgressDetail(s?.progress);
 
             return (
               <div key={target.id} className={`em-target${isExpanded ? ' expanded' : ''}`}>
@@ -512,9 +552,12 @@ export default function ExportModal({
                         className="em-progress-bar"
                         style={{ width: `${progressPercent}%` }}
                       />
-                      <span className="em-progress-label">
-                        {describeProgress(s.progress)}
-                      </span>
+                      <div className="em-progress-label">
+                        <span className="em-progress-summary">{progressText.summary}</span>
+                        {progressText.log && (
+                          <span className="em-progress-log">{progressText.log}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="em-progress-meta">
                       <span>{formatElapsed(elapsedMs)} elapsed</span>
@@ -736,8 +779,12 @@ export default function ExportModal({
                           onChange={(e) => updateTarget(target.id, { customCommand: e.target.value })}
                         />
                         <span className="em-hint">
-                          Placeholders: {'{{input}}'} = source file, {'{{output}}'} = output path (no extension).
-                          Runs with workspace root as cwd.
+                          Placeholders: {'{{input}}'}, {'{{input_abs}}'}, {'{{output}}'}, {'{{output_abs}}'}, {'{{workspace}}'}, {'{{output_dir}}'}.
+                          Quoted variants: {'{{input_q}}'}, {'{{output_q}}'}, {'{{workspace_q}}'}, {'{{output_dir_q}}'}.
+                          Runs from the workspace root using your login shell when possible.
+                        </span>
+                        <span className="em-hint em-hint--code">
+                          Progress shortcut: print lines starting with CAFEZIN_PROGRESS. Examples: CAFEZIN_PROGRESS 3/10 Generating images, CAFEZIN_PROGRESS 42% Building PDF, or CAFEZIN_PROGRESS {`{"done":3,"total":10,"detail":"Generating images"}`}.
                         </span>
                       </div>
                     )}

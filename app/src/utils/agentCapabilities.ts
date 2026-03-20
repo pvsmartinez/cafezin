@@ -1,4 +1,4 @@
-import type { FileTreeNode, WorkspaceConfig, Workspace } from '../types';
+import type { FileTreeNode, WorkspaceConfig, Workspace, WorkspaceIndex } from '../types';
 
 export const CANVAS_AGENT_TOOL_NAMES = new Set([
   'list_canvas_shapes',
@@ -22,6 +22,7 @@ export const WEB_AGENT_TOOL_NAMES = new Set([
 ]);
 
 export interface AgentCapabilityState {
+  markdownMermaid: boolean;
   canvas: boolean;
   spreadsheet: boolean;
   web: boolean;
@@ -29,7 +30,7 @@ export interface AgentCapabilityState {
 
 export type AgentCapabilitySource =
   | WorkspaceConfig
-  | Pick<Workspace, 'config' | 'fileTree'>
+  | Pick<Workspace, 'config' | 'fileTree' | 'workspaceIndex'>
   | null
   | undefined;
 
@@ -46,6 +47,7 @@ function flattenFiles(nodes: FileTreeNode[] | undefined): string[] {
 export function detectAgentCapabilitiesFromFileTree(fileTree?: FileTreeNode[]): AgentCapabilityState {
   const files = flattenFiles(fileTree);
   return {
+    markdownMermaid: false,
     canvas: files.some((path) => path.endsWith('.tldr.json')),
     spreadsheet: files.some((path) => /\.(csv|tsv|xlsx|xls|ods|xlsm|xlsb)$/i.test(path)),
     web: files.some((path) => /\.(html|htm)$/i.test(path)),
@@ -63,6 +65,16 @@ function extractFileTree(source?: AgentCapabilitySource): FileTreeNode[] | undef
   return source.fileTree;
 }
 
+function extractWorkspaceIndex(source?: AgentCapabilitySource): WorkspaceIndex | undefined {
+  if (!source || !('workspaceIndex' in source)) return undefined;
+  return source.workspaceIndex;
+}
+
+function detectMarkdownMermaidFromIndex(index?: WorkspaceIndex): boolean {
+  if (!index) return false;
+  return index.entries.some((entry) => /\.(md|mdx)$/i.test(entry.path) && entry.outline.includes('[mermaid]'));
+}
+
 function resolveCapability(override: boolean | undefined, detected: boolean): boolean {
   if (override === true) return true;
   if (override === false) return false;
@@ -73,6 +85,10 @@ export function getAgentCapabilityState(source?: AgentCapabilitySource): AgentCa
   const workspaceConfig = extractConfig(source);
   const detected = detectAgentCapabilitiesFromFileTree(extractFileTree(source));
   return {
+    markdownMermaid: resolveCapability(
+      workspaceConfig?.features?.markdown?.mermaid,
+      detectMarkdownMermaidFromIndex(extractWorkspaceIndex(source)) || detected.markdownMermaid,
+    ),
     canvas: resolveCapability(workspaceConfig?.features?.canvas?.agentTools, detected.canvas),
     spreadsheet: resolveCapability(workspaceConfig?.features?.spreadsheet?.agentTools, detected.spreadsheet),
     web: resolveCapability(workspaceConfig?.features?.web?.agentTools, detected.web),

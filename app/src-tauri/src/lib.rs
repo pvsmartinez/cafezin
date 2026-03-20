@@ -79,6 +79,22 @@ fn build_shell_process_id() -> String {
     format!("{millis}-{}", salt.replace(['(', ')', ' '], ""))
 }
 
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn shell_program() -> String {
+    let shell = std::env::var("SHELL").unwrap_or_default();
+    match shell.as_str() {
+        s if s.ends_with("/bash") || s.ends_with("/zsh") || s.ends_with("/sh") => s.to_string(),
+        _ => "/bin/bash".to_string(),
+    }
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn build_shell_command(cmd: &str, cwd: &str) -> Command {
+    let mut command = Command::new(shell_program());
+    command.args(["-lc", cmd]).current_dir(cwd);
+    command
+}
+
 
 /// Opens the webview DevTools inspector (debug builds only).
 #[tauri::command]
@@ -95,9 +111,7 @@ fn open_devtools(webview_window: tauri::WebviewWindow) {
 #[tauri::command]
 fn shell_run(cmd: String, cwd: String) -> Result<serde_json::Value, String> {
     ensure_shell_cwd_allowed(&cwd)?;
-    let output = Command::new("bash")
-        .args(["-c", &cmd])
-        .current_dir(&cwd)
+    let output = build_shell_command(&cmd, &cwd)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -122,9 +136,7 @@ fn shell_run_start(
     let stdout_file = File::create(&stdout_path).map_err(|e| e.to_string())?;
     let stderr_file = File::create(&stderr_path).map_err(|e| e.to_string())?;
 
-    let child = Command::new("bash")
-        .args(["-c", &cmd])
-        .current_dir(&cwd)
+    let child = build_shell_command(&cmd, &cwd)
         .stdout(Stdio::from(stdout_file))
         .stderr(Stdio::from(stderr_file))
         .spawn()

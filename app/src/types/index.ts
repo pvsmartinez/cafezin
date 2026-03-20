@@ -256,7 +256,7 @@ export interface GitHubOAuthWorkspaceConfig {
 
 /** Optional per-workspace capabilities that enhance built-in file types. */
 export interface WorkspaceFeatureConfig {
-  /** Markdown-specific render features such as Mermaid diagrams. */
+  /** Markdown-specific render features such as Mermaid diagrams. Undefined = automatic based on workspace files. */
   markdown?: {
     mermaid?: boolean;
   };

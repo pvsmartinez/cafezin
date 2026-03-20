@@ -46,7 +46,8 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
         'action="list" returns all targets as JSON. ' +
         'action="add" creates a new target (name, format, and outputDir required). ' +
         'action="update" patches an existing target by id or name. ' +
-        'action="remove" deletes a target by id or name.',
+        'action="remove" deletes a target by id or name. ' +
+        'Supported formats and key options: pdf (merge, toc, titlePage, pdfCssFile, versionOutput, preProcess), canvas-png, canvas-pdf (merge), zip, git-publish (commitMessage, remote, branch, skipCommitWhenNoChanges), custom (customCommand with placeholders and progress protocol).',
       parameters: {
         type: 'object',
         properties: {
@@ -90,7 +91,7 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
             type: 'boolean',
             description: '(Git publish only) Skip commit when there are no changes and still try to push. Defaults to true.',
           },
-          customCommand:{ type: 'string', description: 'Shell command for custom format. Use {{input}} and {{output}} placeholders.' },
+          customCommand:{ type: 'string', description: 'Shell command for custom format. Placeholders: {{input}}, {{input_abs}}, {{output}}, {{output_abs}}, {{workspace}}, {{output_dir}}, plus quoted shell-safe variants ending in _q. Scripts can report progress by printing lines starting with CAFEZIN_PROGRESS.' },
           enabled:      { type: 'boolean', description: 'Whether this target is included in Export All.' },
           merge:        { type: 'boolean', description: 'Merge all matched files into one output (pdf/canvas-pdf).' },
           mergeName:    { type: 'string', description: 'Filename (no extension) for merged output.' },

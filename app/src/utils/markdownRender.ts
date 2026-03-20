@@ -26,6 +26,10 @@ export function hasMermaidCodeBlocks(content: string): boolean {
   return MERMAID_BLOCK_REGEX.test(content);
 }
 
+export function isMermaidRenderingEnabled(features?: WorkspaceFeatureConfig): boolean {
+  return features?.markdown?.mermaid !== false;
+}
+
 export function renderMarkdownBaseHtml(content: string): string {
   try {
     return marked.parse(preprocessMath(content)) as string;
@@ -189,7 +193,7 @@ export async function renderMarkdownToHtml(
   options?: RenderMarkdownOptions,
 ): Promise<string> {
   const baseHtml = renderMarkdownBaseHtml(content);
-  if (!options?.features?.markdown?.mermaid || !hasMermaidCodeBlocks(content)) {
+  if (!isMermaidRenderingEnabled(options?.features) || !hasMermaidCodeBlocks(content)) {
     return baseHtml;
   }
   return renderMermaidBlocks(baseHtml);

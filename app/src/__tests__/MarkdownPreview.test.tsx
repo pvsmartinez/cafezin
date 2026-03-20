@@ -217,4 +217,28 @@ const greeting = (name: string) => \`Hello, \${name}!\`;
     });
     expect(container.querySelector('pre code.language-mermaid')).not.toBeInTheDocument();
   });
+
+  it('renders Mermaid diagrams in automatic mode when no manual override is set', async () => {
+    const { container } = render(
+      <MarkdownPreview content={'```mermaid\nflowchart TD\nA --> B\n```'} />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('.mermaid-diagram svg')).toBeInTheDocument();
+    });
+  });
+
+  it('does not render Mermaid diagrams when the workspace feature is manually disabled', async () => {
+    const { container } = render(
+      <MarkdownPreview
+        content={'```mermaid\nflowchart TD\nA --> B\n```'}
+        features={{ markdown: { mermaid: false } }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('pre code.language-mermaid')).toBeInTheDocument();
+    });
+    expect(container.querySelector('.mermaid-diagram svg')).not.toBeInTheDocument();
+  });
 });

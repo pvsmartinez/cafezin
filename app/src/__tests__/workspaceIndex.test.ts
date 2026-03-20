@@ -26,6 +26,20 @@ describe('extractFileOutline', () => {
     expect(outline).toMatch(/\d+ words/);
   });
 
+  it('marks markdown files that contain Mermaid blocks', () => {
+    const text = [
+      '# Diagram',
+      '',
+      '```mermaid',
+      'flowchart TD',
+      'A --> B',
+      '```',
+    ].join('\n');
+
+    const outline = extractFileOutline('diagram.md', text);
+    expect(outline).toContain('[mermaid]');
+  });
+
   it('returns named exports for TypeScript files', () => {
     const text = [
       'export function greet(name: string) { return `Hello ${name}`; }',
