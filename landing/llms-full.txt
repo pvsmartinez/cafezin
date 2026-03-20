@@ -67,12 +67,24 @@ Current public pages
 - Educators: https://cafezin.pmatz.com/educators
 - Content creators: https://cafezin.pmatz.com/content-creators
 - Knowledge work: https://cafezin.pmatz.com/knowledge-work
+- Students and researchers: https://cafezin.pmatz.com/students
+- Copywriters: https://cafezin.pmatz.com/copywriters
 - Compare with Notion AI: https://cafezin.pmatz.com/compare-notion-ai
 - Compare with Obsidian: https://cafezin.pmatz.com/compare-obsidian
 - Compare with Scrivener: https://cafezin.pmatz.com/compare-scrivener
 - Compare with Google Docs + AI: https://cafezin.pmatz.com/compare-google-docs-ai
+- Compare with Bear: https://cafezin.pmatz.com/compare-bear
+- Compare with Ulysses: https://cafezin.pmatz.com/compare-ulysses
+- Compare with iA Writer: https://cafezin.pmatz.com/compare-ia-writer
+- Compare with Apple Notes: https://cafezin.pmatz.com/compare-apple-notes
 - PT-BR Home: https://cafezin.pmatz.com/br
 - PT-BR Pricing: https://cafezin.pmatz.com/br/pricing
+- PT-BR Students: https://cafezin.pmatz.com/br/estudantes
+- PT-BR Copywriters: https://cafezin.pmatz.com/br/redatores
+- PT-BR Compare Bear: https://cafezin.pmatz.com/br/comparar-bear
+- PT-BR Compare Ulysses: https://cafezin.pmatz.com/br/comparar-ulysses
+- PT-BR Compare iA Writer: https://cafezin.pmatz.com/br/comparar-ia-writer
+- PT-BR Compare Apple Notes: https://cafezin.pmatz.com/br/comparar-apple-notes
 - Privacy Policy: https://cafezin.pmatz.com/privacy-policy
 - Terms of Service: https://cafezin.pmatz.com/terms-of-service
 - Refund Policy: https://cafezin.pmatz.com/refund

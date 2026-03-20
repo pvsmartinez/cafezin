@@ -35,8 +35,20 @@ Primary URLs:
 - Compare with Obsidian: https://cafezin.pmatz.com/compare-obsidian
 - Compare with Scrivener: https://cafezin.pmatz.com/compare-scrivener
 - Compare with Google Docs + AI: https://cafezin.pmatz.com/compare-google-docs-ai
+- Compare with Bear: https://cafezin.pmatz.com/compare-bear
+- Compare with Ulysses: https://cafezin.pmatz.com/compare-ulysses
+- Compare with iA Writer: https://cafezin.pmatz.com/compare-ia-writer
+- Compare with Apple Notes: https://cafezin.pmatz.com/compare-apple-notes
+- Students and Researchers: https://cafezin.pmatz.com/students
+- Copywriters: https://cafezin.pmatz.com/copywriters
 - PT-BR Home: https://cafezin.pmatz.com/br
 - PT-BR Pricing: https://cafezin.pmatz.com/br/pricing
+- PT-BR Compare Bear: https://cafezin.pmatz.com/br/comparar-bear
+- PT-BR Compare Ulysses: https://cafezin.pmatz.com/br/comparar-ulysses
+- PT-BR Compare iA Writer: https://cafezin.pmatz.com/br/comparar-ia-writer
+- PT-BR Compare Apple Notes: https://cafezin.pmatz.com/br/comparar-apple-notes
+- PT-BR Students: https://cafezin.pmatz.com/br/estudantes
+- PT-BR Copywriters: https://cafezin.pmatz.com/br/redatores
 - Privacy Policy: https://cafezin.pmatz.com/privacy-policy
 - Terms of Service: https://cafezin.pmatz.com/terms-of-service
 
