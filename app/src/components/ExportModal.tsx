@@ -8,7 +8,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { X, Plus, Play, Trash, CaretDown, CaretUp, CheckCircle, WarningCircle, CircleNotch, FolderOpen, CloudArrowUp, Sparkle } from '@phosphor-icons/react';
-import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { runExportTarget, listAllFiles, resolveFiles, ExportCancelledError, type ExportProgressInfo, type ExportResult } from '../utils/exportWorkspace';
 import { deployToVercel, resolveVercelToken } from '../services/publishVercel';
 import { saveWorkspaceConfig } from '../services/workspace';
@@ -615,11 +615,14 @@ export default function ExportModal({
                         <span>✓ {s.result.outputs.length} file{s.result.outputs.length !== 1 ? 's' : ''} → {s.result.outputs.join(', ')} ({s.result.elapsed}ms)</span>
                         <button
                           className="em-reveal-btn"
-                          title="Reveal in Finder"
-                          onClick={() => revealItemInDir(`${workspace.path}/${s.result!.outputs[0]}`)}
+                          title="Open generated file"
+                          onClick={() => {
+                            const outputPath = `${workspace.path}/${s.result!.outputs[0]}`;
+                            openPath(outputPath).catch(() => revealItemInDir(outputPath));
+                          }}
                         >
                           <FolderOpen weight="fill" size={13} />
-                          Reveal
+                          Open
                         </button>
 
                         {/* Vercel publish button */}
