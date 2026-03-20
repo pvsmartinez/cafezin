@@ -1237,25 +1237,6 @@ export default function App() {
     [activeFile, content, workspace?.name],
   );
 
-  // ── No workspace yet — show picker ──────────────────────────
-  if (!workspace) {
-    return (
-      <>
-        {splash && <SplashScreen visible={splashVisible} />}
-        <WorkspacePicker onOpen={handleWorkspaceLoaded} />
-        <UpdateModal
-          open={showUpdateModal}
-          projectRoot={__PROJECT_ROOT__}
-          onClose={() => setShowUpdateModal(false)}
-        />
-        <UpdateReleaseModal
-          open={showUpdateReleaseModal}
-          onClose={() => setShowUpdateReleaseModal(false)}
-        />
-      </>
-    );
-  }
-
   function handleExecutePendingTask(task: MobilePendingTask) {
     setAiInitialPrompt(task.description);
     setAiOpen(true);
@@ -1282,6 +1263,25 @@ export default function App() {
     }
     setCanvasResetKey((value) => value + 1);
   }, [activeFile, savedContentRef, setContent, tabContentsRef, workspace]);
+
+  // ── No workspace yet — show picker ──────────────────────────
+  if (!workspace) {
+    return (
+      <>
+        {splash && <SplashScreen visible={splashVisible} />}
+        <WorkspacePicker onOpen={handleWorkspaceLoaded} />
+        <UpdateModal
+          open={showUpdateModal}
+          projectRoot={__PROJECT_ROOT__}
+          onClose={() => setShowUpdateModal(false)}
+        />
+        <UpdateReleaseModal
+          open={showUpdateReleaseModal}
+          onClose={() => setShowUpdateReleaseModal(false)}
+        />
+      </>
+    );
+  }
 
   return (
     <div className={`app${focusMode ? ' focus-mode' : ''}${exportLock ? ' app--exporting' : ''}`}>
