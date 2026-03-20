@@ -886,6 +886,10 @@ export default function MobileApp() {
             contextFilePath={openFile ?? undefined}
             contextFileContent={fileContent ?? undefined}
             onFileWritten={refreshWorkspace}
+            onOpenFileReference={async (relPath) => {
+              await handleFileSelect(relPath);
+              setActiveTab('files');
+            }}
           />
         );
 

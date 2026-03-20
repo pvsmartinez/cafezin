@@ -11,9 +11,13 @@ import { streamChat, getActiveProvider } from '../services/aiProvider';
 import { runProviderAgent } from '../services/ai/runProviderAgent';
 import { appendLogEntry } from '../services/copilotLog';
 import { getWorkspaceTools, buildToolExecutor } from '../utils/workspaceTools';
+import { applyRiskGate } from '../utils/riskGate';
+import type { RiskLevel } from '../utils/toolRisk';
 import { canvasToDataUrl, compressDataUrl } from '../utils/canvasAI';
 import { unlockAllByAgent } from '../services/copilotLock';
 import type {
+  AIRecordedTextMark,
+  AISelectionContext,
   ChatMessage,
   ContentPart,
   CopilotModel,
@@ -53,13 +57,14 @@ export interface UseAIStreamParams {
   workspaceConfig?: WorkspaceConfig;
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
   onFileWritten?: (path: string) => void;
-  onMarkRecorded?: (relPath: string, content: string, model: string) => void;
+  onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
   onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
   // ── Misc ──────────────────────────────────────────────────────────────────
   webPreviewRef?: React.RefObject<{ getScreenshot: () => Promise<string | null> } | null>;
   getActiveHtml?: () => { html: string; absPath: string } | null;
   onStreamingChange?: (v: boolean) => void;
   setMemoryContent: (v: string) => void;
+  setUserProfileContent?: (v: string) => void;
   /** Identifier for this agent instance — used to release only this agent's file locks. */
   agentId?: string;
   /**
@@ -141,6 +146,7 @@ export function useAIStream({
   getActiveHtml,
   onStreamingChange,
   setMemoryContent,
+  setUserProfileContent,
   onNotAuthenticated,
   agentId = 'agent-1',
   activeFileContent,
@@ -156,7 +162,10 @@ export function useAIStream({
   const [askUserState, setAskUserState] = useState<{ question: string; options?: string[] } | null>(null);
   const [askUserInput, setAskUserInput] = useState('');
   const askUserResolveRef = useRef<((answer: string) => void) | null>(null);
-
+  // ── Risk gate — session-level permission grants ───────────────────────────
+  // This Set persists for the lifetime of this hook instance (i.e. one workspace session).
+  // Medium/high risk tools will not re-prompt once the user grants for the session.
+  const sessionRiskGrantedRef = useRef<Set<RiskLevel>>(new Set<RiskLevel>());
   // ── Live streaming items (text + tool calls interleaved) ──────────────────
   const [liveItems, setLiveItemsState] = useState<MessageItem[]>([]);
   const liveItemsRef = useRef<MessageItem[]>([]);
@@ -339,11 +348,11 @@ export function useAIStream({
     })();
 
     if (workspace) {
-      const executor = buildToolExecutor(
+      const rawExecutor = buildToolExecutor(
         workspace.path,
         canvasEditorRef ?? { current: null },
         onFileWritten,
-        (relPath, content) => onMarkRecorded?.(relPath, content, model),
+        (relPath, content, recordedMarks) => onMarkRecorded?.(relPath, content, model, recordedMarks),
         (shapeIds) => {
           if (shapeIds.length > 0 && activeFile) {
             onCanvasMarkRecorded?.(activeFile, shapeIds, model);
@@ -361,10 +370,17 @@ export function useAIStream({
         onWorkspaceConfigChange,
         agentId,
         activeFileContent,
+        setUserProfileContent,
       );
+      const executor = applyRiskGate(rawExecutor, {
+        workspaceConfig,
+        onWorkspaceConfigChange,
+        onAskUser,
+        sessionGranted: sessionRiskGrantedRef.current,
+      });
 
       const isMobilePlatform    = import.meta.env.VITE_TAURI_MOBILE === 'true';
-      const activeTools = getWorkspaceTools(workspaceConfig, workspaceExportConfig).filter((t) => {
+      const activeTools = getWorkspaceTools(workspace, workspaceExportConfig).filter((t) => {
         if (isMobilePlatform && t.function.name === 'run_command') return false;
         return true;
       });
@@ -444,6 +460,7 @@ export function useAIStream({
     textOverride?: string,
     pendingImagesRef?: string[],
     pendingFileRefVal?: { name: string; content: string } | null,
+    pendingSelectionContextVal?: AISelectionContext | null,
     input?: string,
     clearInputAndAttachments?: () => void,
   ): Promise<void> {    // Defence-in-depth: block AI calls when the account is not entitled.
@@ -487,6 +504,7 @@ export function useAIStream({
 
     const capturedImages  = imageOverride ? [imageOverride] : (pendingImagesRef ?? []);
     const capturedFileRef = pendingFileRefVal ?? null;
+    const capturedSelectionContext = pendingSelectionContextVal ?? null;
     const userMsg: ChatMessage = {
       role: 'user',
       content: textToSend || '📸',
@@ -494,6 +512,7 @@ export function useAIStream({
       ...(capturedImages.length === 1 ? { attachedImage: capturedImages[0] } : {}),
       ...(capturedImages.length > 0 ? { attachedImages: capturedImages } : {}),
       ...(capturedFileRef  ? { attachedFile: capturedFileRef.name }   : {}),
+      ...(capturedSelectionContext ? { attachedSelectionLabel: capturedSelectionContext.label } : {}),
     };
     setMessages((prev) => [...prev, userMsg]); // show user message immediately
     setIsStreaming(true);
@@ -504,9 +523,12 @@ export function useAIStream({
     const fileContext = capturedFileRef
       ? `[Attached file: "${capturedFileRef.name}"]\n---\n${capturedFileRef.content}\n---\n\n`
       : '';
-    const apiText = `${fileContext}${prefix}${textToSend || 'Describe what you see in this screenshot and note any issues.'}`;
+    const selectionContext = capturedSelectionContext
+      ? `[Attached selection: "${capturedSelectionContext.label}"]\n---\n${capturedSelectionContext.content}\n---\n\n`
+      : '';
+    const apiText = `${fileContext}${selectionContext}${prefix}${textToSend || 'Describe what you see in this screenshot and note any issues.'}`;
 
-    let finalUserMsg: ChatMessage = (activeFile || capturedFileRef)
+    let finalUserMsg: ChatMessage = (activeFile || capturedFileRef || capturedSelectionContext)
       ? { role: 'user', content: apiText }
       : userMsg;
 

@@ -8,9 +8,9 @@ import {
 } from 'tldraw';
 import { readFile } from '../services/fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import type { AIEditMark } from '../types';
+import type { AIEditMark, AISelectionContext } from '../types';
 import { generateSlidePreviews } from '../utils/slidePreviews';
-import { sanitizeSnapshot } from '../utils/canvasAI';
+import { sanitizeSnapshot, summarizeCanvasSelection } from '../utils/canvasAI';
 import { getMimeType } from '../utils/mime';
 import 'tldraw/tldraw.css';
 import './CanvasEditor.css';
@@ -105,6 +105,7 @@ interface CanvasEditorProps {
   onAINext?: () => void;
   /** Called to mark an AI edit as reviewed. */
   onMarkReviewed?: (id: string) => void;
+  onMarkRejected?: (id: string) => void;
   /** Called when the user edits a shape that belongs to an AI mark. */
   onMarkUserEdited?: (markId: string) => void;
   /**
@@ -129,6 +130,7 @@ interface CanvasEditorProps {
    * Used to derive the .cafezin/previews/<slug>/ directory for PNG sidecars.
    */
   canvasRelPath?: string;
+  onSelectionContextChange?: (context: AISelectionContext | null) => void;
 }
 
 export default function CanvasEditor({
@@ -136,8 +138,8 @@ export default function CanvasEditor({
   presentMode: presentModeProp, onPresentModeChange, onSlideCountChange,
   rescanFramesRef, forceSaveRef,
   aiMarks = [], aiHighlight = false, aiNavIndex = 0,
-  onAIPrev, onAINext, onMarkReviewed, onMarkUserEdited,
-  darkMode = true, onFileSaved, canvasRelPath,
+  onAIPrev, onAINext, onMarkReviewed, onMarkRejected, onMarkUserEdited,
+  darkMode = true, onFileSaved, canvasRelPath, onSelectionContextChange,
 }: CanvasEditorProps) {
   // ── Core refs ──────────────────────────────────────────────────────────────
   const editorRef    = useRef<Editor | null>(null);
@@ -377,6 +379,23 @@ export default function CanvasEditor({
       { scope: 'session' },
     );
 
+    editor.store.listen(
+      () => {
+        const summary = summarizeCanvasSelection(editor);
+        if (!summary) {
+          onSelectionContextChange?.(null);
+          return;
+        }
+        const filename = canvasRelPath?.split('/').pop() ?? 'canvas atual';
+        onSelectionContextChange?.({
+          source: 'canvas',
+          label: `Seleção do canvas em ${filename}`,
+          content: [`Canvas selection from "${filename}":`, summary].join('\n'),
+        });
+      },
+      { scope: 'session' },
+    );
+
     // Enforce isThemeBg shapes stay at back. Guarded: skip during drag/resize.
     let bgEnforceRaf: number | null = null;
     editor.store.listen(
@@ -518,6 +537,18 @@ export default function CanvasEditor({
       });
     };
     editor.getContainer().addEventListener('keydown', typeToEditHandler, true);
+
+    const initialSelection = summarizeCanvasSelection(editor);
+    if (!initialSelection) {
+      onSelectionContextChange?.(null);
+    } else {
+      const filename = canvasRelPath?.split('/').pop() ?? 'canvas atual';
+      onSelectionContextChange?.({
+        source: 'canvas',
+        label: `Seleção do canvas em ${filename}`,
+        content: [`Canvas selection from "${filename}":`, initialSelection].join('\n'),
+      });
+    }
   }
 
   // ── Workspace image picker (drop to canvas center from image dialog) ──────────
@@ -546,6 +577,7 @@ export default function CanvasEditor({
           onPrev: onAIPrev ?? (() => {}),
           onNext: onAINext ?? (() => {}),
           onReview: onMarkReviewed ?? (() => {}),
+          onReject: onMarkRejected ?? (() => {}),
         }}>
           <Tldraw
             snapshot={snapshot}

@@ -29,6 +29,13 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Workspace } from '../../types';
 import { AIMarkdownText } from '../ai/AIMarkdownText';
 import { useAccountState } from '../../hooks/useAccountState';
+import { getGroqLangPreference } from '../../hooks/useVoiceInput';
+import { resolveVoiceTranscriptionLanguage } from '../../utils/voiceLanguage';
+import {
+  buildAgentGuidanceDigest,
+  summarizeWorkspaceFiles,
+  truncateDocumentContext,
+} from '../../utils/agentPromptContext';
 
 const contentToString = (content: string | ContentPart[]): string =>
   typeof content === 'string'
@@ -67,8 +74,22 @@ Save a clear task description so the user sees it as a reminder when they open t
 Do NOT use it for things you can already do here (file edits, writing, web search).`;
 
 // ── Simple markdown renderer for chat bubbles ────────────────────────────────
-function MobileMdMessage({ content }: { content: string }) {
-  return <AIMarkdownText content={content} />;
+function MobileMdMessage({
+  content,
+  workspace,
+  onOpenFileReference,
+}: {
+  content: string;
+  workspace: Workspace | null;
+  onOpenFileReference?: (relPath: string, lineNo?: number) => void | Promise<void>;
+}) {
+  return (
+    <AIMarkdownText
+      content={content}
+      workspace={workspace}
+      onOpenFileReference={onOpenFileReference}
+    />
+  );
 }
 
 // ── Tool activity chip ────────────────────────────────────────────────────────
@@ -133,6 +154,7 @@ interface MobileCopilotProps {
   contextFileContent?: string;
   /** Called when agent writes/patches a file so the file tree can refresh */
   onFileWritten?: (path: string) => void;
+  onOpenFileReference?: (relPath: string, lineNo?: number) => void | Promise<void>;
 }
 
 export default function MobileCopilot({
@@ -140,16 +162,17 @@ export default function MobileCopilot({
   contextFilePath,
   contextFileContent,
   onFileWritten,
+  onOpenFileReference,
 }: MobileCopilotProps) {
   const copilotOAuthClientId = workspace?.config.githubOAuth?.clientId?.trim() || undefined;
   const premiumUrl = navigator.language.startsWith('pt')
     ? 'https://cafezin.pmatz.com/br/premium'
     : 'https://cafezin.pmatz.com/premium';
   const mobileTools = useMemo(
-    () => getWorkspaceTools(workspace?.config, workspace?.config.exportConfig).filter(
+    () => getWorkspaceTools(workspace, workspace?.config.exportConfig).filter(
       (t) => !CANVAS_TOOLS.has(t.function.name) && t.function.name !== 'run_command',
     ),
-    [workspace?.config],
+    [workspace],
   );
 
   // ── Auth ─────────────────────────────────────────────────────────────────
@@ -257,11 +280,22 @@ export default function MobileCopilot({
     ];
     if (workspace) {
       systemParts.push(`Workspace: ${workspace.name}.`);
-      if (workspace.agentContext) systemParts.push(`\n${workspace.agentContext}`);
+      const workspaceSummary = summarizeWorkspaceFiles(workspace.fileTree, {
+        activeFile: contextFilePath,
+        recentFiles: workspace.config.recentFiles,
+        maxFiles: 8,
+      });
+      if (workspaceSummary) systemParts.push(`\n${workspaceSummary}`);
+
+      const workspaceGuidance = buildAgentGuidanceDigest(
+        workspace.agentInstructionSources ?? workspace.agentContext,
+        2400,
+      );
+      if (workspaceGuidance) systemParts.push(`\nWorkspace guidance:\n${workspaceGuidance}`);
     }
     if (contextFilePath && contextFileContent) {
       systemParts.push(
-        `\nThe user has "${contextFilePath}" open:\n\`\`\`\n${contextFileContent.slice(0, 20_000)}\n\`\`\``,
+        `\nThe user has "${contextFilePath}" open:\n\`\`\`\n${truncateDocumentContext(contextFileContent, contextFilePath, 12_000)}\n\`\`\``,
       );
     }
 
@@ -379,6 +413,11 @@ export default function MobileCopilot({
             audioBase64,
             mimeType,
             apiKey: groqKey,
+            language: resolveVoiceTranscriptionLanguage({
+              overrideLanguage: getGroqLangPreference(),
+              workspaceLanguage: workspace?.config.preferredLanguage,
+              navigatorLanguage: navigator.language,
+            }),
           });
           setInput(prev => prev ? `${prev} ${transcript}` : transcript);
         } catch (err) {
@@ -573,7 +612,11 @@ export default function MobileCopilot({
             </div>
           ) : (
             <div key={i} className="max-w-[86%] px-[13px] py-[10px] rounded-2xl text-sm leading-[1.5] break-words self-start bg-surface-2 text-app-text rounded-bl-[4px]">
-              <MobileMdMessage content={contentToString(msg.content)} />
+              <MobileMdMessage
+                content={contentToString(msg.content)}
+                workspace={workspace}
+                onOpenFileReference={onOpenFileReference}
+              />
             </div>
           )
         ))}
@@ -590,7 +633,11 @@ export default function MobileCopilot({
         {/* Streaming text */}
         {streaming && streamingText && (
           <div className="max-w-[86%] px-[13px] py-[10px] rounded-2xl text-sm leading-[1.5] break-words self-start bg-surface-2 text-app-text rounded-bl-[4px] msg-streaming">
-            <MobileMdMessage content={streamingText} />
+            <MobileMdMessage
+              content={streamingText}
+              workspace={workspace}
+              onOpenFileReference={onOpenFileReference}
+            />
           </div>
         )}
         {streaming && !streamingText && liveActivities.length === 0 && (

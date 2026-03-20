@@ -149,6 +149,34 @@
       text-decoration: none;
       font-size: 0.92rem;
     }
+
+    .premium-util-links {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.25rem;
+    }
+
+    .premium-util-btn {
+      appearance: none;
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--text-dim);
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .premium-util-btn:hover { color: var(--text-muted); }
+
+    .premium-util-sep {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -173,17 +201,21 @@
           <label class="premium-label" for="password">Senha</label>
           <input class="premium-input" id="password" type="password" autocomplete="current-password" required />
         </div>
-        <div class="premium-row">
-          <button id="login-btn" class="premium-btn" type="submit">Entrar</button>
-          <button id="signup-btn" class="premium-btn premium-btn-secondary" type="button">Criar conta</button>
+        <button id="login-btn" class="premium-btn" type="submit">Entrar</button>
+        <div class="premium-util-links">
+          <span class="premium-util-sep">Sem conta?</span>
+          <button id="signup-btn" class="premium-util-btn" type="button">Criar uma</button>
         </div>
       </form>
 
-      <div id="actions" class="premium-row" hidden>
+      <div id="actions" hidden>
         <button id="checkout-btn" class="premium-btn">Assinar Premium ↗</button>
-        <button id="portal-btn" class="premium-btn premium-btn-secondary">Gerenciar assinatura ↗</button>
-        <button id="refresh-btn" class="premium-btn premium-btn-secondary">Atualizar status</button>
-        <button id="signout-btn" class="premium-btn premium-btn-secondary">Sair</button>
+        <button id="portal-btn" class="premium-btn">Gerenciar assinatura ↗</button>
+        <div class="premium-util-links">
+          <button id="refresh-btn" class="premium-util-btn" type="button">Atualizar status</button>
+          <span class="premium-util-sep">·</span>
+          <button id="signout-btn" class="premium-util-btn" type="button">Sair</button>
+        </div>
       </div>
 
       <div id="message" class="premium-note">

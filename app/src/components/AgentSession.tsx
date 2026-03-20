@@ -14,7 +14,7 @@ import { readFile } from '../services/fs';
 
 import { getLastRequestDump, modelSupportsVision, resolveCopilotModelForChatCompletions } from '../services/copilot';
 import { DEFAULT_MODEL } from '../types';
-import type { CopilotModel, CopilotModelInfo, MessageItem } from '../types';
+import type { AIRecordedTextMark, AISelectionContext, CopilotModel, CopilotModelInfo, MessageItem } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
 import type { Editor as TldrawEditor } from 'tldraw';
 import { getMimeType, IMAGE_EXTS } from '../utils/mime';
@@ -26,7 +26,7 @@ import { ToolItem, useSessionStats } from './ai/AIToolProcess';
 
 import { useAISession, contentToString, fmtRelative } from '../hooks/useAISession';
 import { useVoiceInput } from '../hooks/useVoiceInput';
-import { useSystemPrompt, useWorkspaceMemory } from '../hooks/useSystemPrompt';
+import { useSystemPrompt, useWorkspaceMemory, useUserProfile } from '../hooks/useSystemPrompt';
 import { useAIStream } from '../hooks/useAIStream';
 import { useAIScreenshot } from '../hooks/useAIScreenshot';
 
@@ -62,7 +62,7 @@ export interface AgentSessionProps {
   workspace?: Workspace | null;
   canvasEditorRef?: React.RefObject<TldrawEditor | null>;
   onFileWritten?: (path: string) => void;
-  onMarkRecorded?: (relPath: string, content: string, model: string) => void;
+  onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
   onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
   activeFile?: string;
   rescanFramesRef?: React.MutableRefObject<(() => void) | null>;
@@ -77,7 +77,10 @@ export interface AgentSessionProps {
   webPreviewRef?: React.RefObject<{ getScreenshot: () => Promise<string | null> } | null>;
   getActiveHtml?: () => { html: string; absPath: string } | null;
   workspaceConfig?: WorkspaceConfig;
+  appLocale?: 'en' | 'pt-BR';
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
+  onOpenFileReference?: (relPath: string, lineNo?: number) => void | Promise<void>;
+  selectionContext?: AISelectionContext | null;
 }
 
 export interface AgentSessionHandle {
@@ -113,6 +116,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   workspaceExportConfig,
   onExportConfigChange,
   workspaceConfig,
+  appLocale,
   onWorkspaceConfigChange,
   onStreamingChange,
   onStatusChange,
@@ -120,6 +124,8 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   screenshotTargetRef,
   webPreviewRef,
   getActiveHtml,
+  onOpenFileReference,
+  selectionContext,
 }, ref) {
 
   // ── Model ─────────────────────────────────────────────────────────────────
@@ -134,6 +140,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   const [input, setInput] = useState(initialPrompt);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [pendingFileRef, setPendingFileRef] = useState<{ name: string; content: string } | null>(null);
+  const [pendingSelectionContext, setPendingSelectionContext] = useState<AISelectionContext | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -175,8 +182,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   }, [input]);
 
   // ── Domain hooks ──────────────────────────────────────────────────────────
-  const [memoryContent, setMemoryContent] = useWorkspaceMemory(workspacePath);
-
+  const [memoryContent, setMemoryContent] = useWorkspaceMemory(workspacePath);  const [userProfileContent, setUserProfileContent] = useUserProfile();
   const session      = useAISession({ model });
   const sessionStats = useSessionStats(session.messages);
 
@@ -188,6 +194,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     agentContext,
     activeFile,
     memoryContent,
+    userProfileContent,
     workspaceExportConfig,
     workspaceConfig,
   });
@@ -215,6 +222,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     getActiveHtml,
     onStreamingChange,
     setMemoryContent,
+    setUserProfileContent,
     onNotAuthenticated,
     agentId,
     activeFileContent: documentContext,
@@ -223,6 +231,8 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   const voice = useVoiceInput({
     onTranscript: (t) => setInput((prev) => prev ? `${prev} ${t}` : t),
     onError: (msg) => stream.setError(msg),
+    workspaceLanguage: workspaceConfig?.preferredLanguage ?? workspace?.config?.preferredLanguage,
+    appLocale,
   });
 
   const appendPendingImages = useCallback((incoming: string[]) => {
@@ -252,11 +262,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       textOverride,
       pendingImages,
       pendingFileRef,
+      pendingSelectionContext,
       input,
-      () => { setInput(''); setPendingImages([]); setPendingFileRef(null); },
+      () => { setInput(''); setPendingImages([]); setPendingFileRef(null); setPendingSelectionContext(null); },
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stream.handleSend, pendingImages, pendingFileRef, input]);
+  }, [stream.handleSend, pendingImages, pendingFileRef, pendingSelectionContext, input]);
 
   const screenshot = useAIScreenshot({
     canvasEditorRef,
@@ -269,12 +280,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   });
 
   // ── Session actions ───────────────────────────────────────────────────────
-  function handleNewChat() {
-    session.handleNewChat();
-    stream.clearStream();
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }
-
   function handleRestoreSession() {
     const restoredModel = session.handleRestoreSession();
     if (restoredModel) {
@@ -519,7 +524,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                         ? parseSegments(item.content).map((seg, ssi) =>
                             seg.type === 'code'
                               ? <CodeBlock key={`${si}-${ssi}`} lang={seg.lang} code={seg.code} workspacePath={workspacePath} />
-                              : <AIMarkdownText key={`${si}-${ssi}`} content={seg.content} />
+                              : <AIMarkdownText
+                                  key={`${si}-${ssi}`}
+                                  content={seg.content}
+                                  workspace={workspace}
+                                  onOpenFileReference={onOpenFileReference}
+                                />
                           )
                         : <ToolItem key={item.activity.callId} activity={item.activity} />
                     )}
@@ -529,7 +539,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 ? parseSegments(contentToString(msg.content)).map((seg, si) =>
                     seg.type === 'code'
                       ? <CodeBlock key={si} lang={seg.lang} code={seg.code} workspacePath={workspacePath} />
-                      : <AIMarkdownText key={si} content={seg.content} />
+                      : <AIMarkdownText
+                          key={si}
+                          content={seg.content}
+                          workspace={workspace}
+                          onOpenFileReference={onOpenFileReference}
+                        />
                   )
                 : <span style={{ whiteSpace: 'pre-wrap' }}>{contentToString(msg.content)}</span>
               }
@@ -547,6 +562,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 <span className="ai-message-file-pill-name">{msg.attachedFile}</span>
               </div>
             )}
+            {msg.role === 'user' && msg.attachedSelectionLabel && (
+              <div className="ai-message-file-pill ai-message-file-pill--selection">
+                <span className="ai-message-file-pill-icon">✂</span>
+                <span className="ai-message-file-pill-name">{msg.attachedSelectionLabel}</span>
+              </div>
+            )}
             {msg.role === 'user' && msg.activeFile && (
               <div className="ai-message-file-tag">📄 {msg.activeFile.split('/').pop()}</div>
             )}
@@ -562,7 +583,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 ? <>
                     {stream.liveItems.map((item: MessageItem, idx: number) =>
                       item.type === 'text'
-                        ? <AIMarkdownText key={idx} content={item.content} />
+                        ? <AIMarkdownText
+                            key={idx}
+                            content={item.content}
+                            workspace={workspace}
+                            onOpenFileReference={onOpenFileReference}
+                          />
                         : <ToolItem key={item.activity.callId} activity={item.activity} />
                     )}
                     <div className="ai-thinking-indicator ai-thinking-indicator--inline">
@@ -708,6 +734,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 value={voice.groqLangInput}
                 onChange={(e) => voice.setGroqLangInput(e.target.value)}
               >
+                <option value="auto">Automático ({voice.autoGroqLangLabel})</option>
                 <option value="pt">Português</option>
                 <option value="en">English</option>
                 <option value="es">Español</option>
@@ -731,7 +758,14 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
               <button className="ai-auth-btn" disabled={!voice.groqKeyInput.trim()} onClick={voice.saveGroqKeyAndClose}>
                 Salvar
               </button>
-              <button className="ai-btn-ghost" onClick={() => { voice.setShowGroqSetup(false); voice.setGroqKeyInput(''); }}>
+              <button
+                className="ai-btn-ghost"
+                onClick={() => {
+                  voice.setShowGroqSetup(false);
+                  voice.setGroqKeyInput('');
+                  voice.setGroqLangInput(voice.groqLangPreference);
+                }}
+              >
                 Cancelar
               </button>
             </div>
@@ -751,6 +785,18 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             <Paperclip weight="thin" size={14} />
             <span>Drop images or files to attach</span>
           </div>
+        )}
+        {selectionContext && !pendingSelectionContext && (
+          <button
+            className="ai-selection-context-btn"
+            type="button"
+            onClick={() => setPendingSelectionContext(selectionContext)}
+            disabled={stream.isStreaming}
+            title={selectionContext.label}
+          >
+            <Sparkle weight="fill" size={12} />
+            <span>Adicionar seleção</span>
+          </button>
         )}
         {pendingImages.length > 0 && (
           <div className="ai-img-preview-strip">
@@ -779,6 +825,20 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 : `${pendingFileRef.content.length} chars`}
             </span>
             <button className="ai-img-remove" onClick={() => setPendingFileRef(null)} title="Remove file">
+              <X weight="thin" size={12} />
+            </button>
+          </div>
+        )}
+        {pendingSelectionContext && (
+          <div className="ai-file-chip ai-file-chip--selection">
+            <span className="ai-file-chip-icon">✂</span>
+            <span className="ai-file-chip-name" title={pendingSelectionContext.label}>{pendingSelectionContext.label}</span>
+            <span className="ai-file-chip-size">
+              {pendingSelectionContext.content.length > 1000
+                ? `${Math.round(pendingSelectionContext.content.length / 1000)}k chars`
+                : `${pendingSelectionContext.content.length} chars`}
+            </span>
+            <button className="ai-img-remove" onClick={() => setPendingSelectionContext(null)} title="Remover seleção">
               <X weight="thin" size={12} />
             </button>
           </div>
@@ -844,13 +904,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
               : <Microphone size={14} weight="thin" />
             }
           </button>
-          <button
-            onClick={handleNewChat}
-            className="ai-btn-new-chat"
-            title="New chat"
-            disabled={stream.isStreaming}
-          ><ArrowCounterClockwise size={14} /></button>
-
           {stream.isStreaming && !input.trim() ? (
             <button onClick={stream.handleStop} className="ai-btn-send ai-btn-send--stop" title="Stop (Esc)">
               <Stop size={10} weight="fill" />

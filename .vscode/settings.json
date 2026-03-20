@@ -1,4 +1,6 @@
 {
+    "search.useIgnoreFiles": true,
+    "search.useParentIgnoreFiles": true,
     "chat.tools.terminal.autoApprove": {
         "git config": true,
         "gh": true,

@@ -1,7 +1,14 @@
 import { useMemo, useState, useEffect } from 'react';
+import { homeDir } from '@tauri-apps/api/path';
 import { exists, readTextFile } from '../services/fs';
-import type { ChatMessage, FileTreeNode, WorkspaceConfig, WorkspaceExportConfig } from '../types';
+import type { ChatMessage, WorkspaceConfig, WorkspaceExportConfig } from '../types';
 import type { Workspace } from '../types';
+import { getAgentCapabilityState } from '../utils/agentCapabilities';
+import {
+  buildAgentGuidanceDigest,
+  summarizeWorkspaceFiles,
+  truncateDocumentContext,
+} from '../utils/agentPromptContext';
 
 // ── Memory loader ─────────────────────────────────────────────────────────────
 /** Loads and keeps .cafezin/memory.md in sync whenever the workspace changes. */
@@ -17,7 +24,26 @@ export function useWorkspaceMemory(workspacePath: string | undefined): [string, 
   }, [workspacePath]);
   return [memoryContent, setMemoryContent];
 }
-
+// ── User profile loader ────────────────────────────────────────────
+/**
+ * Loads ~/.cafezin/user-profile.md — global user memory that persists across
+ * all workspaces. Returned setter is called by the remember(scope="user") tool.
+ */
+export function useUserProfile(): [string, (v: string) => void] {
+  const [profileContent, setProfileContent] = useState('');
+  useEffect(() => {
+    homeDir()
+      .then(async (home) => {
+        const profilePath = `${home.replace(/\/$/, '')}/.cafezin/user-profile.md`;
+        const found = await exists(profilePath).catch(() => false);
+        if (!found) { setProfileContent(''); return; }
+        const text = await readTextFile(profilePath).catch(() => '');
+        setProfileContent(text);
+      })
+      .catch(() => setProfileContent(''));
+  }, []); // runs once on mount — user profile is global, not workspace-scoped
+  return [profileContent, setProfileContent];
+}
 // ── Model hint ────────────────────────────────────────────────────────────────
 export function modelHint(id: string): string {
   if (/claude.*opus/i.test(id))   return 'You are running as Claude Opus — exceptionally strong at long-form reasoning, creative writing, and nuanced instruction following.';
@@ -39,17 +65,9 @@ interface UseSystemPromptParams {
   agentContext: string;
   activeFile: string | undefined;
   memoryContent: string;
+  userProfileContent: string;
   workspaceExportConfig?: WorkspaceExportConfig;
   workspaceConfig?: WorkspaceConfig;
-}
-
-function flattenTree(nodes: FileTreeNode[]): string[] {
-  const paths: string[] = [];
-  for (const node of nodes) {
-    if (node.isDirectory) paths.push(...flattenTree(node.children ?? []));
-    else paths.push(node.path);
-  }
-  return paths;
 }
 
 export function useSystemPrompt({
@@ -59,14 +77,25 @@ export function useSystemPrompt({
   agentContext,
   activeFile,
   memoryContent,
+  userProfileContent,
 }: UseSystemPromptParams): ChatMessage {
   const hasTools = !!workspace;
+  const capabilityState = getAgentCapabilityState(workspace?.config);
 
-  const workspaceFileList = useMemo(() => {
-    if (!workspace?.fileTree?.length) return '';
-    const files = flattenTree(workspace.fileTree);
-    return `${files.length} file(s) in workspace:\n${files.join('\n')}`;
-  }, [workspace?.fileTree]);
+  const workspaceFileList = useMemo(() => summarizeWorkspaceFiles(workspace?.fileTree, {
+    activeFile,
+    recentFiles: workspace?.config?.recentFiles,
+    workspaceIndex: workspace?.workspaceIndex,
+  }), [workspace?.fileTree, workspace?.config?.recentFiles, workspace?.workspaceIndex, activeFile]);
+
+  const workspaceGuidance = useMemo(() => buildAgentGuidanceDigest(
+    workspace?.agentInstructionSources ?? agentContext,
+  ), [workspace?.agentInstructionSources, agentContext]);
+
+  const truncatedDocumentContext = useMemo(
+    () => truncateDocumentContext(documentContext, activeFile),
+    [documentContext, activeFile],
+  );
 
   return useMemo<ChatMessage>(() => ({
     role: 'system',
@@ -101,7 +130,7 @@ CORE PHILOSOPHY — you are a co-pilot, not a replacement:
   • Canvas (.tldr.json) — visual/diagram files powered by tldraw v4. Users create mind-maps, flowcharts, mood boards, and brainstorming canvases. These are NOT code — they are freeform visual workspaces.`,
 
       // ── Canvas / visual editing ───────────────────────────────
-      `Canvas files (.tldr.json) are tldraw v4 whiteboards. Rules:
+      capabilityState.canvas ? `Canvas files (.tldr.json) are tldraw v4 whiteboards. Rules:
 • NEVER write raw JSON to a canvas file — use canvas_op exclusively.
 • NEVER use read_workspace_file on a .tldr.json file — it is blocked and will return an error. Canvas files contain base64 images that overflow the context. Use list_canvas_shapes to inspect the open canvas. Image shapes in the summary include their assetId so you can reuse backgrounds and images without reading the raw file.
 • canvas_op requires an expected_file parameter (the relative path of the canvas you intend to edit, e.g. "aulas/Aula-02.tldr.json"). The tool will automatically switch to that tab and show a "Copilot a trabalhar…" overlay — you do NOT need to ask the user to open the file. Never omit expected_file.
@@ -199,7 +228,12 @@ ADD-TO-EXISTING WORKFLOW (user asks to ADD slides/content to an ALREADY open can
   3. canvas_screenshot → visual check
 
 NEVER add slides to an existing canvas when the user clearly wants a NEW file.
-NEVER use N add_slide + N add_note when create_lesson does it in one.`,
+NEVER use N add_slide + N add_note when create_lesson does it in one.` : '',
+
+      capabilityState.spreadsheet ? `Spreadsheet files (CSV, TSV, XLSX and similar) can be handled in two ways:
+• Use read_spreadsheet when the user wants a table-aware view of structured data.
+• Use write_spreadsheet for cell edits, row appends, or CSV/TSV rewrites.
+• Plain CSV/TSV can still be read as text with read_workspace_file when raw source matters more than table formatting.` : '',
 
       hasTools
         ? `You have access to workspace tools. ALWAYS call the appropriate tool when the user asks about their documents, wants to find/summarize/cross-reference content, or asks you to create/edit files. Never guess at file contents — read them first. When writing a file, always call the write_workspace_file tool — do not output the file as a code block.
@@ -208,21 +242,58 @@ For targeted edits to existing files, choose the right tool:
 • Single surgical edit → patch_workspace_file (finds exact text and replaces it in-place)
 • Multiple coordinated edits across one or more files → multi_patch (applies all patches in one round-trip, faster and more atomic than calling patch_workspace_file repeatedly)
 • Full file rewrite (new content or structural overhaul) → write_workspace_file
+• If the target snippet appears more than once in a file, never let patch tools guess: provide occurrence explicitly or use a longer unique multi-line search block.
 
 You also have an ask_user tool: call it to pause and ask the user a clarifying question mid-task — provide 2–5 short option labels when there are distinct approaches, or omit options for open-ended questions. Use it sparingly: only when you are genuinely uncertain about the user's intent or need information only they can provide.
 
 ── MEMORY (remember) PROTOCOL ─────────────────────────────────────────────────
-Use the remember() tool proactively — not just when asked. Any time you learn something that should
-persist across sessions, save it immediately:
-  • Project title, genre, target audience → heading "Project"
-  • Character details (name, role, appearance, personality) → heading "Characters"
-  • Story/course structure decisions → heading "Plot Notes" or "Course Structure"
-  • World-building / domain rules → heading "World Building"
-  • Stylistic choices (tone, reading level, formatting preference) → heading "Style Preferences"
-  • Glossary terms and definitions → heading "Glossary"
-  • Technical constraints or conventions the user enforces → heading "Tech Notes"
-At the START of a long work session, always read the injected memory block (below) before acting.
-At the END of a session, ask yourself: "Did I learn anything new today?" — if yes, call remember().
+The remember() tool has two scopes — use them proactively, without being asked:
+
+  scope="user"  → saves to ~/.cafezin/user-profile.md (global, survives workspace changes)
+    When to use: communication preferences, things the user likes/dislikes, CORRECTIONS
+    the user made ("don't do X again"), how they like to receive responses, their name,
+    their working style. Anything that applies regardless of what project they are working on.
+    Examples:
+      • "User prefers bullet lists over paragraphs" → heading "Communication Style"
+      • "User got annoyed when I wrote the full chapter unprompted" → heading "Things to Avoid"
+      • "User's name is Pedro, writes in Brazilian Portuguese" → heading "User Profile"
+
+  scope="workspace" (default, omit for project facts) → saves to .cafezin/memory.md
+    When to use: characters, plot, world-building, course structure, glossary terms,
+    tech constraints — anything specific to this particular workspace/project.
+    Examples:
+      • Project title, genre, target audience → heading "Project"
+      • Character details → heading "Characters"
+      • Stylistic choices → heading "Style Preferences"
+      • Technical constraints or conventions → heading "Tech Notes"
+
+WHEN TO CALL remember() — apply HIGH SELECTIVITY:
+  ✅ Save when:
+    • The user explicitly CORRECTS you ("stop doing X") → user scope, "Things to Avoid"
+    • The user states a DURABLE preference that will affect future sessions
+    • You establish a fact that is HARD TO RE-DERIVE (character name + backstory, world rule, decision made)
+    • A naming/format convention the user enforces consistently
+  ❌ Do NOT save when:
+    • The fact is obvious from the files themselves (don't duplicate what's already written)
+    • The preference is single-session or task-specific
+    • You would be saving your own reasoning or intermediate conclusions
+    • The entry would duplicate something already in the memory file
+    • The information is trivial or easily re-stated by the user
+  RULE: quality > quantity. An entry that is always true and non-obvious earns its place.
+        An entry that clutters the file and ages poorly does not.
+
+MEMORY HYGIENE — use manage_memory() to keep files clean:
+  • After a long session or when the memory file exceeds ~40 entries, call manage_memory(action="read")
+    then manage_memory(action="rewrite") with a consolidated version that:
+    — merges duplicate/related entries into one
+    — removes entries that are now outdated or no longer true
+    — removes entries that are obvious from the project files
+    — keeps the file under ~30 bullet entries total
+  • You can also delete a single stale entry with manage_memory(action="delete_entry")
+  • Signal to the user when you consolidate: "I cleaned up the memory file — removed 5 redundant entries."
+
+At the START of a long work session, always read the injected user profile and workspace memory
+blocks above before taking any action. They define hard constraints you must follow.
 
 ── VERIFY / TEST WORKFLOW ──────────────────────────────────────────────────────
 When working on a code workspace (any folder with package.json, pyproject.toml, Makefile, etc.):
@@ -297,18 +368,25 @@ PUBLISH / DEPLOY RULES FOR ANY WORKSPACE:
 
 CHAPTER FILE NAMING CONVENTION:
   Use consistent names: cap01.md, cap02.md … or capitulo-01.md … or 01-introducao.md
-  Always zero-pad numbers (01, 02, … 10) so alphabetical order = narrative order.`
+  Always zero-pad numbers (01, 02, … 10) so alphabetical order = narrative order.
+
+WORKSPACE CAPABILITY SWITCHES:
+  • Canvas tools: ${capabilityState.canvas ? 'enabled' : 'disabled'}
+  • Spreadsheet tools: ${capabilityState.spreadsheet ? 'enabled' : 'disabled'}
+  • Web/browser tools: ${capabilityState.web ? 'enabled' : 'disabled'}
+  Never mention, suggest, or attempt disabled tool groups.`
         : 'No workspace is currently open, so file tools are unavailable.',
 
       workspaceFileList ? `\nWorkspace files:\n${workspaceFileList}` : '',
+      userProfileContent ? `\nUser profile (~/.cafezin/user-profile.md — facts about this user that apply across all workspaces):\n${userProfileContent.slice(0, 3000)}` : '',
       memoryContent     ? `\nWorkspace memory (.cafezin/memory.md — persisted facts about this project):\n${memoryContent.slice(0, 6000)}` : '',
-      agentContext      ? `\nWorkspace context (from AGENT.md):\n${agentContext.slice(0, 8000)}` : '',
-      documentContext   ? `\nCurrent document context:\n${documentContext.slice(0, 15000)}` : '',
+      workspaceGuidance ? `\nWorkspace guidance:\n${workspaceGuidance}` : '',
+      truncatedDocumentContext ? `\nCurrent document context:\n${truncatedDocumentContext}` : '',
 
       // ── HTML / interactive demo guidance ──────────────────────
-      activeFile && (activeFile.endsWith('.html') || activeFile.endsWith('.htm'))
+      capabilityState.web && activeFile && (activeFile.endsWith('.html') || activeFile.endsWith('.htm'))
         ? `\n── HTML / INTERACTIVE DEMO GUIDANCE ──────────────────────────────────────────────────\nThe active file is an HTML document rendered live in the preview pane (~900px wide).\n\nLayout & spacing principles:\n• Prefer relative units: %, rem, vw/vh, clamp() — avoid px for spacing and font sizes\n• Use CSS custom properties (--gap, --radius, --color-accent) for consistency\n• Flexbox or CSS Grid for all multi-element layouts; avoid float / position: absolute for flow\n• Comfortable reading width: max-width: 800px; margin: 0 auto; padding: 2rem\n• Interactive demos: always style :hover and :focus states; add transition: 0.2s ease\n• Buttons/inputs: min-height: 2.5rem; padding: 0.5rem 1.25rem; border-radius: 0.375rem\n• Section gaps: use row-gap / column-gap on flex/grid containers, never margin hacks\n• Color contrast: body text on background must be AA-compliant (4.5:1 ratio minimum)\n\nVisual verification workflow:\n1. Write or patch the HTML/CSS file.\n2. Immediately call screenshot_preview to see the rendered result.\n3. Identify any spacing, overflow, alignment, or readability issues.\n4. Call patch_workspace_file to fix them.\n5. Call screenshot_preview again to confirm.\nNever report the demo as done without at least one screenshot_preview call.`
         : '',
     ].filter(Boolean).join('\n\n'),
-  }), [hasTools, model, workspaceFileList, memoryContent, agentContext, documentContext, activeFile, workspace?.config?.preferredLanguage]);
+  }), [hasTools, model, workspaceFileList, userProfileContent, memoryContent, workspaceGuidance, truncatedDocumentContext, activeFile, workspace?.config]);
 }

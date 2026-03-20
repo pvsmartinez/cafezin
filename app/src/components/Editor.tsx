@@ -36,6 +36,7 @@ import { linter, setDiagnostics } from '@codemirror/lint';
 import type { Diagnostic } from '@codemirror/lint';
 import { makeGhostTextExtension, type GhostCompleteFn } from '../utils/ghostText';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import type { AISelectionContext } from '../types';
 import './Editor.css';
 
 // ── Public handle exposed via ref ─────────────────────────────────────────────
@@ -99,6 +100,8 @@ interface EditorProps {
    * When provided, ghost text (Tab to accept, Escape to dismiss) is active in all modes.
    */
   onGhostComplete?: GhostCompleteFn;
+  activeFile?: string;
+  onSelectionContextChange?: (context: AISelectionContext | null) => void;
 }
 
 // ── AI-mark decoration helpers ────────────────────────────────────────────────
@@ -329,6 +332,17 @@ function getLanguageExtension(language: string): Extension {
 
 const DEFAULT_FONT_SIZE = 14;
 
+function buildSelectionContext(selectedText: string, activeFile?: string): AISelectionContext | null {
+  const trimmed = selectedText.trim();
+  if (!trimmed) return null;
+  const filename = activeFile?.split('/').pop() ?? 'documento atual';
+  return {
+    source: 'editor',
+    label: `Trecho selecionado em ${filename}`,
+    content: [`Selected text from "${filename}":`, '---', trimmed, '---'].join('\n'),
+  };
+}
+
 // ── Markdown toolbar ─────────────────────────────────────────────────────────
 const MD_TOOLBAR_ITEMS = [
   { label: 'B',   title: 'Bold (⌘B)',           wrap: ['**', '**'],       block: false },
@@ -406,7 +420,7 @@ function applyMdToolbar(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 const Editor = forwardRef<EditorHandle, EditorProps>(
-  ({ content, onChange, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics, onGhostComplete }, ref) => {
+  ({ content, onChange, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics, onGhostComplete, activeFile, onSelectionContextChange }, ref) => {
     const codeMode = !!language && language !== 'markdown';
     const viewRef = useRef<EditorView | null>(null);
     const compartmentRef = useRef(new Compartment());
@@ -418,8 +432,10 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
     // without needing to be recreated on every render.
     const aiMarksRef = useRef<{ id: string; text: string }[]>([]);
     const onAIMarkEditedRef = useRef<((id: string) => void) | undefined>(undefined);
+    const onSelectionContextChangeRef = useRef<typeof onSelectionContextChange>(undefined);
     aiMarksRef.current = aiMarks ?? [];
     onAIMarkEditedRef.current = onAIMarkEdited;
+    onSelectionContextChangeRef.current = onSelectionContextChange;
 
     // Ghost text completion fn ref — stable getter to avoid recreating the extension
     const ghostCompleteFnRef = useRef<GhostCompleteFn | null>(null);
@@ -431,10 +447,25 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       [], // intentionally stable — language is fixed per Editor mount (key=activeFile)
     );
 
+    const emitSelectionContext = useCallback((view: EditorView | null) => {
+      const callback = onSelectionContextChangeRef.current;
+      if (!callback) return;
+      if (!view) {
+        callback(null);
+        return;
+      }
+      const { from, to } = view.state.selection.main;
+      const selection = from === to ? '' : view.state.sliceDoc(from, to);
+      callback(buildSelectionContext(selection, activeFile));
+    }, [activeFile]);
+
     // Created once – reads from refs so it stays live without cycling extensions.
     const aiMarkEditListener = useMemo(
       () =>
         EditorView.updateListener.of((update) => {
+          if (update.selectionSet || update.focusChanged || update.docChanged) {
+            emitSelectionContext(update.view);
+          }
           if (!update.docChanged) return;
           const callback = onAIMarkEditedRef.current;
           if (!callback) return;
@@ -464,6 +495,11 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [], // intentionally empty — refs handle the live values
     );
+
+      useEffect(() => {
+        emitSelectionContext(viewRef.current);
+        return () => onSelectionContextChangeRef.current?.(null);
+      }, [emitSelectionContext]);
 
     useImperativeHandle(ref, () => ({
       jumpToText(text: string): boolean {
@@ -642,7 +678,10 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
           extensions={extensions}
           theme={isDark ? oneDark : creamTheme}
           height="100%"
-          onCreateEditor={(view) => { viewRef.current = view; }}
+          onCreateEditor={(view) => {
+            viewRef.current = view;
+            emitSelectionContext(view);
+          }}
           basicSetup={{
             lineNumbers: codeMode,
             foldGutter: codeMode,

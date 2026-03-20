@@ -6,13 +6,13 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import {
   getActiveProvider, setActiveProvider, getActiveModel, setActiveModel,
-  getProviderKey, PROVIDER_LABELS, PROVIDER_DEFAULT_MODELS,
+  getProviderKey, PROVIDER_LABELS,
   type AIProviderType,
 } from '../services/aiProvider';
 import {
   PROVIDER_CATALOG, getFavoriteModelIds, setFavoriteModelIds,
 } from '../services/ai/providerModels';
-import { resolveCopilotModelForChatCompletions } from '../services/copilot';
+import { fetchCopilotModels, getStoredOAuthToken, resolveCopilotModelForChatCompletions } from '../services/copilot';
 import { writeTextFile } from '../services/fs';
 import { saveWorkspaceConfig } from '../services/workspace';
 import {
@@ -22,10 +22,12 @@ import {
   listGitAccountLabels,
   type SyncDeviceFlowState, type SyncedWorkspace,
 } from '../services/syncConfig'
+import { FALLBACK_MODELS } from '../types';
 import type { Workspace, AppSettings, SidebarButton, VercelWorkspaceConfig, WorkspaceFeatureConfig } from '../types';
 import { saveApiSecret } from '../services/apiSecrets';
 import { createCheckoutUrl, createCustomerPortalUrl } from '../services/accountService';
 import { useAccountState } from '../hooks/useAccountState';
+import { getAgentCapabilityState } from '../utils/agentCapabilities';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -41,7 +43,8 @@ interface SettingsModalProps {
   initialTab?: Tab;
 }
 
-type Tab = 'general' | 'workspace' | 'sync' | 'account';
+type Tab = 'general' | 'ai' | 'workspace' | 'agent' | 'sync' | 'account';
+type CapabilityOverrideMode = 'auto' | 'on' | 'off';
 
 const FONT_OPTIONS = [
   { label: 'Pequena (13px)', value: 13 },
@@ -68,6 +71,38 @@ export default function SettingsModal({
   onClose,
   initialTab,
 }: SettingsModalProps) {
+  function getCapabilityOverrideMode(flag: boolean | undefined): CapabilityOverrideMode {
+    if (flag === true) return 'on';
+    if (flag === false) return 'off';
+    return 'auto';
+  }
+
+  function applyCapabilityOverride(
+    existing: Record<string, unknown> | undefined,
+    mode: CapabilityOverrideMode,
+  ): Record<string, unknown> | undefined {
+    if (mode === 'auto') {
+      if (!existing) return undefined;
+      const next = Object.fromEntries(
+        Object.entries(existing).filter(([key]) => key !== 'agentTools'),
+      );
+      return Object.keys(next).length > 0 ? next : undefined;
+    }
+    return { ...(existing ?? {}), agentTools: mode === 'on' };
+  }
+
+  function getCapabilityModeDescription(
+    mode: CapabilityOverrideMode,
+    effective: boolean,
+    enabledLabel: string,
+    disabledLabel: string,
+  ) {
+    if (mode === 'auto') {
+      return `Automático: ${effective ? enabledLabel : disabledLabel} neste workspace agora.`;
+    }
+    return mode === 'on' ? 'Ligado manualmente.' : 'Desligado manualmente.';
+  }
+
   const [tab, setTab] = useState<Tab>(initialTab ?? 'general');
 
   // Respect initialTab changes (e.g. first-launch opens directly on sync)
@@ -86,9 +121,10 @@ export default function SettingsModal({
   const [authBusy, setAuthBusy] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [billingBusy, setBillingBusy] = useState<'checkout' | 'portal' | null>(null)
-  const regLabel = 'personal'
+  const [regLabel, setRegLabel] = useState('personal')
   const [regState, setRegState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
   const [regError, setRegError] = useState('')
+  const [currentWorkspaceGitUrl, setCurrentWorkspaceGitUrl] = useState<string | null>(null)
 
   const billingLocale = appSettings.locale ?? 'en'
   const premiumPageUrl = billingLocale === 'pt-BR'
@@ -160,6 +196,26 @@ export default function SettingsModal({
   useEffect(() => {
     if (open && (tab === 'sync' || tab === 'account') && syncStatus === 'idle') loadSyncState();
   }, [open, tab, syncStatus, loadSyncState]);
+
+  useEffect(() => {
+    if (!open || !workspace?.hasGit) {
+      setCurrentWorkspaceGitUrl(null)
+      return
+    }
+    invoke<string>('git_get_remote', { path: workspace.path })
+      .then((url) => {
+        const trimmed = url?.trim()
+        setCurrentWorkspaceGitUrl(trimmed || null)
+      })
+      .catch(() => setCurrentWorkspaceGitUrl(null))
+  }, [open, workspace])
+
+  useEffect(() => {
+    if (gitAccounts.length === 0) return
+    if (!gitAccounts.includes(regLabel)) {
+      setRegLabel(gitAccounts.includes('personal') ? 'personal' : gitAccounts[0])
+    }
+  }, [gitAccounts, regLabel])
 
   async function handleAuth() {
     const email = emailInput.trim()
@@ -290,6 +346,9 @@ export default function SettingsModal({
   const [wsInboxFile, setWsInboxFile] = useState('');
   const [wsGitBranch, setWsGitBranch] = useState('');
   const [wsMarkdownMermaid, setWsMarkdownMermaid] = useState(false);
+  const [wsCanvasAgentTools, setWsCanvasAgentTools] = useState<CapabilityOverrideMode>('auto');
+  const [wsSpreadsheetAgentTools, setWsSpreadsheetAgentTools] = useState<CapabilityOverrideMode>('auto');
+  const [wsWebAgentTools, setWsWebAgentTools] = useState<CapabilityOverrideMode>('auto');
   const [wsGitHubClientId, setWsGitHubClientId] = useState('');
   const [wsVercelToken, setWsVercelToken] = useState('');
   const [wsVercelTeamId, setWsVercelTeamId] = useState('');
@@ -325,13 +384,15 @@ export default function SettingsModal({
     return p !== 'copilot' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot'>) : [];
   });
   const [customModelInput, setCustomModelInput] = useState('');
+  const [aiCopilotModels, setAICopilotModels] = useState(FALLBACK_MODELS);
+  const [aiCopilotModelsLoading, setAICopilotModelsLoading] = useState(false);
 
   function handleAIProviderChange(p: AIProviderType) {
     setAIProviderLocal(p);
     setActiveProvider(p);
     void saveApiSecret('cafezin-ai-provider', p);
     setAIProviderKey(p !== 'copilot' ? getProviderKey(p) : '');
-    setAIModel(PROVIDER_DEFAULT_MODELS[p]);
+    setAIModel(getActiveModel());
     setAIFavoriteIds(p !== 'copilot' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot'>) : []);
     setCustomModelInput('');
   }
@@ -387,6 +448,9 @@ export default function SettingsModal({
     setWsInboxFile(workspace.config.inboxFile ?? '');
     setWsGitBranch(workspace.config.gitBranch ?? '');
     setWsMarkdownMermaid(workspace.config.features?.markdown?.mermaid ?? false);
+    setWsCanvasAgentTools(getCapabilityOverrideMode(workspace.config.features?.canvas?.agentTools));
+    setWsSpreadsheetAgentTools(getCapabilityOverrideMode(workspace.config.features?.spreadsheet?.agentTools));
+    setWsWebAgentTools(getCapabilityOverrideMode(workspace.config.features?.web?.agentTools));
     setWsGitHubClientId(workspace.config.githubOAuth?.clientId ?? '');
     setWsVercelToken(workspace.config.vercelConfig?.token ?? '');
     setWsVercelTeamId(workspace.config.vercelConfig?.teamId ?? '');
@@ -395,11 +459,35 @@ export default function SettingsModal({
     setWsSaved(false);
   }, [open, workspace]);
 
+  useEffect(() => {
+    const hasCopilotAccess =
+      !!getStoredOAuthToken(workspace?.config.githubOAuth?.clientId?.trim() || undefined) ||
+      !!getStoredOAuthToken();
+    if (!open || tab !== 'ai' || aiProvider !== 'copilot' || !hasCopilotAccess) return;
+    let cancelled = false;
+    setAICopilotModelsLoading(true);
+    fetchCopilotModels(workspace?.config.githubOAuth?.clientId?.trim() || undefined)
+      .then((models) => {
+        if (!cancelled && models.length > 0) setAICopilotModels(models);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setAICopilotModelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, tab, aiProvider, workspace?.config.githubOAuth?.clientId]);
+
   function setApp<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
     onAppSettingsChange({ ...appSettings, [key]: value });
   }
 
   function buildWorkspaceFeatures(existing?: WorkspaceFeatureConfig): WorkspaceFeatureConfig | undefined {
+    const nextCanvas = applyCapabilityOverride(existing?.canvas, wsCanvasAgentTools) as WorkspaceFeatureConfig['canvas'];
+    const nextSpreadsheet = applyCapabilityOverride(existing?.spreadsheet, wsSpreadsheetAgentTools) as WorkspaceFeatureConfig['spreadsheet'];
+    const nextWeb = applyCapabilityOverride(existing?.web, wsWebAgentTools) as WorkspaceFeatureConfig['web'];
+
     const nextFeatures: WorkspaceFeatureConfig = {
       ...existing,
       markdown: wsMarkdownMermaid
@@ -409,6 +497,9 @@ export default function SettingsModal({
               Object.entries(existing.markdown).filter(([key]) => key !== 'mermaid'),
             ) as WorkspaceFeatureConfig['markdown']
           : undefined,
+      canvas: nextCanvas,
+      spreadsheet: nextSpreadsheet,
+      web: nextWeb,
     };
 
     if (nextFeatures.markdown && Object.keys(nextFeatures.markdown).length === 0) {
@@ -416,6 +507,12 @@ export default function SettingsModal({
     }
     if (nextFeatures.canvas && Object.keys(nextFeatures.canvas).length === 0) {
       delete nextFeatures.canvas;
+    }
+    if (nextFeatures.spreadsheet && Object.keys(nextFeatures.spreadsheet).length === 0) {
+      delete nextFeatures.spreadsheet;
+    }
+    if (nextFeatures.web && Object.keys(nextFeatures.web).length === 0) {
+      delete nextFeatures.web;
     }
     if (nextFeatures.code && Object.keys(nextFeatures.code).length === 0) {
       delete nextFeatures.code;
@@ -428,6 +525,30 @@ export default function SettingsModal({
 
   // ── Account state (premium entitlement) ──────────────────────────────────
   const { account, loading: accountLoading, refresh: refreshAccount } = useAccountState();
+  const hasCopilotAuth = !!getStoredOAuthToken(wsGitHubClientId.trim() || undefined) || !!getStoredOAuthToken();
+  const effectiveCapabilityState = workspace ? getAgentCapabilityState(workspace) : null;
+  const currentSyncEntry = currentWorkspaceGitUrl
+    ? syncWorkspaces.find((entry) => entry.gitUrl === currentWorkspaceGitUrl) ?? null
+    : null;
+  const providerConfigured: Record<AIProviderType, boolean> = {
+    copilot: hasCopilotAuth,
+    openai: !!getProviderKey('openai'),
+    anthropic: !!getProviderKey('anthropic'),
+    groq: !!getProviderKey('groq'),
+    google: !!getProviderKey('google'),
+  };
+  const copilotModelOptions = Array.from(
+    new Map((aiCopilotModels.length > 0 ? aiCopilotModels : FALLBACK_MODELS).map((model) => [model.id, model])).values(),
+  );
+  const providerModelOptions = aiProvider === 'copilot'
+    ? copilotModelOptions.map((model) => ({ id: model.id, label: model.name }))
+    : PROVIDER_CATALOG[aiProvider as Exclude<AIProviderType, 'copilot'>].map((model) => ({
+        id: model.id,
+        label: model.name,
+      }));
+  const resolvedProviderModelOptions = providerModelOptions.some((model) => model.id === aiModel)
+    ? providerModelOptions
+    : [...providerModelOptions, { id: aiModel, label: aiModel || 'Modelo atual' }].filter((model) => model.id);
 
   const autosaveLabels: Record<number, string> = {
     500:  t('settings.autosaveFast'),
@@ -509,10 +630,19 @@ export default function SettingsModal({
             onClick={() => setTab('general')}
           >{t('settings.tabGeneral')}</button>
           <button
+            className={`sm-tab ${tab === 'ai' ? 'active' : ''}`}
+            onClick={() => setTab('ai')}
+          >IA</button>
+          <button
             className={`sm-tab ${tab === 'workspace' ? 'active' : ''}`}
             onClick={() => setTab('workspace')}
             disabled={!workspace}
           >{t('settings.tabWorkspace')}</button>
+          <button
+            className={`sm-tab ${tab === 'agent' ? 'active' : ''}`}
+            onClick={() => setTab('agent')}
+            disabled={!workspace}
+          >Agente</button>
           <button
             className={`sm-tab ${tab === 'sync' ? 'active' : ''}`}
             onClick={() => setTab('sync')}
@@ -613,25 +743,6 @@ export default function SettingsModal({
               </section>
 
               <section className="sm-section">
-                <h3 className="sm-section-title">{t('settings.sectionAI')}</h3>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.aiHighlightLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.aiHighlightDesc')}</span>
-                  </div>
-                  <label className="sm-toggle">
-                    <input
-                      type="checkbox"
-                      checked={appSettings.aiHighlightDefault}
-                      onChange={(e) => setApp('aiHighlightDefault', e.target.checked)}
-                    />
-                    <span className="sm-toggle-track" />
-                  </label>
-                </div>
-              </section>
-
-              <section className="sm-section">
                 <h3 className="sm-section-title">{t('settings.sectionLayout')}</h3>
 
                 <div className="sm-row">
@@ -725,22 +836,97 @@ export default function SettingsModal({
               </section>
 
               <section className="sm-section">
-                <h3 className="sm-section-title">{t('settings.sectionAIAssistant')}</h3>
+                <h3 className="sm-section-title">{t('settings.sectionShortcuts')}</h3>
+                <table className="sm-shortcuts">
+                  <tbody>
+                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupFiles')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>S</kbd></td><td>{t('settings.scSave')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>W</kbd></td><td>{t('settings.scCloseTab')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>R</kbd></td><td>{t('settings.scReload')}</td></tr>
+                    <tr><td><kbd>⌃</kbd><kbd>Tab</kbd></td><td>{t('settings.scNextTab')}</td></tr>
+                    <tr><td><kbd>⌃</kbd><kbd>⇧</kbd><kbd>Tab</kbd></td><td>{t('settings.scPrevTab')}</td></tr>
+                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupNav')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>F</kbd></td><td>{t('settings.scFindReplace')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>F</kbd></td><td>{t('settings.scProjectSearch')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>P</kbd></td><td>{t('settings.scTogglePreview')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>B</kbd></td><td>{t('settings.scToggleSidebar')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>J</kbd></td><td>{t('settings.scToggleTerminal')}</td></tr>
+                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupAI')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>K</kbd></td><td>{t('settings.scOpenCopilot')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>K</kbd> <span className="sm-shortcut-note">{t('settings.scWithSelection')}</span></td><td>{t('settings.scAskCopilot')}</td></tr>
+                    <tr><td><kbd>Esc</kbd></td><td>{t('settings.scCloseCopilot')}</td></tr>
+                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupApp')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>,</kbd></td><td>{t('settings.scOpenSettings')}</td></tr>
+                    <tr><td><kbd>⌘</kbd><kbd>Click</kbd> <span className="sm-shortcut-note">{t('settings.scMultiSelectNote')}</span></td><td>{t('settings.scMultiSelect')}</td></tr>
+                    <tr><td><kbd>Duplo clique</kbd> <span className="sm-shortcut-note">{t('settings.scRenameFileNote')}</span></td><td>{t('settings.scRenameFile')}</td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">{t('settings.sectionHelp')}</h3>
+                <p className="sm-section-desc">{t('settings.helpDesc')}</p>
+                <div className="sm-support-actions">
+                  <button className="sm-secondary-btn" onClick={onOpenHelp}>
+                    {t('settings.helpTourBtn')}
+                  </button>
+                  <button className="sm-secondary-btn" onClick={onContactUs}>
+                    {t('settings.contactUsBtn')}
+                  </button>
+                </div>
+              </section>
+
+            </div>
+          )}
+
+          {/* ── AI tab ── */}
+          {tab === 'ai' && (
+            <div className="sm-section-list">
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">Comportamento da IA</h3>
+
+                <div className="sm-row">
+                  <div className="sm-row-label">
+                    <span>{t('settings.aiHighlightLabel')}</span>
+                    <span className="sm-row-desc">{t('settings.aiHighlightDesc')}</span>
+                  </div>
+                  <label className="sm-toggle">
+                    <input
+                      type="checkbox"
+                      checked={appSettings.aiHighlightDefault}
+                      onChange={(e) => setApp('aiHighlightDefault', e.target.checked)}
+                    />
+                    <span className="sm-toggle-track" />
+                  </label>
+                </div>
+              </section>
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">Providers</h3>
                 <p className="sm-section-desc">
-                  {t('settings.aiAssistantDesc')}
+                  Você pode deixar mais de um provider configurado e trocar qual fica ativo no chat.
                 </p>
 
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">{t('settings.providerLabel')}</label>
-                  <select
-                    className="sm-input"
-                    value={aiProvider}
-                    onChange={(e) => handleAIProviderChange(e.target.value as AIProviderType)}
-                  >
-                    {(Object.keys(PROVIDER_LABELS) as AIProviderType[]).map((p) => (
-                      <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>
-                    ))}
-                  </select>
+                <div className="sm-provider-grid">
+                  {(Object.keys(PROVIDER_LABELS) as AIProviderType[]).map((provider) => (
+                    <button
+                      key={provider}
+                      type="button"
+                      className={`sm-provider-card ${aiProvider === provider ? 'active' : ''}`}
+                      onClick={() => handleAIProviderChange(provider)}
+                    >
+                      <span className="sm-provider-card-title">{PROVIDER_LABELS[provider]}</span>
+                      <span className={`sm-provider-card-status ${providerConfigured[provider] ? 'is-ready' : ''}`}>
+                        {provider === 'copilot'
+                          ? providerConfigured[provider] ? 'Conectado' : 'Entrar pelo chat'
+                          : providerConfigured[provider] ? 'Chave salva' : 'Sem chave'}
+                      </span>
+                      {aiProvider === provider && (
+                        <span className="sm-provider-card-active">Em uso</span>
+                      )}
+                    </button>
+                  ))}
                 </div>
 
                 {aiProvider !== 'copilot' && (
@@ -788,39 +974,48 @@ export default function SettingsModal({
                 )}
 
                 {aiProvider === 'copilot' && (
-                  <div className="sm-row">
+                  <div className="sm-row sm-row--col">
+                    <label className="sm-label">GitHub Copilot</label>
                     <span className="sm-row-desc">
-                      {t('settings.copilotLoginDesc')}
+                      {hasCopilotAuth
+                        ? 'Conta do Copilot pronta. Se quiser trocar, faça logout e login pelo painel do chat.'
+                        : t('settings.copilotLoginDesc')}
                     </span>
                   </div>
                 )}
+              </section>
 
-                {/* Copilot: free-text model input with datalist */}
-                {aiProvider === 'copilot' && (
-                  <div className="sm-row sm-row--col">
-                    <label className="sm-label">{t('settings.defaultModelLabel')}</label>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        className="sm-input"
-                        type="text"
-                        list="ai-models-datalist"
-                        value={aiModel}
-                        onChange={(e) => setAIModel(e.target.value)}
-                        placeholder={PROVIDER_DEFAULT_MODELS[aiProvider]}
-                        style={{ flex: 1 }}
-                      />
-                      <datalist id="ai-models-datalist" />
-                      <button
-                        className={`sm-save-btn ${aiModelSaved ? 'saved' : ''}`}
-                        onClick={handleSaveAIModel}
-                      >
-                        {aiModelSaved ? t('settings.saved') : t('settings.save')}
-                      </button>
-                    </div>
+              <section className="sm-section">
+                <h3 className="sm-section-title">Modelo padrão</h3>
+                <p className="sm-section-desc">
+                  Defina qual modelo este provider usa por padrão no painel de chat.
+                </p>
+
+                <div className="sm-row sm-row--col">
+                  <label className="sm-label">{t('settings.defaultModelLabel')}</label>
+                  {aiProvider === 'copilot' && aiCopilotModelsLoading && (
+                    <span className="sm-row-desc">Carregando modelos do Copilot…</span>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <select
+                      className="sm-input"
+                      value={aiModel}
+                      onChange={(e) => setAIModel(e.target.value)}
+                      style={{ flex: 1 }}
+                    >
+                      {resolvedProviderModelOptions.map((model) => (
+                        <option key={model.id} value={model.id}>{model.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      className={`sm-save-btn ${aiModelSaved ? 'saved' : ''}`}
+                      onClick={handleSaveAIModel}
+                    >
+                      {aiModelSaved ? t('settings.saved') : t('settings.save')}
+                    </button>
                   </div>
-                )}
+                </div>
 
-                {/* BYOK providers: checkboxes per catalog model + custom ID input */}
                 {aiProvider !== 'copilot' && (() => {
                   const catalog = PROVIDER_CATALOG[aiProvider as Exclude<AIProviderType, 'copilot'>] ?? [];
                   const catalogIds = new Set(catalog.map((m) => m.id));
@@ -828,15 +1023,12 @@ export default function SettingsModal({
                   return (
                     <div className="sm-row sm-row--col">
                       <label className="sm-label">
-                        Modelos favoritos
-                        <span className="sm-row-desc"> — aparecem no seletor do chat</span>
+                        Modelos visíveis no seletor
+                        <span className="sm-row-desc"> — escolha os que devem aparecer no chat</span>
                       </label>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                      <div className="sm-model-list">
                         {catalog.map((m) => (
-                          <label
-                            key={m.id}
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.875rem' }}
-                          >
+                          <label key={m.id} className="sm-model-item">
                             <input
                               type="checkbox"
                               checked={aiFavoriteIds.includes(m.id)}
@@ -849,16 +1041,13 @@ export default function SettingsModal({
                               }}
                             />
                             <span>{m.name}</span>
-                            <span style={{ fontSize: '0.75rem', opacity: 0.55 }}>
-                              {m.supportsVision ? '🎑 vision' : '📝 texto'}
+                            <span className="sm-model-item-meta">
+                              {m.supportsVision ? 'Visão' : 'Texto'}
                             </span>
                           </label>
                         ))}
                         {customFavIds.map((id) => (
-                          <label
-                            key={id}
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.875rem' }}
-                          >
+                          <label key={id} className="sm-model-item">
                             <input
                               type="checkbox"
                               checked
@@ -869,72 +1058,31 @@ export default function SettingsModal({
                               }}
                             />
                             <span>{id}</span>
-                            <span style={{ fontSize: '0.75rem', opacity: 0.45 }}>custom</span>
+                            <span className="sm-model-item-meta">Custom</span>
                           </label>
                         ))}
-                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                          <input
-                            className="sm-input"
-                            type="text"
-                            placeholder="ID do modelo (ex: gpt-4.5-preview)"
-                            value={customModelInput}
-                            onChange={(e) => setCustomModelInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') addCustomModel(); }}
-                            style={{ flex: 1 }}
-                          />
-                          <button
-                            className="sm-save-btn"
-                            onClick={addCustomModel}
-                            disabled={!customModelInput.trim()}
-                          >
-                            + Adicionar
-                          </button>
-                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                        <input
+                          className="sm-input"
+                          type="text"
+                          placeholder="ID do modelo custom"
+                          value={customModelInput}
+                          onChange={(e) => setCustomModelInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') addCustomModel(); }}
+                          style={{ flex: 1 }}
+                        />
+                        <button
+                          className="sm-save-btn"
+                          onClick={addCustomModel}
+                          disabled={!customModelInput.trim()}
+                        >
+                          + Adicionar
+                        </button>
                       </div>
                     </div>
                   );
                 })()}
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">{t('settings.sectionShortcuts')}</h3>
-                <table className="sm-shortcuts">
-                  <tbody>
-                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupFiles')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>S</kbd></td><td>{t('settings.scSave')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>W</kbd></td><td>{t('settings.scCloseTab')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>R</kbd></td><td>{t('settings.scReload')}</td></tr>
-                    <tr><td><kbd>⌃</kbd><kbd>Tab</kbd></td><td>{t('settings.scNextTab')}</td></tr>
-                    <tr><td><kbd>⌃</kbd><kbd>⇧</kbd><kbd>Tab</kbd></td><td>{t('settings.scPrevTab')}</td></tr>
-                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupNav')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>F</kbd></td><td>{t('settings.scFindReplace')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>F</kbd></td><td>{t('settings.scProjectSearch')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>P</kbd></td><td>{t('settings.scTogglePreview')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>B</kbd></td><td>{t('settings.scToggleSidebar')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>J</kbd></td><td>{t('settings.scToggleTerminal')}</td></tr>
-                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupAI')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>K</kbd></td><td>{t('settings.scOpenCopilot')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>K</kbd> <span className="sm-shortcut-note">{t('settings.scWithSelection')}</span></td><td>{t('settings.scAskCopilot')}</td></tr>
-                    <tr><td><kbd>Esc</kbd></td><td>{t('settings.scCloseCopilot')}</td></tr>
-                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupApp')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>,</kbd></td><td>{t('settings.scOpenSettings')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>Click</kbd> <span className="sm-shortcut-note">{t('settings.scMultiSelectNote')}</span></td><td>{t('settings.scMultiSelect')}</td></tr>
-                    <tr><td><kbd>Duplo clique</kbd> <span className="sm-shortcut-note">{t('settings.scRenameFileNote')}</span></td><td>{t('settings.scRenameFile')}</td></tr>
-                  </tbody>
-                </table>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">{t('settings.sectionHelp')}</h3>
-                <p className="sm-section-desc">{t('settings.helpDesc')}</p>
-                <div className="sm-support-actions">
-                  <button className="sm-secondary-btn" onClick={onOpenHelp}>
-                    {t('settings.helpTourBtn')}
-                  </button>
-                  <button className="sm-secondary-btn" onClick={onContactUs}>
-                    {t('settings.contactUsBtn')}
-                  </button>
-                </div>
               </section>
 
             </div>
@@ -968,94 +1116,6 @@ export default function SettingsModal({
                     readOnly
                     title={workspace.path}
                   />
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">AI</h3>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Modelo preferido
-                    <span className="sm-row-desc"> — substitui o padrão global do painel de IA para este workspace</span>
-                  </label>
-                  <input
-                    className="sm-input"
-                    value={wsModel}
-                    onChange={(e) => setWsModel(e.target.value)}
-                    placeholder="ex: claude-sonnet-4-5 (deixe em branco para usar o padrão do painel)"
-                  />
-                </div>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Idioma da IA
-                    <span className="sm-row-desc"> — idioma padrão nas respostas do assistente neste workspace</span>
-                  </label>
-                  <select
-                    className="sm-select"
-                    value={wsLanguage}
-                    onChange={(e) => setWsLanguage(e.target.value)}
-                  >
-                    <option value="pt-BR">Português (Brasil)</option>
-                    <option value="en-US">English (US)</option>
-                    <option value="es">Español</option>
-                    <option value="fr">Français</option>
-                    <option value="de">Deutsch</option>
-                    <option value="it">Italiano</option>
-                    <option value="ja">日本語</option>
-                    <option value="zh-CN">中文 (简体)</option>
-                  </select>
-                </div>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    GitHub OAuth Client ID
-                    <span className="sm-row-desc"> — obrigatório para o login do Copilot neste workspace</span>
-                  </label>
-                  <input
-                    className="sm-input"
-                    value={wsGitHubClientId}
-                    onChange={(e) => setWsGitHubClientId(e.target.value)}
-                    placeholder="Iv1.1234567890abcdef"
-                  />
-                  <p className="sm-section-desc" style={{ marginTop: 8 }}>
-                    Crie um OAuth App no GitHub, habilite <strong>Device Flow</strong> e cole aqui apenas o <strong>Client ID</strong>.
-                    O Cafezin não usa mais <strong>client secret</strong> no app baixado pelo usuário.
-                  </p>
-                </div>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Instruções do agente (AGENT.md)
-                    <span className="sm-row-desc"> — prompt de sistema injetado em cada sessão do Copilot</span>
-                  </label>
-                  <textarea
-                    className="sm-textarea"
-                    value={wsAgent}
-                    onChange={(e) => setWsAgent(e.target.value)}
-                    placeholder="Descreva o projeto, estilo de código ou qualquer contexto que a IA deva conhecer…"
-                    rows={10}
-                  />
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Capacidades por workspace</h3>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.workspaceMarkdownMermaidLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.workspaceMarkdownMermaidDesc')}</span>
-                  </div>
-                  <label className="sm-toggle">
-                    <input
-                      type="checkbox"
-                      checked={wsMarkdownMermaid}
-                      onChange={(e) => setWsMarkdownMermaid(e.target.checked)}
-                    />
-                    <span className="sm-toggle-track" />
-                  </label>
                 </div>
               </section>
 
@@ -1225,6 +1285,152 @@ export default function SettingsModal({
             </div>
           )}
 
+          {/* ── Agent tab ── */}
+          {tab === 'agent' && workspace && (
+            <div className="sm-section-list">
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">Ajuda do agente</h3>
+
+                <div className="sm-row sm-row--col">
+                  <label className="sm-label">
+                    Idioma padrão das respostas
+                    <span className="sm-row-desc"> — usado como preferência neste workspace</span>
+                  </label>
+                  <select
+                    className="sm-select"
+                    value={wsLanguage}
+                    onChange={(e) => setWsLanguage(e.target.value)}
+                  >
+                    <option value="pt-BR">Português (Brasil)</option>
+                    <option value="en-US">English (US)</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                    <option value="it">Italiano</option>
+                    <option value="ja">日本語</option>
+                    <option value="zh-CN">中文 (简体)</option>
+                  </select>
+                </div>
+
+                <div className="sm-row sm-row--col">
+                  <label className="sm-label">
+                    Instruções do agente (AGENT.md)
+                    <span className="sm-row-desc"> — contexto do projeto injetado em cada sessão</span>
+                  </label>
+                  <textarea
+                    className="sm-textarea"
+                    value={wsAgent}
+                    onChange={(e) => setWsAgent(e.target.value)}
+                    placeholder="Descreva o projeto, o tom esperado e o que o agente deve considerar sempre."
+                    rows={10}
+                  />
+                </div>
+              </section>
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">Capacidades do workspace</h3>
+                <p className="sm-section-desc">
+                  Defina aqui o que o agente pode usar. No modo automático, o Cafezin libera cada grupo quando encontra arquivos compatíveis neste workspace.
+                </p>
+
+                <div className="sm-row">
+                  <div className="sm-row-label">
+                    <span>{t('settings.workspaceMarkdownMermaidLabel')}</span>
+                    <span className="sm-row-desc">{t('settings.workspaceMarkdownMermaidDesc')}</span>
+                  </div>
+                  <label className="sm-toggle">
+                    <input
+                      type="checkbox"
+                      checked={wsMarkdownMermaid}
+                      onChange={(e) => setWsMarkdownMermaid(e.target.checked)}
+                    />
+                    <span className="sm-toggle-track" />
+                  </label>
+                </div>
+
+                <div className="sm-row">
+                  <div className="sm-row-label">
+                    <span>Ferramentas de canvas</span>
+                    <span className="sm-row-desc">Permite o agente inspecionar e editar canvases com `canvas_op`, shapes e screenshots. {getCapabilityModeDescription(wsCanvasAgentTools, effectiveCapabilityState?.canvas ?? false, 'ligado', 'desligado')}</span>
+                  </div>
+                  <select
+                    className="sm-select"
+                    value={wsCanvasAgentTools}
+                    onChange={(e) => setWsCanvasAgentTools(e.target.value as CapabilityOverrideMode)}
+                  >
+                    <option value="auto">Automático</option>
+                    <option value="on">Ligado</option>
+                    <option value="off">Desligado</option>
+                  </select>
+                </div>
+
+                <div className="sm-row">
+                  <div className="sm-row-label">
+                    <span>Ferramentas de planilha</span>
+                    <span className="sm-row-desc">Liga as tools estruturadas de CSV, TSV e XLSX no contexto do agente. {getCapabilityModeDescription(wsSpreadsheetAgentTools, effectiveCapabilityState?.spreadsheet ?? false, 'ligado', 'desligado')}</span>
+                  </div>
+                  <select
+                    className="sm-select"
+                    value={wsSpreadsheetAgentTools}
+                    onChange={(e) => setWsSpreadsheetAgentTools(e.target.value as CapabilityOverrideMode)}
+                  >
+                    <option value="auto">Automático</option>
+                    <option value="on">Ligado</option>
+                    <option value="off">Desligado</option>
+                  </select>
+                </div>
+
+                <div className="sm-row">
+                  <div className="sm-row-label">
+                    <span>Ferramentas web</span>
+                    <span className="sm-row-desc">Controla busca web, leitura de URLs, preview HTML e comandos usados nesse fluxo. {getCapabilityModeDescription(wsWebAgentTools, effectiveCapabilityState?.web ?? false, 'ligado', 'desligado')}</span>
+                  </div>
+                  <select
+                    className="sm-select"
+                    value={wsWebAgentTools}
+                    onChange={(e) => setWsWebAgentTools(e.target.value as CapabilityOverrideMode)}
+                  >
+                    <option value="auto">Automático</option>
+                    <option value="on">Ligado</option>
+                    <option value="off">Desligado</option>
+                  </select>
+                </div>
+              </section>
+
+              <section className="sm-section">
+                <h3 className="sm-section-title">Copilot neste workspace</h3>
+
+                <div className="sm-row sm-row--col">
+                  <label className="sm-label">
+                    GitHub OAuth Client ID
+                    <span className="sm-row-desc"> — configuração avançada para o login do Copilot neste workspace</span>
+                  </label>
+                  <input
+                    className="sm-input"
+                    value={wsGitHubClientId}
+                    onChange={(e) => setWsGitHubClientId(e.target.value)}
+                    placeholder="Iv1.1234567890abcdef"
+                  />
+                  <p className="sm-section-desc" style={{ marginTop: 8 }}>
+                    Crie um OAuth App no GitHub com <strong>Device Flow</strong> e cole aqui apenas o <strong>Client ID</strong>.
+                  </p>
+                </div>
+              </section>
+
+              <div className="sm-footer">
+                <button
+                  className={`sm-save-btn ${wsSaved ? 'saved' : ''}`}
+                  onClick={handleWsSave}
+                  disabled={wsSaving}
+                >
+                  {wsSaving ? 'Salvando…' : wsSaved ? '✓ Salvo' : 'Salvar configurações do agente'}
+                </button>
+              </div>
+
+            </div>
+          )}
+
           {/* ── Sync tab ── */}
           {tab === 'sync' && (
             <div className="sm-section-list">
@@ -1293,29 +1499,79 @@ export default function SettingsModal({
               {syncStatus === 'connected' && workspace && (
                 <section className="sm-section">
                   <h3 className="sm-section-title">
-                    {workspace.hasGit ? 'Registrar este workspace' : 'Ativar sync deste workspace'}
+                    {workspace.hasGit ? 'Sync deste workspace' : 'Ativar sync deste workspace'}
                   </h3>
                   {workspace.hasGit ? (
                     <>
-                      <p className="sm-section-desc">
-                        Adicione este workspace à lista de sync para que ele apareça em outros dispositivos.
-                      </p>
-                      <div className="sm-sync-register">
-                        <button
-                          className={`sm-save-btn ${regState === 'done' ? 'saved' : ''}`}
-                          onClick={handleRegister}
-                          disabled={regState === 'busy'}
-                        >
-                          {regState === 'busy' ? 'Registrando…' : regState === 'done' ? '✓ Registrado' : 'Registrar'}
-                        </button>
-                      </div>
-                      {regState === 'error' && <p className="sm-sync-error" style={{ marginTop: 8 }}>{regError}</p>}
+                      {currentSyncEntry ? (
+                        <div className="sm-sync-state-card">
+                          <strong>Este workspace já está sincronizado.</strong>
+                          <span>{currentSyncEntry.name}</span>
+                          <span className="sm-sync-ws-url">{currentSyncEntry.gitUrl}</span>
+                          <span className="sm-sync-ws-label">Conta usada: {currentSyncEntry.gitAccountLabel}</span>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="sm-section-desc">
+                            Registre este workspace para ele aparecer nos outros dispositivos conectados a esta conta.
+                          </p>
+                          <div className="sm-row sm-row--col">
+                            <label className="sm-label">
+                              Conta do Git para associar
+                              <span className="sm-row-desc"> — este rótulo ajuda a identificar qual credencial será usada no clone e no sync</span>
+                            </label>
+                            {gitAccounts.length > 0 ? (
+                              <select
+                                className="sm-select"
+                                value={regLabel}
+                                onChange={(e) => setRegLabel(e.target.value)}
+                              >
+                                {gitAccounts.map((label) => (
+                                  <option key={label} value={label}>{label}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="sm-row-desc">Nenhuma conta Git conectada neste dispositivo ainda.</span>
+                            )}
+                          </div>
+                          <div className="sm-sync-register">
+                            <button
+                              className={`sm-save-btn ${regState === 'done' ? 'saved' : ''}`}
+                              onClick={handleRegister}
+                              disabled={regState === 'busy' || gitAccounts.length === 0}
+                            >
+                              {regState === 'busy' ? 'Registrando…' : regState === 'done' ? '✓ Registrado' : 'Registrar no sync'}
+                            </button>
+                          </div>
+                          {regState === 'error' && <p className="sm-sync-error" style={{ marginTop: 8 }}>{regError}</p>}
+                        </>
+                      )}
                     </>
                   ) : (
                     <>
                       <p className="sm-section-desc">
-                        Crie um repositório privado no GitHub e ative o sync. O Cafezin cuida da conexão — sem configuração manual.
+                        O Cafezin vai conectar este workspace a um repositório Git e passar a sincronizá-lo por lá.
                       </p>
+
+                      <div className="sm-row sm-row--col">
+                        <label className="sm-label">
+                          Conta do Git para usar
+                          <span className="sm-row-desc"> — é com ela que o repositório será criado ou associado</span>
+                        </label>
+                        {gitAccounts.length > 0 ? (
+                          <select
+                            className="sm-select"
+                            value={regLabel}
+                            onChange={(e) => setRegLabel(e.target.value)}
+                          >
+                            {gitAccounts.map((label) => (
+                              <option key={label} value={label}>{label}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="sm-row-desc">Se ainda não houver conta conectada, o Cafezin vai pedir autorização do GitHub na primeira ativação.</span>
+                        )}
+                      </div>
 
                       {(activateSyncFlowState || (gitFlowBusy && gitFlowState)) && (
                         <div className="sm-sync-flow">
@@ -1638,7 +1894,7 @@ export default function SettingsModal({
                 <p className="sm-section-desc">
                   Com o plano Premium, você usa sua própria chave de API.
                   Nenhum custo extra de uso nos pagamentos do Cafezin.
-                  Configure sua chave na aba <strong>Geral</strong> → Assistente de IA.
+                  Configure suas chaves na aba <strong>IA</strong>.
                   Pegue sua chave no provedor:
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>

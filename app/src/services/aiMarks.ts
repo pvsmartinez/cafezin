@@ -8,6 +8,8 @@ import type { Workspace, AIEditMark } from '../types';
 import { CONFIG_DIR } from './config';
 const MARKS_FILE = 'ai-marks.json';
 
+type AIMarkDecision = 'accepted' | 'rejected' | 'edited';
+
 function marksPath(workspace: Workspace): string {
   return `${workspace.path}/${CONFIG_DIR}/${MARKS_FILE}`;
 }
@@ -62,10 +64,28 @@ export async function addMarksBulk(workspace: Workspace, newMarks: AIEditMark[])
 }
 
 export async function markReviewed(workspace: Workspace, id: string): Promise<AIEditMark[]> {
+  return resolveMark(workspace, id, 'accepted');
+}
+
+export async function markRejected(workspace: Workspace, id: string): Promise<AIEditMark[]> {
+  return resolveMark(workspace, id, 'rejected');
+}
+
+export async function markEdited(workspace: Workspace, id: string): Promise<AIEditMark[]> {
+  return resolveMark(workspace, id, 'edited');
+}
+
+async function resolveMark(
+  workspace: Workspace,
+  id: string,
+  decision: AIMarkDecision,
+): Promise<AIEditMark[]> {
   return enqueueWrite(async () => {
     const marks = await loadMarks(workspace);
     const updated = marks.map((m) =>
-      m.id === id ? { ...m, reviewed: true, reviewedAt: new Date().toISOString() } : m,
+      m.id === id
+        ? { ...m, reviewed: true, reviewedAt: new Date().toISOString(), decision }
+        : m,
     );
     await saveMarks(workspace, updated);
     return updated;

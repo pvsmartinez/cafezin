@@ -12,10 +12,14 @@ import {
   addMark,
   addMarksBulk,
   saveMarks,
+  markEdited,
+  markRejected,
   markReviewed,
 } from '../services/aiMarks';
+import { readTextFile, writeTextFile } from '../services/fs';
 import { generateId } from '../utils/generateId';
-import type { Workspace, AIEditMark } from '../types';
+import { applyTextMarkRevert } from '../utils/aiMarkRevert';
+import type { AIRecordedTextMark, Workspace, AIEditMark } from '../types';
 
 // ── Pure helper (also exported for use in App.tsx's handleInsert) ──────────
 export function makeCanvasMark(
@@ -67,9 +71,10 @@ export interface UseAIMarksReturn {
   /** Load marks from disk for a freshly opened workspace. */
   loadMarksForWorkspace: (ws: Workspace) => void;
   // ── Handlers forwarded to components ─────────────────────────────────────
-  handleMarkRecorded: (relPath: string, written: string, aiModel: string) => void;
+  handleMarkRecorded: (relPath: string, written: string, aiModel: string, recordedMarks?: AIRecordedTextMark[]) => void;
   handleCanvasMarkRecorded: (relPath: string, shapeIds: string[], aiModel: string) => void;
   handleMarkReviewed: (id: string) => void;
+  handleMarkRejected: (id: string) => void;
   handleReviewAllMarks: () => void;
   handleMarkUserEdited: (markId: string) => void;
   handleAINavNext: () => void;
@@ -132,28 +137,38 @@ export function useAIMarks({
 
   // ── Text mark (agent write_workspace_file path) ───────────────────────────
   const handleMarkRecorded = useCallback(
-    (relPath: string, written: string, aiModel: string) => {
+    (relPath: string, written: string, aiModel: string, recordedMarks?: AIRecordedTextMark[]) => {
       if (!workspace) return;
       // Canvas files are tracked via canvasShapeIds — skip text marks for them
       if (relPath.endsWith('.tldr.json')) return;
 
       const MIN_CHUNK = 40;
       const MAX_CHUNKS = 12;
-      const chunks = written
-        .split(/\n{2,}/)
-        .map((s) => s.trim())
-        .filter((s) => s.length >= MIN_CHUNK)
+      const sourceEntries: AIRecordedTextMark[] = (recordedMarks && recordedMarks.length > 0)
+        ? recordedMarks
+        : [written]
+            .flatMap((text) => text.split(/\n{2,}/))
+            .map((text) => ({ text: text.trim() }));
+      const chunks: AIRecordedTextMark[] = sourceEntries
+        .map((entry) => ({
+          text: entry.text.trim(),
+          revert: entry.revert,
+          spreadsheetTarget: entry.spreadsheetTarget,
+        }))
+        .filter((entry) => entry.text.length >= MIN_CHUNK)
         .slice(0, MAX_CHUNKS);
       if (chunks.length === 0) return;
 
       const now = new Date().toISOString();
-      const newMarks = chunks.map((text) => ({
+      const newMarks = chunks.map((entry) => ({
         id: generateId(),
         fileRelPath: relPath,
-        text,
+        text: entry.text,
         model: aiModel,
         insertedAt: now,
         reviewed: false,
+        revert: entry.revert,
+        spreadsheetTarget: entry.spreadsheetTarget,
       }));
       addMarksBulk(workspace, newMarks).then(setAiMarks).catch(() => {});
 
@@ -194,13 +209,67 @@ export function useAIMarks({
     [workspace],
   );
 
+  const handleMarkRejected = useCallback(
+    (id: string) => {
+      if (!workspace) return;
+      const mark = aiMarks.find((candidate) => candidate.id === id);
+      if (!mark) return;
+
+      if (mark.canvasShapeIds?.length) {
+        const editor = canvasEditorRef.current;
+        if (!editor) return;
+        const existingIds = mark.canvasShapeIds.filter((shapeId) => !!editor.getShape(shapeId as TLShapeId));
+        if (existingIds.length > 0) {
+          editor.deleteShapes(existingIds as TLShapeId[]);
+        }
+        markRejected(workspace, id).then(setAiMarks).catch(() => {});
+        return;
+      }
+
+      if (!mark.revert) return;
+
+      const relPath = mark.fileRelPath;
+      const absPath = `${workspace.path}/${relPath}`;
+      const currentTextPromise = tabContentsRef.current.has(relPath)
+        ? Promise.resolve(tabContentsRef.current.get(relPath) ?? '')
+        : readTextFile(absPath);
+
+      currentTextPromise
+        .then((currentText) => {
+          const revertedText = applyTextMarkRevert(currentText, mark.revert!);
+          if (revertedText == null) {
+            window.alert('Nao foi possivel cancelar este trecho da IA porque o contexto ja mudou demais.');
+            return;
+          }
+
+          return writeTextFile(absPath, revertedText).then(() => {
+            if (activeTabIdRef.current === relPath) {
+              setContent(revertedText);
+            }
+            tabContentsRef.current.set(relPath, revertedText);
+            savedContentRef.current.set(relPath, revertedText);
+            setDirtyFiles((prev) => {
+              const next = new Set(prev);
+              next.delete(relPath);
+              return next;
+            });
+            return markRejected(workspace, id).then(setAiMarks);
+          });
+        })
+        .catch(() => {
+          window.alert('Falha ao reverter este trecho da IA.');
+        });
+    },
+    [workspace, aiMarks, canvasEditorRef, activeTabIdRef, tabContentsRef, savedContentRef, setContent, setDirtyFiles],
+  );
+
   // ── Mark ALL as reviewed ──────────────────────────────────────────────────
   const handleReviewAllMarks = useCallback(() => {
     if (!workspace) return;
     const now = new Date().toISOString();
     setAiMarks((prev) => {
       const updated = prev.map((m) =>
-        m.reviewed ? m : { ...m, reviewed: true, reviewedAt: now },
+        m.reviewed ? m : { ...m, reviewed: true, reviewedAt: now, decision: 'accepted' as const },
       );
       saveMarks(workspace, updated).catch(() => {});
       return updated;
@@ -211,7 +280,7 @@ export function useAIMarks({
   const handleMarkUserEdited = useCallback(
     (markId: string) => {
       if (!workspace) return;
-      markReviewed(workspace, markId).then(setAiMarks).catch(() => {});
+      markEdited(workspace, markId).then(setAiMarks).catch(() => {});
     },
     [workspace],
   );
@@ -246,7 +315,7 @@ export function useAIMarks({
           if (toRemove.length === 0) return prev;
           const updated = prev.map((m) =>
             toRemove.includes(m.id)
-              ? { ...m, reviewed: true, reviewedAt: new Date().toISOString() }
+              ? { ...m, reviewed: true, reviewedAt: new Date().toISOString(), decision: 'edited' as const }
               : m,
           );
           saveMarks(workspace, updated).catch(() => {});
@@ -320,6 +389,7 @@ export function useAIMarks({
     handleMarkRecorded,
     handleCanvasMarkRecorded,
     handleMarkReviewed,
+    handleMarkRejected,
     handleReviewAllMarks,
     handleMarkUserEdited,
     handleAINavNext,

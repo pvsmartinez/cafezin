@@ -4,6 +4,7 @@
  */
 
 import { readTextFile, writeTextFile, mkdir, exists } from '../../services/fs';
+import { homeDir } from '@tauri-apps/api/path';
 import { runExportTarget } from '../exportWorkspace';
 import { safeResolvePath } from './shared';
 import { appendPendingTask } from '../../services/mobilePendingTasks';
@@ -113,23 +114,63 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'remember',
       description:
-        'Save a fact, note, or preference to the workspace memory (.cafezin/memory.md) so it persists across chat sessions. ' +
-        'Use this proactively whenever the user tells you something important about their project — character names, ' +
-        'writing style preferences, world-building facts, glossary terms, plot decisions. ' +
-        'The memory file is automatically included in every future conversation in this workspace.',
+        'Save a fact or preference so it persists across chat sessions. ' +
+        'Use scope="user" for things about the USER (communication style, pet peeves, what the AI has done wrong, how they like to work) — these are saved globally and apply to EVERY workspace. ' +
+        'Use the default scope (omit it) for project-specific facts (character names, plot decisions, world-building, tech notes) — saved to this workspace only. ' +
+        'Call this proactively without being asked whenever you learn something worth remembering: ' +
+        'a correction the user made, a preference they stated, a mistake you should not repeat.',
       parameters: {
         type: 'object',
         properties: {
           content: {
             type: 'string',
-            description: 'The fact, note, or preference to remember. Be specific and write it so it is self-contained out of context.',
+            description: 'The fact, note, or preference to remember. Be specific and self-contained — it will be read back without context.',
           },
           heading: {
             type: 'string',
-            description: 'Category heading to file this under, e.g. "Characters", "Style Preferences", "Plot Notes", "Glossary", "World Building". Creates the section if it does not exist.',
+            description: 'Category heading, e.g. "Characters", "Style Preferences", "Plot Notes", "Glossary", "Things to Avoid", "Communication Style".',
+          },
+          scope: {
+            type: 'string',
+            enum: ['user', 'workspace'],
+            description: '"user" = global user profile (persists across all workspaces). "workspace" = this project only (default).',
           },
         },
         required: ['content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'manage_memory',
+      description:
+        'Read, consolidate, or edit memory files to keep them clean and relevant. ' +
+        'Use this periodically — especially when a memory file is getting long or has redundant/outdated entries. ' +
+        'Actions: ' +
+        '"read" — return the current contents of a memory file (scope: workspace or user). ' +
+        '"rewrite" — replace the entire file with a consolidated, deduplicated version you craft. ' +
+        '"delete_entry" — remove a single bullet entry by its exact text. ' +
+        'Run "read" first, then "rewrite" with a cleaned version that: removes duplicates, merges related items, drops outdated facts, and keeps only what is truly useful.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['read', 'rewrite', 'delete_entry'],
+            description: 'Operation to perform on the memory file.',
+          },
+          scope: {
+            type: 'string',
+            enum: ['workspace', 'user'],
+            description: '"workspace" = .cafezin/memory.md (default). "user" = ~/.cafezin/user-profile.md.',
+          },
+          content: {
+            type: 'string',
+            description: 'For "rewrite": the complete new content of the file (valid Markdown with ## headings and - bullet items). For "delete_entry": the exact bullet text to remove (without the leading "- ").',
+          },
+        },
+        required: ['action'],
       },
     },
   },
@@ -258,6 +299,7 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
     workspaceConfig,
     onFileWritten,
     onMemoryWritten,
+    onUserProfileWritten,
     onExportConfigChange,
     onWorkspaceConfigChange,
     onAskUser,
@@ -498,12 +540,23 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
     case 'remember': {
       const memContent = String(args.content ?? '').trim();
       const heading    = String(args.heading  ?? '').trim();
+      const scope      = String(args.scope    ?? 'workspace').trim();
       if (!memContent) return 'Error: content is required.';
 
-      const memRelPath = '.cafezin/memory.md';
+      const isUserScope = scope === 'user';
+
       let abs: string;
-      try { abs = safeResolvePath(workspacePath, memRelPath); }
-      catch (e) { return String(e); }
+      let memRelPath: string;
+      if (isUserScope) {
+        // User profile: ~/.cafezin/user-profile.md — global across workspaces
+        const home = await homeDir();
+        abs = `${home.replace(/\/$/, '')}/.cafezin/user-profile.md`;
+        memRelPath = '~/.cafezin/user-profile.md';
+      } else {
+        memRelPath = '.cafezin/memory.md';
+        try { abs = safeResolvePath(workspacePath, memRelPath); }
+        catch (e) { return String(e); }
+      }
 
       const dir = abs.split('/').slice(0, -1).join('/');
       if (!(await exists(dir))) await mkdir(dir, { recursive: true });
@@ -511,7 +564,8 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
       let existing = '';
       try { if (await exists(abs)) existing = await readTextFile(abs); } catch { /* treat as empty */ }
 
-      const sectionTitle = heading || 'Notes';
+      const sectionTitle = heading || (isUserScope ? 'User Notes' : 'Notes');
+      const fileTitle    = isUserScope ? '# User Profile' : '# Workspace Memory';
       const sectionHeader = `## ${sectionTitle}`;
       const idx = existing.indexOf(sectionHeader);
       let updated: string;
@@ -521,18 +575,79 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
         updated = existing.slice(0, insertAt).trimEnd() + `\n- ${memContent}\n` + existing.slice(insertAt);
       } else {
         const base = existing.trimEnd();
-        updated = (base ? base + '\n\n' : '# Workspace Memory\n\n') + `${sectionHeader}\n- ${memContent}\n`;
+        updated = (base ? base + '\n\n' : `${fileTitle}\n\n`) + `${sectionHeader}\n- ${memContent}\n`;
       }
 
       try {
         await writeTextFile(abs, updated);
-        onMemoryWritten?.(updated);
+        if (isUserScope) {
+          onUserProfileWritten?.(updated);
+        } else {
+          onMemoryWritten?.(updated);
+        }
         onFileWritten?.(memRelPath);
       } catch (e) {
         return `Error saving memory: ${e}`;
       }
       const preview = memContent.length > 80 ? memContent.slice(0, 80) + '…' : memContent;
-      return `Remembered under "${sectionTitle}": "${preview}" (saved to ${memRelPath})`;
+      const dest = isUserScope ? 'user profile (global)' : `workspace memory`;
+      return `Remembered under "${sectionTitle}" in ${dest}: "${preview}" (saved to ${memRelPath})`;
+    }
+
+    // ── manage_memory ──────────────────────────────────────────────────────
+    case 'manage_memory': {
+      const action    = String(args.action ?? 'read').trim();
+      const scope     = String(args.scope  ?? 'workspace').trim();
+      const isUser    = scope === 'user';
+
+      let abs: string;
+      let label: string;
+      if (isUser) {
+        const home = await homeDir();
+        abs   = `${home.replace(/\/$/, '')}/.cafezin/user-profile.md`;
+        label = '~/.cafezin/user-profile.md';
+      } else {
+        label = '.cafezin/memory.md';
+        try { abs = safeResolvePath(workspacePath, label); }
+        catch (e) { return String(e); }
+      }
+
+      const dir = abs.split('/').slice(0, -1).join('/');
+
+      if (action === 'read') {
+        if (!(await exists(abs))) return `${label} does not exist yet.`;
+        const text = await readTextFile(abs);
+        return text || `${label} is empty.`;
+      }
+
+      if (action === 'rewrite') {
+        const newContent = String(args.content ?? '').trim();
+        if (!newContent) return 'Error: content is required for rewrite.';
+        if (!(await exists(dir))) await mkdir(dir, { recursive: true });
+        await writeTextFile(abs, newContent + '\n');
+        if (isUser) onUserProfileWritten?.(newContent);
+        else onMemoryWritten?.(newContent);
+        const lines = newContent.split('\n').filter(Boolean).length;
+        return `${label} rewritten (${lines} lines).`;
+      }
+
+      if (action === 'delete_entry') {
+        const target = String(args.content ?? '').trim();
+        if (!target) return 'Error: content (the exact bullet text to remove) is required.';
+        if (!(await exists(abs))) return `${label} does not exist.`;
+        const text = await readTextFile(abs);
+        const updated = text
+          .split('\n')
+          .filter((line) => line.trim() !== `- ${target}` && line.trim() !== target)
+          .join('\n');
+        if (updated === text) return `Entry not found in ${label}: "${target}"`;
+        await writeTextFile(abs, updated);
+        if (isUser) onUserProfileWritten?.(updated);
+        else onMemoryWritten?.(updated);
+        return `Deleted entry from ${label}: "${target}"`;
+      }
+
+      return `Unknown action: ${action}. Use read, rewrite, or delete_entry.`;
     }
 
     // ── ask_user ───────────────────────────────────────────────────────────

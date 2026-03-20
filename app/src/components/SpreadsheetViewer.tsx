@@ -3,20 +3,47 @@ import { Table, Plus, Minus, ArrowDown, ArrowRight, FloppyDisk, Warning, Spinner
 import { parseSpreadsheetFile, serializeSheetToCSV, serializeSheetToTSV } from '../services/spreadsheet';
 import type { SheetTab } from '../services/spreadsheet';
 import { writeTextFile } from '../services/fs';
+import type { AIEditMark, AISpreadsheetTarget, AISelectionContext } from '../types';
 import './SpreadsheetViewer.css';
 
 interface SpreadsheetViewerProps {
   absPath: string;
   filename: string;
   onStat?: (stat: string) => void;
+  onSelectionContextChange?: (context: AISelectionContext | null) => void;
+  aiMarks?: AIEditMark[];
+  aiHighlight?: boolean;
+  aiNavIndex?: number;
+  onAIPrev?: () => void;
+  onAINext?: () => void;
+  onMarkReviewed?: (id: string) => void;
+  onMarkRejected?: (id: string) => void;
+  onMarkUserEdited?: (id: string) => void;
 }
 
 const LARGE_ROW_THRESHOLD = 1000;
 const MAX_INITIAL_ROWS = 1000;
 
 type CellPos = { row: number; col: number };
+type SheetSelection =
+  | { kind: 'cell'; row: number; col: number }
+  | { kind: 'row'; row: number }
+  | { kind: 'column'; col: number };
 
-export default function SpreadsheetViewer({ absPath, filename, onStat }: SpreadsheetViewerProps) {
+export default function SpreadsheetViewer({
+  absPath,
+  filename,
+  onStat,
+  onSelectionContextChange,
+  aiMarks = [],
+  aiHighlight = false,
+  aiNavIndex = 0,
+  onAIPrev,
+  onAINext,
+  onMarkReviewed,
+  onMarkRejected,
+  onMarkUserEdited,
+}: SpreadsheetViewerProps) {
   const ext = filename.split('.').pop()?.toLowerCase() ?? 'csv';
   const isText = ext === 'csv' || ext === 'tsv';
 
@@ -32,6 +59,7 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
   const [editingCell, setEditingCell] = useState<CellPos | null>(null);
   const [editValue, setEditValue] = useState('');
   const [selectedCell, setSelectedCell] = useState<CellPos | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<SheetSelection | null>(null);
   const [copiedCell, setCopiedCell] = useState<CellPos | null>(null);
   const cellInputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -50,6 +78,7 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
     setDirty(false);
     setEditingCell(null);
     setSelectedCell(null);
+    setSelectedRegion(null);
     setActiveSheetIdx(0);
     setShowAllRows(false);
 
@@ -115,9 +144,100 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
     return row === -1 ? colLabel(col) : `${colLabel(col)}${row + 1}`;
   }
 
+  function buildSelectionContext(selection: SheetSelection): AISelectionContext | null {
+    if (!activeSheet) return null;
+
+    if (selection.kind === 'cell') {
+      const value = activeSheet.rows[selection.row]?.[selection.col] ?? '';
+      return {
+        source: 'spreadsheet',
+        label: `Célula ${cellAddr(selection.row, selection.col)} em ${filename}`,
+        content: [
+          `Spreadsheet file: "${filename}"`,
+          `Sheet: "${activeSheet.name}"`,
+          `Selection: cell ${cellAddr(selection.row, selection.col)}`,
+          'Value:',
+          '---',
+          value,
+          '---',
+        ].join('\n'),
+      };
+    }
+
+    if (selection.kind === 'row') {
+      const rowValues = activeSheet.rows[selection.row] ?? [];
+      const pairs = activeSheet.headers.map((header, index) => `${header || colLabel(index)}: ${rowValues[index] ?? ''}`);
+      return {
+        source: 'spreadsheet',
+        label: `Linha ${selection.row + 1} em ${filename}`,
+        content: [
+          `Spreadsheet file: "${filename}"`,
+          `Sheet: "${activeSheet.name}"`,
+          `Selection: row ${selection.row + 1}`,
+          'Row values:',
+          '---',
+          pairs.join('\n'),
+          '---',
+        ].join('\n'),
+      };
+    }
+
+    const values = activeSheet.rows
+      .map((row) => row[selection.col] ?? '')
+      .slice(0, 50);
+    return {
+      source: 'spreadsheet',
+      label: `Coluna ${colLabel(selection.col)} em ${filename}`,
+      content: [
+        `Spreadsheet file: "${filename}"`,
+        `Sheet: "${activeSheet.name}"`,
+        `Selection: column ${colLabel(selection.col)}`,
+        `Header: ${activeSheet.headers[selection.col] ?? ''}`,
+        `Values shown: ${values.length} of ${activeSheet.rows.length}`,
+        '---',
+        values.map((value, index) => `${index + 1}. ${value}`).join('\n'),
+        '---',
+      ].join('\n'),
+    };
+  }
+
+  useEffect(() => {
+    if (!onSelectionContextChange) return;
+    onSelectionContextChange(selectedRegion ? buildSelectionContext(selectedRegion) : null);
+  }, [selectedRegion, activeSheet, filename, onSelectionContextChange]);
+
   function looksNumeric(val: string): boolean {
     if (!val || !val.trim()) return false;
     return /^-?[\d,._]+%?$/.test(val.trim());
+  }
+
+  const activeSheetMarkTargets = aiMarks.filter((mark) => mark.spreadsheetTarget?.sheetName === activeSheet?.name);
+  const currentAiMark = activeSheetMarkTargets[aiNavIndex] ?? activeSheetMarkTargets[0] ?? null;
+
+  function targetMatchesCell(target: AISpreadsheetTarget | undefined, row: number, col: number, isHeader = false): boolean {
+    if (!target || target.sheetName !== activeSheet?.name) return false;
+    if (target.kind === 'row') return !isHeader && target.row === row;
+    if (target.kind === 'cell') return !isHeader && target.row === row && target.col === col;
+    if (target.kind === 'column') return target.col === col;
+    if (target.kind === 'header') return isHeader && target.col === col;
+    return false;
+  }
+
+  function targetLabel(target: AISpreadsheetTarget | undefined): string {
+    if (!target) return 'Trecho da planilha';
+    if (target.kind === 'row') return `Linha ${Number(target.row ?? 0) + 1}`;
+    if (target.kind === 'cell') return `Célula ${cellAddr(Number(target.row ?? 0), Number(target.col ?? 0))}`;
+    if (target.kind === 'column') return `Coluna ${colLabel(Number(target.col ?? 0))}`;
+    return `Cabeçalho ${colLabel(Number(target.col ?? 0))}`;
+  }
+
+  function notifySpreadsheetMarksEdited(row: number, col: number, isHeader = false) {
+    if (!onMarkUserEdited) return;
+    for (const mark of activeSheetMarkTargets) {
+      if (targetMatchesCell(mark.spreadsheetTarget, row, col, isHeader)) {
+        onMarkUserEdited(mark.id);
+      }
+    }
   }
 
   // ── Grid keyboard handler ─────────────────────────────────────────────────
@@ -129,13 +249,18 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
 
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
-      if (!selectedCell) { setSelectedCell({ row: 0, col: 0 }); return; }
+      if (!selectedCell) {
+        setSelectedCell({ row: 0, col: 0 });
+        setSelectedRegion({ kind: 'cell', row: 0, col: 0 });
+        return;
+      }
       let { row, col } = selectedCell;
       if (e.key === 'ArrowDown')  row = Math.min(row + 1, rowCount - 1);
       else if (e.key === 'ArrowUp')    row = Math.max(row - 1, 0);
       else if (e.key === 'ArrowRight') col = Math.min(col + 1, colCount - 1);
       else if (e.key === 'ArrowLeft')  col = Math.max(col - 1, 0);
       setSelectedCell({ row, col });
+      setSelectedRegion({ kind: 'cell', row, col });
       return;
     }
 
@@ -143,6 +268,7 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
       const { row, col } = selectedCell;
       if (row < 0 || !isText) return;
       e.preventDefault();
+      notifySpreadsheetMarksEdited(row, col);
       const updated = sheets.map((sh, i) => {
         if (i !== activeSheetIdx) return sh;
         return { ...sh, rows: sh.rows.map((r, ri) => {
@@ -222,6 +348,7 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
   // ── Cell editing ──────────────────────────────────────────────────────────
   function startEdit(rowIdx: number, colIdx: number, initialChar?: string) {
     setSelectedCell({ row: rowIdx, col: colIdx });
+    setSelectedRegion(rowIdx === -1 ? { kind: 'column', col: colIdx } : { kind: 'cell', row: rowIdx, col: colIdx });
     const current = rowIdx === -1
       ? (activeSheet?.headers[colIdx] ?? '')
       : (activeSheet?.rows[rowIdx]?.[colIdx] ?? '');
@@ -240,6 +367,7 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
   function commitEdit() {
     if (!editingCell || !activeSheet) return;
     const { row, col } = editingCell;
+    notifySpreadsheetMarksEdited(row, col, row === -1);
 
     const newSheets = sheets.map((sh, i) => {
       if (i !== activeSheetIdx) return sh;
@@ -475,7 +603,7 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
             <button
               key={sh.name}
               className={`ss-sheet-tab${i === activeSheetIdx ? ' active' : ''}`}
-              onClick={() => { setActiveSheetIdx(i); setEditingCell(null); setSelectedCell(null); }}
+              onClick={() => { setActiveSheetIdx(i); setEditingCell(null); setSelectedCell(null); setSelectedRegion(null); }}
             >
               {sh.name}
             </button>
@@ -485,6 +613,16 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
 
       {/* ── Formula bar (always visible) ── */}
       <div className="ss-formula-bar">
+        {aiHighlight && currentAiMark?.spreadsheetTarget && (
+          <div className="ss-ai-review-strip">
+            <button className="ss-ai-review-btn" onClick={onAIPrev} disabled={activeSheetMarkTargets.length < 2} title="Previous AI edit">‹</button>
+            <span className="ss-ai-review-label">✦ {targetLabel(currentAiMark.spreadsheetTarget)}</span>
+            <span className="ss-ai-review-count">{Math.min(aiNavIndex + 1, activeSheetMarkTargets.length)}/{activeSheetMarkTargets.length}</span>
+            <button className="ss-ai-review-accept" onClick={() => onMarkReviewed?.(currentAiMark.id)} title="Accept AI edit">✓</button>
+            <button className="ss-ai-review-reject" onClick={() => onMarkRejected?.(currentAiMark.id)} title="Cancel AI edit">×</button>
+            <button className="ss-ai-review-btn" onClick={onAINext} disabled={activeSheetMarkTargets.length < 2} title="Next AI edit">›</button>
+          </div>
+        )}
         {editingCell ? (
           <>
             <span className="ss-formula-addr">{cellAddr(editingCell.row, editingCell.col)}</span>
@@ -494,6 +632,24 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
             </span>
           </>
         ) : selectedCell ? (() => {
+          if (selectedRegion?.kind === 'row') {
+            return (
+              <>
+                <span className="ss-formula-addr">L{selectedRegion.row + 1}</span>
+                <span className="ss-formula-divider" />
+                <span className="ss-formula-value">Linha {selectedRegion.row + 1} selecionada</span>
+              </>
+            );
+          }
+          if (selectedRegion?.kind === 'column') {
+            return (
+              <>
+                <span className="ss-formula-addr">{colLabel(selectedRegion.col)}</span>
+                <span className="ss-formula-divider" />
+                <span className="ss-formula-value">Coluna {colLabel(selectedRegion.col)} selecionada</span>
+              </>
+            );
+          }
           const { row, col } = selectedCell;
           const val = row === -1 ? (activeSheet.headers[col] ?? '') : (activeSheet.rows[row]?.[col] ?? '');
           const isFormula = val.startsWith('=');
@@ -527,8 +683,19 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
                 <th
                   key={ci}
                   data-cell={`-1,${ci}`}
-                  className={`ss-th${selectedCell?.row === -1 && selectedCell?.col === ci && !editingCell ? ' selected' : ''}`}
-                  onClick={() => { if (!editingCell) { setSelectedCell({ row: -1, col: ci }); gridRef.current?.focus(); } }}
+                  className={[
+                    'ss-th',
+                    selectedRegion?.kind === 'column' && selectedRegion.col === ci && !editingCell ? 'selected' : '',
+                    aiHighlight && activeSheetMarkTargets.some((mark) => targetMatchesCell(mark.spreadsheetTarget, -1, ci, true)) ? 'ai-mark' : '',
+                    currentAiMark && targetMatchesCell(currentAiMark.spreadsheetTarget, -1, ci, true) ? 'ai-mark-current' : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => {
+                    if (!editingCell) {
+                      setSelectedCell({ row: -1, col: ci });
+                      setSelectedRegion({ kind: 'column', col: ci });
+                      gridRef.current?.focus();
+                    }
+                  }}
                   onDoubleClick={() => startEdit(-1, ci)}
                 >
                   {editingCell?.row === -1 && editingCell?.col === ci ? (
@@ -550,7 +717,23 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
           <tbody>
             {visibleRows.map((row, ri) => (
               <tr key={ri} className={ri % 2 === 0 ? 'ss-tr-even' : 'ss-tr-odd'}>
-                <td className="ss-row-num">{ri + 1}</td>
+                <td
+                  className={[
+                    'ss-row-num',
+                    selectedRegion?.kind === 'row' && selectedRegion.row === ri ? 'selected' : '',
+                    aiHighlight && activeSheetMarkTargets.some((mark) => mark.spreadsheetTarget?.kind === 'row' && mark.spreadsheetTarget.row === ri) ? 'ai-mark' : '',
+                    currentAiMark?.spreadsheetTarget?.kind === 'row' && currentAiMark.spreadsheetTarget.row === ri ? 'ai-mark-current' : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => {
+                    if (!editingCell) {
+                      setSelectedCell({ row: ri, col: 0 });
+                      setSelectedRegion({ kind: 'row', row: ri });
+                      gridRef.current?.focus();
+                    }
+                  }}
+                >
+                  {ri + 1}
+                </td>
                 {activeSheet.headers.map((_h, ci) => (
                   <td
                     key={ci}
@@ -558,11 +741,23 @@ export default function SpreadsheetViewer({ absPath, filename, onStat }: Spreads
                     className={[
                       'ss-td',
                       editingCell?.row === ri && editingCell?.col === ci ? 'editing' : '',
-                      selectedCell?.row === ri && selectedCell?.col === ci && !editingCell ? 'selected' : '',
+                      (
+                        (selectedRegion?.kind === 'cell' && selectedRegion.row === ri && selectedRegion.col === ci) ||
+                        (selectedRegion?.kind === 'row' && selectedRegion.row === ri) ||
+                        (selectedRegion?.kind === 'column' && selectedRegion.col === ci)
+                      ) && !editingCell ? 'selected' : '',
+                      aiHighlight && activeSheetMarkTargets.some((mark) => targetMatchesCell(mark.spreadsheetTarget, ri, ci)) ? 'ai-mark' : '',
+                      currentAiMark && targetMatchesCell(currentAiMark.spreadsheetTarget, ri, ci) ? 'ai-mark-current' : '',
                       copiedCell?.row === ri && copiedCell?.col === ci ? 'copied' : '',
                       looksNumeric(row[ci] ?? '') ? 'num' : '',
                     ].filter(Boolean).join(' ')}
-                    onClick={() => { if (!editingCell) { setSelectedCell({ row: ri, col: ci }); gridRef.current?.focus(); } }}
+                    onClick={() => {
+                      if (!editingCell) {
+                        setSelectedCell({ row: ri, col: ci });
+                        setSelectedRegion({ kind: 'cell', row: ri, col: ci });
+                        gridRef.current?.focus();
+                      }
+                    }}
                     onDoubleClick={() => startEdit(ri, ci)}
                   >
                     {editingCell?.row === ri && editingCell?.col === ci ? (

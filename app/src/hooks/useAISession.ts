@@ -28,6 +28,7 @@ export function persistSession(msgs: ChatMessage[], mdl: string) {
       content: m.content,
       ...(m.activeFile   ? { activeFile: m.activeFile }   : {}),
       ...(m.attachedFile ? { attachedFile: m.attachedFile } : {}),
+      ...(m.attachedSelectionLabel ? { attachedSelectionLabel: m.attachedSelectionLabel } : {}),
     } as ChatMessage));
   if (slim.length === 0) return;
   try {

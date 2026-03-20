@@ -1,19 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { renderAssistantMarkdownHtml } from '../../utils/markdownRender';
+import type { Workspace } from '../../types';
+import { renderAssistantMarkdownHtmlWithWorkspace } from '../../utils/markdownRender';
+import { resolveWorkspaceFileReference } from '../../utils/assistantFileLinks';
 import 'katex/dist/katex.min.css';
 import '../MarkdownPreview.css';
 
 interface AIMarkdownTextProps {
   content: string;
+  workspace?: Pick<Workspace, 'path' | 'fileTree'> | null;
+  onOpenFileReference?: (relPath: string, lineNo?: number) => void | Promise<void>;
 }
 
-export function AIMarkdownText({ content }: AIMarkdownTextProps) {
+export function AIMarkdownText({
+  content,
+  workspace,
+  onOpenFileReference,
+}: AIMarkdownTextProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const html = useMemo(() => {
-    return renderAssistantMarkdownHtml(content);
-  }, [content]);
+    return renderAssistantMarkdownHtmlWithWorkspace(content, workspace);
+  }, [content, workspace]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -48,8 +56,22 @@ export function AIMarkdownText({ content }: AIMarkdownTextProps) {
       void Promise.resolve(openUrl(href)).catch(() => {
         window.open(href, '_blank', 'noopener,noreferrer');
       });
+      return;
     }
-  }, []);
+    // Prefer pre-resolved data attributes set during render (avoids re-resolution failure)
+    const filePath = link.getAttribute('data-file-path');
+    if (filePath && onOpenFileReference) {
+      const lineStr = link.getAttribute('data-line');
+      const line = lineStr != null ? Number(lineStr) : undefined;
+      void Promise.resolve(onOpenFileReference(filePath, line));
+      return;
+    }
+    // Fallback: re-resolve from href
+    const resolved = resolveWorkspaceFileReference(href, workspace?.fileTree, workspace?.path);
+    if (resolved && onOpenFileReference) {
+      void Promise.resolve(onOpenFileReference(resolved.path, resolved.line));
+    }
+  }, [onOpenFileReference, workspace]);
 
   return (
     <div

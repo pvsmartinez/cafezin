@@ -10,8 +10,16 @@ import {
   rename,
 } from './fs';
 import { invoke } from '@tauri-apps/api/core';
-import type { Workspace, WorkspaceConfig, RecentWorkspace, FileTreeNode } from '../types';
+import type {
+  AgentInstructionSource,
+  Workspace,
+  WorkspaceConfig,
+  RecentWorkspace,
+  FileTreeNode,
+} from '../types';
 import { CONFIG_DIR, WORKSPACE_SKIP } from './config';
+import { loadWorkspaceIndex } from './workspaceIndex';
+export { buildWorkspaceIndex } from './workspaceIndex';
 
 const RECENTS_KEY = 'cafezin-recent-workspaces';
 const CONFIG_FILE = 'config.json';
@@ -132,18 +140,39 @@ export async function loadWorkspace(folderPath: string): Promise<Workspace> {
     await writeTextFile(configPath, JSON.stringify(config, null, 2));
   }
 
-  // 3. Read AGENT.md if present (this workspace or .vscode agent/copilot instructions)
+  // 3. Read agent instruction files — check a broad set of standard locations so the
+  //    AI inherits project context automatically, regardless of which tool produced them.
   let agentContext: string | undefined;
+  let agentInstructionSources: AgentInstructionSource[] | undefined;
   const agentPaths = [
+    // Cafezin native
     `${folderPath}/${AGENT_FILE}`,
+    // GitHub Copilot
     `${folderPath}/.github/copilot-instructions.md`,
     `${folderPath}/.vscode/copilot-instructions.md`,
+    // Anthropic / Claude Code
+    `${folderPath}/AGENTS.md`,
+    `${folderPath}/CLAUDE.md`,
+    `${folderPath}/.claude/CLAUDE.md`,
+    // Cursor IDE
+    `${folderPath}/.cursorrules`,
+    `${folderPath}/.cursor/rules`,
+    // Windsurf / Codeium
+    `${folderPath}/.windsurfrules`,
+    // Generic agentic convention
+    `${folderPath}/AI.md`,
+    `${folderPath}/.ai/instructions.md`,
   ];
   for (const ap of agentPaths) {
     try {
       if (await exists(ap)) {
-        agentContext = await readTextFile(ap);
-        break;
+        const content = await readTextFile(ap);
+        agentInstructionSources ??= [];
+        agentInstructionSources.push({
+          path: ap.slice(folderPath.length + 1),
+          content,
+        });
+        if (!agentContext) agentContext = content;
       }
     } catch { /* hidden path or permission denied — skip */ }
   }
@@ -177,14 +206,20 @@ export async function loadWorkspace(folderPath: string): Promise<Workspace> {
   const fileTree = await buildFileTree(folderPath);
   const files = flatMdFiles(fileTree);
 
+  // 6. Load any previously cached workspace index (fast JSON read — no file walks).
+  //    App.tsx triggers an async rebuild afterwards if the index is stale.
+  const workspaceIndex = await loadWorkspaceIndex(folderPath).catch(() => null) ?? undefined;
+
   const workspace: Workspace = {
     path: folderPath,
     name: config.name,
     config,
     agentContext,
+    agentInstructionSources,
     files,
     fileTree,
     hasGit,
+    workspaceIndex,
   };
 
   // 6. Persist to recents (include hasGit + gitRemote so picker can match against cloud workspaces)

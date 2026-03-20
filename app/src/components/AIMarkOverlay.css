@@ -8,34 +8,54 @@
 }
 
 /* ── Per-mark accept button ─────────────────────────────────────────────── */
-.aimo-accept-btn {
+.aimo-actions {
   position: absolute;
   transform: translate(4px, -50%);
+  display: inline-flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: calc(var(--z-editor-overlay) + 1);
+}
+
+.aimo-actions--visible {
+  opacity: 1;
+}
+
+.aimo-accept-btn,
+.aimo-reject-btn {
   pointer-events: auto;
   background: var(--surface-code);
-  border: 1px solid rgba(var(--green-rgb, 126,200,160), 0.5);
   border-radius: var(--radius-sm);
-  color: var(--green);
   cursor: pointer;
   padding: 1px 6px;
   font-size: var(--font-size-xs);
   font-weight: 700;
   line-height: 1.5;
   box-shadow: var(--shadow-sm);
-  opacity: 0;
-  transition: opacity var(--transition-fast), background 0.1s, color 0.1s;
-  z-index: calc(var(--z-editor-overlay) + 1);
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
   white-space: nowrap;
   user-select: none;
 }
 
-.aimo-accept-btn--visible {
-  opacity: 1;
+.aimo-accept-btn {
+  border: 1px solid rgba(var(--green-rgb, 126,200,160), 0.5);
+  color: var(--green);
 }
 
 .aimo-accept-btn:hover {
-  opacity: 1;
   background: rgba(var(--green-rgb, 126,200,160), 0.18);
   color: var(--green);
   border-color: rgba(var(--green-rgb, 126,200,160), 0.8);
+}
+
+.aimo-reject-btn {
+  border: 1px solid rgba(220, 110, 110, 0.5);
+  color: #d87878;
+}
+
+.aimo-reject-btn:hover {
+  background: rgba(220, 110, 110, 0.16);
+  color: #e08989;
+  border-color: rgba(220, 110, 110, 0.78);
 }

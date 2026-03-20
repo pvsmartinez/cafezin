@@ -361,6 +361,92 @@
   flex-wrap: wrap;
 }
 
+.sm-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.sm-provider-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--transition-base), background var(--transition-base), transform var(--transition-base);
+}
+
+.sm-provider-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.sm-provider-card.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--surface2) 78%, var(--accent) 22%);
+}
+
+.sm-provider-card-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.sm-provider-card-status,
+.sm-provider-card-active,
+.sm-model-item-meta,
+.sm-sync-state-card .sm-sync-ws-label {
+  font-size: var(--font-size-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sm-provider-card-status {
+  color: var(--text-muted);
+}
+
+.sm-provider-card-status.is-ready,
+.sm-sync-state-card .sm-sync-ws-label {
+  color: var(--green);
+}
+
+.sm-provider-card-active {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.sm-model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.sm-model-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface2);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.sm-model-item-meta {
+  margin-left: auto;
+  color: var(--text-dim);
+}
+
 /* ── Keyboard shortcuts table ────────────────────── */
 .sm-shortcuts {
   width: 100%;
@@ -637,6 +723,22 @@
 
 .sm-sync-register .sm-input {
   flex: 1;
+}
+
+.sm-sync-state-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--green) 35%, var(--border2) 65%);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface2) 88%, var(--green) 12%);
+}
+
+@media (max-width: 720px) {
+  .sm-provider-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Sidebar buttons manager ─────────────────────────── */

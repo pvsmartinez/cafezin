@@ -1,6 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { saveApiSecret } from '../services/apiSecrets';
+import {
+  getVoiceLanguageLabel,
+  resolveVoiceTranscriptionLanguage,
+} from '../utils/voiceLanguage';
 
 // ── Groq key storage ──────────────────────────────────────────────────────────
 const GROQ_KEY_STORAGE = 'cafezin-groq-key';
@@ -9,38 +13,30 @@ export function saveGroqKey(k: string) { void saveApiSecret(GROQ_KEY_STORAGE, k.
 
 // ── Groq language storage ─────────────────────────────────────────────────────
 const GROQ_LANG_STORAGE = 'cafezin-groq-lang';
-/** Maps navigator.language → Whisper language code */
-function guessLang(): string {
-  const l = navigator.language ?? 'en';
-  if (l.startsWith('pt')) return 'pt';
-  if (l.startsWith('es')) return 'es';
-  if (l.startsWith('fr')) return 'fr';
-  if (l.startsWith('de')) return 'de';
-  if (l.startsWith('it')) return 'it';
-  if (l.startsWith('ja')) return 'ja';
-  if (l.startsWith('ko')) return 'ko';
-  if (l.startsWith('zh')) return 'zh';
-  if (l.startsWith('ru')) return 'ru';
-  if (l.startsWith('ar')) return 'ar';
-  return 'en';
-}
-export function getGroqLang(): string { return localStorage.getItem(GROQ_LANG_STORAGE) || guessLang(); }
+export function getGroqLangPreference(): string { return localStorage.getItem(GROQ_LANG_STORAGE) || 'auto'; }
 export function saveGroqLang(lang: string) { localStorage.setItem(GROQ_LANG_STORAGE, lang); }
 
 // ── useVoiceInput ─────────────────────────────────────────────────────────────
 interface UseVoiceInputParams {
   onTranscript: (text: string) => void;
   onError: (msg: string) => void;
+  workspaceLanguage?: string;
+  appLocale?: 'en' | 'pt-BR';
 }
 
-export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
+export function useVoiceInput({
+  onTranscript,
+  onError,
+  workspaceLanguage,
+  appLocale,
+}: UseVoiceInputParams) {
   const [isRecording, setIsRecording]     = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [groqKey, setGroqKey]             = useState(() => getGroqKey());
   const [showGroqSetup, setShowGroqSetup] = useState(false);
   const [groqKeyInput, setGroqKeyInput]   = useState('');
-  const [groqLang, setGroqLangState]      = useState(() => getGroqLang());
-  const [groqLangInput, setGroqLangInput] = useState(() => getGroqLang());
+  const [groqLangPreference, setGroqLangPreference] = useState(() => getGroqLangPreference());
+  const [groqLangInput, setGroqLangInput] = useState(() => getGroqLangPreference());
 
   const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
   const audioChunksRef    = useRef<Blob[]>([]);
@@ -49,6 +45,23 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
   const analyserRef       = useRef<AnalyserNode | null>(null);
   const animFrameRef      = useRef<number>(0);
   const vizCanvasRef      = useRef<HTMLCanvasElement>(null);
+
+  const groqLang = resolveVoiceTranscriptionLanguage({
+    overrideLanguage: groqLangPreference,
+    workspaceLanguage,
+    appLocale,
+    navigatorLanguage: navigator.language,
+  });
+
+  const autoGroqLang = resolveVoiceTranscriptionLanguage({
+    workspaceLanguage,
+    appLocale,
+    navigatorLanguage: navigator.language,
+  });
+
+  useEffect(() => {
+    if (!showGroqSetup) setGroqLangInput(groqLangPreference);
+  }, [groqLangPreference, showGroqSetup]);
 
   // ── Frequency visualizer ──────────────────────────────────────────────────
   const drawViz = useCallback(() => {
@@ -179,7 +192,7 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
     saveGroqKey(groqKeyInput);
     saveGroqLang(groqLangInput);
     setGroqKey(groqKeyInput.trim());
-    setGroqLangState(groqLangInput);
+    setGroqLangPreference(groqLangInput);
     setShowGroqSetup(false);
     setGroqKeyInput('');
   }
@@ -193,8 +206,11 @@ export function useVoiceInput({ onTranscript, onError }: UseVoiceInputParams) {
     groqKeyInput,
     setGroqKeyInput,
     groqLang,
+    groqLangPreference,
     groqLangInput,
     setGroqLangInput,
+    autoGroqLang,
+    autoGroqLangLabel: getVoiceLanguageLabel(autoGroqLang),
     vizCanvasRef,
     handleMicClick,
     saveGroqKeyAndClose,

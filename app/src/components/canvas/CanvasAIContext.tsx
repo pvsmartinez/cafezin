@@ -16,6 +16,7 @@ export interface CanvasAICtxValue {
   onPrev: () => void;
   onNext: () => void;
   onReview: (id: string) => void;
+  onReject: (id: string) => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -26,4 +27,5 @@ export const CanvasAICtx = createContext<CanvasAICtxValue>({
   onPrev: () => {},
   onNext: () => {},
   onReview: () => {},
+  onReject: () => {},
 });

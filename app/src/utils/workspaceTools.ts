@@ -15,7 +15,8 @@ import { FILE_TOOL_DEFS, executeFileTools } from './tools/fileTools';
 import { CANVAS_TOOL_DEFS, executeCanvasTools } from './tools/canvasTools';
 import { WEB_TOOL_DEFS, executeWebTools } from './tools/webTools';
 import { CONFIG_TOOL_DEFS, executeConfigTools } from './tools/configTools';
-import type { WorkspaceExportConfig, WorkspaceConfig } from '../types';
+import type { AIRecordedTextMark, Workspace, WorkspaceConfig, WorkspaceExportConfig } from '../types';
+import { isToolEnabledByWorkspace } from './agentCapabilities';
 
 // Re-export types so existing importers do not break
 export type { ToolDefinition, ToolExecutor } from './tools/shared';
@@ -29,11 +30,12 @@ export const WORKSPACE_TOOLS = [
 ];
 
 export function getWorkspaceTools(
-  _workspaceConfig?: WorkspaceConfig,
+  workspace?: Pick<Workspace, 'config' | 'fileTree'> | null,
   _workspaceExportConfig?: WorkspaceExportConfig,
 ) {
   return WORKSPACE_TOOLS.filter((tool) => {
     if (tool.function.name === 'publish_vercel') return false;
+    if (!isToolEnabledByWorkspace(tool.function.name, workspace ?? undefined)) return false;
     return true;
   });
 }
@@ -43,7 +45,7 @@ export function buildToolExecutor(
   workspacePath: string,
   canvasEditor: { current: Editor | null },
   onFileWritten?: (path: string) => void,
-  onMarkRecorded?: (relPath: string, content: string) => void,
+  onMarkRecorded?: (relPath: string, content: string, recordedMarks?: AIRecordedTextMark[]) => void,
   onCanvasModified?: (shapeIds: string[]) => void,
   activeFile?: string,
   workspaceExportConfig?: WorkspaceExportConfig,
@@ -58,6 +60,7 @@ export function buildToolExecutor(
   /** Current in-memory content of the active file. Used by patch tools to
    *  base edits on unsaved editor content rather than stale disk content. */
   activeFileContent?: string,
+  onUserProfileWritten?: (newContent: string) => void,
 ) {
   const ctx = {
     workspacePath,
@@ -70,6 +73,7 @@ export function buildToolExecutor(
     onMarkRecorded,
     onCanvasModified,
     onMemoryWritten,
+    onUserProfileWritten,
     onExportConfigChange,
     onWorkspaceConfigChange,
     onAskUser,

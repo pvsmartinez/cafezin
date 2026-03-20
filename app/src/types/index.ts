@@ -52,6 +52,39 @@ export interface ChatMessage {
   attachedImages?: string[];
   /** UI-only: filename of a user-attached non-image file. Content is injected into the API message. */
   attachedFile?: string;
+  /** UI-only: label for a captured in-app selection attached as extra context. */
+  attachedSelectionLabel?: string;
+}
+
+export interface AISelectionContext {
+  source: 'editor' | 'canvas' | 'spreadsheet';
+  label: string;
+  content: string;
+}
+
+export interface AITextRevert {
+  beforeText: string;
+  afterText: string;
+  contextBefore?: string;
+  contextAfter?: string;
+}
+
+export interface AISpreadsheetTarget {
+  kind: 'cell' | 'row' | 'column' | 'header';
+  sheetName: string;
+  row?: number;
+  col?: number;
+}
+
+export interface AIRecordedTextMark {
+  text: string;
+  revert?: AITextRevert;
+  spreadsheetTarget?: AISpreadsheetTarget;
+}
+
+export interface AgentInstructionSource {
+  path: string;
+  content: string;
 }
 
 export interface TokenUsage {
@@ -227,8 +260,21 @@ export interface WorkspaceFeatureConfig {
   markdown?: {
     mermaid?: boolean;
   };
-  /** Reserved for future canvas-only capabilities. */
-  canvas?: Record<string, boolean>;
+  /** Canvas-specific workspace capabilities. */
+  canvas?: {
+    /** Enable canvas-specific agent tools such as canvas_op and screenshots. Defaults to true. */
+    agentTools?: boolean;
+  };
+  /** Spreadsheet-specific workspace capabilities. */
+  spreadsheet?: {
+    /** Enable structured spreadsheet tools such as read_spreadsheet and write_spreadsheet. Defaults to true. */
+    agentTools?: boolean;
+  };
+  /** Web / browser capabilities for the agent. */
+  web?: {
+    /** Enable web search, URL fetch, preview and shell/web tools. Defaults to true. */
+    agentTools?: boolean;
+  };
   /** Reserved for future code-editor capabilities. */
   code?: Record<string, boolean>;
 }
@@ -275,6 +321,12 @@ export interface WorkspaceConfig {
    * Set on desktop via Settings → Workspace. Mobile uses this branch when cloning/pulling.
    */
   gitBranch?: string;
+  /**
+   * Permanently granted risk-gate permissions for this workspace.
+   * Keys are risk levels ('medium' | 'high'); value is always 'forever'.
+   * When set, the risk gate skips the user-confirmation prompt for that level.
+   */
+  riskPermissions?: Record<string, 'forever'>;
 }
 
 /** A span of text inserted by the AI and not yet reviewed by the human. */
@@ -289,8 +341,28 @@ export interface AIEditMark {
   insertedAt: string; // ISO
   reviewed: boolean;
   reviewedAt?: string;
+  decision?: 'accepted' | 'rejected' | 'edited';
+  revert?: AITextRevert;
+  spreadsheetTarget?: AISpreadsheetTarget;
   /** Canvas-only: tldraw shape IDs that were created by this AI action */
   canvasShapeIds?: string[];
+}
+
+// ── Workspace file index ──────────────────────────────────────────────────────
+
+/** Per-file metadata entry stored in the workspace index. */
+export interface WorkspaceIndexEntry {
+  path: string;    // relative path from workspace root
+  size: number;    // bytes
+  mtime: number;   // Unix ms timestamp
+  outline: string; // cached structural outline text
+}
+
+/** Persisted lightweight index of all indexable files in the workspace. */
+export interface WorkspaceIndex {
+  version: number;
+  builtAt: string; // ISO 8601
+  entries: WorkspaceIndexEntry[];
 }
 
 export interface Workspace {
@@ -298,10 +370,13 @@ export interface Workspace {
   name: string;
   config: WorkspaceConfig;
   agentContext?: string; // contents of AGENT.md if present
+  agentInstructionSources?: AgentInstructionSource[];
   files: string[];       // .md filenames (relative) – kept for compat
   fileTree: FileTreeNode[]; // full recursive tree of the workspace
   /** True when the workspace folder has a git remote configured (origin). */
   hasGit: boolean;
+  /** Lightweight per-file metadata index (loaded from .cafezin/workspace-index.json). */
+  workspaceIndex?: WorkspaceIndex;
 }
 
 export interface RecentWorkspace {

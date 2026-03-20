@@ -81,7 +81,7 @@ describe('read_workspace_file', () => {
     const exec = makeExecutor();
     const result = await exec('read_workspace_file', { path: 'notes.md' });
     expect(result).toBe('# My Notes\nHello!');
-    expect(tauriFs.readTextFile).toHaveBeenCalledWith(`${WS_PATH}/notes.md`);
+    expect(tauriFs.readTextFile).toHaveBeenCalledWith(`${WS_PATH}/notes.md`, undefined);
   });
 
   it('returns a "file not found" message when it does not exist', async () => {
@@ -99,10 +99,10 @@ describe('read_workspace_file', () => {
   });
 
   it('truncates files larger than 40 000 characters at a line boundary', async () => {
-    // The CAP is 40 KB — build a file of 41 000 chars (over the limit).
+    // The CAP is 80 KB — build a file of ~83 000 chars (over the limit).
     // Use lines so the truncation message lands on a clean boundary.
     const line = 'x'.repeat(100) + '\n';          // 101 chars per line
-    const bigText = line.repeat(410);             // ~41 410 chars total
+    const bigText = line.repeat(820);             // ~82 820 chars total — exceeds 80 KB CAP
     vi.mocked(tauriFs.exists).mockResolvedValue(true);
     vi.mocked(tauriFs.readTextFile).mockResolvedValue(bigText);
     const exec = makeExecutor();
@@ -138,6 +138,7 @@ describe('write_workspace_file', () => {
     expect(tauriFs.writeTextFile).toHaveBeenCalledWith(
       `${WS_PATH}/output.md`,
       '# Draft\n\nSome text.',
+      {},
     );
   });
 
@@ -166,13 +167,13 @@ describe('write_workspace_file', () => {
     const onMarkRecorded = vi.fn();
     const exec = makeExecutor(null, { onMarkRecorded });
     await exec('write_workspace_file', { path: 'marked.md', content: 'AI text' });
-    expect(onMarkRecorded).toHaveBeenCalledWith('marked.md', 'AI text');
+    expect(onMarkRecorded).toHaveBeenCalledWith('marked.md', 'AI text', expect.anything());
   });
 
   it('creates parent directories when they do not exist', async () => {
     vi.mocked(tauriFs.exists)
-      .mockResolvedValueOnce(false) // parent dir does not exist
-      .mockResolvedValueOnce(true); // subsequent checks
+      .mockResolvedValueOnce(false) // file does not yet exist → skip readTextFile
+      .mockResolvedValueOnce(false); // parent dir does not exist → call mkdir
     vi.mocked(tauriFs.mkdir).mockResolvedValue(undefined);
     const exec = makeExecutor();
     await exec('write_workspace_file', { path: 'deep/nested/file.md', content: 'hi' });
@@ -348,7 +349,7 @@ describe('search_workspace — canvas file exclusion', () => {
 
     // Only notes.md should have been read — not the canvas file
     expect(tauriFs.readTextFile).toHaveBeenCalledOnce();
-    expect(tauriFs.readTextFile).toHaveBeenCalledWith(`${WS_PATH}/notes.md`);
+    expect(tauriFs.readTextFile).toHaveBeenCalledWith(`${WS_PATH}/notes.md`, undefined);
   });
 
   it('reports zero text files when only canvas files exist', async () => {

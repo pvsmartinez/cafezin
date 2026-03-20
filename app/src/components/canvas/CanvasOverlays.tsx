@@ -121,7 +121,7 @@ function ArrowAutoConnectHandler() {
 // ── Canvas AI mark overlay ─────────────────────────────────────────────────────
 function CanvasAIMarkOverlay() {
   const editor = useEditor();
-  const { aiMarks, aiHighlight, aiNavIndex, onPrev, onNext, onReview } = useContext(CanvasAICtx);
+  const { aiMarks, aiHighlight, aiNavIndex, onPrev, onNext, onReview, onReject } = useContext(CanvasAICtx);
 
   const chipPositions = useValue(
     'canvasAIChipPositions',
@@ -234,6 +234,15 @@ function CanvasAIMarkOverlay() {
                   }}
                   title="Accept / mark reviewed"
                 >✓</button>
+                <button
+                  onClick={() => onReject(markId)}
+                  style={{
+                    background: 'none', border: 'none',
+                    color: '#d87878', cursor: 'pointer',
+                    fontSize: 13, padding: '3px 8px', lineHeight: 1,
+                  }}
+                  title="Cancel AI edit"
+                >×</button>
                 <button
                   onClick={onNext}
                   disabled={aiMarks.length < 2}

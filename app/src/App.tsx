@@ -56,13 +56,14 @@ import {
   createFile,
   flatMdFiles,
   refreshFileTree,
+  buildWorkspaceIndex,
 } from './services/workspace';
 import { useAuthSession } from './hooks/useAuthSession';
 import { onLockedFilesChange, getLockedFiles } from './services/copilotLock';
 import { fetchGhostCompletion } from './services/copilot';
 import { loadWorkspaceSession, saveWorkspaceSession } from './services/workspaceSession';
 import { getFileTypeInfo } from './utils/fileType';
-import type { Workspace, AppSettings, WorkspaceExportConfig, WorkspaceConfig } from './types';
+import type { AISelectionContext, Workspace, AppSettings, WorkspaceExportConfig, WorkspaceConfig } from './types';
 import { DEFAULT_APP_SETTINGS, APP_SETTINGS_KEY } from './types';
 import { setupI18n } from './i18n';
 import { useBacklinks } from './hooks/useBacklinks';
@@ -303,6 +304,7 @@ export default function App() {
     canvasResetKey, setCanvasResetKey,
     canvasSlideCount, setCanvasSlideCount,
   } = useCanvasState();
+  const [aiSelectionContext, setAiSelectionContext] = useState<AISelectionContext | null>(null);
   // ── Copilot tab-switch overlay ───────────────────────────────────────────
   const [copilotOverlayActive, setCopilotOverlayActive] = useState(false);
   const copilotTabSwitchRef = useRef<(relPath: string) => Promise<void>>(async () => {});
@@ -358,6 +360,7 @@ export default function App() {
     handleMarkRecorded,
     handleCanvasMarkRecorded,
     handleMarkReviewed,
+    handleMarkRejected,
     handleReviewAllMarks,
     handleMarkUserEdited,
     handleAINavNext,
@@ -389,6 +392,10 @@ export default function App() {
   }, []);
   // Save error — set on any failed write, cleared on next successful write
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAiSelectionContext(null);
+  }, [activeFile]);
 
   // ── Demo Hub publish ───────────────────────────────────────────────────────
   const handlePublishDemoHub = useCallback(async () => {
@@ -1323,6 +1330,18 @@ export default function App() {
     setHomeVisible(true);
     // Load AI edit marks for this workspace
     loadMarksForWorkspace(ws);
+
+    // Trigger async index rebuild in the background so the prompt context and
+    // search_workspace_index tool always have fresh metadata.
+    // We don't await this — workspace is usable immediately with the cached index.
+    buildWorkspaceIndex(ws.path, ws.fileTree, ws.workspaceIndex ?? null)
+      .then((index) => {
+        setWorkspace((prev) =>
+          prev?.path === ws.path ? { ...prev, workspaceIndex: index } : prev,
+        );
+      })
+      .catch(() => { /* non-fatal — agent falls back to live outline_workspace */ });
+
     // Check for pending tasks queued from mobile
     const pending = await loadPendingTasks(ws.path);
     if (pending.length > 0) {
@@ -1664,6 +1683,15 @@ export default function App() {
             absPath={`${workspace.path}/${activeFile}`}
             filename={activeFile}
             onStat={setFileStat}
+            onSelectionContextChange={setAiSelectionContext}
+            aiMarks={activeFileMarks}
+            aiHighlight={aiHighlight}
+            aiNavIndex={aiNavIndex}
+            onAIPrev={handleAINavPrev}
+            onAINext={handleAINavNext}
+            onMarkReviewed={handleMarkReviewed}
+            onMarkRejected={handleMarkRejected}
+            onMarkUserEdited={handleMarkUserEdited}
           />
         ) : (fileTypeInfo?.kind === 'video' || fileTypeInfo?.kind === 'audio' || fileTypeInfo?.kind === 'image') && activeFile ? (
           <MediaViewer
@@ -1708,12 +1736,14 @@ export default function App() {
             onAIPrev={handleAINavPrev}
             onAINext={handleAINavNext}
             onMarkReviewed={handleMarkReviewed}
+            onMarkRejected={handleMarkRejected}
             onMarkUserEdited={handleMarkUserEdited}
             rescanFramesRef={rescanFramesRef}
             forceSaveRef={forceSaveRef}
             darkMode={isDarkTheme}
             onFileSaved={() => handleFileWritten(activeFile ?? '')}
             canvasRelPath={activeFile ?? undefined}
+            onSelectionContextChange={setAiSelectionContext}
           />
           </Suspense>
           </CanvasErrorBoundary>
@@ -1762,11 +1792,13 @@ export default function App() {
             content={content}
             onChange={handleContentChange}
             onAIRequest={handleAIRequest}
+            onSelectionContextChange={setAiSelectionContext}
             aiMarks={activeFileMarks.map(m => ({ id: m.id, text: m.text }))}
             onAIMarkEdited={handleMarkReviewed}
             fontSize={appSettings.editorFontSize}
             onImagePaste={handleEditorImagePaste}
             language={fileTypeInfo?.language}
+            activeFile={activeFile ?? undefined}
             isDark={isDarkTheme}
             isLocked={activeFile ? lockedFiles.has(activeFile) : false}
             onFormat={fileTypeInfo?.kind === 'code' ? handleFormat : undefined}
@@ -1779,13 +1811,14 @@ export default function App() {
 
         {/* AI mark hover overlay — text/markdown/code editors only, edit mode only */}
         {aiHighlight && viewMode === 'edit' && activeFileMarks.length > 0 &&
-          !['pdf', 'video', 'image', 'canvas'].includes(fileTypeInfo?.kind ?? '') && (
+          !['pdf', 'video', 'image', 'canvas', 'spreadsheet'].includes(fileTypeInfo?.kind ?? '') && (
           <AIMarkOverlay
             visible={aiHighlight}
             marks={activeFileMarks}
             editorRef={editorRef}
             containerRef={editorAreaRef}
             onReview={handleMarkReviewed}
+            onReject={handleMarkRejected}
           />
         )}
 
@@ -1837,7 +1870,10 @@ export default function App() {
           workspaceExportConfig={workspace.config.exportConfig}
           onExportConfigChange={handleExportConfigChange}
           workspaceConfig={workspace.config}
+          appLocale={appSettings.locale}
           onWorkspaceConfigChange={handleWorkspaceConfigChange}
+          onOpenFileReference={handleSearchFileOpen}
+          selectionContext={aiSelectionContext}
           pendingVoiceMemos={pendingVoiceMemos}
           onVoiceMemoHandled={(stem) =>
             setPendingVoiceMemos((prev) => prev.filter((m) => m.stem !== stem))

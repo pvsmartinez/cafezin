@@ -3,7 +3,7 @@
  */
 
 import type { Editor } from 'tldraw';
-import type { WorkspaceExportConfig, WorkspaceConfig } from '../../types';
+import type { AIRecordedTextMark, WorkspaceExportConfig, WorkspaceConfig } from '../../types';
 
 // ── Public tool schema type (OpenAI function-calling format) ─────────────────
 
@@ -48,9 +48,10 @@ export interface ToolContext {
   workspaceConfig?: WorkspaceConfig;
   webPreviewRef?: { current: { getScreenshot: () => Promise<string | null> } | null };
   onFileWritten?: (path: string) => void;
-  onMarkRecorded?: (relPath: string, content: string) => void;
+  onMarkRecorded?: (relPath: string, content: string, recordedMarks?: AIRecordedTextMark[]) => void;
   onCanvasModified?: (shapeIds: string[]) => void;
   onMemoryWritten?: (newContent: string) => void;
+  onUserProfileWritten?: (newContent: string) => void;
   onExportConfigChange?: (config: WorkspaceExportConfig) => void;
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
   onAskUser?: (question: string, options?: string[]) => Promise<string>;
@@ -76,7 +77,6 @@ export const TEXT_EXTS = new Set([
   'py', 'sql',           // Python scripts and SQL migrations
   'env',                 // .env files (non-secret ones like .env.example)
   'gitignore', 'editorconfig',
-  'csv', 'tsv',          // Spreadsheets — plain text, readable by AI via read_workspace_file
 ]);
 
 /**

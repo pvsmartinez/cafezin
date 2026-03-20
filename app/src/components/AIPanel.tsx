@@ -29,11 +29,12 @@ import { getActiveProvider } from '../services/aiProvider';
 import type { AIProviderType } from '../services/aiProvider';
 import { getProviderModelsForPicker } from '../services/ai/providerModels';
 import { readFile, writeFile } from '../services/fs';
-import { getGroqKey } from '../hooks/useVoiceInput';
+import { getGroqKey, getGroqLangPreference } from '../hooks/useVoiceInput';
 import { FALLBACK_MODELS } from '../types';
-import type { CopilotModelInfo } from '../types';
+import type { AIRecordedTextMark, AISelectionContext, CopilotModelInfo } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
 import type { Editor as TldrawEditor } from 'tldraw';
+import { resolveVoiceTranscriptionLanguage } from '../utils/voiceLanguage';
 
 import { AIAuthScreen } from './ai/AIAuthScreen';
 import { PremiumGate } from './ai/PremiumGate';
@@ -70,7 +71,7 @@ interface AIPanelProps {
   workspace?: Workspace | null;
   canvasEditorRef?: React.RefObject<TldrawEditor | null>;
   onFileWritten?: (path: string) => void;
-  onMarkRecorded?: (relPath: string, content: string, model: string) => void;
+  onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
   onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
   activeFile?: string;
   rescanFramesRef?: React.MutableRefObject<(() => void) | null>;
@@ -82,7 +83,10 @@ interface AIPanelProps {
   webPreviewRef?: React.RefObject<{ getScreenshot: () => Promise<string | null> } | null>;
   getActiveHtml?: () => { html: string; absPath: string } | null;
   workspaceConfig?: WorkspaceConfig;
+  appLocale?: 'en' | 'pt-BR';
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
+  onOpenFileReference?: (relPath: string, lineNo?: number) => void | Promise<void>;
+  selectionContext?: AISelectionContext | null;
   /** Voice memos from mobile that have audio but no transcript yet */
   pendingVoiceMemos?: PendingVoiceMemo[];
   /** Called after a memo is transcribed — parent should remove it from the list */
@@ -175,14 +179,17 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   workspaceExportConfig,
   onExportConfigChange,
   workspaceConfig,
+  appLocale,
   onWorkspaceConfigChange,
   style,
   onStreamingChange,
+  selectionContext,
   screenshotTargetRef,
   webPreviewRef,
   getActiveHtml,
   pendingVoiceMemos,
   onVoiceMemoHandled,
+  onOpenFileReference,
 }, ref) {
   const copilotOAuthClientId = workspaceConfig?.githubOAuth?.clientId?.trim() || undefined;
 
@@ -307,6 +314,12 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
         audioBase64: b64,
         mimeType,
         apiKey: groqKey,
+        language: resolveVoiceTranscriptionLanguage({
+          overrideLanguage: getGroqLangPreference(),
+          workspaceLanguage: workspaceConfig?.preferredLanguage,
+          appLocale,
+          navigatorLanguage: navigator.language,
+        }),
       });
       // Save transcript to disk so it shows up on the mobile side too
       await writeFile(memo.transcriptPath, new TextEncoder().encode(transcript));
@@ -356,7 +369,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   }
 
   function closeTab(id: string) {
-    if (tabs.length === 1) return;
+    if (tabs.length === 1) { onClose(); return; }
     setTabs((prev) => {
       const next = prev.filter((t) => t.id !== id);
       if (activeTabId === id) setActiveTabId(next[0].id);
@@ -485,15 +498,13 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
                 </span>
               </button>
             )}
-            {tabs.length > 1 && (
-              <button
-                className="ai-tab-close"
-                onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                title="Fechar agente"
-              >
-                <Snowflake weight="thin" size={10} />
-              </button>
-            )}
+            <button
+              className="ai-tab-close"
+              onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+              title={tabs.length === 1 ? 'Fechar painel' : 'Fechar agente'}
+            >
+              <Snowflake weight="thin" size={10} />
+            </button>
           </div>
           );
         })}
@@ -598,7 +609,10 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           webPreviewRef={webPreviewRef}
           getActiveHtml={getActiveHtml}
           workspaceConfig={workspaceConfig}
+          appLocale={appLocale}
           onWorkspaceConfigChange={onWorkspaceConfigChange}
+          onOpenFileReference={onOpenFileReference}
+          selectionContext={selectionContext}
         />
       ))}
     </div>

@@ -474,6 +474,34 @@ export function summarizeCanvas(editor: Editor): string {
   return lines.join('\n');
 }
 
+export function summarizeCanvasSelection(editor: Editor): string | null {
+  const selected = editor.getSelectedShapes();
+  if (selected.length === 0) return null;
+
+  const lines: string[] = [`Selected canvas shapes: ${selected.length}`];
+  for (const shape of selected) {
+    if (shape.type === 'frame') {
+      const frame = shape as TLFrameShape;
+      const name = (frame.props as { name?: string }).name ?? 'Untitled slide';
+      lines.push(
+        `[${frame.id.slice(-10)}] slide "${name}" at (${Math.round(frame.x)},${Math.round(frame.y)}) size ${frame.props.w}×${frame.props.h}`,
+      );
+      continue;
+    }
+
+    const parentFrame = editor.getShape(shape.parentId as TLShapeId);
+    if (parentFrame?.type === 'frame') {
+      const frame = parentFrame as TLFrameShape;
+      lines.push(`${describeShape(editor, shape, frame.props.w, frame.props.h)} (inside slide "${(frame.props as { name?: string }).name ?? 'Untitled slide'}")`);
+      continue;
+    }
+
+    lines.push(describeShape(editor, shape));
+  }
+
+  return lines.join('\n');
+}
+
 /**
  * Full AI document context for an open canvas file.
  * Includes the current shape summary AND the canvas_op tool protocol.
@@ -566,8 +594,8 @@ export function executeCanvasCommands(editor: Editor, aiText: string): { count: 
   // before the real commands block, and running all blocks would duplicate shapes.
   const match = matches[matches.length - 1];
   let count = 0;
-  const shapeIds: string[] = [];
   const errors: string[] = [];
+  const beforeShapeIds = new Set(editor.getCurrentPageShapes().map((shape) => String(shape.id)));
 
   // Atomic rollback: create a history stopping point before any mutations.
   // If any command fails we bail back to this mark so the canvas is never left
@@ -585,7 +613,6 @@ export function executeCanvasCommands(editor: Editor, aiText: string): { count: 
     try {
       const result = runCommand(editor, parsed);
       count += result.count;
-      if (result.shapeId) shapeIds.push(result.shapeId);
     } catch (e) {
       errors.push(`Command "${parsed.op}" failed: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -598,7 +625,12 @@ export function executeCanvasCommands(editor: Editor, aiText: string): { count: 
     return { count: 0, shapeIds: [], errors };
   }
 
-  return { count, shapeIds: [...new Set(shapeIds)], errors };
+  const createdShapeIds = editor
+    .getCurrentPageShapes()
+    .map((shape) => String(shape.id))
+    .filter((shapeId) => !beforeShapeIds.has(shapeId));
+
+  return { count, shapeIds: createdShapeIds, errors };
 }
 
 type CommandResult = { count: number; shapeId: string | null };

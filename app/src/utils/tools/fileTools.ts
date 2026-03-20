@@ -15,9 +15,13 @@ import {
 import { walkFilesFlat } from '../../services/workspace';
 import { lockFile, unlockFile, waitForUnlock } from '../../services/copilotLock';
 import { parseSpreadsheetFile, serializeSheetToCSV, serializeSheetToTSV, sheetToMarkdownTable } from '../../services/spreadsheet';
+import { loadWorkspaceIndex, extractFileOutline, rankWorkspaceIndex } from '../../services/workspaceIndex';
 import type { SheetTab } from '../../services/spreadsheet';
+import type { AIRecordedTextMark, AISpreadsheetTarget } from '../../types';
 import type { ToolDefinition, DomainExecutor } from './shared';
 import { TEXT_EXTS, safeResolvePath } from './shared';
+
+const SPREADSHEET_EXTS = new Set(['csv', 'tsv', 'xlsx', 'xls', 'ods', 'xlsm', 'xlsb']);
 
 // ── Tool definitions ─────────────────────────────────────────────────────────
 
@@ -46,8 +50,35 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         '• SQL: CREATE TABLE / FUNCTION / VIEW names ' +
         '• Shell scripts: description comment ' +
         '• JSON/YAML/TOML: top-level keys ' +
-        'Use this as your first call on an unfamiliar workspace — it tells you exactly which files to read next.',
+        'Uses a pre-built index when available (instant); falls back to live extraction otherwise. ' +
+        'Use search_workspace_index instead when you want to filter by a query — it ranks results by relevance.',
       parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_workspace_index',
+      description:
+        'Search the pre-built workspace index and return ranked files with their structural outlines. ' +
+        'Much faster than outline_workspace (no file reads — results come from the cached index). ' +
+        'Ideal as a first step when localising relevant files: it ranks by query relevance, recency, and structural richness. ' +
+        'After finding candidate files, read their full content with read_workspace_file. ' +
+        '• Omit query to get the top files ranked by recency and active file. ' +
+        '• Supply query to filter and rank by keyword relevance against file paths and outlines. ' +
+        'Returns up to 15 results with their outline (headings, exports, word count, etc.).',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description:
+              'Keywords to search for. Matched against file paths and structural outlines. ' +
+              'E.g. "chapter introduction" or "authentication hook". Omit to get top-ranked files by recency.',
+          },
+        },
+        required: [],
+      },
     },
   },
   {
@@ -58,7 +89,8 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         'Read the content of a single file. Returns the full text or a specific line range. ' +
         'Files up to 80 KB are returned in full; larger files are truncated — call again with start_line/end_line to page through the rest. ' +
         'To read several files at once use read_multiple_files. ' +
-        'NOTE: .tldr.json canvas files are BLOCKED — they contain base64 images that overflow the context. Use list_canvas_shapes instead.',
+        'NOTE: .tldr.json canvas files are BLOCKED — they contain base64 images that overflow the context. Use list_canvas_shapes instead. ' +
+        'Spreadsheet files are also BLOCKED here — use read_spreadsheet instead.',
       parameters: {
         type: 'object',
         properties: {
@@ -87,7 +119,8 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         'Read up to 8 files in parallel in a single call. ' +
         'Use this whenever you need to read more than one file — it is far faster than calling read_workspace_file repeatedly. ' +
         'Each file is returned with a clear header and its content (up to 80 KB each). ' +
-        'NOTE: .tldr.json canvas files are BLOCKED — use list_canvas_shapes for those.',
+        'NOTE: .tldr.json canvas files are BLOCKED — use list_canvas_shapes for those. ' +
+        'Spreadsheet files are also BLOCKED here — use read_spreadsheet for those.',
       parameters: {
         type: 'object',
         properties: {
@@ -131,7 +164,8 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         'Make a targeted find-and-replace edit inside a file without overwriting the whole thing. ' +
         'Reads the file, replaces the specified occurrence of `search` with `replace`, then writes back. ' +
         'Use this for surgical edits — fixing a sentence, updating a heading, changing a value — instead of ' +
-        'rewriting the entire file with write_workspace_file. Set occurrence=0 to replace all occurrences.',
+        'rewriting the entire file with write_workspace_file. Set occurrence=0 to replace all occurrences. ' +
+        'IMPORTANT: if `search` appears multiple times and you do not specify `occurrence`, the tool will fail rather than guessing.',
       parameters: {
         type: 'object',
         properties: {
@@ -435,6 +469,147 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
 export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
   const { workspacePath, onFileWritten, onMarkRecorded } = ctx;
 
+  function countOccurrences(text: string, search: string): number {
+    if (!search) return 0;
+    let count = 0;
+    let cursor = 0;
+    while (true) {
+      const idx = text.indexOf(search, cursor);
+      if (idx === -1) return count;
+      count++;
+      cursor = idx + search.length;
+    }
+  }
+
+  function buildRecordedMarkFromAfterRange(
+    fullAfter: string,
+    afterStart: number,
+    afterEnd: number,
+    beforeText: string,
+  ): AIRecordedTextMark | null {
+    const afterText = fullAfter.slice(afterStart, afterEnd);
+    const visibleText = afterText.trim();
+    if (!visibleText) return null;
+    return {
+      text: visibleText,
+      revert: {
+        beforeText,
+        afterText,
+        contextBefore: fullAfter.slice(Math.max(0, afterStart - 80), afterStart),
+        contextAfter: fullAfter.slice(afterEnd, Math.min(fullAfter.length, afterEnd + 80)),
+      },
+    };
+  }
+
+  function buildRecordedMarksFromSingleRewrite(before: string, after: string): AIRecordedTextMark[] {
+    if (before === after) return [];
+    let start = 0;
+    while (start < before.length && start < after.length && before[start] === after[start]) start++;
+
+    let beforeEnd = before.length - 1;
+    let afterEnd = after.length - 1;
+    while (beforeEnd >= start && afterEnd >= start && before[beforeEnd] === after[afterEnd]) {
+      beforeEnd--;
+      afterEnd--;
+    }
+
+    const mark = buildRecordedMarkFromAfterRange(after, start, afterEnd + 1, before.slice(start, beforeEnd + 1));
+    return mark ? [mark] : [];
+  }
+
+  function buildSpreadsheetRecordedMark(
+    beforeText: string,
+    afterText: string,
+    target: AISpreadsheetTarget,
+    contextBefore = '',
+    contextAfter = '',
+  ): AIRecordedTextMark | null {
+    const visibleText = (afterText || beforeText).trim();
+    if (!visibleText) return null;
+    return {
+      text: visibleText,
+      spreadsheetTarget: target,
+      revert: {
+        beforeText,
+        afterText,
+        contextBefore,
+        contextAfter,
+      },
+    };
+  }
+
+  function buildSpreadsheetLineMarks(
+    beforeSerialized: string,
+    afterSerialized: string,
+    specs: Array<{ lineIndex: number; target: AISpreadsheetTarget }>,
+  ): AIRecordedTextMark[] {
+    const beforeLines = beforeSerialized.split('\n');
+    const afterLines = afterSerialized.split('\n');
+    const marks: AIRecordedTextMark[] = [];
+
+    for (const spec of specs) {
+      const beforeLine = beforeLines[spec.lineIndex] ?? '';
+      const afterLine = afterLines[spec.lineIndex] ?? '';
+      const contextBefore = spec.lineIndex > 0 ? `${afterLines[spec.lineIndex - 1] ?? ''}\n` : '';
+      const contextAfter = spec.lineIndex + 1 < afterLines.length ? `\n${afterLines[spec.lineIndex + 1] ?? ''}` : '';
+      const mark = buildSpreadsheetRecordedMark(beforeLine, afterLine, spec.target, contextBefore, contextAfter);
+      if (mark) marks.push(mark);
+    }
+
+    return marks;
+  }
+
+  function buildRecordedMarksForPatch(
+    text: string,
+    search: string,
+    replace: string,
+    occurrence: number,
+  ): { newText: string; replacementCount: number; recordedMarks: AIRecordedTextMark[] } | null {
+    if (occurrence === 0) {
+      let cursor = 0;
+      let newText = '';
+      const ranges: Array<{ afterStart: number; afterEnd: number; beforeText: string }> = [];
+      while (true) {
+        const idx = text.indexOf(search, cursor);
+        if (idx === -1) break;
+        newText += text.slice(cursor, idx);
+        const afterStart = newText.length;
+        newText += replace;
+        const afterEnd = newText.length;
+        ranges.push({ afterStart, afterEnd, beforeText: search });
+        cursor = idx + search.length;
+      }
+      newText += text.slice(cursor);
+      return {
+        newText,
+        replacementCount: ranges.length,
+        recordedMarks: ranges
+          .map((range) => buildRecordedMarkFromAfterRange(newText, range.afterStart, range.afterEnd, range.beforeText))
+          .filter((mark): mark is AIRecordedTextMark => mark !== null),
+      };
+    }
+
+    let pos = -1;
+    let n = 0;
+    let cursor = 0;
+    while (n < occurrence) {
+      const idx = text.indexOf(search, cursor);
+      if (idx === -1) break;
+      pos = idx;
+      n++;
+      cursor = idx + search.length;
+    }
+    if (pos === -1) return null;
+
+    const newText = text.slice(0, pos) + replace + text.slice(pos + search.length);
+    const recordedMark = buildRecordedMarkFromAfterRange(newText, pos, pos + replace.length, search);
+    return {
+      newText,
+      replacementCount: 1,
+      recordedMarks: recordedMark ? [recordedMark] : [],
+    };
+  }
+
   switch (name) {
 
     // ── list_workspace_files ──────────────────────────────────────────────
@@ -458,6 +633,19 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
 
     // ── outline_workspace ──────────────────────────────────────────────
     case 'outline_workspace': {
+      // Fast path: use pre-built index when available (no file reads needed)
+      const cachedIndex = await loadWorkspaceIndex(workspacePath);
+      if (cachedIndex && cachedIndex.entries.length > 0) {
+        const outlines = cachedIndex.entries.map((e) => {
+          const kb = (e.size / 1024).toFixed(1);
+          return `📄 ${e.path}  (${kb} KB)${e.outline ? '\n' + e.outline : ''}`;
+        });
+        const ageMin = Math.round((Date.now() - new Date(cachedIndex.builtAt).getTime()) / 60_000);
+        const freshness = ageMin < 2 ? '' : ` [index built ${ageMin} min ago]`;
+        return `Workspace outline — ${cachedIndex.entries.length} file(s)${freshness}:\n\n${outlines.join('\n\n')}`;
+      }
+
+      // Slow path: live extraction (no index available yet)
       const allFiles = await walkFilesFlat(workspacePath);
       const textFiles = allFiles.filter((f) => {
         if (f.endsWith('.tldr.json')) return false;
@@ -466,99 +654,6 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       });
       if (textFiles.length === 0) return 'No text files found in workspace.';
 
-      /** Extract structural outline from a file's text based on its extension. */
-      function extractOutline(rel: string, text: string): string {
-        const ext = rel.split('.').pop()?.toLowerCase() ?? '';
-        const lines: string[] = [];
-
-        if (ext === 'md' || ext === 'mdx') {
-          // YAML frontmatter title
-          if (text.startsWith('---')) {
-            const fmEnd = text.indexOf('\n---', 3);
-            if (fmEnd !== -1) {
-              const fm = text.slice(3, fmEnd);
-              const titleMatch = /^title:\s*["']?(.+?)["']?\s*$/m.exec(fm);
-              if (titleMatch) lines.push(`  title: "${titleMatch[1].trim()}"`);
-            }
-          }
-          // H1–H3 headings
-          const headingRe = /^(#{1,3})\s+(.+)$/gm;
-          let hm: RegExpExecArray | null;
-          while ((hm = headingRe.exec(text)) !== null) {
-            const indent = '  '.repeat(hm[1].length);
-            lines.push(`${indent}${hm[1]} ${hm[2].trim()}`);
-          }
-          // Word count
-          const words = text.replace(/<[^>]+>/g, '').split(/\s+/).filter(Boolean).length;
-          lines.push(`  (${words} words)`);
-
-        } else if (['ts', 'tsx', 'js', 'jsx'].includes(ext)) {
-          // Named exports: export function/class/const/type/interface/enum Name
-          const namedRe = /^export\s+(?:default\s+)?(?:async\s+)?(?:function\*?|class|const|let|var|type|interface|enum)\s+(\w+)/gm;
-          const names: string[] = [];
-          let nm: RegExpExecArray | null;
-          while ((nm = namedRe.exec(text)) !== null) names.push(nm[1]);
-          // Re-export blocks: export { A, B, C }
-          const reRe = /^export\s+\{([^}]+)\}/gm;
-          while ((nm = reRe.exec(text)) !== null) {
-            nm[1].split(',').map((s) => s.trim().split(/\s+/)[0]).filter(Boolean).forEach((n) => names.push(n));
-          }
-          if (names.length) lines.push(`  exports: ${[...new Set(names)].join(', ')}`);
-          else lines.push('  (no exports detected)');
-
-        } else if (ext === 'py') {
-          // Top-level def / class (no indentation)
-          const pyRe = /^(def|class)\s+(\w+)/gm;
-          const names: string[] = [];
-          let pm: RegExpExecArray | null;
-          while ((pm = pyRe.exec(text)) !== null) names.push(`${pm[1]} ${pm[2]}`);
-          if (names.length) lines.push(`  ${names.join(', ')}`);
-
-        } else if (ext === 'sql') {
-          // CREATE TABLE / VIEW / FUNCTION / INDEX / TRIGGER
-          const sqlRe = /CREATE\s+(?:OR\s+REPLACE\s+)?(?:TABLE|VIEW|FUNCTION|INDEX|TRIGGER|TYPE|SEQUENCE)\s+(?:IF\s+NOT\s+EXISTS\s+)?["'`]?(\w+)["'`]?/gi;
-          const names: string[] = [];
-          let sm: RegExpExecArray | null;
-          while ((sm = sqlRe.exec(text)) !== null) names.push(sm[1]);
-          // Also catch ALTER TABLE
-          const altRe = /ALTER\s+TABLE\s+["'`]?(\w+)["'`]?/gi;
-          const altered = new Set<string>();
-          while ((sm = altRe.exec(text)) !== null) altered.add(sm[1]);
-          if (names.length) lines.push(`  creates: ${names.join(', ')}`);
-          if (altered.size) lines.push(`  alters: ${[...altered].join(', ')}`);
-
-        } else if (ext === 'sh') {
-          // First meaningful comment (not shebang)
-          const shLines = text.split('\n');
-          for (const l of shLines) {
-            const m = /^#\s+(.+)/.exec(l);
-            if (m && !l.startsWith('#!/')) { lines.push(`  # ${m[1].trim()}`); break; }
-          }
-
-        } else if (['json', 'toml', 'yaml', 'yml'].includes(ext)) {
-          // Top-level keys
-          try {
-            if (ext === 'json') {
-              const obj = JSON.parse(text) as Record<string, unknown>;
-              if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
-                const keys = Object.keys(obj).slice(0, 20);
-                lines.push(`  keys: ${keys.join(', ')}${Object.keys(obj).length > 20 ? ', …' : ''}`);
-              }
-            } else {
-              // YAML/TOML: just extract top-level key names with a simple regex
-              const keyRe = /^([a-zA-Z_][\w.-]*)\s*[=:]/gm;
-              const keys = new Set<string>();
-              let km: RegExpExecArray | null;
-              while ((km = keyRe.exec(text)) !== null) keys.add(km[1]);
-              if (keys.size) lines.push(`  keys: ${[...keys].slice(0, 20).join(', ')}`);
-            }
-          } catch { /* ignore parse errors */ }
-        }
-
-        return lines.join('\n');
-      }
-
-      // Read all text files in parallel batches and build per-file outlines
       const BATCH = 12;
       const outlines: string[] = [];
       for (let b = 0; b < textFiles.length; b += BATCH) {
@@ -568,10 +663,10 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
             try {
               const s = await stat(`${workspacePath}/${rel}`);
               const kb = ((s.size ?? 0) / 1024).toFixed(1);
-              // Skip very large files — outline would be noisy and we'd hit the tool result cap
-              if ((s.size ?? 0) > 200_000) return `📄 ${rel}  (${kb} KB — too large to outline, use read_workspace_file with pagination)`;
+              if ((s.size ?? 0) > 200_000)
+                return `📄 ${rel}  (${kb} KB — too large to outline, use read_workspace_file with pagination)`;
               const text = await readTextFile(`${workspacePath}/${rel}`);
-              const outline = extractOutline(rel, text);
+              const outline = extractFileOutline(rel, text);
               return `📄 ${rel}  (${kb} KB)${outline ? '\n' + outline : ''}`;
             } catch {
               return `📄 ${rel}  (unreadable)`;
@@ -584,16 +679,56 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       return `Workspace outline — ${textFiles.length} file(s):\n\n${outlines.join('\n\n')}`;
     }
 
+    // ── search_workspace_index ────────────────────────────────────────────
+    case 'search_workspace_index': {
+      const query = String(args.query ?? '').trim();
+      const index = await loadWorkspaceIndex(workspacePath);
+      if (!index) {
+        return (
+          'Workspace index not built yet. The index is built automatically when a workspace is opened. ' +
+          'Try again in a moment, or use outline_workspace for a live scan.'
+        );
+      }
+
+      const ranked = rankWorkspaceIndex(index, query, {
+        recentFiles: ctx.workspaceConfig?.recentFiles,
+        activeFile: ctx.activeFile,
+        maxResults: 15,
+      });
+
+      if (ranked.length === 0) {
+        return query
+          ? `No indexed files match "${query}". Try a different keyword or use outline_workspace for a live scan.`
+          : 'Workspace index is empty — the workspace may have no indexable files.';
+      }
+
+      const ageMin = Math.round((Date.now() - new Date(index.builtAt).getTime()) / 60_000);
+      const freshness = ageMin < 2 ? '' : ` [index built ${ageMin} min ago — may be slightly stale]`;
+      const lines = ranked.map((e) => {
+        const kb = (e.size / 1024).toFixed(1);
+        return `📄 ${e.path}  (${kb} KB)${e.outline ? '\n' + e.outline : ''}`;
+      });
+
+      const header = query
+        ? `Top ${ranked.length} files matching "${query}"${freshness}:`
+        : `Top ${ranked.length} files${freshness}:`;
+      return `${header}\n\n${lines.join('\n\n')}`;
+    }
+
     // ── read_workspace_file ───────────────────────────────────────────────
     case 'read_workspace_file': {
       const relPath = String(args.path ?? '');
       if (!relPath) return 'Error: path is required.';
+      const ext = relPath.split('.').pop()?.toLowerCase() ?? '';
       // Canvas files contain base64-encoded images — reading them raw floods the
       // context window and causes API 400 errors. Use list_canvas_shapes instead.
       if (relPath.endsWith('.tldr.json')) {
         return 'Error: .tldr.json canvas files cannot be read with read_workspace_file — ' +
           'their raw content contains base64 images that overflow the context. ' +
           'Use list_canvas_shapes to inspect the open canvas (it shows shape positions, text, colors, and assetIds for images).';
+      }
+      if (SPREADSHEET_EXTS.has(ext)) {
+        return `Error: spreadsheet files (${relPath}) cannot be read with read_workspace_file — use read_spreadsheet instead.`;
       }
       let abs: string;
       try { abs = safeResolvePath(workspacePath, relPath); }
@@ -645,8 +780,12 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       const results = await Promise.all(
         pathList.map(async (relPath) => {
           const label = `\n${'─'.repeat(60)}\n📄 ${relPath}\n${'─'.repeat(60)}`;
+          const ext = relPath.split('.').pop()?.toLowerCase() ?? '';
           if (relPath.endsWith('.tldr.json')) {
             return `${label}\n[BLOCKED: canvas file — use list_canvas_shapes instead.]`;
+          }
+          if (SPREADSHEET_EXTS.has(ext)) {
+            return `${label}\n[BLOCKED: spreadsheet file — use read_spreadsheet instead.]`;
           }
           let abs: string;
           try { abs = safeResolvePath(workspacePath, relPath); }
@@ -676,6 +815,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       const relPath = String(args.path    ?? '');
       const search  = String(args.search  ?? '');
       const replace = String(args.replace ?? '');
+      const occurrenceProvided = Object.prototype.hasOwnProperty.call(args, 'occurrence');
       if (!relPath) return 'Error: path is required.';
       if (!search)  return 'Error: search string is required (may not be empty).';
       if (relPath.endsWith('.tldr.json')) {
@@ -694,39 +834,21 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       }
 
       const occurrence = typeof args.occurrence === 'number' ? args.occurrence : 1;
-      let newText: string;
-      let replacementCount = 0;
-
-      if (occurrence === 0) {
-        const parts = text.split(search);
-        if (parts.length === 1) {
-          return `Error: search string not found in ${relPath}. No changes made. ` +
-            `(searched for: "${search.slice(0, 80)}${search.length > 80 ? '…' : ''}")`;
-        }
-        replacementCount = parts.length - 1;
-        newText = parts.join(replace);
-      } else {
-        let pos = -1;
-        let n = 0;
-        let cursor = 0;
-        while (n < occurrence) {
-          const idx = text.indexOf(search, cursor);
-          if (idx === -1) break;
-          pos = idx;
-          n++;
-          cursor = idx + search.length;
-        }
-        if (pos === -1) {
-          const total = text.split(search).length - 1;
-          const preview = `"${search.slice(0, 80)}${search.length > 80 ? '…' : ''}"`;
-          if (total === 0) {
-            return `Error: search string not found in ${relPath}. No changes made. (searched for: ${preview})`;
-          }
-          return `Error: occurrence ${occurrence} requested but only ${total} match(es) found in ${relPath}. No changes made.`;
-        }
-        newText = text.slice(0, pos) + replace + text.slice(pos + search.length);
-        replacementCount = 1;
+      const totalOccurrences = countOccurrences(text, search);
+      if (totalOccurrences === 0) {
+        return `Error: search string not found in ${relPath}. No changes made. ` +
+          `(searched for: "${search.slice(0, 80)}${search.length > 80 ? '…' : ''}")`;
       }
+      if (occurrence !== 0 && !occurrenceProvided && totalOccurrences > 1) {
+        return `Error: ambiguous patch in ${relPath} — the search text appears ${totalOccurrences} times. ` +
+          'Provide occurrence explicitly or use a longer unique multi-line search snippet so the tool does not guess the wrong location.';
+      }
+      const patchResult = buildRecordedMarksForPatch(text, search, replace, occurrence);
+      if (!patchResult) {
+        const preview = `"${search.slice(0, 80)}${search.length > 80 ? '…' : ''}"`;
+        return `Error: occurrence ${occurrence} requested but only ${totalOccurrences} match(es) found in ${relPath}. No changes made. (searched for: ${preview})`;
+      }
+      const { newText, replacementCount, recordedMarks } = patchResult;
 
       const lockWait = await waitForUnlock(relPath, ctx.agentId);
       if (lockWait.timedOut) {
@@ -746,7 +868,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       }
       try {
         onFileWritten?.(relPath);
-        onMarkRecorded?.(relPath, newText);
+        onMarkRecorded?.(relPath, newText, recordedMarks.length > 0 ? recordedMarks : buildRecordedMarksFromSingleRewrite(text, newText));
         await new Promise<void>((r) => setTimeout(r, 400));
       } finally {
         unlockFile(relPath);
@@ -770,6 +892,11 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       try { abs = safeResolvePath(workspacePath, relPath); }
       catch (e) { return String(e); }
       const dir = abs.split('/').slice(0, -1).join('/');
+      let previousText = '';
+      if (ctx.activeFile === relPath && ctx.activeFileContent != null) previousText = ctx.activeFileContent;
+      else if (await exists(abs)) {
+        try { previousText = await readTextFile(abs); } catch { previousText = ''; }
+      }
       const lwWrite = await waitForUnlock(relPath, ctx.agentId);
       if (lwWrite.timedOut) {
         return (
@@ -793,7 +920,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       }
       try {
         onFileWritten?.(relPath);
-        onMarkRecorded?.(relPath, content);
+        onMarkRecorded?.(relPath, content, buildRecordedMarksFromSingleRewrite(previousText, content));
         await new Promise<void>((r) => setTimeout(r, 400));
       } finally {
         unlockFile(relPath);
@@ -1084,6 +1211,8 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
 
       // Read each file once and accumulate edits in memory before writing.
       const fileCache = new Map<string, { abs: string; text: string }>();
+      const fileOriginals = new Map<string, string>();
+      const fileRecordedMarks = new Map<string, AIRecordedTextMark[]>();
       const patchResults: string[] = [];
       const patchErrors: string[] = [];
 
@@ -1113,38 +1242,31 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
               ? ctx.activeFileContent
               : await readTextFile(abs);
             fileCache.set(relPath, { abs, text });
+            fileOriginals.set(relPath, text);
+            fileRecordedMarks.set(relPath, []);
           } catch (e) { patchErrors.push(`Error reading ${relPath}: ${e}`); continue; }
         }
 
         const entry = fileCache.get(relPath)!;
-        let newText: string;
-        let replacementCount = 0;
+        const recordedMarks = fileRecordedMarks.get(relPath)!;
+        const totalOccurrences = countOccurrences(entry.text, search);
 
-        if (occurrence === 0) {
-          const parts = entry.text.split(search);
-          if (parts.length === 1) { patchErrors.push(`${relPath}: search string not found.`); continue; }
-          replacementCount = parts.length - 1;
-          newText = parts.join(replace);
-        } else {
-          let pos = -1;
-          let n = 0;
-          let cursor = 0;
-          while (n < occurrence) {
-            const idx = entry.text.indexOf(search, cursor);
-            if (idx === -1) break;
-            pos = idx;
-            n++;
-            cursor = idx + search.length;
-          }
-          if (pos === -1) {
-            const total = entry.text.split(search).length - 1;
-            if (total === 0) patchErrors.push(`${relPath}: search string not found.`);
-            else patchErrors.push(`${relPath}: occurrence ${occurrence} requested but only ${total} match(es) found.`);
-            continue;
-          }
-          newText = entry.text.slice(0, pos) + replace + entry.text.slice(pos + search.length);
-          replacementCount = 1;
+        if (totalOccurrences === 0) {
+          patchErrors.push(`${relPath}: search string not found.`);
+          continue;
         }
+        if (occurrence !== 0 && !Object.prototype.hasOwnProperty.call(patch, 'occurrence') && totalOccurrences > 1) {
+          patchErrors.push(`${relPath}: ambiguous search (${totalOccurrences} matches). Add occurrence or use a longer unique snippet.`);
+          continue;
+        }
+        const patchResult = buildRecordedMarksForPatch(entry.text, search, replace, occurrence);
+        if (!patchResult) {
+          patchErrors.push(`${relPath}: occurrence ${occurrence} requested but only ${totalOccurrences} match(es) found.`);
+          continue;
+        }
+
+        const { newText, replacementCount, recordedMarks: nextRecordedMarks } = patchResult;
+        recordedMarks.push(...nextRecordedMarks);
 
         const occStr = occurrence === 0 ? `all ${replacementCount}` : `occurrence ${occurrence}`;
         patchResults.push(`${relPath}: replaced ${occStr} occurrence(s)`);
@@ -1183,7 +1305,8 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
           try {
             await writeTextFile(abs, text);
             onFileWritten?.(relPath);
-            onMarkRecorded?.(relPath, text);
+            const recordedMarks = fileRecordedMarks.get(relPath) ?? buildRecordedMarksFromSingleRewrite(fileOriginals.get(relPath) ?? '', text);
+            onMarkRecorded?.(relPath, text, recordedMarks);
           } catch (e) {
             writeErrors.push(`Failed to write ${relPath}: ${e}`);
           }
@@ -1389,6 +1512,8 @@ draft: true
 
       let sheet: SheetTab;
       let summaryVerb: string;
+      let recordedMarks: AIRecordedTextMark[] = [];
+      let previousSerialized = '';
 
       if (hasFullRewrite) {
         // Full rewrite
@@ -1409,7 +1534,11 @@ draft: true
         }
         const existingData = await parseSpreadsheetFile(absPath, ext);
         sheet = existingData.sheets[0] ?? { name: 'Sheet1', headers: [], rows: [] };
+        previousSerialized = ext === 'tsv'
+          ? await serializeSheetToTSV(sheet)
+          : await serializeSheetToCSV(sheet);
         const ops: string[] = [];
+        const changedRowTargets = new Map<number, AISpreadsheetTarget>();
 
         // delete_rows runs first so indices in updates/append_rows refer to post-deletion state
         if (args.delete_rows !== undefined) {
@@ -1437,11 +1566,13 @@ draft: true
             if (r === 0) {
               while (sheet.headers.length <= c) sheet.headers.push('');
               sheet.headers[c] = v;
+              changedRowTargets.set(0, { kind: 'header', sheetName: sheet.name, col: c });
             } else {
               const ri = r - 1;
               while (sheet.rows.length <= ri) sheet.rows.push(sheet.headers.map(() => ''));
               while (sheet.rows[ri].length <= c) sheet.rows[ri].push('');
               sheet.rows[ri][c] = v;
+              changedRowTargets.set(r, { kind: 'cell', sheetName: sheet.name, row: ri, col: c });
             }
           }
           ops.push(`${updates.length} cell update(s)`);
@@ -1453,16 +1584,38 @@ draft: true
             newRows = JSON.parse(String(args.append_rows)) as string[][];
             if (!Array.isArray(newRows)) return 'Error: append_rows must be a JSON array of arrays.';
           } catch (e) { return `Error: invalid JSON in append_rows: ${e}`; }
+          const startRowIndex = sheet.rows.length;
           sheet.rows.push(...newRows.map((r) => r.map(String)));
+          newRows.forEach((_, idx) => {
+            changedRowTargets.set(startRowIndex + 1 + idx, {
+              kind: 'row',
+              sheetName: sheet.name,
+              row: startRowIndex + idx,
+            });
+          });
           ops.push(`${newRows.length} row(s) appended`);
         }
 
         summaryVerb = `surgical edit — ${ops.join(', ')}, ${sheet.rows.length} total row(s)`;
+
+        const finalSerialized = ext === 'tsv'
+          ? await serializeSheetToTSV(sheet)
+          : await serializeSheetToCSV(sheet);
+        recordedMarks = buildSpreadsheetLineMarks(
+          previousSerialized,
+          finalSerialized,
+          Array.from(changedRowTargets.entries()).map(([lineIndex, target]) => ({ lineIndex, target })),
+        );
       }
 
       const serialized = ext === 'tsv'
         ? await serializeSheetToTSV(sheet)
         : await serializeSheetToCSV(sheet);
+
+      if (recordedMarks.length === 0) {
+        const previousText = previousSerialized || ((await exists(absPath)) ? await readTextFile(absPath).catch(() => '') : '');
+        recordedMarks = buildRecordedMarksFromSingleRewrite(previousText, serialized);
+      }
 
       const lwWrite = await waitForUnlock(relPath, ctx.agentId);
       if (lwWrite.timedOut) {
@@ -1480,7 +1633,7 @@ draft: true
       }
       try {
         onFileWritten?.(relPath);
-        onMarkRecorded?.(relPath, serialized);
+        onMarkRecorded?.(relPath, serialized, recordedMarks);
         await new Promise<void>((r) => setTimeout(r, 400));
       } finally {
         unlockFile(relPath);

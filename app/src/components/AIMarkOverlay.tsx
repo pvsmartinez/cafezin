@@ -16,15 +16,17 @@ interface AIMarkOverlayProps {
   editorRef: React.RefObject<EditorHandle | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
   onReview: (id: string) => void;
+  onReject: (id: string) => void;
 }
 
 interface MarkPos {
-  btnTop: number;
-  btnLeft: number;
+  actionsTop: number;
+  actionsLeft: number;
   hoverTop: number;
   hoverBottom: number;
   hoverLeft: number;
   markId: string;
+  canReject: boolean;
 }
 
 export default function AIMarkOverlay({
@@ -33,6 +35,7 @@ export default function AIMarkOverlay({
   editorRef,
   containerRef,
   onReview,
+  onReject,
 }: AIMarkOverlayProps) {
   const [positions, setPositions] = useState<MarkPos[]>([]);
   const [hoveredMarkId, setHoveredMarkId] = useState<string | null>(null);
@@ -54,12 +57,13 @@ export default function AIMarkOverlay({
       const coords = editorRef.current?.getMarkCoords(mark.text);
       if (!coords) continue;
       next.push({
-        btnTop: coords.top - containerRect.top,
-        btnLeft: coords.right - containerRect.left,
+        actionsTop: coords.top - containerRect.top,
+        actionsLeft: coords.right - containerRect.left,
         hoverTop: coords.top - containerRect.top - 3,
         hoverBottom: coords.bottom - containerRect.top + 3,
         hoverLeft: coords.left - containerRect.left - 6,
         markId: mark.id,
+        canReject: !!mark.revert,
       });
     }
     setPositions(next);
@@ -120,14 +124,25 @@ export default function AIMarkOverlay({
 
   return (
     <div className="aimo-layer" aria-hidden="true">
-      {positions.map(({ btnTop, btnLeft, markId }) => (
-        <button
+      {positions.map(({ actionsTop, actionsLeft, markId, canReject }) => (
+        <div
           key={markId}
-          className={`aimo-accept-btn${hoveredMarkId === markId ? ' aimo-accept-btn--visible' : ''}`}
-          style={{ top: btnTop, left: btnLeft }}
-          title="Accept AI edit"
-          onClick={(e) => { e.stopPropagation(); onReview(markId); }}
-        >✓</button>
+          className={`aimo-actions${hoveredMarkId === markId ? ' aimo-actions--visible' : ''}`}
+          style={{ top: actionsTop, left: actionsLeft }}
+        >
+          <button
+            className="aimo-accept-btn"
+            title="Accept AI edit"
+            onClick={(e) => { e.stopPropagation(); onReview(markId); }}
+          >✓</button>
+          {canReject && (
+            <button
+              className="aimo-reject-btn"
+              title="Cancel AI edit"
+              onClick={(e) => { e.stopPropagation(); onReject(markId); }}
+            >×</button>
+          )}
+        </div>
       ))}
     </div>
   );

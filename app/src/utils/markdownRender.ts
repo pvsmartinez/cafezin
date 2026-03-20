@@ -1,6 +1,7 @@
 import { marked } from 'marked';
-import type { WorkspaceFeatureConfig } from '../types';
+import type { Workspace, WorkspaceFeatureConfig } from '../types';
 import { preprocessMath } from './mathPreprocess';
+import { linkifyWorkspaceReferencesInHtml } from './assistantFileLinks';
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -110,6 +111,14 @@ export function linkifyPlainUrlsInHtml(html: string): string {
 
 export function renderAssistantMarkdownHtml(content: string): string {
   return linkifyPlainUrlsInHtml(renderMarkdownBaseHtml(content));
+}
+
+export function renderAssistantMarkdownHtmlWithWorkspace(
+  content: string,
+  workspace?: Pick<Workspace, 'path' | 'fileTree'> | null,
+): string {
+  const withUrls = renderAssistantMarkdownHtml(content);
+  return linkifyWorkspaceReferencesInHtml(withUrls, workspace?.fileTree, workspace?.path);
 }
 
 async function getMermaidApi(): Promise<MermaidAPI> {
