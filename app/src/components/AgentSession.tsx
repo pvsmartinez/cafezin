@@ -145,6 +145,9 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   const inputRef       = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // true  → user is at the bottom → keep auto-scrolling during streaming
+  // false → user scrolled up to read → freeze scroll
+  const isPinnedToBottom = useRef(true);
 
   // When this tab becomes active, immediately clear unread if already scrolled to bottom
   useEffect(() => {
@@ -257,6 +260,8 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
   // ── Send ─────────────────────────────────────────────────────────────────
   const handleSend = useCallback(async (imageOverride?: string, textOverride?: string) => {
+    // Re-pin to bottom whenever user sends a new message
+    isPinnedToBottom.current = true;
     await stream.handleSend(
       imageOverride,
       textOverride,
@@ -287,11 +292,16 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       setModel(resolved);
       onModelChange?.(resolved);
     }
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    setTimeout(() => {
+      isPinnedToBottom.current = true;
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   }
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isPinnedToBottom.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [session.messages, stream.liveItems]);
 
   // Flash the panel when streaming finishes
@@ -468,7 +478,9 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
         className={`ai-messages${justDone ? ' ai-messages--done' : ''}`}
         onScroll={(e) => {
           const el = e.currentTarget;
-          if (isActive && el.scrollTop + el.clientHeight >= el.scrollHeight - 60) {
+          const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 80;
+          isPinnedToBottom.current = atBottom;
+          if (isActive && atBottom) {
             onMessagesSeen?.();
           }
         }}
