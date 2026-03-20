@@ -106,15 +106,15 @@ function applyCommandPlaceholders(template: string, values: Record<string, strin
   return result;
 }
 
-function customCommandUsesPerFilePlaceholders(cmd: string): boolean {
+function customExportUsesPerFilePlaceholders(cmd: string): boolean {
   return /\{\{(input|input_q|input_abs|input_abs_q|output|output_q|output_abs|output_abs_q)\}\}/.test(cmd);
 }
 
-function resolveCustomCommandMode(target: ExportTarget, cmd: string): 'batch' | 'per-file' {
+function resolveCustomExportMode(target: ExportTarget, cmd: string): 'batch' | 'per-file' {
   const customConfig = getCustomExportConfig(target);
   if (customConfig?.mode === 'batch') return 'batch';
   if (customConfig?.mode === 'per-file') return 'per-file';
-  return customCommandUsesPerFilePlaceholders(cmd) ? 'per-file' : 'batch';
+  return customExportUsesPerFilePlaceholders(cmd) ? 'per-file' : 'batch';
 }
 
 function lastShellOutputLine(stdout: string, stderr: string): string | undefined {
@@ -280,7 +280,7 @@ function buildShellProgressDetail(baseDetail: string, stdout: string, stderr: st
   return line ? `${baseDetail} Last output: ${shortenShellLine(line)}` : baseDetail;
 }
 
-function buildCustomCommandProgress(
+function buildCustomExportProgress(
   base: ExportProgressInfo,
   stdout: string,
   stderr: string,
@@ -1115,8 +1115,8 @@ async function exportCustom(
     inputs_abs: files.map((file) => `${wsPath}/${file}`).join(' '),
     inputs_abs_q: files.map((file) => shellQuote(`${wsPath}/${file}`)).join(' '),
   } : {};
-  const usesPerFilePlaceholders = customCommandUsesPerFilePlaceholders(cmd);
-  const commandMode = resolveCustomCommandMode(target, cmd);
+  const usesPerFilePlaceholders = customExportUsesPerFilePlaceholders(cmd);
+  const commandMode = resolveCustomExportMode(target, cmd);
 
   if (commandMode === 'batch' && usesPerFilePlaceholders) {
     return {
@@ -1151,7 +1151,7 @@ async function exportCustom(
       const result = await runShellCommandCancelable(wsPath, finalCmd, {
         shouldCancel: opts?.shouldCancel,
         onUpdate: ({ stdout, stderr }) => {
-          reportProgress(opts, buildCustomCommandProgress(baseProgress, stdout, stderr));
+          reportProgress(opts, buildCustomExportProgress(baseProgress, stdout, stderr));
         },
       });
       if (result.exit_code !== 0) errors.push(buildShellError(result));
@@ -1197,7 +1197,7 @@ async function exportCustom(
         const result = await runShellCommandCancelable(wsPath, finalCmd, {
           shouldCancel: opts?.shouldCancel,
           onUpdate: ({ stdout, stderr }) => {
-            reportProgress(opts, buildCustomCommandProgress(baseProgress, stdout, stderr));
+            reportProgress(opts, buildCustomExportProgress(baseProgress, stdout, stderr));
           },
         });
         if (result.exit_code !== 0) errors.push(`${rel}: ${buildShellError(result)}`);

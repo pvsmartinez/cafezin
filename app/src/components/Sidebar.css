@@ -1091,6 +1091,84 @@ body.theme-light .sidebar-explorer-label {
   color: var(--red) !important;
 }
 
+.sidebar-delete-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal) + 2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(9, 11, 17, 0.38);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.sidebar-delete-dialog {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 16px;
+}
+
+.sidebar-delete-dialog-title {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.sidebar-delete-dialog-message {
+  margin-top: 10px;
+}
+
+.sidebar-delete-dialog-message p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.sidebar-delete-dialog-message p + p {
+  margin-top: 10px;
+}
+
+.sidebar-delete-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.sidebar-delete-dialog-actions button {
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-delete-dialog-cancel {
+  background: transparent;
+  color: var(--text);
+}
+
+.sidebar-delete-dialog-cancel:hover {
+  background: var(--surface2);
+}
+
+.sidebar-delete-dialog-confirm {
+  background: rgba(var(--red-rgb, 201,117,112), 0.14);
+  border-color: rgba(var(--red-rgb, 201,117,112), 0.35) !important;
+  color: var(--red);
+}
+
+.sidebar-delete-dialog-confirm:hover {
+  background: rgba(var(--red-rgb, 201,117,112), 0.2);
+}
+
 /* ── Move-to folder picker ────────────────────────────────── */
 .sidebar-move-picker {
   position: fixed;

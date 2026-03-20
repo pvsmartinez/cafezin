@@ -44,7 +44,7 @@ import { onLockedFilesChange, getLockedFiles } from './services/copilotLock';
 import { fetchGhostCompletion } from './services/copilot';
 import { loadWorkspaceSession, saveWorkspaceSession } from './services/workspaceSession';
 import { getFileTypeInfo } from './utils/fileType';
-import type { AISelectionContext, Workspace, AppSettings, WorkspaceExportConfig, WorkspaceConfig } from './types';
+import { normalizeWorkspaceExportConfig, type AISelectionContext, type Workspace, type AppSettings, type WorkspaceExportConfig, type WorkspaceConfig } from './types';
 import { APP_SETTINGS_KEY } from './types';
 import { setupI18n } from './i18n';
 import { useBacklinks } from './hooks/useBacklinks';
@@ -916,7 +916,13 @@ export default function App() {
 
   async function handleExportConfigChange(config: WorkspaceExportConfig): Promise<void> {
     if (!workspace) return;
-    const updated: Workspace = { ...workspace, config: { ...workspace.config, exportConfig: config } };
+    const updated: Workspace = {
+      ...workspace,
+      config: {
+        ...workspace.config,
+        exportConfig: normalizeWorkspaceExportConfig(config),
+      },
+    };
     setWorkspace(updated);
     try { await saveWorkspaceConfig(updated); } catch (e) { console.error('Failed to save export config:', e); }
   }
@@ -1419,7 +1425,6 @@ export default function App() {
         isDev={import.meta.env.DEV}
         aiOpen={aiOpen}
         onToggleAi={() => setAiOpen((value) => !value)}
-        onOpenNewWindow={handleOpenNewWindow}
       />
 
       {/* Workspace: editor body + bottom terminal panel */}

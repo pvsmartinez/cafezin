@@ -17,6 +17,7 @@ import type {
   RecentWorkspace,
   FileTreeNode,
 } from '../types';
+import { normalizeWorkspaceExportConfig } from '../types';
 import { CONFIG_DIR, WORKSPACE_SKIP } from './config';
 import { loadWorkspaceIndex } from './workspaceIndex';
 export { buildWorkspaceIndex } from './workspaceIndex';
@@ -132,6 +133,8 @@ export async function loadWorkspace(folderPath: string): Promise<Workspace> {
   if (await exists(configPath)) {
     try {
       config = JSON.parse(await readTextFile(configPath));
+      const normalizedExportConfig = normalizeWorkspaceExportConfig(config.exportConfig);
+      if (normalizedExportConfig) config.exportConfig = normalizedExportConfig;
     } catch {
       config = { name: folderName(folderPath) };
     }
@@ -230,7 +233,11 @@ export async function loadWorkspace(folderPath: string): Promise<Workspace> {
 
 export async function saveWorkspaceConfig(workspace: Workspace): Promise<void> {
   const configPath = `${workspace.path}/${CONFIG_DIR}/${CONFIG_FILE}`;
-  await writeTextFile(configPath, JSON.stringify(workspace.config, null, 2));
+  const normalizedConfig: WorkspaceConfig = {
+    ...workspace.config,
+    exportConfig: normalizeWorkspaceExportConfig(workspace.config.exportConfig),
+  };
+  await writeTextFile(configPath, JSON.stringify(normalizedConfig, null, 2));
 }
 
 export async function readFile(workspace: Workspace, filename: string): Promise<string> {

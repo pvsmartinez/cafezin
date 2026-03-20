@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowSquareOut, House, List, Sparkle } from '@phosphor-icons/react';
+import { House, List, Sparkle } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import type { Workspace } from '../../types';
 import type { FileTypeInfo } from '../../utils/fileType';
@@ -34,7 +34,6 @@ export interface AppHeaderProps {
   isDev: boolean;
   aiOpen: boolean;
   onToggleAi: () => void;
-  onOpenNewWindow: () => void;
 }
 
 export function AppHeader({
@@ -62,7 +61,6 @@ export function AppHeader({
   isDev,
   aiOpen,
   onToggleAi,
-  onOpenNewWindow,
 }: AppHeaderProps) {
   const { t } = useTranslation();
 
@@ -218,15 +216,6 @@ export function AppHeader({
             {t('app.devtoolsLabel')}
           </button>
         )}
-
-        <button
-          className="app-header-btn"
-          onClick={onOpenNewWindow}
-          title="Abrir outra janela do Cafezin"
-        >
-          <ArrowSquareOut weight="thin" size={14} />
-          <span>Nova janela</span>
-        </button>
 
         <button
           className={`app-ai-toggle ${aiOpen ? 'active' : ''}`}

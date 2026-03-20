@@ -397,6 +397,13 @@ interface SidebarProps {
   newFileRef?: { current: (() => void) | null };
 }
 
+interface PendingDeleteDialog {
+  paths: string[];
+  isDir: boolean;
+  title: string;
+  message: string;
+}
+
 export default function Sidebar({
   workspace,
   activeFile,
@@ -435,6 +442,7 @@ export default function Sidebar({
   const [selectedExt, setSelectedExt] = useState('.md');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; path: string; isDir: boolean } | null>(null);
   const [movePicker, setMovePicker] = useState<{ path: string; x: number; y: number } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDeleteDialog | null>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'done' | 'error'>('idle');
   const [showSyncModal, setShowSyncModal] = useState(false);
@@ -521,14 +529,13 @@ export default function Sidebar({
 
   async function handleBulkDelete() {
     const paths = [...multiSelected];
-    if (!window.confirm(`Delete ${paths.length} file(s)?`)) return;
-    for (const p of paths) {
-      await deleteFile(workspace, p);
-      onFileDeleted(p);
-    }
-    const { files, fileTree } = await refreshWorkspaceFiles(workspace);
-    onWorkspaceChange({ ...workspace, files, fileTree });
-    setMultiSelected(new Set());
+    if (paths.length === 0) return;
+    setPendingDelete({
+      paths,
+      isDir: false,
+      title: t('sidebar.deleteSelectedTitle'),
+      message: `Delete ${paths.length} file(s)?\n\nThis will be tracked in git and can be reverted via Sync.`,
+    });
   }
 
   function handleDirDragEnter(e: React.DragEvent, dirPath: string) {
@@ -571,17 +578,31 @@ export default function Sidebar({
     if (activeFile === srcRel || activeFile?.startsWith(srcRel + '/')) onFileSelect(newRel);
   }
 
-  async function handleDeleteFile(relPath: string) {
+  function handleDeleteFile(relPath: string) {
     const name = relPath.split('/').pop() ?? relPath;
     const isDir = dirSet.has(relPath);
     const msg = isDir
       ? `Delete folder "${name}" and all its contents?\n\nThis will be tracked in git and can be reverted via Sync.`
       : `Delete "${name}"?\n\nThis will be tracked in git and can be reverted via Sync.`;
-    if (!window.confirm(msg)) return;
-    await deleteFile(workspace, relPath, isDir);
+    setPendingDelete({
+      paths: [relPath],
+      isDir,
+      title: t('sidebar.ctxDelete'),
+      message: msg,
+    });
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const deleting = pendingDelete;
+    setPendingDelete(null);
+    for (const relPath of deleting.paths) {
+      await deleteFile(workspace, relPath, deleting.isDir);
+      onFileDeleted(relPath);
+    }
     const { files, fileTree } = await refreshWorkspaceFiles(workspace);
     onWorkspaceChange({ ...workspace, files, fileTree });
-    onFileDeleted(relPath);
+    if (deleting.paths.length > 1) setMultiSelected(new Set());
     setContextMenu(null);
   }
 
@@ -1193,6 +1214,40 @@ export default function Sidebar({
         }
         <div className="sidebar-context-separator" />
         <button className="sidebar-context-delete" onClick={() => handleDeleteFile(contextMenu.path)}><span className="sidebar-ctx-icon"><X weight="thin" size={13} /></span> {t('sidebar.ctxDelete')}</button>
+      </div>
+    )}
+    {pendingDelete && (
+      <div
+        className="sidebar-delete-dialog-overlay"
+        onClick={() => setPendingDelete(null)}
+      >
+        <div
+          className="sidebar-delete-dialog"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="sidebar-delete-dialog-title">{pendingDelete.title}</div>
+          <div className="sidebar-delete-dialog-message">
+            {pendingDelete.message.split('\n').map((line, index) => (
+              <p key={`${pendingDelete.paths.join('|')}-${index}`}>{line || '\u00a0'}</p>
+            ))}
+          </div>
+          <div className="sidebar-delete-dialog-actions">
+            <button
+              type="button"
+              className="sidebar-delete-dialog-cancel"
+              onClick={() => setPendingDelete(null)}
+            >
+              {t('sidebar.pickerCancel')}
+            </button>
+            <button
+              type="button"
+              className="sidebar-delete-dialog-confirm"
+              onClick={() => void confirmDelete()}
+            >
+              {t('sidebar.ctxDelete')}
+            </button>
+          </div>
+        </div>
       </div>
     )}
     {/* ── Move-to folder picker ── */}

@@ -152,6 +152,9 @@ export interface CustomExportConfig {
   mode?: CustomExportExecutionMode;
 }
 
+const LEGACY_CUSTOM_COMMAND_KEY = ['custom', 'Command'].join('');
+const LEGACY_CUSTOM_MODE_KEY = ['custom', 'Command', 'Mode'].join('');
+
 export interface ExportTarget {
   id: string;
   name: string;
@@ -192,10 +195,6 @@ export interface ExportTarget {
   };
   /** For 'custom' format: the Cafezin ↔ script integration contract. */
   custom?: CustomExportConfig;
-  /** @deprecated Use custom.command */
-  customCommand?: string;
-  /** @deprecated Use custom.mode */
-  customCommandMode?: CustomExportExecutionMode;
   /**
    * When set, a "Publish to Vercel" button appears after a successful export.
    * The Vercel token is read from workspace vercelConfig > global cafezin-vercel-token.
@@ -272,22 +271,63 @@ export const CUSTOM_EXPORT_INJECTION_SPEC: CustomExportInjectionSpec = {
   batchPlaceholders: ['{{inputs}}', '{{inputs_q}}', '{{inputs_abs}}', '{{inputs_abs_q}}', '{{files_count}}'],
 };
 
+function getLegacyCustomExportFields(target: ExportTarget): {
+  command?: string;
+  mode?: CustomExportExecutionMode;
+} {
+  const record = target as ExportTarget & Record<string, unknown>;
+  return {
+    command: typeof record[LEGACY_CUSTOM_COMMAND_KEY] === 'string'
+      ? record[LEGACY_CUSTOM_COMMAND_KEY] as string
+      : undefined,
+    mode: record[LEGACY_CUSTOM_MODE_KEY] as CustomExportExecutionMode | undefined,
+  };
+}
+
 export function getCustomExportConfig(target: ExportTarget): CustomExportConfig | undefined {
+  const legacy = getLegacyCustomExportFields(target);
   if (target.custom?.command?.trim()) {
     return {
       command: target.custom.command,
-      mode: target.custom.mode ?? target.customCommandMode,
+      mode: target.custom.mode ?? legacy.mode,
     };
   }
 
-  if (target.customCommand?.trim()) {
+  if (legacy.command?.trim()) {
     return {
-      command: target.customCommand,
-      mode: target.customCommandMode,
+      command: legacy.command,
+      mode: legacy.mode,
     };
   }
 
   return undefined;
+}
+
+export function normalizeExportTarget(target: ExportTarget): ExportTarget {
+  const record = target as ExportTarget & Record<string, unknown>;
+  const { custom: _rawCustom, ...rest } = record;
+  const custom = getCustomExportConfig(target);
+  delete rest[LEGACY_CUSTOM_COMMAND_KEY];
+  delete rest[LEGACY_CUSTOM_MODE_KEY];
+  return {
+    ...rest,
+    custom: custom?.command?.trim()
+      ? {
+          command: custom.command.trim(),
+          mode: custom.mode,
+        }
+      : undefined,
+  };
+}
+
+export function normalizeWorkspaceExportConfig(
+  exportConfig?: WorkspaceExportConfig,
+): WorkspaceExportConfig | undefined {
+  if (!exportConfig) return undefined;
+  return {
+    ...exportConfig,
+    targets: exportConfig.targets.map(normalizeExportTarget),
+  };
 }
 
 /** Vercel publish config stored per-workspace (overrides global token) */

@@ -16,6 +16,8 @@ import {
   CUSTOM_EXPORT_INJECTION_SPEC,
   CUSTOM_EXPORT_PROTOCOL,
   getCustomExportConfig,
+  normalizeExportTarget,
+  normalizeWorkspaceExportConfig,
   type CustomExportExecutionMode,
   type Workspace,
   type ExportTarget,
@@ -155,7 +157,7 @@ export default function ExportModal({
   onOpenAI,
   onExportLockStateChange,
 }: ExportModalProps) {
-  const savedConfig = workspace.config.exportConfig;
+  const savedConfig = normalizeWorkspaceExportConfig(workspace.config.exportConfig);
   const [targets, setTargets] = useState<ExportTarget[]>(savedConfig?.targets ?? []);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<Map<string, TargetStatus>>(new Map());
@@ -249,7 +251,9 @@ export default function ExportModal({
 
   // ── Persist helpers ─────────────────────────────────────────────────────────
   const persist = useCallback(async (nextTargets: ExportTarget[]) => {
-    const exportConfig: WorkspaceExportConfig = { targets: nextTargets };
+    const exportConfig: WorkspaceExportConfig = {
+      targets: nextTargets.map(normalizeExportTarget),
+    };
     const updated: Workspace = {
       ...workspace,
       config: { ...workspace.config, exportConfig },
@@ -266,7 +270,7 @@ export default function ExportModal({
   // ── CRUD ─────────────────────────────────────────────────────────────────────
   function addTarget() {
     const id = uid();
-    const n: ExportTarget = { id, name: 'New target', ...DEFAULT_TARGET };
+    const n: ExportTarget = normalizeExportTarget({ id, name: 'New target', ...DEFAULT_TARGET });
     const next = [...targets, n];
     setTargets(next);
     setExpandedId(id);
@@ -285,7 +289,7 @@ export default function ExportModal({
       gitPublish: { ...DEFAULT_GIT_PUBLISH },
       enabled: true,
     };
-    const next = [...targets, n];
+    const next = [...targets, normalizeExportTarget(n)];
     setTargets(next);
     setExpandedId(id);
     persist(next);
@@ -298,7 +302,7 @@ export default function ExportModal({
   }
 
   function updateTarget(id: string, patch: Partial<ExportTarget>) {
-    const next = targets.map((t) => t.id === id ? { ...t, ...patch } : t);
+    const next = targets.map((t) => t.id === id ? normalizeExportTarget({ ...t, ...patch }) : t);
     updateTargets(next);
   }
 
@@ -805,8 +809,6 @@ export default function ExportModal({
                                 command: e.target.value,
                                 mode: customConfig?.mode,
                               },
-                              customCommand: undefined,
-                              customCommandMode: undefined,
                             })}
                           />
                         </div>
@@ -821,8 +823,6 @@ export default function ExportModal({
                                   ? undefined
                                   : e.target.value as CustomExportExecutionMode,
                               },
-                              customCommand: undefined,
-                              customCommandMode: undefined,
                             })}
                           >
                             <option value="auto">Auto</option>

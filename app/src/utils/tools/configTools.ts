@@ -14,6 +14,8 @@ import {
   CUSTOM_EXPORT_INJECTION_SPEC,
   CUSTOM_EXPORT_PROTOCOL,
   getCustomExportConfig,
+  normalizeExportTarget,
+  normalizeWorkspaceExportConfig,
   type ExportTarget,
   type ExportFormat,
   type WorkspaceExportConfig,
@@ -45,7 +47,7 @@ function buildExportCapabilityPayload(targets: ExportTarget[]) {
     },
     configuredTargets: targets.map((target) => {
       const custom = getCustomExportConfig(target);
-      return custom ? { ...target, custom, customCommand: undefined, customCommandMode: undefined } : target;
+      return custom ? normalizeExportTarget({ ...target, custom }) : normalizeExportTarget(target);
     }),
   };
 }
@@ -129,8 +131,14 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
             type: 'boolean',
             description: '(Git publish only) Skip commit when there are no changes and still try to push. Defaults to true.',
           },
-          customCommand:{ type: 'string', description: `Shell command for custom format. This populates target.custom.command. Placeholders: ${CUSTOM_EXPORT_INJECTION_SPEC.placeholders.join(', ')}, plus quoted shell-safe variants and batch placeholders. Scripts can report progress by printing lines starting with ${CUSTOM_EXPORT_PROTOCOL.progressPrefix} and generated files by printing lines starting with ${CUSTOM_EXPORT_PROTOCOL.artifactPrefix}.` },
-          customCommandMode: { type: 'string', enum: ['auto', 'batch', 'per-file'], description: '(Custom only) This populates target.custom.mode. auto = infer from placeholders, batch = run once for whole target, per-file = run once per matched file.' },
+          custom: {
+            type: 'object',
+            description: '(Custom only) Shell integration config for this target.',
+            properties: {
+              command: { type: 'string', description: `Shell command for custom format. Placeholders: ${CUSTOM_EXPORT_INJECTION_SPEC.placeholders.join(', ')}, plus quoted shell-safe variants and batch placeholders. Scripts can report progress by printing lines starting with ${CUSTOM_EXPORT_PROTOCOL.progressPrefix} and generated files by printing lines starting with ${CUSTOM_EXPORT_PROTOCOL.artifactPrefix}.` },
+              mode: { type: 'string', enum: ['auto', 'batch', 'per-file'], description: 'auto = infer from placeholders, batch = run once for whole target, per-file = run once per matched file.' },
+            },
+          },
           enabled:      { type: 'boolean', description: 'Whether this target is included in Export All.' },
           merge:        { type: 'boolean', description: 'Merge all matched files into one output (pdf/canvas-pdf).' },
           mergeName:    { type: 'string', description: 'Filename (no extension) for merged output.' },
@@ -386,7 +394,7 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
     // ── configure_export_targets ──────────────────────────────────────────
     case 'configure_export_targets': {
       const action = String(args.action ?? 'list');
-      const currentTargets: ExportTarget[] = workspaceExportConfig?.targets ?? [];
+      const currentTargets: ExportTarget[] = normalizeWorkspaceExportConfig(workspaceExportConfig)?.targets ?? [];
 
       if (action === 'list') {
         return JSON.stringify(buildExportCapabilityPayload(currentTargets), null, 2);
@@ -486,12 +494,14 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
           excludeFiles: Array.isArray(args.excludeFiles) ? args.excludeFiles.map(String) : undefined,
           outputDir: args.outputDir ? String(args.outputDir) : 'dist',
           gitPublish,
-          custom: args.customCommand ? {
-            command: String(args.customCommand),
-            mode: args.customCommandMode ? String(args.customCommandMode) as NonNullable<ExportTarget['custom']>['mode'] : undefined,
-          } : undefined,
-          customCommand: undefined,
-          customCommandMode: undefined,
+          custom: args.custom && typeof args.custom === 'object' && args.custom !== null && 'command' in args.custom
+            ? {
+                command: String((args.custom as { command: unknown }).command),
+                mode: (args.custom as { mode?: unknown }).mode
+                  ? String((args.custom as { mode?: unknown }).mode) as NonNullable<ExportTarget['custom']>['mode']
+                  : undefined,
+              }
+            : undefined,
           enabled: args.enabled !== false,
           merge: args.merge === true ? true : undefined,
           mergeName: args.mergeName ? String(args.mergeName) : undefined,
@@ -501,7 +511,9 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
           titlePage,
           preProcess,
         };
-        const next: WorkspaceExportConfig = { targets: [...currentTargets, newTarget] };
+        const next: WorkspaceExportConfig = {
+          targets: [...currentTargets, normalizeExportTarget(newTarget)],
+        };
         onExportConfigChange(next);
         return `Added target "${newTarget.name}" (id: ${newTarget.id}).`;
       }
@@ -531,17 +543,16 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
           };
           if (!Object.values(patch.gitPublish).some((value) => value !== undefined && value !== '')) patch.gitPublish = undefined;
         }
-        if (args.customCommand !== undefined || args.customCommandMode !== undefined) {
+        if (args.custom !== undefined) {
           const existing = getCustomExportConfig(match);
-          const nextCommand = args.customCommand !== undefined
-            ? String(args.customCommand)
+          const customArgs = args.custom && typeof args.custom === 'object' ? args.custom as { command?: unknown; mode?: unknown } : undefined;
+          const nextCommand = customArgs?.command !== undefined
+            ? String(customArgs.command)
             : (existing?.command ?? '');
-          const nextMode = args.customCommandMode !== undefined
-            ? (String(args.customCommandMode) || undefined) as NonNullable<ExportTarget['custom']>['mode']
+          const nextMode = customArgs?.mode !== undefined
+            ? (String(customArgs.mode) || undefined) as NonNullable<ExportTarget['custom']>['mode']
             : existing?.mode;
           patch.custom = nextCommand ? { command: nextCommand, mode: nextMode } : undefined;
-          patch.customCommand = undefined;
-          patch.customCommandMode = undefined;
         }
         if (args.enabled      !== undefined) patch.enabled       = Boolean(args.enabled);
         if (args.merge        !== undefined) patch.merge         = Boolean(args.merge);
@@ -572,7 +583,7 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
           if (!Object.values(patch.preProcess).some(Boolean)) patch.preProcess = undefined;
         }
         const next: WorkspaceExportConfig = {
-          targets: currentTargets.map((t) => t.id === match.id ? { ...t, ...patch } : t),
+          targets: currentTargets.map((t) => t.id === match.id ? normalizeExportTarget({ ...t, ...patch }) : t),
         };
         onExportConfigChange(next);
         return `Updated target "${match.name}".`;

@@ -6,6 +6,7 @@ import {
   CUSTOM_EXPORT_PROTOCOL,
   getCustomExportConfig,
   type ChatMessage,
+  type Task,
   type WorkspaceConfig,
   type WorkspaceExportConfig,
 } from '../types';
@@ -56,6 +57,22 @@ function buildExportSystemSummary(workspaceExportConfig?: WorkspaceExportConfig)
     + `• custom artifact protocol: scripts can declare generated files with ${CUSTOM_EXPORT_PROTOCOL.artifactPrefix}. Accepted forms are '${CUSTOM_EXPORT_PROTOCOL.artifactPrefix} relative/path/to/file.pdf' or JSON like '${CUSTOM_EXPORT_PROTOCOL.artifactPrefix} {"path":"07_Exports/manuscript_v12.pdf","label":"PDF"}'. Cafezin uses this to reveal the actual output file instead of only the folder.\n`
     + `• When helping with exports, prefer configure_export_targets to inspect/change targets before suggesting manual UI steps.\n`
     + configuredSummary;
+}
+
+function buildActiveTaskSummary(activeTask?: Task | null): string {
+  if (!activeTask) return 'Tracked task status: no active task is currently loaded.';
+
+  return [
+    'Tracked task status: active task loaded from .cafezin/tasks.json',
+    `Task id: ${activeTask.id}`,
+    `Title: ${activeTask.title}`,
+    ...(activeTask.description ? [`Description: ${activeTask.description}`] : []),
+    'Steps:',
+    ...activeTask.steps.map((step, index) => {
+      const note = step.note?.trim() ? ` — ${step.note.trim()}` : '';
+      return `  ${index}. [${step.status}] ${step.title}${note}`;
+    }),
+  ].join('\n');
 }
 
 // ── Memory loader ─────────────────────────────────────────────────────────────
@@ -114,6 +131,7 @@ interface UseSystemPromptParams {
   activeFile: string | undefined;
   memoryContent: string;
   userProfileContent: string;
+  activeTask?: Task | null;
   workspaceExportConfig?: WorkspaceExportConfig;
   workspaceConfig?: WorkspaceConfig;
 }
@@ -126,6 +144,7 @@ export function useSystemPrompt({
   activeFile,
   memoryContent,
   userProfileContent,
+  activeTask,
   workspaceExportConfig,
 }: UseSystemPromptParams): ChatMessage {
   const hasTools = !!workspace;
@@ -285,6 +304,7 @@ NEVER use N add_slide + N add_note when create_lesson does it in one.` : '',
 • Plain CSV/TSV can still be read as text with read_workspace_file when raw source matters more than table formatting.` : '',
 
       hasTools ? buildExportSystemSummary(workspaceExportConfig ?? workspace?.config?.exportConfig) : '',
+      hasTools ? buildActiveTaskSummary(activeTask) : '',
 
       hasTools
         ? `You have access to workspace tools. ALWAYS call the appropriate tool when the user asks about their documents, wants to find/summarize/cross-reference content, or asks you to create/edit files. Never guess at file contents — read them first. When writing a file, always call the write_workspace_file tool — do not output the file as a code block.
@@ -437,6 +457,12 @@ RULES (follow these exactly):
      At the start of a long session, call list_tasks(filter="active") to check for any
      in-progress tasks before starting new ones.
   6. Do NOT recreate a task already visible in list_tasks. Update its steps instead.
+  7. Before any message that claims the work is done, complete, resolved, or "já foi", reconcile task state.
+    If the current goal has a tracked task, make sure finished steps were actually marked with update_task_step,
+    unnecessary ones were marked skipped, and no stale pending/in-progress steps remain by mistake.
+  8. If you created or updated tasks during this run and you are about to send a completion message,
+    call list_tasks(filter="active") once as a final sanity check. If relevant steps are still open,
+    do not say the whole job is finished — explain what remains.
 
 CHAPTER FILE NAMING CONVENTION:
   Use consistent names: cap01.md, cap02.md … or capitulo-01.md … or 01-introducao.md

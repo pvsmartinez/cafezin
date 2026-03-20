@@ -211,6 +211,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     activeFile,
     memoryContent,
     userProfileContent,
+    activeTask,
     workspaceExportConfig,
     workspaceConfig,
   });
