@@ -6,7 +6,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import {
   getActiveProvider, setActiveProvider, getActiveModel, setActiveModel,
-  getProviderKey, PROVIDER_LABELS,
+  getProviderKey,
   getCustomEndpoint, setCustomEndpoint, getCustomModelId,
   testCustomEndpoint, type CustomEndpointDiagnostic,
   type AIProviderType,
@@ -30,6 +30,14 @@ import { saveApiSecret } from '../services/apiSecrets';
 import { createCheckoutUrl, createCustomerPortalUrl } from '../services/accountService';
 import { useAccountState } from '../hooks/useAccountState';
 import { getAgentCapabilityState } from '../utils/agentCapabilities';
+import { SK } from '../services/storageKeys';
+import { GeneralTab } from './settings/GeneralTab';
+import { AITab } from './settings/AITab';
+import { WorkspaceTab } from './settings/WorkspaceTab';
+import { AgentTab } from './settings/AgentTab';
+import type { CapabilityOverrideMode } from './settings/AgentTab';
+import { SyncTab } from './settings/SyncTab';
+import { AccountTab } from './settings/AccountTab';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -46,21 +54,6 @@ interface SettingsModalProps {
 }
 
 type Tab = 'general' | 'ai' | 'workspace' | 'agent' | 'sync' | 'account';
-type CapabilityOverrideMode = 'auto' | 'on' | 'off';
-
-const FONT_OPTIONS = [
-  { label: 'Pequena (13px)', value: 13 },
-  { label: 'Média (14px)', value: 14 },
-  { label: 'Grande (15px)', value: 15 },
-  { label: 'Extra grande (16px)', value: 16 },
-];
-
-const AUTOSAVE_OPTIONS = [
-  { label: 'Rápido (500ms)', value: 500 },
-  { label: 'Normal (1s)', value: 1000 },
-  { label: 'Lento (2s)', value: 2000 },
-  { label: 'Manual (desligado)', value: 0 },
-];
 
 export default function SettingsModal({
   open,
@@ -361,12 +354,12 @@ export default function SettingsModal({
 
   // Global Vercel token (localStorage)
   const [globalVercelToken, setGlobalVercelToken] = useState(
-    () => localStorage.getItem('cafezin-vercel-token') ?? '',
+    () => localStorage.getItem(SK.VERCEL_TOKEN) ?? '',
   );
   const [vercelTokenSaved, setVercelTokenSaved] = useState(false);
 
   function handleSaveVercelToken() {
-    void saveApiSecret('cafezin-vercel-token', globalVercelToken.trim());
+    void saveApiSecret(SK.VERCEL_TOKEN, globalVercelToken.trim());
     setVercelTokenSaved(true);
     setTimeout(() => setVercelTokenSaved(false), 2000);
   }
@@ -514,10 +507,6 @@ export default function SettingsModal({
     };
   }, [open, tab, aiProvider, workspace?.config.githubOAuth?.clientId]);
 
-  function setApp<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
-    onAppSettingsChange({ ...appSettings, [key]: value });
-  }
-
   function buildWorkspaceFeatures(existing?: WorkspaceFeatureConfig): WorkspaceFeatureConfig | undefined {
     const nextCanvas = applyCapabilityOverride(existing?.canvas, wsCanvasAgentTools) as WorkspaceFeatureConfig['canvas'];
     const nextSpreadsheet = applyCapabilityOverride(existing?.spreadsheet, wsSpreadsheetAgentTools) as WorkspaceFeatureConfig['spreadsheet'];
@@ -587,13 +576,6 @@ export default function SettingsModal({
   const resolvedProviderModelOptions = providerModelOptions.some((model) => model.id === aiModel)
     ? providerModelOptions
     : [...providerModelOptions, { id: aiModel, label: aiModel || 'Modelo atual' }].filter((model) => model.id);
-
-  const autosaveLabels: Record<number, string> = {
-    500:  t('settings.autosaveFast'),
-    1000: t('settings.autosaveNormal'),
-    2000: t('settings.autosaveSlow'),
-    0:    t('settings.autosaveManual'),
-  };
 
   // Save workspace section
   async function handleWsSave() {
@@ -696,1359 +678,175 @@ export default function SettingsModal({
 
           {/* ── General tab ── */}
           {tab === 'general' && (
-            <div className="sm-section-list">
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">{t('settings.sectionAppearance')}</h3>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.themeLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.themeDesc')}</span>
-                  </div>
-                  <div className="sm-theme-toggle">
-                    <button
-                      className={`sm-theme-btn ${appSettings.theme === 'system' ? 'active' : ''}`}
-                      onClick={() => setApp('theme', 'system')}
-                    >
-                      {t('settings.themeSystem')}
-                    </button>
-                    <button
-                      className={`sm-theme-btn ${appSettings.theme === 'dark' ? 'active' : ''}`}
-                      onClick={() => setApp('theme', 'dark')}
-                    >
-                      {t('settings.themeDark')}
-                    </button>
-                    <button
-                      className={`sm-theme-btn ${appSettings.theme === 'light' ? 'active' : ''}`}
-                      onClick={() => setApp('theme', 'light')}
-                    >
-                      {t('settings.themeLight')}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.fontSizeLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.fontSizeDesc')}</span>
-                  </div>
-                  <select
-                    className="sm-select"
-                    value={appSettings.editorFontSize}
-                    onChange={(e) => setApp('editorFontSize', Number(e.target.value))}
-                  >
-                    {FONT_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">{t('settings.sectionEditor')}</h3>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.autosaveLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.autosaveDesc')}</span>
-                  </div>
-                  <select
-                    className="sm-select"
-                    value={appSettings.autosaveDelay}
-                    onChange={(e) => setApp('autosaveDelay', Number(e.target.value))}
-                  >
-                    {AUTOSAVE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{autosaveLabels[o.value] ?? o.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.wordCountLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.wordCountDesc')}</span>
-                  </div>
-                  <label className="sm-toggle">
-                    <input
-                      type="checkbox"
-                      checked={appSettings.showWordCount}
-                      onChange={(e) => setApp('showWordCount', e.target.checked)}
-                    />
-                    <span className="sm-toggle-track" />
-                  </label>
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">{t('settings.sectionLayout')}</h3>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.sidebarOpenLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.sidebarOpenDesc')}</span>
-                  </div>
-                  <label className="sm-toggle">
-                    <input
-                      type="checkbox"
-                      checked={appSettings.sidebarOpenDefault}
-                      onChange={(e) => setApp('sidebarOpenDefault', e.target.checked)}
-                    />
-                    <span className="sm-toggle-track" />
-                  </label>
-                </div>
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.formatOnSaveLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.formatOnSaveDesc')}</span>
-                  </div>
-                  <label className="sm-toggle">
-                    <input
-                      type="checkbox"
-                      checked={appSettings.formatOnSave ?? true}
-                      onChange={(e) => setApp('formatOnSave', e.target.checked)}
-                    />
-                    <span className="sm-toggle-track" />
-                  </label>
-                </div>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.terminalLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.terminalDesc')}</span>
-                  </div>
-                  <label className="sm-toggle">
-                    <input
-                      type="checkbox"
-                      checked={appSettings.showTerminal ?? false}
-                      onChange={(e) => setApp('showTerminal', e.target.checked)}
-                    />
-                    <span className="sm-toggle-track" />
-                  </label>
-                </div>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.languageLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.languageDesc')}</span>
-                  </div>
-                  <select
-                    className="sm-select"
-                    value={appSettings.locale ?? 'en'}
-                    onChange={(e) => setApp('locale', e.target.value as 'en' | 'pt-BR')}
-                  >
-                    <option value="en">{t('settings.langEn')}</option>
-                    <option value="pt-BR">{t('settings.langPtBR')}</option>
-                  </select>
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">{t('settings.sectionAPIKeys')}</h3>
-                <p className="sm-section-desc">
-                  {t('settings.apiKeysDesc')}
-                </p>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    {t('settings.vercelTokenLabel')}
-                    <span className="sm-row-desc"> — <a href="https://vercel.com/account/tokens" target="_blank" rel="noreferrer">vercel.com/account/tokens</a></span>
-                  </label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      className="sm-input"
-                      type="password"
-                      value={globalVercelToken}
-                      onChange={(e) => setGlobalVercelToken(e.target.value)}
-                      placeholder="token_..."
-                      style={{ flex: 1 }}
-                    />
-                    <button
-                      className={`sm-save-btn ${vercelTokenSaved ? 'saved' : ''}`}
-                      onClick={handleSaveVercelToken}
-                    >
-                      {vercelTokenSaved ? t('settings.saved') : t('settings.save')}
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">{t('settings.sectionShortcuts')}</h3>
-                <table className="sm-shortcuts">
-                  <tbody>
-                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupFiles')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>S</kbd></td><td>{t('settings.scSave')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>W</kbd></td><td>{t('settings.scCloseTab')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>R</kbd></td><td>{t('settings.scReload')}</td></tr>
-                    <tr><td><kbd>⌃</kbd><kbd>Tab</kbd></td><td>{t('settings.scNextTab')}</td></tr>
-                    <tr><td><kbd>⌃</kbd><kbd>⇧</kbd><kbd>Tab</kbd></td><td>{t('settings.scPrevTab')}</td></tr>
-                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupNav')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>F</kbd></td><td>{t('settings.scFindReplace')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>F</kbd></td><td>{t('settings.scProjectSearch')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>P</kbd></td><td>{t('settings.scTogglePreview')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>B</kbd></td><td>{t('settings.scToggleSidebar')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>J</kbd></td><td>{t('settings.scToggleTerminal')}</td></tr>
-                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupAI')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>K</kbd></td><td>{t('settings.scOpenCopilot')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>K</kbd> <span className="sm-shortcut-note">{t('settings.scWithSelection')}</span></td><td>{t('settings.scAskCopilot')}</td></tr>
-                    <tr><td><kbd>Esc</kbd></td><td>{t('settings.scCloseCopilot')}</td></tr>
-                    <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupApp')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>,</kbd></td><td>{t('settings.scOpenSettings')}</td></tr>
-                    <tr><td><kbd>⌘</kbd><kbd>Click</kbd> <span className="sm-shortcut-note">{t('settings.scMultiSelectNote')}</span></td><td>{t('settings.scMultiSelect')}</td></tr>
-                    <tr><td><kbd>Duplo clique</kbd> <span className="sm-shortcut-note">{t('settings.scRenameFileNote')}</span></td><td>{t('settings.scRenameFile')}</td></tr>
-                  </tbody>
-                </table>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">{t('settings.sectionHelp')}</h3>
-                <p className="sm-section-desc">{t('settings.helpDesc')}</p>
-                <div className="sm-support-actions">
-                  <button className="sm-secondary-btn" onClick={onOpenHelp}>
-                    {t('settings.helpTourBtn')}
-                  </button>
-                  <button className="sm-secondary-btn" onClick={onContactUs}>
-                    {t('settings.contactUsBtn')}
-                  </button>
-                </div>
-              </section>
-
-            </div>
+            <GeneralTab
+              appSettings={appSettings}
+              onAppSettingsChange={onAppSettingsChange}
+              globalVercelToken={globalVercelToken}
+              onGlobalVercelTokenChange={setGlobalVercelToken}
+              vercelTokenSaved={vercelTokenSaved}
+              onSaveVercelToken={handleSaveVercelToken}
+              onOpenHelp={onOpenHelp}
+              onContactUs={onContactUs}
+            />
           )}
 
           {/* ── AI tab ── */}
           {tab === 'ai' && (
-            <div className="sm-section-list">
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Comportamento da IA</h3>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.aiHighlightLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.aiHighlightDesc')}</span>
-                  </div>
-                  <label className="sm-toggle">
-                    <input
-                      type="checkbox"
-                      checked={appSettings.aiHighlightDefault}
-                      onChange={(e) => setApp('aiHighlightDefault', e.target.checked)}
-                    />
-                    <span className="sm-toggle-track" />
-                  </label>
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Providers</h3>
-                <p className="sm-section-desc">
-                  Você pode deixar mais de um provider configurado e trocar qual fica ativo no chat.
-                </p>
-
-                <div className="sm-provider-grid">
-                  {(Object.keys(PROVIDER_LABELS) as AIProviderType[]).map((provider) => (
-                    <button
-                      key={provider}
-                      type="button"
-                      className={`sm-provider-card ${aiProvider === provider ? 'active' : ''}`}
-                      onClick={() => handleAIProviderChange(provider)}
-                    >
-                      <span className="sm-provider-card-title">{PROVIDER_LABELS[provider]}</span>
-                      <span className={`sm-provider-card-status ${providerConfigured[provider] ? 'is-ready' : ''}`}>
-                        {provider === 'copilot'
-                          ? providerConfigured[provider] ? 'Conectado' : 'Entrar pelo chat'
-                          : provider === 'custom'
-                          ? providerConfigured[provider] ? 'Configurado' : 'Configurar'
-                          : providerConfigured[provider] ? 'Chave salva' : 'Sem chave'}
-                      </span>
-                      {aiProvider === provider && (
-                        <span className="sm-provider-card-active">Em uso</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Standard providers: API key field */}
-                {aiProvider !== 'copilot' && aiProvider !== 'custom' && (
-                  <div className="sm-row sm-row--col">
-                    <label className="sm-label">
-                      {t('settings.apiKeyLabel')}
-                      {aiProvider === 'openai' && (
-                        <span className="sm-row-desc"> —{' '}
-                          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">platform.openai.com/api-keys</a>
-                        </span>
-                      )}
-                      {aiProvider === 'anthropic' && (
-                        <span className="sm-row-desc"> —{' '}
-                          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>
-                        </span>
-                      )}
-                      {aiProvider === 'groq' && (
-                        <span className="sm-row-desc"> —{' '}
-                          <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>
-                        </span>
-                      )}
-                      {aiProvider === 'google' && (
-                        <span className="sm-row-desc"> —{' '}
-                          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">aistudio.google.com</a>
-                        </span>
-                      )}
-                    </label>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        className="sm-input"
-                        type="password"
-                        value={aiProviderKey}
-                        onChange={(e) => setAIProviderKey(e.target.value)}
-                        placeholder={aiProvider === 'openai' ? 'sk-...' : aiProvider === 'anthropic' ? 'sk-ant-...' : aiProvider === 'google' ? 'AIza...' : 'gsk_...'}
-                        style={{ flex: 1 }}
-                      />
-                      <button
-                        className={`sm-save-btn ${aiKeySaved ? 'saved' : ''}`}
-                        onClick={handleSaveAIKey}
-                      >
-                        {aiKeySaved ? t('settings.saved') : t('settings.save')}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Custom / Local provider: endpoint + model ID + diagnostic */}
-                {aiProvider === 'custom' && (
-                  <div className="sm-custom-section">
-                    <div className="sm-custom-notice">
-                      Compatível com qualquer servidor <strong>OpenAI-compatible</strong>: Ollama, LM Studio, Jan, vLLM, OpenRouter, ou seu próprio proxy.
-                    </div>
-
-                    <div className="sm-row sm-row--col">
-                      <label className="sm-label">
-                        URL do servidor <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
-                        <span className="sm-row-desc"> — deve apontar para a raiz da API (ex: /v1)</span>
-                      </label>
-                      <input
-                        className="sm-input"
-                        type="text"
-                        value={customEndpointDraft}
-                        onChange={(e) => { setCustomEndpointDraft(e.target.value); setCustomDiagnostic(null); }}
-                        placeholder="http://localhost:11434/v1"
-                        spellCheck={false}
-                        autoComplete="off"
-                      />
-                    </div>
-
-                    <div className="sm-row sm-row--col">
-                      <label className="sm-label">
-                        Chave da API
-                        <span className="sm-row-desc"> — opcional; não obrigatório para Ollama / LM Studio</span>
-                      </label>
-                      <input
-                        className="sm-input"
-                        type="password"
-                        value={aiProviderKey}
-                        onChange={(e) => { setAIProviderKey(e.target.value); setCustomDiagnostic(null); }}
-                        placeholder="sk-... (deixe em branco se não houver)"
-                      />
-                    </div>
-
-                    <div className="sm-row sm-row--col">
-                      <label className="sm-label">
-                        ID do modelo <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
-                        <span className="sm-row-desc"> — exatamente como listado no servidor (ex: llama3.2, mistral)</span>
-                      </label>
-                      <input
-                        className="sm-input"
-                        type="text"
-                        value={aiModel}
-                        onChange={(e) => { setAIModel(e.target.value); setCustomDiagnostic(null); }}
-                        placeholder="llama3.2"
-                        spellCheck={false}
-                        autoComplete="off"
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button
-                        className={`sm-save-btn ${aiKeySaved ? 'saved' : ''}`}
-                        onClick={handleSaveCustomConfig}
-                        disabled={!customEndpointDraft.trim() || !aiModel.trim()}
-                      >
-                        {aiKeySaved ? t('settings.saved') : t('settings.save')}
-                      </button>
-                      <button
-                        className="sm-custom-test-btn"
-                        onClick={() => void handleTestCustomEndpoint()}
-                        disabled={!customEndpointDraft.trim() || !aiModel.trim() || customDiagnosticLoading}
-                      >
-                        {customDiagnosticLoading ? 'Testando…' : 'Testar conexão'}
-                      </button>
-                    </div>
-
-                    {customDiagnostic && (
-                      <div className={`sm-custom-diagnostic ${customDiagnostic.ok ? 'ok' : 'error'}`}>
-                        {customDiagnostic.ok
-                          ? `✓ Servidor respondeu em ${customDiagnostic.latencyMs}ms — tudo certo!`
-                          : `✗ ${customDiagnostic.error} — ${customDiagnostic.hint}`}
-                      </div>
-                    )}
-
-                    <div className="sm-custom-limitations">
-                      <strong>Limitações:</strong> análise de imagens / canvas visual não disponível.
-                      O modelo precisa suportar a API <code>/v1/chat/completions</code>.
-                      O endpoint e o ID do modelo ficam salvos apenas neste dispositivo.
-                    </div>
-                  </div>
-                )}
-
-                {aiProvider === 'copilot' && (
-                  <div className="sm-row sm-row--col">
-                    <label className="sm-label">GitHub Copilot</label>
-                    <span className="sm-row-desc">
-                      {hasCopilotAuth
-                        ? 'Conta do Copilot pronta. Se quiser trocar, faça logout e login pelo painel do chat.'
-                        : t('settings.copilotLoginDesc')}
-                    </span>
-                  </div>
-                )}
-              </section>
-
-              {/* Default model — hidden for custom (model is set in the provider section above) */}
-              {aiProvider !== 'custom' && (
-              <section className="sm-section">
-                <h3 className="sm-section-title">Modelo padrão</h3>
-                <p className="sm-section-desc">
-                  Defina qual modelo este provider usa por padrão no painel de chat.
-                </p>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">{t('settings.defaultModelLabel')}</label>
-                  {aiProvider === 'copilot' && aiCopilotModelsLoading && (
-                    <span className="sm-row-desc">Carregando modelos do Copilot…</span>
-                  )}
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <select
-                      className="sm-input"
-                      value={aiModel}
-                      onChange={(e) => setAIModel(e.target.value)}
-                      style={{ flex: 1 }}
-                    >
-                      {resolvedProviderModelOptions.map((model) => (
-                        <option key={model.id} value={model.id}>{model.label}</option>
-                      ))}
-                    </select>
-                    <button
-                      className={`sm-save-btn ${aiModelSaved ? 'saved' : ''}`}
-                      onClick={handleSaveAIModel}
-                    >
-                      {aiModelSaved ? t('settings.saved') : t('settings.save')}
-                    </button>
-                  </div>
-                </div>
-
-                {aiProvider !== 'copilot' && (() => {
-                  const catalog = PROVIDER_CATALOG[aiProvider as Exclude<AIProviderType, 'copilot'>] ?? [];
-                  const catalogIds = new Set(catalog.map((m) => m.id));
-                  const customFavIds = aiFavoriteIds.filter((id) => !catalogIds.has(id));
-                  return (
-                    <div className="sm-row sm-row--col">
-                      <label className="sm-label">
-                        Modelos visíveis no seletor
-                        <span className="sm-row-desc"> — escolha os que devem aparecer no chat</span>
-                      </label>
-                      <div className="sm-model-list">
-                        {catalog.map((m) => (
-                          <label key={m.id} className="sm-model-item">
-                            <input
-                              type="checkbox"
-                              checked={aiFavoriteIds.includes(m.id)}
-                              onChange={(e) => {
-                                const next = e.target.checked
-                                  ? [...aiFavoriteIds, m.id]
-                                  : aiFavoriteIds.filter((id) => id !== m.id);
-                                setAIFavoriteIds(next);
-                                setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot'>, next);
-                              }}
-                            />
-                            <span>{m.name}</span>
-                            <span className="sm-model-item-meta">
-                              {m.supportsVision ? 'Visão' : 'Texto'}
-                            </span>
-                          </label>
-                        ))}
-                        {customFavIds.map((id) => (
-                          <label key={id} className="sm-model-item">
-                            <input
-                              type="checkbox"
-                              checked
-                              onChange={() => {
-                                const next = aiFavoriteIds.filter((i) => i !== id);
-                                setAIFavoriteIds(next);
-                                setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot'>, next);
-                              }}
-                            />
-                            <span>{id}</span>
-                            <span className="sm-model-item-meta">Custom</span>
-                          </label>
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                        <input
-                          className="sm-input"
-                          type="text"
-                          placeholder="ID do modelo custom"
-                          value={customModelInput}
-                          onChange={(e) => setCustomModelInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') addCustomModel(); }}
-                          style={{ flex: 1 }}
-                        />
-                        <button
-                          className="sm-save-btn"
-                          onClick={addCustomModel}
-                          disabled={!customModelInput.trim()}
-                        >
-                          + Adicionar
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </section>
-
-              )} {/* end aiProvider !== 'custom' */}
-
-            </div>
+            <AITab
+              appSettings={appSettings}
+              onAppSettingsChange={onAppSettingsChange}
+              aiProvider={aiProvider}
+              onAIProviderChange={handleAIProviderChange}
+              aiProviderKey={aiProviderKey}
+              setAIProviderKey={setAIProviderKey}
+              aiModel={aiModel}
+              setAIModel={setAIModel}
+              aiKeySaved={aiKeySaved}
+              onSaveAIKey={handleSaveAIKey}
+              aiModelSaved={aiModelSaved}
+              onSaveAIModel={handleSaveAIModel}
+              aiFavoriteIds={aiFavoriteIds}
+              setAIFavoriteIds={setAIFavoriteIds}
+              customModelInput={customModelInput}
+              setCustomModelInput={setCustomModelInput}
+              onAddCustomModel={addCustomModel}
+              customEndpointDraft={customEndpointDraft}
+              setCustomEndpointDraft={setCustomEndpointDraft}
+              customDiagnostic={customDiagnostic}
+              customDiagnosticLoading={customDiagnosticLoading}
+              onClearCustomDiagnostic={() => setCustomDiagnostic(null)}
+              onTestCustomEndpoint={() => void handleTestCustomEndpoint()}
+              onSaveCustomConfig={handleSaveCustomConfig}
+              hasCopilotAuth={hasCopilotAuth}
+              aiCopilotModelsLoading={aiCopilotModelsLoading}
+              providerConfigured={providerConfigured}
+              resolvedProviderModelOptions={resolvedProviderModelOptions}
+            />
           )}
 
           {/* ── Workspace tab ── */}
           {tab === 'workspace' && workspace && (
-            <div className="sm-section-list">
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Identificação</h3>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">Nome do workspace</label>
-                  <input
-                    className="sm-input"
-                    value={wsName}
-                    onChange={(e) => setWsName(e.target.value)}
-                    placeholder="Meu workspace"
-                  />
-                </div>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Caminho
-                    <span className="sm-row-desc" style={{ marginLeft: 8 }}>(somente leitura)</span>
-                  </label>
-                  <input
-                    className="sm-input sm-input--readonly"
-                    value={workspace.path}
-                    readOnly
-                    title={workspace.path}
-                  />
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Atalhos da barra lateral</h3>
-                <p className="sm-section-desc">
-                  Botões personalizados que aparecem na barra lateral e executam um comando no terminal.
-                  Ideal para scripts específicos do workspace como exportação ou sincronização.
-                </p>
-                {wsSidebarButtons.map((btn) => (
-                  <div key={btn.id} className="sm-sidebar-btn-row">
-                    <span className="sm-sidebar-btn-label">{btn.label}</span>
-                    <code className="sm-sidebar-btn-cmd">{btn.command}</code>
-                    <button
-                      className="sm-sidebar-btn-delete"
-                      onClick={() => setWsSidebarButtons((prev) => prev.filter((b) => b.id !== btn.id))}
-                      title="Remover botão"
-                    >✕</button>
-                  </div>
-                ))}
-                <div className="sm-sidebar-btn-form">
-                  <input
-                    className="sm-input"
-                    placeholder="Rótulo (ex: ⊡ Exportar)"
-                    value={newBtnLabel}
-                    onChange={(e) => setNewBtnLabel(e.target.value)}
-                  />
-                  <input
-                    className="sm-input"
-                    placeholder="Comando (ex: bash scripts/export_book.sh)"
-                    value={newBtnCmd}
-                    onChange={(e) => setNewBtnCmd(e.target.value)}
-                  />
-                  <input
-                    className="sm-input"
-                    placeholder="Descrição/tooltip (opcional)"
-                    value={newBtnDesc}
-                    onChange={(e) => setNewBtnDesc(e.target.value)}
-                  />
-                  <button
-                    className="sm-save-btn"
-                    style={{ marginTop: 8 }}
-                    disabled={!newBtnLabel.trim() || !newBtnCmd.trim()}
-                    onClick={() => {
-                      setWsSidebarButtons((prev) => [...prev, {
-                        id: Math.random().toString(36).slice(2, 9),
-                        label: newBtnLabel.trim(),
-                        command: newBtnCmd.trim(),
-                        description: newBtnDesc.trim() || undefined,
-                      }]);
-                      setNewBtnLabel(''); setNewBtnCmd(''); setNewBtnDesc('');
-                    }}
-                  >+ Adicionar botão</button>
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Vercel Publish</h3>
-                <p className="sm-section-desc">
-                  Override do token global e configuração de equipe para este workspace.
-                  Deixe em branco para usar o token global das API Keys.
-                </p>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Token override
-                    <span className="sm-row-desc"> — sobrescreve o token global</span>
-                  </label>
-                  <input
-                    className="sm-input"
-                    type="password"
-                    value={wsVercelToken}
-                    onChange={(e) => setWsVercelToken(e.target.value)}
-                    placeholder="Deixe vazio para usar o token global"
-                  />
-                </div>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Team ID
-                    <span className="sm-row-desc"> — opcional, para contas de equipe Vercel</span>
-                  </label>
-                  <input
-                    className="sm-input"
-                    value={wsVercelTeamId}
-                    onChange={(e) => setWsVercelTeamId(e.target.value)}
-                    placeholder="team_abc123 (deixe vazio para conta pessoal)"
-                  />
-                </div>
-
-                <p className="sm-section-desc" style={{ marginTop: 16 }}>
-                  <strong>Demo Hub</strong> — publica várias demos HTML como sub-caminhos de um único projeto Vercel.
-                  Ex: <code>demos/aula1/</code> fica em <code>projeto.vercel.app/aula1</code>.
-                </p>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Projeto Vercel do Demo Hub
-                    <span className="sm-row-desc"> — nome do projeto Vercel (ex: meu-curso)</span>
-                  </label>
-                  <input
-                    className="sm-input"
-                    value={wsVercelDemoHubProject}
-                    onChange={(e) => setWsVercelDemoHubProject(e.target.value)}
-                    placeholder="meu-curso (deixe vazio para desativar)"
-                  />
-                </div>
-
-                {wsVercelDemoHubProject.trim() && (
-                  <div className="sm-row sm-row--col">
-                    <label className="sm-label">
-                      Pasta das demos
-                      <span className="sm-row-desc"> — caminho relativo à raiz do workspace (deixe vazio = raiz)</span>
-                    </label>
-                    <input
-                      className="sm-input"
-                      value={wsVercelDemoHubSourceDir}
-                      onChange={(e) => setWsVercelDemoHubSourceDir(e.target.value)}
-                      placeholder="demos  (ex: demos, projetos/web)"
-                    />
-                  </div>
-                )}
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Git sync branch</h3>
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Branch
-                    <span className="sm-row-desc"> — branch usada para sync no mobile. Deixe vazio para usar a branch padrão do repositório (main / master).</span>
-                  </label>
-                  <input
-                    className="sm-input"
-                    value={wsGitBranch}
-                    onChange={(e) => setWsGitBranch(e.target.value)}
-                    placeholder="main"
-                  />
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Pasta de entrada de voz</h3>
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Caminho do arquivo de entrada
-                    <span className="sm-row-desc"> — transcrições de voz são adicionadas aqui (relativo à raiz do workspace)</span>
-                  </label>
-                  <input
-                    className="sm-input"
-                    value={wsInboxFile}
-                    onChange={(e) => setWsInboxFile(e.target.value)}
-                    placeholder="00_Inbox/raw_transcripts.md"
-                  />
-                </div>
-              </section>
-
-              <div className="sm-footer">
-                <button
-                  className={`sm-save-btn ${wsSaved ? 'saved' : ''}`}
-                  onClick={handleWsSave}
-                  disabled={wsSaving}
-                >
-                  {wsSaving ? 'Salvando…' : wsSaved ? '✓ Salvo' : 'Salvar configurações do workspace'}
-                </button>
-              </div>
-
-            </div>
+            <WorkspaceTab
+              workspace={workspace}
+              wsName={wsName}
+              setWsName={setWsName}
+              wsVercelToken={wsVercelToken}
+              setWsVercelToken={setWsVercelToken}
+              wsVercelTeamId={wsVercelTeamId}
+              setWsVercelTeamId={setWsVercelTeamId}
+              wsVercelDemoHubProject={wsVercelDemoHubProject}
+              setWsVercelDemoHubProject={setWsVercelDemoHubProject}
+              wsVercelDemoHubSourceDir={wsVercelDemoHubSourceDir}
+              setWsVercelDemoHubSourceDir={setWsVercelDemoHubSourceDir}
+              wsSidebarButtons={wsSidebarButtons}
+              setWsSidebarButtons={setWsSidebarButtons}
+              wsInboxFile={wsInboxFile}
+              setWsInboxFile={setWsInboxFile}
+              wsGitBranch={wsGitBranch}
+              setWsGitBranch={setWsGitBranch}
+              newBtnLabel={newBtnLabel}
+              setNewBtnLabel={setNewBtnLabel}
+              newBtnCmd={newBtnCmd}
+              setNewBtnCmd={setNewBtnCmd}
+              newBtnDesc={newBtnDesc}
+              setNewBtnDesc={setNewBtnDesc}
+              wsSaving={wsSaving}
+              wsSaved={wsSaved}
+              onWsSave={handleWsSave}
+            />
           )}
-
           {/* ── Agent tab ── */}
           {tab === 'agent' && workspace && (
-            <div className="sm-section-list">
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Ajuda do agente</h3>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Idioma padrão das respostas
-                    <span className="sm-row-desc"> — usado como preferência neste workspace</span>
-                  </label>
-                  <select
-                    className="sm-select"
-                    value={wsLanguage}
-                    onChange={(e) => setWsLanguage(e.target.value)}
-                  >
-                    <option value="pt-BR">Português (Brasil)</option>
-                    <option value="en-US">English (US)</option>
-                    <option value="es">Español</option>
-                    <option value="fr">Français</option>
-                    <option value="de">Deutsch</option>
-                    <option value="it">Italiano</option>
-                    <option value="ja">日本語</option>
-                    <option value="zh-CN">中文 (简体)</option>
-                  </select>
-                </div>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    Instruções do agente (AGENT.md)
-                    <span className="sm-row-desc"> — contexto do projeto injetado em cada sessão</span>
-                  </label>
-                  <textarea
-                    className="sm-textarea"
-                    value={wsAgent}
-                    onChange={(e) => setWsAgent(e.target.value)}
-                    placeholder="Descreva o projeto, o tom esperado e o que o agente deve considerar sempre."
-                    rows={10}
-                  />
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Capacidades do workspace</h3>
-                <p className="sm-section-desc">
-                  Defina aqui o que o agente pode usar. No modo automático, o Cafezin libera cada grupo quando encontra arquivos compatíveis neste workspace.
-                </p>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>{t('settings.workspaceMarkdownMermaidLabel')}</span>
-                    <span className="sm-row-desc">{t('settings.workspaceMarkdownMermaidDesc')}</span>
-                  </div>
-                  <label className="sm-toggle">
-                    <input
-                      type="checkbox"
-                      checked={wsMarkdownMermaid}
-                      onChange={(e) => setWsMarkdownMermaid(e.target.checked)}
-                    />
-                    <span className="sm-toggle-track" />
-                  </label>
-                </div>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>Ferramentas de canvas</span>
-                    <span className="sm-row-desc">Permite o agente inspecionar e editar canvases com `canvas_op`, shapes e screenshots. {getCapabilityModeDescription(wsCanvasAgentTools, effectiveCapabilityState?.canvas ?? false, 'ligado', 'desligado')}</span>
-                  </div>
-                  <select
-                    className="sm-select"
-                    value={wsCanvasAgentTools}
-                    onChange={(e) => setWsCanvasAgentTools(e.target.value as CapabilityOverrideMode)}
-                  >
-                    <option value="auto">Automático</option>
-                    <option value="on">Ligado</option>
-                    <option value="off">Desligado</option>
-                  </select>
-                </div>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>Ferramentas de planilha</span>
-                    <span className="sm-row-desc">Liga as tools estruturadas de CSV, TSV e XLSX no contexto do agente. {getCapabilityModeDescription(wsSpreadsheetAgentTools, effectiveCapabilityState?.spreadsheet ?? false, 'ligado', 'desligado')}</span>
-                  </div>
-                  <select
-                    className="sm-select"
-                    value={wsSpreadsheetAgentTools}
-                    onChange={(e) => setWsSpreadsheetAgentTools(e.target.value as CapabilityOverrideMode)}
-                  >
-                    <option value="auto">Automático</option>
-                    <option value="on">Ligado</option>
-                    <option value="off">Desligado</option>
-                  </select>
-                </div>
-
-                <div className="sm-row">
-                  <div className="sm-row-label">
-                    <span>Ferramentas web</span>
-                    <span className="sm-row-desc">Controla busca web, leitura de URLs, preview HTML e comandos usados nesse fluxo. {getCapabilityModeDescription(wsWebAgentTools, effectiveCapabilityState?.web ?? false, 'ligado', 'desligado')}</span>
-                  </div>
-                  <select
-                    className="sm-select"
-                    value={wsWebAgentTools}
-                    onChange={(e) => setWsWebAgentTools(e.target.value as CapabilityOverrideMode)}
-                  >
-                    <option value="auto">Automático</option>
-                    <option value="on">Ligado</option>
-                    <option value="off">Desligado</option>
-                  </select>
-                </div>
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Copilot neste workspace</h3>
-
-                <div className="sm-row sm-row--col">
-                  <label className="sm-label">
-                    GitHub OAuth Client ID
-                    <span className="sm-row-desc"> — configuração avançada para o login do Copilot neste workspace</span>
-                  </label>
-                  <input
-                    className="sm-input"
-                    value={wsGitHubClientId}
-                    onChange={(e) => setWsGitHubClientId(e.target.value)}
-                    placeholder="Iv1.1234567890abcdef"
-                  />
-                  <p className="sm-section-desc" style={{ marginTop: 8 }}>
-                    Crie um OAuth App no GitHub com <strong>Device Flow</strong> e cole aqui apenas o <strong>Client ID</strong>.
-                  </p>
-                </div>
-              </section>
-
-              <div className="sm-footer">
-                <button
-                  className={`sm-save-btn ${wsSaved ? 'saved' : ''}`}
-                  onClick={handleWsSave}
-                  disabled={wsSaving}
-                >
-                  {wsSaving ? 'Salvando…' : wsSaved ? '✓ Salvo' : 'Salvar configurações do agente'}
-                </button>
-              </div>
-
-            </div>
+            <AgentTab
+              workspace={workspace}
+              wsLanguage={wsLanguage}
+              setWsLanguage={setWsLanguage}
+              wsAgent={wsAgent}
+              setWsAgent={setWsAgent}
+              wsMarkdownMermaid={wsMarkdownMermaid}
+              setWsMarkdownMermaid={setWsMarkdownMermaid}
+              wsCanvasAgentTools={wsCanvasAgentTools}
+              setWsCanvasAgentTools={setWsCanvasAgentTools}
+              wsSpreadsheetAgentTools={wsSpreadsheetAgentTools}
+              setWsSpreadsheetAgentTools={setWsSpreadsheetAgentTools}
+              wsWebAgentTools={wsWebAgentTools}
+              setWsWebAgentTools={setWsWebAgentTools}
+              wsGitHubClientId={wsGitHubClientId}
+              setWsGitHubClientId={setWsGitHubClientId}
+              effectiveCapabilityState={effectiveCapabilityState}
+              getCapabilityModeDescription={getCapabilityModeDescription}
+              wsSaving={wsSaving}
+              wsSaved={wsSaved}
+              onWsSave={handleWsSave}
+            />
           )}
 
           {/* ── Sync tab ── */}
           {tab === 'sync' && (
-            <div className="sm-section-list">
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Conta Cafezin</h3>
-
-                {syncStatus === 'checking' && (
-                  <div className="sm-sync-status">Conectando…</div>
-                )}
-
-                {syncStatus === 'not_connected' && (
-                  <p className="sm-section-desc">
-                    Faça login na aba{' '}
-                    <button
-                      style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, font: 'inherit', textDecoration: 'underline' }}
-                      onClick={() => setTab('account')}
-                    >
-                      Conta
-                    </button>{' '}
-                    para ativar a sincronização de workspaces.
-                  </p>
-                )}
-
-                {syncStatus === 'connected' && (
-                  <div className="sm-sync-connected">
-                    <div className="sm-sync-connected-info">
-                      <span className="sm-sync-dot" />
-                      <span>Conectado{syncUser ? ` como ${syncUser}` : ''}</span>
-                    </div>
-                    <button className="sm-sync-disconnect" onClick={() => void handleSignOut()}>
-                      Sair
-                    </button>
-                  </div>
-                )}
-              </section>
-
-              {syncStatus === 'connected' && (
-                <section className="sm-section">
-                  <h3 className="sm-section-title">Workspaces sincronizados</h3>
-                  {syncWorkspaces.length === 0 ? (
-                    <p className="sm-sync-empty">Nenhum workspace registrado ainda.</p>
-                  ) : (
-                    <ul className="sm-sync-ws-list">
-                      {syncWorkspaces.map((ws) => (
-                        <li key={ws.gitUrl} className="sm-sync-ws-item">
-                          <div className="sm-sync-ws-info">
-                            <span className="sm-sync-ws-name">{ws.name}</span>
-                            <span className="sm-sync-ws-url">{ws.gitUrl}</span>
-                            {showGitDetails && (
-                              <span className="sm-sync-ws-label">Conta técnica: {ws.gitAccountLabel}</span>
-                            )}
-                          </div>
-                          <button
-                            className="sm-sync-ws-remove"
-                            title="Remover do sync"
-                            onClick={() => handleUnregister(ws.gitUrl)}
-                          >✕</button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-              )}
-
-              {syncStatus === 'connected' && workspace && (
-                <section className="sm-section">
-                  <h3 className="sm-section-title">
-                    {workspace.hasGit ? 'Sync deste workspace' : 'Ativar sync deste workspace'}
-                  </h3>
-                  {workspace.hasGit ? (
-                    <>
-                      {currentSyncEntry ? (
-                        <div className="sm-sync-state-card">
-                          <strong>Este workspace já está sincronizado.</strong>
-                          <span>{currentSyncEntry.name}</span>
-                          <span className="sm-sync-ws-url">{currentSyncEntry.gitUrl}</span>
-                          <span className="sm-sync-ws-label">Conta usada: {currentSyncEntry.gitAccountLabel}</span>
-                        </div>
-                      ) : (
-                        <>
-                          <p className="sm-section-desc">
-                            Registre este workspace para ele aparecer nos outros dispositivos conectados a esta conta.
-                          </p>
-                          <div className="sm-row sm-row--col">
-                            <label className="sm-label">
-                              Conta do Git para associar
-                              <span className="sm-row-desc"> — este rótulo ajuda a identificar qual credencial será usada no clone e no sync</span>
-                            </label>
-                            {gitAccounts.length > 0 ? (
-                              <select
-                                className="sm-select"
-                                value={regLabel}
-                                onChange={(e) => setRegLabel(e.target.value)}
-                              >
-                                {gitAccounts.map((label) => (
-                                  <option key={label} value={label}>{label}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="sm-row-desc">Nenhuma conta Git conectada neste dispositivo ainda.</span>
-                            )}
-                          </div>
-                          <div className="sm-sync-register">
-                            <button
-                              className={`sm-save-btn ${regState === 'done' ? 'saved' : ''}`}
-                              onClick={handleRegister}
-                              disabled={regState === 'busy' || gitAccounts.length === 0}
-                            >
-                              {regState === 'busy' ? 'Registrando…' : regState === 'done' ? '✓ Registrado' : 'Registrar no sync'}
-                            </button>
-                          </div>
-                          {regState === 'error' && <p className="sm-sync-error" style={{ marginTop: 8 }}>{regError}</p>}
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="sm-section-desc">
-                        O Cafezin vai conectar este workspace a um repositório Git e passar a sincronizá-lo por lá.
-                      </p>
-
-                      <div className="sm-row sm-row--col">
-                        <label className="sm-label">
-                          Conta do Git para usar
-                          <span className="sm-row-desc"> — é com ela que o repositório será criado ou associado</span>
-                        </label>
-                        {gitAccounts.length > 0 ? (
-                          <select
-                            className="sm-select"
-                            value={regLabel}
-                            onChange={(e) => setRegLabel(e.target.value)}
-                          >
-                            {gitAccounts.map((label) => (
-                              <option key={label} value={label}>{label}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="sm-row-desc">Se ainda não houver conta conectada, o Cafezin vai pedir autorização do GitHub na primeira ativação.</span>
-                        )}
-                      </div>
-
-                      {(activateSyncFlowState || (gitFlowBusy && gitFlowState)) && (
-                        <div className="sm-sync-flow">
-                          <p className="sm-sync-flow-text">Abra esta URL no navegador e insira o código:</p>
-                          <a
-                            className="sm-sync-flow-url"
-                            href={(activateSyncFlowState ?? gitFlowState)!.verificationUri}
-                            target="_blank" rel="noreferrer"
-                          >
-                            {(activateSyncFlowState ?? gitFlowState)!.verificationUri}
-                          </a>
-                          <div className="sm-sync-flow-code">{(activateSyncFlowState ?? gitFlowState)!.userCode}</div>
-                          <p className="sm-sync-flow-hint">Aguardando autorização…</p>
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <button
-                          className="sm-save-btn"
-                          onClick={() => void handleActivateSync()}
-                          disabled={activateSyncBusy || gitFlowBusy}
-                          style={{ width: '100%' }}
-                        >
-                          {
-                            gitFlowBusy ? 'Aguardando GitHub…'
-                            : activateSyncBusy ? 'Ativando sync…'
-                            : '☁ Ativar sync'
-                          }
-                        </button>
-
-                        <button
-                          className="sm-secondary-btn"
-                          onClick={() => setShowSyncAdvanced((v) => !v)}
-                          style={{ fontSize: 12, alignSelf: 'flex-start' }}
-                        >
-                          {showSyncAdvanced ? '▲ Ocultar opções' : '▼ Opções avançadas'}
-                        </button>
-
-                        {showSyncAdvanced && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)' }}>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              <button
-                                className={`sm-secondary-btn ${syncAdvancedMode === 'create' ? 'active' : ''}`}
-                                onClick={() => setSyncAdvancedMode('create')}
-                                style={{ flex: 1, fontSize: 12 }}
-                              >
-                                Criar repo
-                              </button>
-                              <button
-                                className={`sm-secondary-btn ${syncAdvancedMode === 'existing' ? 'active' : ''}`}
-                                onClick={() => setSyncAdvancedMode('existing')}
-                                style={{ flex: 1, fontSize: 12 }}
-                              >
-                                URL existente
-                              </button>
-                            </div>
-
-                            {syncAdvancedMode === 'create' ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                <label className="sm-label">Nome do repositório</label>
-                                <input
-                                  className="sm-input"
-                                  value={syncAdvancedRepoName}
-                                  onChange={(e) => setSyncAdvancedRepoName(e.target.value.toLowerCase().replace(/[^a-z0-9._-]+/g, '-'))}
-                                  placeholder={workspace.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-')}
-                                />
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                  <button
-                                    className={`sm-secondary-btn ${syncAdvancedPrivate ? 'active' : ''}`}
-                                    onClick={() => setSyncAdvancedPrivate(true)}
-                                    style={{ flex: 1, fontSize: 12 }}
-                                  >
-                                    🔒 Privado
-                                  </button>
-                                  <button
-                                    className={`sm-secondary-btn ${!syncAdvancedPrivate ? 'active' : ''}`}
-                                    onClick={() => setSyncAdvancedPrivate(false)}
-                                    style={{ flex: 1, fontSize: 12 }}
-                                  >
-                                    🌐 Público
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                <label className="sm-label">URL do repositório existente</label>
-                                <input
-                                  className="sm-input"
-                                  value={syncAdvancedUrl}
-                                  onChange={(e) => setSyncAdvancedUrl(e.target.value)}
-                                  placeholder="https://github.com/usuario/repo.git"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {syncError && <p className="sm-sync-error" style={{ marginTop: 8 }}>{syncError}</p>}
-                    </>
-                  )}
-                </section>
-              )}
-
-              {syncStatus === 'connected' && (
-                <section className="sm-section">
-                  <button
-                    className="sm-secondary-btn"
-                    onClick={() => setShowGitDetails((value) => !value)}
-                    style={{ fontSize: 12 }}
-                  >
-                    {showGitDetails ? '▲ Ocultar opções técnicas' : '▼ Opções técnicas'}
-                  </button>
-
-                  {showGitDetails && (
-                    <>
-                      <p className="sm-section-desc" style={{ marginTop: 12 }}>
-                        Conecte contas Git adicionais e veja os rótulos técnicos usados para clone e sync.
-                      </p>
-                      {gitAccounts.length > 0 && (
-                        <ul className="sm-sync-ws-list" style={{ marginBottom: 12 }}>
-                          {gitAccounts.map((l) => (
-                            <li key={l} className="sm-sync-ws-item">
-                              <span className="sm-sync-dot" />
-                              <span className="sm-sync-ws-name" style={{ marginLeft: 8 }}>{l}</span>
-                              <span className="sm-sync-ws-label" style={{ marginLeft: 'auto' }}>autenticado</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {!gitFlowState && (
-                        <div className="sm-sync-register">
-                          <input
-                            className="sm-input"
-                            value={gitLabel}
-                            onChange={(e) => setGitLabel(e.target.value)}
-                            placeholder="Rótulo da conta (ex: pessoal, trabalho)"
-                          />
-                          <button
-                            className="sm-save-btn"
-                            onClick={handleConnectGitAccount}
-                            disabled={gitFlowBusy || !gitLabel.trim()}
-                          >
-                            {gitFlowBusy ? 'Aguardando…' : 'Conectar'}
-                          </button>
-                        </div>
-                      )}
-                      {syncError && <p className="sm-sync-error" style={{ marginTop: 8 }}>{syncError}</p>}
-                    </>
-                  )}
-                </section>
-              )}
-
-            </div>
+            <SyncTab
+              workspace={workspace}
+              syncStatus={syncStatus}
+              syncUser={syncUser}
+              syncWorkspaces={syncWorkspaces}
+              onSignOut={handleSignOut}
+              showGitDetails={showGitDetails}
+              setShowGitDetails={setShowGitDetails}
+              currentSyncEntry={currentSyncEntry}
+              regLabel={regLabel}
+              setRegLabel={setRegLabel}
+              regState={regState}
+              regError={regError}
+              onRegister={handleRegister}
+              gitAccounts={gitAccounts}
+              activateSyncBusy={activateSyncBusy}
+              activateSyncFlowState={activateSyncFlowState}
+              gitFlowBusy={gitFlowBusy}
+              gitFlowState={gitFlowState}
+              showSyncAdvanced={showSyncAdvanced}
+              setShowSyncAdvanced={setShowSyncAdvanced}
+              syncAdvancedMode={syncAdvancedMode}
+              setSyncAdvancedMode={setSyncAdvancedMode}
+              syncAdvancedRepoName={syncAdvancedRepoName}
+              setSyncAdvancedRepoName={setSyncAdvancedRepoName}
+              syncAdvancedPrivate={syncAdvancedPrivate}
+              setSyncAdvancedPrivate={setSyncAdvancedPrivate}
+              syncAdvancedUrl={syncAdvancedUrl}
+              setSyncAdvancedUrl={setSyncAdvancedUrl}
+              onActivateSync={handleActivateSync}
+              gitLabel={gitLabel}
+              setGitLabel={setGitLabel}
+              onConnectGitAccount={handleConnectGitAccount}
+              onUnregister={handleUnregister}
+              syncError={syncError}
+              onNavigateToAccount={() => setTab('account')}
+            />
           )}
 
           {/* ── Account tab ── */}
           {tab === 'account' && (
-            <div className="sm-section-list">
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Conta Cafezin</h3>
-
-                {syncStatus === 'checking' && (
-                  <div className="sm-sync-status">Conectando…</div>
-                )}
-
-                {syncStatus === 'connected' && (
-                  <div className="sm-sync-connected">
-                    <div className="sm-sync-connected-info">
-                      <span className="sm-sync-dot" />
-                      <span>Conectado{syncUser ? ` como ${syncUser}` : ''}</span>
-                    </div>
-                    <button className="sm-sync-disconnect" onClick={() => void handleSignOut()}>
-                      Sair
-                    </button>
-                  </div>
-                )}
-
-                {syncStatus === 'not_connected' && (
-                  <div className="sm-sync-pat-form">
-                    <p className="sm-section-desc" style={{ marginTop: 0 }}>
-                      Entre com e-mail e senha para ativar o Premium e sincronizar seus workspaces.
-                    </p>
-                    <div className="sm-sync-auth-tabs">
-                      <button
-                        className={`sm-sync-auth-tab ${authMode === 'login' ? 'active' : ''}`}
-                        onClick={() => { setAuthMode('login'); setSyncError(null) }}
-                      >Entrar</button>
-                      <button
-                        className={`sm-sync-auth-tab ${authMode === 'signup' ? 'active' : ''}`}
-                        onClick={() => { setAuthMode('signup'); setSyncError(null) }}
-                      >Criar conta</button>
-                    </div>
-                    <input
-                      className="sm-input"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') void handleAuth() }}
-                    />
-                    <input
-                      className="sm-input"
-                      type="password"
-                      placeholder="Senha"
-                      value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') void handleAuth() }}
-                      style={{ marginTop: 6 }}
-                    />
-                    <button
-                      className="sm-sync-btn sm-save-btn"
-                      onClick={() => void handleAuth()}
-                      disabled={authBusy || !emailInput.trim() || !passwordInput.trim()}
-                      style={{ marginTop: 8 }}
-                    >
-                      {authBusy ? 'Aguarde…' : authMode === 'login' ? 'Entrar' : 'Criar conta'}
-                    </button>
-                    {syncError && <p className="sm-sync-error">{syncError}</p>}
-                  </div>
-                )}
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Plano</h3>
-
-                {accountLoading ? (
-                  <p className="sm-section-desc">Verificando plano…</p>
-                ) : (
-                  <>
-                    <div className="sm-row">
-                      <div className="sm-row-label">
-                        <span>Status atual</span>
-                        <span className="sm-row-desc">
-                          {account.authenticated ? account.plan === 'premium' ? 'Premium ativo' : 'Plano gratuito' : 'Não autenticado'}
-                        </span>
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          letterSpacing: '0.04em',
-                          textTransform: 'uppercase',
-                          padding: '2px 8px',
-                          borderRadius: 4,
-                          background: account.isPremium ? 'rgba(var(--yellow-rgb,212,169,106),0.15)' : 'var(--surface2)',
-                          color: account.isPremium ? 'var(--yellow, #d4a96a)' : 'var(--text-muted)',
-                          border: `1px solid ${account.isPremium ? 'rgba(var(--yellow-rgb,212,169,106),0.35)' : 'var(--border)'}`,
-                        }}
-                      >
-                        {account.isPremium ? 'Premium' : 'Free'}
-                      </span>
-                    </div>
-
-                    {account.isPremium && account.currentPeriodEnd && (
-                      <div className="sm-row">
-                        <div className="sm-row-label">
-                          <span>Renova em</span>
-                          <span className="sm-row-desc">
-                            {new Date(account.currentPeriodEnd).toLocaleDateString(billingLocale)}
-                            {account.cancelAtPeriodEnd && ' (cancelamento agendado)'}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="sm-row">
-                      <button
-                        className="sm-save-btn"
-                        style={{ marginLeft: 'auto' }}
-                        onClick={() => void refreshAccount()}
-                        disabled={accountLoading}
-                      >
-                        Atualizar status
-                      </button>
-                    </div>
-
-                    {account.isPremium ? (
-                      <div style={{ marginTop: 12 }}>
-                        <button
-                          className="sm-save-btn"
-                          onClick={() => void handleOpenCustomerPortal()}
-                          disabled={billingBusy !== null}
-                        >
-                          {billingBusy === 'portal' ? 'Abrindo portal…' : 'Gerenciar assinatura ↗'}
-                        </button>
-                      </div>
-                    ) : account.authenticated ? (
-                      <div style={{ marginTop: 12 }}>
-                        <button
-                          className="sm-save-btn"
-                          onClick={() => void handleOpenCheckout()}
-                          disabled={billingBusy !== null}
-                        >
-                          {billingBusy === 'checkout' ? 'Abrindo checkout…' : 'Assinar Premium ↗'}
-                        </button>
-                      </div>
-                    ) : null}
-
-                    {!account.isPremium && (
-                      <div style={{ marginTop: 12 }}>
-                        <a
-                          href={premiumPageUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="sm-save-btn"
-                          style={{ display: 'inline-block', textDecoration: 'none', cursor: 'pointer' }}
-                        >
-                          Ver planos Premium ↗
-                        </a>
-                      </div>
-                    )}
-                  </>
-                )}
-              </section>
-
-              <section className="sm-section">
-                <h3 className="sm-section-title">Suas chaves de API (BYOK)</h3>
-                <p className="sm-section-desc">
-                  Com o plano Premium, você usa sua própria chave de API.
-                  Nenhum custo extra de uso nos pagamentos do Cafezin.
-                  Configure suas chaves na aba <strong>IA</strong>.
-                  Pegue sua chave no provedor:
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-                  {[
-                    { name: 'GitHub Copilot', url: 'https://github.com/settings/copilot' },
-                    { name: 'OpenAI',         url: 'https://platform.openai.com/api-keys' },
-                    { name: 'Anthropic',      url: 'https://console.anthropic.com/settings/keys' },
-                    { name: 'Groq',           url: 'https://console.groq.com/keys' },
-                  ].map((p) => (
-                    <a
-                      key={p.name}
-                      href={p.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ color: 'var(--accent)', fontSize: 13 }}
-                    >
-                      {p.name} ↗
-                    </a>
-                  ))}
-                </div>
-              </section>
-
-            </div>
+            <AccountTab
+              syncStatus={syncStatus}
+              syncUser={syncUser}
+              onSignOut={handleSignOut}
+              emailInput={emailInput}
+              setEmailInput={setEmailInput}
+              passwordInput={passwordInput}
+              setPasswordInput={setPasswordInput}
+              authMode={authMode}
+              setAuthMode={setAuthMode}
+              authBusy={authBusy}
+              onAuth={handleAuth}
+              syncError={syncError}
+              setSyncError={setSyncError}
+              account={account}
+              accountLoading={accountLoading}
+              onRefreshAccount={refreshAccount}
+              billingLocale={billingLocale}
+              premiumPageUrl={premiumPageUrl}
+              billingBusy={billingBusy}
+              onOpenCheckout={handleOpenCheckout}
+              onOpenCustomerPortal={handleOpenCustomerPortal}
+            />
           )}
 
         </div>

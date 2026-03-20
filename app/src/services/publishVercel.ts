@@ -12,6 +12,7 @@
  */
 
 import { readDir, readFile } from './fs';
+import { SK } from './storageKeys';
 
 const VERCEL_API = 'https://api.vercel.com';
 
@@ -178,7 +179,7 @@ export async function deployToVercel(opts: VercelDeployOptions): Promise<VercelD
 
 /** Read Vercel token: workspace override first, then global localStorage key. */
 export function resolveVercelToken(workspaceToken?: string): string {
-  return workspaceToken?.trim() || localStorage.getItem('cafezin-vercel-token') || '';
+  return workspaceToken?.trim() || localStorage.getItem(SK.VERCEL_TOKEN) || '';
 }
 
 // ── Demo Hub ─────────────────────────────────────────────────────────────────

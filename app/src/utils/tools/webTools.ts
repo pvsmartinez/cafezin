@@ -10,6 +10,7 @@ import { deployToVercel, pollDeployment, resolveVercelToken } from '../../servic
 import { writeTextFile, mkdir, exists } from '../../services/fs';
 import { safeResolvePath } from './shared';
 import type { ToolDefinition, DomainExecutor } from './shared';
+import { SK } from '../../services/storageKeys';
 
 // ── Tool definitions ─────────────────────────────────────────────────────────
 
@@ -316,7 +317,7 @@ export const executeWebTools: DomainExecutor = async (name, args, ctx) => {
 
       // ── Pexels (stock photos) ──────────────────────────────────────────
       const pexelsKey = typeof window !== 'undefined'
-        ? (window.localStorage.getItem('cafezin_pexels_key') ?? '')
+        ? (window.localStorage.getItem(SK.PEXELS_KEY) ?? '')
         : '';
 
       if (!pexelsKey) {
@@ -471,7 +472,7 @@ export const executeWebTools: DomainExecutor = async (name, args, ctx) => {
       if (action === 'set_token') {
         const tok = String(args.token ?? '').trim();
         if (!tok) return 'Error: token is required for set_token.';
-        localStorage.setItem('cafezin-vercel-token', tok);
+        localStorage.setItem(SK.VERCEL_TOKEN, tok);
         return 'Vercel API token saved. Future deploys in this browser will use it automatically.';
       }
 

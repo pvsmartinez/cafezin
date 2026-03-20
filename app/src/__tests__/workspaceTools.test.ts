@@ -21,13 +21,13 @@ function makeExecutor(
     onCanvasModified?: (ids: string[]) => void;
   } = {},
 ) {
-  return buildToolExecutor(
-    WS_PATH,
-    { current: editorOverride },
-    callbacks.onFileWritten,
-    callbacks.onMarkRecorded,
-    callbacks.onCanvasModified,
-  );
+  return buildToolExecutor({
+    workspacePath: WS_PATH,
+    canvasEditor: { current: editorOverride },
+    onFileWritten: callbacks.onFileWritten,
+    onMarkRecorded: callbacks.onMarkRecorded,
+    onCanvasModified: callbacks.onCanvasModified,
+  });
 }
 
 beforeEach(() => {

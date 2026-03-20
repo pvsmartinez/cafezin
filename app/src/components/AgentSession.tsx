@@ -144,7 +144,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   const [pendingSelectionContext, setPendingSelectionContext] = useState<AISelectionContext | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   // true  → user is at the bottom → keep auto-scrolling during streaming
   // false → user scrolled up to read → freeze scroll
@@ -309,15 +308,27 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     }
     setTimeout(() => {
       isPinnedToBottom.current = true;
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const el = messagesContainerRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     }, 100);
   }
 
   useEffect(() => {
     if (isPinnedToBottom.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      // Use instant scroll during streaming (liveItems change every chunk —
+      // queuing hundreds of smooth animations causes scroll jank and leaks
+      // into the editor's scroll container via WKWebView momentum).
+      const isStreaming = stream.isStreaming;
+      const el = messagesContainerRef.current;
+      if (el) {
+        if (isStreaming) {
+          el.scrollTop = el.scrollHeight;
+        } else {
+          el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+        }
+      }
     }
-  }, [session.messages, stream.liveItems]);
+  }, [session.messages, stream.liveItems, stream.isStreaming]);
 
   // Flash the panel when streaming finishes
   const prevStreamingRef = useRef(false);
@@ -723,7 +734,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             >Copy logs</button>
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Continue button */}

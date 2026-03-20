@@ -14,6 +14,7 @@ import { deployToVercel, resolveVercelToken } from '../services/publishVercel';
 import { saveWorkspaceConfig } from '../services/workspace';
 import type { Workspace, ExportTarget, ExportFormat, WorkspaceExportConfig } from '../types';
 import type { Editor } from 'tldraw';
+import { SK } from '../services/storageKeys';
 import './ExportModal.css';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -112,7 +113,7 @@ export default function ExportModal({
   const [fileCounts, setFileCounts] = useState<Map<string, number>>(new Map());
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [aiHelperDismissed, setAiHelperDismissed] = useState(
-    () => localStorage.getItem('cafezin:em:aihelper') === '1',
+    () => localStorage.getItem(SK.EXPORT_MODAL_AI_HELPER) === '1',
   );
 
   function getAIPrompt(): string {
@@ -854,7 +855,7 @@ export default function ExportModal({
               className="em-ai-banner-dismiss"
               title="Dispensar"
               onClick={() => {
-                localStorage.setItem('cafezin:em:aihelper', '1');
+                localStorage.setItem(SK.EXPORT_MODAL_AI_HELPER, '1');
                 setAiHelperDismissed(true);
               }}
             >

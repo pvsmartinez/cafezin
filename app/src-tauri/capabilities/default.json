@@ -18,7 +18,13 @@
       { "url": "https://api.duckduckgo.com/**" },
       { "url": "https://api.pexels.com/**" },
       { "url": "https://images.pexels.com/**" },
-      { "url": "https://api.groq.com/**" }
+      { "url": "https://api.groq.com/**" },
+      { "url": "https://*.supabase.co/**" },
+      { "url": "https://api.openai.com/**" },
+      { "url": "https://api.anthropic.com/**" },
+      { "url": "https://generativelanguage.googleapis.com/**" },
+      { "url": "https://api.iconify.design/**" },
+      { "url": "https://**" }
     ] },
     { "identifier": "http:allow-fetch-send", "allow": [
       { "url": "https://api.githubcopilot.com/**" },
@@ -28,7 +34,13 @@
       { "url": "https://api.duckduckgo.com/**" },
       { "url": "https://api.pexels.com/**" },
       { "url": "https://images.pexels.com/**" },
-      { "url": "https://api.groq.com/**" }
+      { "url": "https://api.groq.com/**" },
+      { "url": "https://*.supabase.co/**" },
+      { "url": "https://api.openai.com/**" },
+      { "url": "https://api.anthropic.com/**" },
+      { "url": "https://generativelanguage.googleapis.com/**" },
+      { "url": "https://api.iconify.design/**" },
+      { "url": "https://**" }
     ] },
     { "identifier": "http:allow-fetch-read-body", "allow": [
       { "url": "https://api.githubcopilot.com/**" },
@@ -38,7 +50,13 @@
       { "url": "https://api.duckduckgo.com/**" },
       { "url": "https://api.pexels.com/**" },
       { "url": "https://images.pexels.com/**" },
-      { "url": "https://api.groq.com/**" }
+      { "url": "https://api.groq.com/**" },
+      { "url": "https://*.supabase.co/**" },
+      { "url": "https://api.openai.com/**" },
+      { "url": "https://api.anthropic.com/**" },
+      { "url": "https://generativelanguage.googleapis.com/**" },
+      { "url": "https://api.iconify.design/**" },
+      { "url": "https://**" }
     ] },
     { "identifier": "fs:allow-read-text-file",  "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/**/.*" }, { "path": "$HOME/**/.*/**" }] },
     { "identifier": "fs:allow-read-file",        "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/**/.*" }, { "path": "$HOME/**/.*/**" }] },

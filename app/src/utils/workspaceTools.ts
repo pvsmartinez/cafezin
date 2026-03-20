@@ -7,20 +7,25 @@
  *   utils/tools/webTools.ts     - web_search, search_images, fetch_url, run_command, publish_vercel
  *   utils/tools/configTools.ts  - export_workspace, configure_export_targets, configure_workspace, remember, ask_user
  *
- * Public API is unchanged: WORKSPACE_TOOLS, getWorkspaceTools, buildToolExecutor, ToolDefinition, ToolExecutor.
+ * Public API is unchanged: WORKSPACE_TOOLS, getWorkspaceTools, buildToolExecutor, ToolDefinition, ToolExecutor, AgentToolContext.
  */
 
-import type { Editor } from 'tldraw';
 import { FILE_TOOL_DEFS, executeFileTools } from './tools/fileTools';
 import { CANVAS_TOOL_DEFS, executeCanvasTools } from './tools/canvasTools';
 import { WEB_TOOL_DEFS, executeWebTools } from './tools/webTools';
 import { CONFIG_TOOL_DEFS, executeConfigTools } from './tools/configTools';
 import { TASK_TOOL_DEFS, executeTaskTools } from './tools/taskTools';
-import type { AIRecordedTextMark, Workspace, WorkspaceConfig, WorkspaceExportConfig } from '../types';
+import type { Workspace, WorkspaceExportConfig } from '../types';
 import { isToolEnabledByWorkspace } from './agentCapabilities';
 
 // Re-export types so existing importers do not break
 export type { ToolDefinition, ToolExecutor } from './tools/shared';
+
+/**
+ * Context object passed to `buildToolExecutor`.
+ * Re-exported from the internal ToolContext for ease of use at call sites.
+ */
+export type { ToolContext as AgentToolContext } from './tools/shared';
 
 // Aggregated tool list
 export const WORKSPACE_TOOLS = [
@@ -42,50 +47,23 @@ export function getWorkspaceTools(
   });
 }
 
-// Aggregated executor factory - same signature as before
-export function buildToolExecutor(
-  workspacePath: string,
-  canvasEditor: { current: Editor | null },
-  onFileWritten?: (path: string) => void,
-  onMarkRecorded?: (relPath: string, content: string, recordedMarks?: AIRecordedTextMark[]) => void,
-  onCanvasModified?: (shapeIds: string[]) => void,
-  activeFile?: string,
-  workspaceExportConfig?: WorkspaceExportConfig,
-  onExportConfigChange?: (config: WorkspaceExportConfig) => void,
-  onMemoryWritten?: (newContent: string) => void,
-  webPreviewRef?: { current: { getScreenshot: () => Promise<string | null> } | null },
-  onAskUser?: (question: string, options?: string[]) => Promise<string>,
-  getActiveHtml?: () => { html: string; absPath: string } | null,
-  workspaceConfig?: WorkspaceConfig,
-  onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void,
-  agentId?: string,
-  /** Current in-memory content of the active file. Used by patch tools to
-   *  base edits on unsaved editor content rather than stale disk content. */
-  activeFileContent?: string,
-  onUserProfileWritten?: (newContent: string) => void,
-  onTaskChanged?: () => void,
-) {
-  const ctx = {
-    workspacePath,
-    canvasEditor,
-    activeFile,
-    workspaceExportConfig,
-    workspaceConfig,
-    webPreviewRef,
-    onFileWritten,
-    onMarkRecorded,
-    onCanvasModified,
-    onMemoryWritten,
-    onUserProfileWritten,
-    onExportConfigChange,
-    onWorkspaceConfigChange,
-    onAskUser,
-    getActiveHtml,
-    agentId,
-    activeFileContent,
-    onTaskChanged,
-  };
-
+/**
+ * Build a tool executor from a context object.
+ *
+ * Pass an `AgentToolContext` (same shape as `ToolContext`) instead of 19
+ * positional arguments.  Only `workspacePath` and `canvasEditor` are required;
+ * all callbacks are optional.
+ *
+ * @example
+ * const executor = buildToolExecutor({
+ *   workspacePath: workspace.path,
+ *   canvasEditor: canvasEditorRef,
+ *   onFileWritten,
+ *   activeFile,
+ *   // ...only the fields you need
+ * });
+ */
+export function buildToolExecutor(ctx: import('./tools/shared').ToolContext) {
   const domains = [executeFileTools, executeCanvasTools, executeWebTools, executeConfigTools, executeTaskTools];
 
   return async (name: string, args: Record<string, unknown>): Promise<string> => {

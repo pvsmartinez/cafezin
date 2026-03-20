@@ -10,6 +10,7 @@
 
 import type { AIProviderType } from '../aiProvider';
 import type { CopilotModelInfo } from '../../types';
+import { SK } from '../storageKeys';
 
 export interface ProviderModelInfo {
   id: string;
@@ -118,7 +119,7 @@ export function getProviderModelsForPicker(
   provider: Exclude<AIProviderType, 'copilot'>,
 ): CopilotModelInfo[] {
   if (provider === 'custom') {
-    const modelId = localStorage.getItem('cafezin-ai-model-custom') ?? '';
+    const modelId = localStorage.getItem(SK.AI_MODEL_CUSTOM) ?? '';
     if (!modelId) return [];
     return [{
       id: modelId,

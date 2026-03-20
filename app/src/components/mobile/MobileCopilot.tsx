@@ -337,11 +337,11 @@ export default function MobileCopilot({
 
     if (workspace) {
       // Full agent loop with workspace tools (canvas + shell blocked on mobile)
-      const executor = buildToolExecutor(
-        workspace.path,
-        { current: null }, // no canvas on mobile
+      const executor = buildToolExecutor({
+        workspacePath: workspace.path,
+        canvasEditor: { current: null }, // no canvas on mobile
         onFileWritten,
-      );
+      });
       await runCopilotAgent(
         apiMessages,
         mobileTools,

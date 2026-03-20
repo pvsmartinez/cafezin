@@ -1,39 +1,20 @@
-import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
-import { openUrl } from '@tauri-apps/plugin-opener';
 import { copyFile, writeFile as writeBinaryFile, mkdir, exists, readDir } from './services/fs';
-import Editor from './components/Editor';
 import type { EditorHandle } from './components/Editor';
 import AIPanel from './components/AIPanel';
 import type { AIPanelHandle, PendingVoiceMemo } from './components/AIPanel';
-import { CanvasErrorBoundary } from './components/CanvasErrorBoundary';
-import { EditorErrorBoundary } from './components/EditorErrorBoundary';
 import WorkspacePicker from './components/WorkspacePicker';
 import SplashScreen from './components/SplashScreen';
-import WorkspaceHome from './components/WorkspaceHome';
 import Sidebar from './components/Sidebar';
-import MarkdownPreview from './components/MarkdownPreview';
-import WebPreview, { type WebPreviewHandle } from './components/WebPreview';
-import PDFViewer from './components/PDFViewer';
-import MediaViewer from './components/MediaViewer';
-import SpreadsheetViewer from './components/SpreadsheetViewer';
+import type { WebPreviewHandle } from './components/WebPreview';
 import UpdateModal from './components/UpdateModal';
 import UpdateReleaseModal from './components/UpdateReleaseModal';
-import ForceUpdateModal from './components/ForceUpdateModal';
-import MobilePendingModal from './components/MobilePendingModal';
-import DesktopOnboardingModal from './components/DesktopOnboardingModal';
 import { loadPendingTasks } from './services/mobilePendingTasks';
 import type { MobilePendingTask } from './services/mobilePendingTasks';
-import SettingsModal from './components/SettingsModal';
-import ExportModal from './components/ExportModal';
-import ImageSearchPanel from './components/ImageSearchPanel';
-import FindReplaceBar from './components/FindReplaceBar';
-import AIMarkOverlay from './components/AIMarkOverlay';
-import { List, House, Sparkle, ArrowCircleUp, X } from '@phosphor-icons/react';
 
-import TabBar from './components/TabBar';
 import BottomPanel, { type FileMeta } from './components/BottomPanel';
 import { useDragResize } from './hooks/useDragResize';
 import { syncSecretsFromCloud } from './services/apiSecrets';
@@ -44,7 +25,6 @@ import { useAutosave } from './hooks/useAutosave';
 import { useFileWatcher } from './hooks/useFileWatcher';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import type { TLShapeId } from 'tldraw';
-const CanvasEditor = lazy(() => import('./components/CanvasEditor'));
 import { canvasAIContext } from './utils/canvasAI';
 import { registerCanvasTabControls, getCanvasEditor } from './utils/canvasRegistry';
 import { exportMarkdownToPDF } from './utils/exportPDF';
@@ -64,42 +44,27 @@ import { fetchGhostCompletion } from './services/copilot';
 import { loadWorkspaceSession, saveWorkspaceSession } from './services/workspaceSession';
 import { getFileTypeInfo } from './utils/fileType';
 import type { AISelectionContext, Workspace, AppSettings, WorkspaceExportConfig, WorkspaceConfig } from './types';
-import { DEFAULT_APP_SETTINGS, APP_SETTINGS_KEY } from './types';
+import { APP_SETTINGS_KEY } from './types';
 import { setupI18n } from './i18n';
 import { useBacklinks } from './hooks/useBacklinks';
 import { useModals } from './hooks/useModals';
 import { useCanvasState } from './hooks/useCanvasState';
 import { useAIMarks } from './hooks/useAIMarks';
+import { useDesktopPrompts } from './hooks/useDesktopPrompts';
+import { loadAppSettings, useAppShellState } from './hooks/useAppShellState';
+import { useForceUpdateCheck } from './hooks/useForceUpdateCheck';
 import { useTsDiagnostics } from './hooks/useTsDiagnostics';
 import { useProactiveNudge } from './hooks/useProactiveNudge';
-import NudgeToast from './components/NudgeToast';
-import BacklinksPanel from './components/BacklinksPanel';
-import { useTranslation } from 'react-i18next';
+import { AppOverlays } from './components/app/AppOverlays';
+import { AppHeader } from './components/app/AppHeader';
+import { AppEditorArea } from './components/app/AppEditorArea';
 import './App.css';
-
-function loadAppSettings(): AppSettings {
-  try {
-    const saved = localStorage.getItem(APP_SETTINGS_KEY);
-    if (saved) return { ...DEFAULT_APP_SETTINGS, ...JSON.parse(saved) };
-  } catch { /* ignore */ }
-  return DEFAULT_APP_SETTINGS;
-}
 
 // Eagerly init i18n before first render so translated strings show immediately
 setupI18n(loadAppSettings().locale);
 
-const FORCE_UPDATE_URL = 'https://raw.githubusercontent.com/pvsmartinez/cafezin/main/update/latest.json';
-const UPDATE_SUGGESTION_KEY = 'cafezin-last-suggested-update-version';
-const UPDATE_TOAST_DISMISSED_KEY = 'cafezin-update-toast-dismissed';
-const DESKTOP_ONBOARDING_KEY = 'cafezin-desktop-onboarding-v1-seen';
-const LEGACY_SYNC_PROMPT_KEY = 'cafezin-sync-onboarding-skipped';
-
 /** True when running inside a Tauri WebView (not a plain browser). */
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-
-function getSystemTheme(): 'dark' | 'light' {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
 
 /** Returns negative if a < b, 0 if equal, positive if a > b */
 function compareVersions(a: string, b: string): number {
@@ -115,21 +80,35 @@ function compareVersions(a: string, b: string): number {
 const FALLBACK_CONTENT = `# Untitled Document\n\nStart writing here…\n`;
 
 export default function App() {
-  const { t } = useTranslation();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
-
-  // Read localStorage exactly once at mount — all useState/useRef initializers share this.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const initSettings = useMemo(loadAppSettings, []);
-
-  // Splash screen — visible for ~700ms on first load, then fades out
-  const [splash, setSplash] = useState(true);
-  const [splashVisible, setSplashVisible] = useState(true);
-  useEffect(() => {
-    const t1 = setTimeout(() => setSplashVisible(false), 700);
-    const t2 = setTimeout(() => setSplash(false), 1060);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
+  const {
+    initSettings,
+    splash,
+    splashVisible,
+    appSettings,
+    setAppSettings,
+    resolvedTheme,
+    isDarkTheme,
+    sidebarMode,
+    setSidebarMode,
+    sidebarOpen,
+    setSidebarOpen,
+    homeVisible,
+    setHomeVisible,
+    terminalOpen,
+    setTerminalOpen,
+    terminalHeight,
+    setTerminalHeight,
+    terminalRequestCd,
+    setTerminalRequestCd,
+    terminalRequestRun,
+    setTerminalRequestRun,
+    focusMode,
+    setFocusMode,
+  } = useAppShellState();
+  const { forceUpdateOpen, forceUpdateRequired, forceUpdateChannel } = useForceUpdateCheck(
+    compareVersions,
+  );
 
   // Mark component as unmounted so async polls (e.g. export canvas mount check) can bail out
   useEffect(() => {
@@ -141,32 +120,6 @@ export default function App() {
   useEffect(() => {
     document.title = workspace ? workspace.name : 'Cafezin';
   }, [workspace?.name]);
-
-  // Force-update check on startup — fetch latest.json and block if below min version
-  useEffect(() => {
-    async function checkMinVersion() {
-      try {
-        const { getVersion } = await import('@tauri-apps/api/app');
-        const [version, channel] = await Promise.all([
-          getVersion(),
-          invoke<string>('build_channel').catch(() => 'release'),
-        ]);
-        const resp = await fetch(`${FORCE_UPDATE_URL}?t=${Date.now()}`);
-        if (!resp.ok) return; // network error — let user in
-        const data = await resp.json() as { min_versions?: Record<string, string> };
-        const minVersions = data.min_versions ?? {};
-        const minVersion = minVersions[channel] ?? minVersions['release'] ?? '0.0.0';
-        if (compareVersions(version, minVersion) < 0) {
-          setForceUpdateChannel(channel);
-          setForceUpdateRequired(minVersion);
-          setForceUpdateOpen(true);
-        }
-      } catch {
-        // silently fail — never block user on network errors
-      }
-    }
-    void checkMinVersion();
-  }, []);
 
   const [isAIStreaming, setIsAIStreaming] = useState(false);
   // Always-fresh ref so Tauri menu listeners (registered with stale closure) can
@@ -195,55 +148,12 @@ export default function App() {
     return () => clearTimeout(t);
   }, [content]);
   const [fileStat, setFileStat] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings>(() => initSettings);
-  const [systemTheme, setSystemTheme] = useState<'dark' | 'light'>(() => getSystemTheme());
-  const resolvedTheme = appSettings.theme === 'system' ? systemTheme : appSettings.theme;
-  const isDarkTheme = resolvedTheme === 'dark';
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const updateTheme = (event?: MediaQueryListEvent) => {
-      setSystemTheme(event?.matches ?? mediaQuery.matches ? 'dark' : 'light');
-    };
-
-    updateTheme();
-
-    if ('addEventListener' in mediaQuery) {
-      mediaQuery.addEventListener('change', updateTheme);
-      return () => mediaQuery.removeEventListener('change', updateTheme);
-    }
-
-    const legacyMediaQuery = mediaQuery as MediaQueryList & {
-      addListener?: (listener: (event: MediaQueryListEvent) => void) => void;
-      removeListener?: (listener: (event: MediaQueryListEvent) => void) => void;
-    };
-    legacyMediaQuery.addListener?.(updateTheme);
-    return () => legacyMediaQuery.removeListener?.(updateTheme);
-  }, []);
-
-  // Sync i18n language when user changes the locale setting
-  useEffect(() => {
-    setupI18n(appSettings.locale);
-  }, [appSettings.locale]);
 
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   // Find + Replace bar (Ctrl/Cmd+F)
   // Pending jump: set by project search results; cleared after content loads
   const [pendingJumpText, setPendingJumpText] = useState<string | null>(null);
   const [pendingJumpLine, setPendingJumpLine] = useState<number | null>(null);
-  // Sidebar / panel visibility, mode and widths
-  const [sidebarMode, setSidebarMode] = useState<'explorer' | 'search'>('explorer');
-  const [sidebarOpen, setSidebarOpen] = useState(initSettings.sidebarOpenDefault);
-  /** Whether the workspace home panel is visible (can be closed to reveal empty state) */
-  const [homeVisible, setHomeVisible] = useState(true);
-  const [terminalOpen, setTerminalOpen] = useState(false);
-  const [terminalHeight, setTerminalHeight] = useState(240);
-  /** Changing this value tells BottomPanel to cd to the given absolute path. */
-  const [terminalRequestCd, setTerminalRequestCd] = useState<string | undefined>();
-  /** Changing this value tells BottomPanel to run the given shell command. Format: "cmd|timestamp" */
-  const [terminalRequestRun, setTerminalRequestRun] = useState<string | undefined>();
-  /** Distraction-free writing mode — hides header/sidebar/panels */
-  const [focusMode, setFocusMode] = useState(false);
   const [lockedFiles, setLockedFiles] = useState<Set<string>>(() => getLockedFiles());
   const prevLockedRef = useRef<Set<string>>(getLockedFiles());
 
@@ -288,14 +198,25 @@ export default function App() {
     aiOpen, setAiOpen,
     aiInitialPrompt, setAiInitialPrompt,
   } = useModals();
-  const [showUpdateReleaseModal, setShowUpdateReleaseModal] = useState(false);
-  const [updateToastVersion, setUpdateToastVersion] = useState<string | null>(null);
-  const [forceUpdateOpen, setForceUpdateOpen] = useState(false);
-  const [forceUpdateRequired, setForceUpdateRequired] = useState('');
-  const [forceUpdateChannel, setForceUpdateChannel] = useState('release');
-  const [showMobilePending, setShowMobilePending] = useState(false);
-  const [desktopOnboardingSeen, setDesktopOnboardingSeen] = useState(() => localStorage.getItem(DESKTOP_ONBOARDING_KEY) === '1');
-  const [showDesktopOnboarding, setShowDesktopOnboarding] = useState(false);
+  const {
+    showUpdateReleaseModal,
+    setShowUpdateReleaseModal,
+    updateToastVersion,
+    setUpdateToastVersion,
+    showMobilePending,
+    setShowMobilePending,
+    desktopOnboardingSeen,
+    showDesktopOnboarding,
+    handleCloseDesktopOnboarding,
+    handleOpenDesktopHelp,
+    handleContactUs,
+  } = useDesktopPrompts({
+    splash,
+    forceUpdateOpen,
+    appLocale: appSettings.locale,
+    openSettings,
+    compareVersions,
+  });
 
   // Voice memos recorded on mobile without transcripts
   const [pendingVoiceMemos, setPendingVoiceMemos] = useState<PendingVoiceMemo[]>([]);
@@ -502,49 +423,6 @@ export default function App() {
     }
   }
 
-  // Friendly update suggestion on startup for installed desktop release builds.
-  // We only prompt once per available version; force updates are handled by the
-  // separate min-version gate above.
-  useEffect(() => {
-    if (!isTauri) return;
-
-    let cancelled = false;
-
-    async function maybeSuggestReleaseUpdate() {
-      try {
-        const channel = await invoke<string>('build_channel').catch(() => 'release');
-        if (channel !== 'release') return;
-
-        const [{ check }, { getVersion }] = await Promise.all([
-          import('@tauri-apps/plugin-updater'),
-          import('@tauri-apps/api/app'),
-        ]);
-
-        const [update, currentVersion] = await Promise.all([check(), getVersion()]);
-        if (cancelled || !update?.available || !update.version) return;
-        if (compareVersions(update.version, currentVersion) <= 0) return;
-
-        // Keep backward-compat key so upgrading users don't re-see old versions
-        const lastSuggested = localStorage.getItem(UPDATE_SUGGESTION_KEY);
-        if (lastSuggested === update.version) return;
-
-        // Once-per-day gate: if user dismissed this version today, skip
-        const today = new Date().toISOString().slice(0, 10);
-        const dismissed = localStorage.getItem(UPDATE_TOAST_DISMISSED_KEY);
-        if (dismissed === `${update.version}:${today}`) return;
-
-        setTimeout(() => {
-          if (!cancelled) setUpdateToastVersion(update.version);
-        }, 1800);
-      } catch {
-        // Silent fail — update suggestion should never block normal startup
-      }
-    }
-
-    void maybeSuggestReleaseUpdate();
-    return () => { cancelled = true; };
-  }, []);
-
   // Listen for the native menu "Update Cafezin…" event
   useEffect(() => {
     if (!isTauri) return;
@@ -606,51 +484,6 @@ export default function App() {
   // On startup, silently pull any secrets already saved to Supabase.
   // No-ops when not logged in or offline.
   useEffect(() => { syncSecretsFromCloud(); }, []);
-
-  useEffect(() => {
-    if (splash || forceUpdateOpen || desktopOnboardingSeen) return;
-    setShowDesktopOnboarding(true);
-  }, [desktopOnboardingSeen, forceUpdateOpen, splash]);
-
-  const handleCloseDesktopOnboarding = useCallback(() => {
-    localStorage.setItem(DESKTOP_ONBOARDING_KEY, '1');
-    localStorage.setItem(LEGACY_SYNC_PROMPT_KEY, '1');
-    setDesktopOnboardingSeen(true);
-    setShowDesktopOnboarding(false);
-  }, []);
-
-  const handleOpenDesktopHelp = useCallback(() => {
-    setShowDesktopOnboarding(true);
-  }, []);
-
-  const handleContactUs = useCallback(() => {
-    const contactUrl = (appSettings.locale ?? 'en') === 'pt-BR'
-      ? 'https://cafezin.pmatz.com/br/contact'
-      : 'https://cafezin.pmatz.com/contact';
-    openUrl(contactUrl).catch(() => window.open(contactUrl, '_blank', 'noopener,noreferrer'));
-  }, [appSettings.locale]);
-
-  useEffect(() => {
-    if (!isTauri) return;
-    const uns = [
-      listen('menu-help-tour', () => handleOpenDesktopHelp()),
-      listen('menu-contact-us', () => handleContactUs()),
-    ];
-    return () => { uns.forEach((p) => p.then((fn) => fn()).catch(() => {})); };
-  }, [handleContactUs, handleOpenDesktopHelp]);
-
-  // First-launch sync prompt: if sync was never configured and user hasn't
-  // dismissed it, open Settings directly on the Sync tab.
-  useEffect(() => {
-    const alreadySkipped = localStorage.getItem(LEGACY_SYNC_PROMPT_KEY);
-    const alreadyConnected = localStorage.getItem('cafezin-sync-account-token');
-    if (!desktopOnboardingSeen) return;
-    if (!alreadySkipped && !alreadyConnected) {
-      // Mark as shown so we don't prompt again
-      localStorage.setItem(LEGACY_SYNC_PROMPT_KEY, '1');
-      openSettings('sync');
-    }
-  }, [desktopOnboardingSeen, openSettings]);
 
   // Apply/remove light theme class on body
   useEffect(() => {
@@ -1428,6 +1261,28 @@ export default function App() {
     setAiOpen(true);
   }
 
+  const handleViewModeChange = useCallback((mode: 'edit' | 'preview') => {
+    setViewMode(mode);
+    if (activeTabId) tabViewModeRef.current.set(activeTabId, mode);
+  }, [activeTabId, setViewMode, tabViewModeRef]);
+
+  const handleCanvasPresentModeChange = useCallback((presenting: boolean) => {
+    handleViewModeChange(presenting ? 'preview' : 'edit');
+  }, [handleViewModeChange]);
+
+  const handleRecoverCanvas = useCallback(async () => {
+    if (!workspace || !activeFile) return;
+    try {
+      const fresh = await readFile(workspace, activeFile);
+      savedContentRef.current.set(activeFile, fresh);
+      tabContentsRef.current.set(activeFile, fresh);
+      setContent(fresh);
+    } catch {
+      // Keep whatever is on disk if reload fails.
+    }
+    setCanvasResetKey((value) => value + 1);
+  }, [activeFile, savedContentRef, setContent, tabContentsRef, workspace]);
+
   return (
     <div className={`app${focusMode ? ' focus-mode' : ''}${exportLock ? ' app--exporting' : ''}`}>
       {splash && <SplashScreen visible={splashVisible} />}
@@ -1444,148 +1299,30 @@ export default function App() {
           title="Exit Zen Mode (Esc or ⌘⇧.)"
         >✕ zen</button>
       )}
-      {/* Header */}
-      <header className="app-header">
-        <div className="app-header-left">
-          {/* Sidebar toggle */}
-          <button
-            className={`app-sidebar-toggle ${sidebarOpen ? 'active' : ''}`}
-            onClick={() => setSidebarOpen((v) => !v)}
-            title={sidebarOpen ? 'Hide sidebar (⌘B)' : 'Show sidebar (⌘B)'}
-          >
-            <List weight="thin" size={18} />
-          </button>
-          <span className="app-logo">✦</span>
-          {/* Home button — deselects active tab, goes to home view */}
-          {activeFile && (
-            <button
-              className="app-home-btn"
-              onClick={() => switchToTab(null)}
-              title="Go to workspace home"
-            >
-              <House weight="thin" size={15} />
-            </button>
-          )}
-          {!activeFile && (
-            <>
-              <span className="app-title">{title}</span>
-              {workspace.config.name && (
-                <span className="app-workspace-name">{workspace.config.name}</span>
-              )}
-            </>
-          )}
-        </div>
-        <div className="app-header-right">
-          {(fileTypeInfo?.kind === 'markdown' || fileTypeInfo?.kind === 'canvas' || fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && (
-            <div className="app-view-toggle">
-              <button
-                className={`app-view-btn ${viewMode === 'edit' ? 'active' : ''}`}
-                onClick={() => { setViewMode('edit'); if (activeTabId) tabViewModeRef.current.set(activeTabId, 'edit'); }}
-                title="Edit mode (⌘⇧P to toggle)"
-              >
-                Edit
-              </button>
-              <button
-                className={`app-view-btn ${viewMode === 'preview' ? 'active' : ''}`}
-                onClick={() => { setViewMode('preview'); if (activeTabId) tabViewModeRef.current.set(activeTabId, 'preview'); }}
-                title={fileTypeInfo?.kind === 'canvas' ? 'Present — keyboard: ←→ to navigate, Esc to exit' : fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview) ? 'Preview in browser (⌘⇧P to toggle)' : 'Preview rendered markdown (⌘⇧P to toggle)'}
-              >
-                {fileTypeInfo?.kind === 'canvas' ? 'Present' : 'Preview'}
-              </button>
-            </div>
-          )}
-          {/* Open in browser — shown for HTML files */}
-          {fileTypeInfo?.kind === 'html' && activeFile && workspace && (
-            <>
-              <button
-                className="app-view-btn"
-                title="Abrir no navegador (file://)"
-                onClick={async () => {
-                  const { openUrl } = await import('@tauri-apps/plugin-opener');
-                  openUrl(`file://${workspace.path}/${activeFile}`);
-                }}
-              >
-                ⊕ Browser
-              </button>
-              {workspace.config.vercelConfig?.demoHub?.projectName && (
-                <button
-                  className="app-view-btn"
-                  title={`Abrir URL publicada: ${workspace.config.vercelConfig.demoHub.projectName}.vercel.app`}
-                  onClick={async () => {
-                    const { openUrl } = await import('@tauri-apps/plugin-opener');
-                    const base = `https://${workspace.config.vercelConfig!.demoHub!.projectName}.vercel.app`;
-                    // Map file path relative to sourceDir if configured
-                    const sourceDir = workspace.config.vercelConfig?.demoHub?.sourceDir ?? '';
-                    const relToSource = sourceDir
-                      ? activeFile.replace(new RegExp(`^${sourceDir}/?`), '')
-                      : activeFile;
-                    openUrl(`${base}/${relToSource}`);
-                  }}
-                >
-                  ⊕ Vercel
-                </button>
-              )}
-            </>
-          )}
-          {/* pandoc busy indicator — shown while export is running */}
-          {pandocBusy && (
-            <span className="app-export-pdf-btn busy">Exporting…</span>
-          )}
-          {/* Save state indicators — shown only when a saveable file is active */}
-          {activeTabId && fileTypeInfo && !['pdf','video','audio','image'].includes(fileTypeInfo.kind ?? '') && (
-            saveError ? (
-              <span
-                className="app-save-error"
-                title={t('app.saveFailedTitle', { error: saveError })}
-                onClick={handleRetrySave}
-              >
-                {t('app.saveFailedLabel')}
-              </span>
-            ) : dirtyFiles.has(activeTabId) && !savedToast ? (
-              <span className="app-unsaved" title={t('app.unsavedTitle')}>
-                {t('app.unsavedLabel')}
-              </span>
-            ) : null
-          )}
-          {savedToast && <span className="app-saved-toast">{t('app.savedLabel')}</span>}
-          {demoHubToast && (
-            <span
-              className={demoHubToast.ok ? 'app-saved-toast' : 'app-save-error'}
-              style={{ maxWidth: 360, cursor: 'pointer' }}
-              title={demoHubToast.msg}
-              onClick={() => setDemoHubToast(null)}
-            >
-              {demoHubToast.msg.length > 55 ? demoHubToast.msg.slice(0, 55) + '…' : demoHubToast.msg}
-            </span>
-          )}
-          {pandocError && (
-            <span
-              className="app-save-error"
-              title={pandocError}
-              onClick={() => setPandocError(null)}
-            >
-              ⚠ {pandocError.length > 45 ? pandocError.slice(0, 45) + '…' : pandocError}
-            </span>
-          )}
-          {import.meta.env.DEV && (
-            <button
-              className="app-devtools-btn"
-              onClick={() => invoke('open_devtools')}
-              title={t('app.openDevtoolsTitle')}
-            >
-              {t('app.devtoolsLabel')}
-            </button>
-          )}
-          <button
-            className={`app-ai-toggle ${aiOpen ? 'active' : ''}`}
-            onClick={() => setAiOpen((v) => !v)}
-            title={t('app.toggleCopilotTitle')}
-          >
-            <Sparkle weight="thin" size={16} />
-            <span>{t('app.copilotLabel')}</span>
-          </button>
-        </div>
-      </header>
+      <AppHeader
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((value) => !value)}
+        activeFile={activeFile}
+        title={title}
+        workspace={workspace}
+        onGoHome={() => switchToTab(null)}
+        fileTypeInfo={fileTypeInfo}
+        viewMode={viewMode}
+        onSetViewMode={handleViewModeChange}
+        pandocBusy={pandocBusy}
+        activeTabId={activeTabId}
+        saveError={saveError}
+        onRetrySave={handleRetrySave}
+        dirtyFiles={dirtyFiles}
+        savedToast={savedToast}
+        demoHubToast={demoHubToast}
+        onClearDemoHubToast={() => setDemoHubToast(null)}
+        pandocError={pandocError}
+        onClearPandocError={() => setPandocError(null)}
+        isDev={import.meta.env.DEV}
+        aiOpen={aiOpen}
+        onToggleAi={() => setAiOpen((value) => !value)}
+      />
 
       {/* Workspace: editor body + bottom terminal panel */}
       <div className="app-workspace">
@@ -1645,207 +1382,71 @@ export default function App() {
           </>
         )}
 
-        {/* ── Editor area ─ has position:relative for FindReplaceBar overlay ─ */}
-        <div className="editor-area" ref={editorAreaRef}>
-          {/* File tab bar belongs to the center editor column, not the whole shell */}
-          <TabBar
-            tabs={tabs}
-            activeTabId={activeTabId}
-            dirtyFiles={dirtyFiles}
-            lockedFiles={lockedFiles}
-            previewTabId={previewTabId}
-            workspacePath={workspace.path}
-            onSelect={switchToTab}
-            onClose={handleCloseTab}
-            onCloseOthers={handleCloseOthers}
-            onCloseToRight={handleCloseToRight}
-            onCloseAll={handleCloseAllTabs}
-            onPromoteTab={promoteTab}
-            onReorder={reorderTabs}
-          />
-
-          {/* Copilot lock overlay — shown while agent is writing the active file */}
-          {activeFile && lockedFiles.has(activeFile) && (
-            <div className="copilot-lock-overlay" aria-hidden>
-              <span className="copilot-lock-label">writing…</span>
-            </div>
-          )}
-          <FindReplaceBar
-            open={findReplaceOpen}
-            onClose={() => setFindReplaceOpen(false)}
-            editorRef={editorRef}
-            canvasEditor={canvasEditorRef.current}
-            fileKind={fileTypeInfo?.kind ?? null}
-          />
-
-        {/* ── Active file viewer ─ key triggers CSS fade on every file switch ── */}
-        <div key={activeFile ?? ''} className="editor-file-view">
-        <EditorErrorBoundary
+        <AppEditorArea
+          workspace={workspace}
+          aiMarks={aiMarks}
+          tabs={tabs}
+          activeTabId={activeTabId}
+          previewTabId={previewTabId}
+          dirtyFiles={dirtyFiles}
+          lockedFiles={lockedFiles}
           activeFile={activeFile}
-          onReload={handleOpenFile}
-          onClose={handleCloseTab}
-        >
-        {fileTypeInfo?.kind === 'pdf' && activeFile ? (
-          <PDFViewer
-            absPath={`${workspace.path}/${activeFile}`}
-            filename={activeFile}
-            onStat={setFileStat}
-          />
-        ) : fileTypeInfo?.kind === 'spreadsheet' && activeFile ? (
-          <SpreadsheetViewer
-            absPath={`${workspace.path}/${activeFile}`}
-            filename={activeFile}
-            onStat={setFileStat}
-            onSelectionContextChange={setAiSelectionContext}
-            aiMarks={activeFileMarks}
-            aiHighlight={aiHighlight}
-            aiNavIndex={aiNavIndex}
-            onAIPrev={handleAINavPrev}
-            onAINext={handleAINavNext}
-            onMarkReviewed={handleMarkReviewed}
-            onMarkRejected={handleMarkRejected}
-            onMarkUserEdited={handleMarkUserEdited}
-          />
-        ) : (fileTypeInfo?.kind === 'video' || fileTypeInfo?.kind === 'audio' || fileTypeInfo?.kind === 'image') && activeFile ? (
-          <MediaViewer
-            absPath={`${workspace.path}/${activeFile}`}
-            filename={activeFile}
-            kind={fileTypeInfo.kind}
-            onStat={setFileStat}
-          />
-        ) : fileTypeInfo?.kind === 'canvas' && activeFile ? (
-          <CanvasErrorBoundary
-            key={`${activeFile}-${canvasResetKey}`}
-            workspacePath={workspace.path}
-            canvasRelPath={activeFile}
-            onRecovered={async () => {
-              // Re-read file from disk (bypasses tab cache so new content loads)
-              try {
-                const fresh = await readFile(workspace, activeFile);
-                savedContentRef.current.set(activeFile, fresh);
-                tabContentsRef.current.set(activeFile, fresh);
-                setContent(fresh);
-              } catch { /* keep whatever is on disk */ }
-              setCanvasResetKey((k) => k + 1);
-            }}
-          >
-          <Suspense fallback={<div className="canvas-loading">Loading canvas…</div>}>
-          <CanvasEditor
-            key={`${activeFile}-${canvasResetKey}`}
-            content={content}
-            onChange={handleContentChange}
-            workspacePath={workspace.path}
-            onEditorReady={(tldrawEd) => { canvasEditorRef.current = tldrawEd; }}
-            onSlideCountChange={setCanvasSlideCount}
-            presentMode={viewMode === 'preview'}
-            onPresentModeChange={(presenting) => {
-              const mode = presenting ? 'preview' : 'edit';
-              setViewMode(mode);
-              if (activeTabId) tabViewModeRef.current.set(activeTabId, mode);
-            }}
-            aiMarks={activeFileMarks}
-            aiHighlight={aiHighlight}
-            aiNavIndex={aiNavIndex}
-            onAIPrev={handleAINavPrev}
-            onAINext={handleAINavNext}
-            onMarkReviewed={handleMarkReviewed}
-            onMarkRejected={handleMarkRejected}
-            onMarkUserEdited={handleMarkUserEdited}
-            rescanFramesRef={rescanFramesRef}
-            forceSaveRef={forceSaveRef}
-            darkMode={isDarkTheme}
-            onFileSaved={() => handleFileWritten(activeFile ?? '')}
-            canvasRelPath={activeFile ?? undefined}
-            onSelectionContextChange={setAiSelectionContext}
-          />
-          </Suspense>
-          </CanvasErrorBoundary>
-        ) : !activeFile && homeVisible ? (
-          <WorkspaceHome
-            workspace={workspace}
-            onOpenFile={handleOpenFile}
-            onCreateFirstFile={handleCreateFirstWorkspaceFile}
-            aiMarks={aiMarks}
-            onOpenAIReview={() => { setAiHighlight(true); setAiNavIndex(0); }}
-            onSwitchWorkspace={handleSwitchWorkspace}
-            onActivateSync={() => openSettings('sync')}
-            onClose={() => setHomeVisible(false)}
-          />
-        ) : !activeFile ? (
-          <div
-            className="ws-empty"
-            onClick={() => setHomeVisible(true)}
-            title="Abrir workspace home"
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && setHomeVisible(true)}
-          >
-            <span className="ws-empty-logo">✦</span>
-            <span className="ws-empty-name">cafezin</span>
-          </div>
-        ) : viewMode === 'preview' && fileTypeInfo?.kind === 'markdown' ? (
-          <MarkdownPreview
-            content={content}
-            onNavigate={handleOpenFile}
-            currentFilePath={activeFile ?? undefined}
-            features={workspace?.config.features}
-          />
-        ) : viewMode === 'preview' && (fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && activeFile && workspace ? (
-          <WebPreview
-            ref={webPreviewRef}
-            content={content}
-            absPath={`${workspace.path}/${activeFile}`}
-            filename={activeFile}
-            isLocked={lockedFiles.has(activeFile)}
-          />
-        ) : (
-          <Editor
-            key={activeFile ?? 'none'}
-            ref={editorRef}
-            content={content}
-            onChange={handleContentChange}
-            onAIRequest={handleAIRequest}
-            onSelectionContextChange={setAiSelectionContext}
-            aiMarks={activeFileMarks.map(m => ({ id: m.id, text: m.text }))}
-            onAIMarkEdited={handleMarkReviewed}
-            fontSize={appSettings.editorFontSize}
-            onImagePaste={handleEditorImagePaste}
-            language={fileTypeInfo?.language}
-            activeFile={activeFile ?? undefined}
-            isDark={isDarkTheme}
-            isLocked={activeFile ? lockedFiles.has(activeFile) : false}
-            onFormat={fileTypeInfo?.kind === 'code' ? handleFormat : undefined}
-            diagnostics={tsDiags.diagnostics}
-            onGhostComplete={fetchGhostCompletion}
-          />
-        )}
-        </EditorErrorBoundary>
-        </div> {/* end editor-file-view */}
-
-        {/* AI mark hover overlay — text/markdown/code editors only, edit mode only */}
-        {aiHighlight && viewMode === 'edit' && activeFileMarks.length > 0 &&
-          !['pdf', 'video', 'image', 'canvas', 'spreadsheet'].includes(fileTypeInfo?.kind ?? '') && (
-          <AIMarkOverlay
-            visible={aiHighlight}
-            marks={activeFileMarks}
-            editorRef={editorRef}
-            containerRef={editorAreaRef}
-            onReview={handleMarkReviewed}
-            onReject={handleMarkRejected}
-          />
-        )}
-
-        {/* Backlinks strip — markdown files only */}
-        {fileTypeInfo?.kind === 'markdown' && (
-          <BacklinksPanel
-            backlinks={backlinks}
-            outlinks={outlinks}
-            loading={backlinksLoading}
-            onOpen={handleOpenFile}
-          />
-        )}
-
-        </div> {/* end editor-area */}
+          fileTypeInfo={fileTypeInfo}
+          content={content}
+          viewMode={viewMode}
+          appSettings={appSettings}
+          isDarkTheme={isDarkTheme}
+          homeVisible={homeVisible}
+          findReplaceOpen={findReplaceOpen}
+          aiHighlight={aiHighlight}
+          aiNavIndex={aiNavIndex}
+          activeFileMarks={activeFileMarks}
+          onAIPrev={handleAINavPrev}
+          onAINext={handleAINavNext}
+          backlinks={backlinks}
+          outlinks={outlinks}
+          backlinksLoading={backlinksLoading}
+          canvasResetKey={canvasResetKey}
+          onSlideCountChange={setCanvasSlideCount}
+          tsDiagnostics={tsDiags.diagnostics}
+          editorRef={editorRef}
+          editorAreaRef={editorAreaRef}
+          webPreviewRef={webPreviewRef}
+          canvasEditorRef={canvasEditorRef}
+          rescanFramesRef={rescanFramesRef}
+          forceSaveRef={forceSaveRef}
+          onSelectTab={switchToTab}
+          onCloseTab={handleCloseTab}
+          onCloseOthers={handleCloseOthers}
+          onCloseToRight={handleCloseToRight}
+          onCloseAllTabs={handleCloseAllTabs}
+          onPromoteTab={promoteTab}
+          onReorderTabs={reorderTabs}
+          onSetFindReplaceOpen={setFindReplaceOpen}
+          onContentChange={handleContentChange}
+          onAIRequest={handleAIRequest}
+          onSelectionContextChange={setAiSelectionContext}
+          onMarkReviewed={handleMarkReviewed}
+          onMarkRejected={handleMarkRejected}
+          onMarkUserEdited={handleMarkUserEdited}
+          onOpenFile={handleOpenFile}
+          onCreateFirstWorkspaceFile={handleCreateFirstWorkspaceFile}
+          onOpenAIReview={() => {
+            setAiHighlight(true);
+            setAiNavIndex(0);
+          }}
+          onSwitchWorkspace={handleSwitchWorkspace}
+          onActivateSync={() => openSettings('sync')}
+          onSetHomeVisible={setHomeVisible}
+          onSetFileStat={setFileStat}
+          onRecoverCanvas={handleRecoverCanvas}
+          onCanvasEditorReady={(editor) => { canvasEditorRef.current = editor; }}
+          onCanvasPresentModeChange={handleCanvasPresentModeChange}
+          onFileSaved={() => handleFileWritten(activeFile ?? '')}
+          onFormat={handleFormat}
+          onImagePaste={handleEditorImagePaste}
+          onGhostComplete={fetchGhostCompletion}
+        />
 
 
 
@@ -1922,121 +1523,58 @@ export default function App() {
       />
       </div> {/* end app-workspace */}
 
-      <UpdateModal
-        open={showUpdateModal}
+      <AppOverlays
         projectRoot={__PROJECT_ROOT__}
-        onClose={() => setShowUpdateModal(false)}
-      />
-      <UpdateReleaseModal
-        open={showUpdateReleaseModal}
-        onClose={() => setShowUpdateReleaseModal(false)}
-      />
-      <ForceUpdateModal
-        open={forceUpdateOpen}
-        requiredVersion={forceUpdateRequired}
-        channel={forceUpdateChannel}
-        onUpdate={handleUpdate}
-      />
-
-      <MobilePendingModal
-        open={showMobilePending}
-        workspacePath={workspace.path}
-        tasks={mobilePendingTasks}
-        onExecute={handleExecutePendingTask}
-        onClose={() => setShowMobilePending(false)}
-        onTaskDeleted={(id) => setMobilePendingTasks(prev => prev.filter(t => t.id !== id))}
-      />
-
-      <SettingsModal
-        open={showSettings}
-        appSettings={appSettings}
         workspace={workspace}
+        showUpdateModal={showUpdateModal}
+        onCloseUpdateModal={() => setShowUpdateModal(false)}
+        showUpdateReleaseModal={showUpdateReleaseModal}
+        onCloseUpdateReleaseModal={() => setShowUpdateReleaseModal(false)}
+        forceUpdateOpen={forceUpdateOpen}
+        forceUpdateRequired={forceUpdateRequired}
+        forceUpdateChannel={forceUpdateChannel}
+        onUpdate={handleUpdate}
+        showMobilePending={showMobilePending}
+        mobilePendingTasks={mobilePendingTasks}
+        onExecutePendingTask={handleExecutePendingTask}
+        onCloseMobilePending={() => setShowMobilePending(false)}
+        onDeleteMobilePendingTask={(id) => setMobilePendingTasks((prev) => prev.filter((task) => task.id !== id))}
+        showSettings={showSettings}
+        appSettings={appSettings}
         onAppSettingsChange={handleAppSettingsChange}
-        onWorkspaceChange={(ws) => { setWorkspace(ws); }}
+        onWorkspaceChange={setWorkspace}
         onOpenHelp={handleOpenDesktopHelp}
         onContactUs={handleContactUs}
-        onClose={() => setShowSettings(false)}
-        initialTab={settingsInitialTab}
+        onCloseSettings={() => setShowSettings(false)}
+        settingsInitialTab={settingsInitialTab}
+        showDesktopOnboarding={showDesktopOnboarding}
+        desktopOnboardingSeen={desktopOnboardingSeen}
+        onCloseDesktopOnboarding={handleCloseDesktopOnboarding}
+        exportModalOpen={exportModalOpen}
+        canvasEditorRef={canvasEditorRef}
+        activeFile={activeFile}
+        onOpenFileForExport={handleOpenFileForExport}
+        onRestoreAfterExport={handleRestoreAfterExport}
+        onCloseExportModal={() => setExportModalOpen(false)}
+        onOpenAIFromExport={(prompt) => {
+          setExportModalOpen(false);
+          setAiInitialPrompt(prompt);
+          setAiOpen(true);
+        }}
+        imgSearchOpen={imgSearchOpen}
+        onCloseImageSearch={() => setImgSearchOpen(false)}
+        copilotOverlayActive={copilotOverlayActive}
+        activeNudge={activeNudge}
+        onAskNudge={(prompt) => {
+          dismissNudge();
+          setAiInitialPrompt(prompt);
+          setAiOpen(true);
+        }}
+        onDismissNudge={dismissNudge}
+        updateToastVersion={updateToastVersion}
+        setUpdateToastVersion={setUpdateToastVersion}
+        onOpenUpdateReleaseModal={() => setShowUpdateReleaseModal(true)}
       />
-
-      <DesktopOnboardingModal
-        open={showDesktopOnboarding}
-        locale={appSettings.locale ?? 'en'}
-        firstRun={!desktopOnboardingSeen}
-        onClose={handleCloseDesktopOnboarding}
-      />
-
-      {exportModalOpen && workspace && (
-        <ExportModal
-          workspace={workspace}
-          onWorkspaceChange={setWorkspace}
-          canvasEditorRef={canvasEditorRef}
-          activeCanvasRel={activeFile?.endsWith('.tldr.json') ? activeFile : null}
-          onOpenFileForExport={handleOpenFileForExport}
-          onRestoreAfterExport={handleRestoreAfterExport}
-          onClose={() => setExportModalOpen(false)}
-          onOpenAI={(prompt) => {
-            setExportModalOpen(false);
-            setAiInitialPrompt(prompt);
-            setAiOpen(true);
-          }}
-        />
-      )}
-
-      {imgSearchOpen && workspace && (
-        <ImageSearchPanel
-          workspace={workspace}
-          canvasEditorRef={canvasEditorRef}
-          onClose={() => setImgSearchOpen(false)}
-        />
-      )}
-
-      {copilotOverlayActive && (
-        <div className="copilot-tab-overlay" aria-live="polite">
-          <span className="copilot-lock-label">Copilot a trabalhar…</span>
-        </div>
-      )}
-
-      {activeNudge && (
-        <NudgeToast
-          text={activeNudge.text}
-          onAsk={() => {
-            dismissNudge();
-            setAiInitialPrompt(activeNudge.aiPrompt);
-            setAiOpen(true);
-          }}
-          onDismiss={dismissNudge}
-        />
-      )}
-
-      {updateToastVersion && (
-        <div className="nudge-toast nudge-toast--update">
-          <ArrowCircleUp weight="fill" className="nudge-toast-icon" />
-          <span className="nudge-toast-text">
-            Versão {updateToastVersion} disponível
-          </span>
-          <button
-            className="nudge-toast-cta"
-            onClick={() => {
-              setUpdateToastVersion(null);
-              setShowUpdateReleaseModal(true);
-            }}
-          >
-            Atualizar
-          </button>
-          <button
-            className="nudge-toast-dismiss"
-            onClick={() => {
-              const today = new Date().toISOString().slice(0, 10);
-              localStorage.setItem(UPDATE_TOAST_DISMISSED_KEY, `${updateToastVersion}:${today}`);
-              setUpdateToastVersion(null);
-            }}
-            title="Dispensar"
-          >
-            <X weight="bold" />
-          </button>
-        </div>
-      )}
 
     </div>
   );

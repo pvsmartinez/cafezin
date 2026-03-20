@@ -19,6 +19,7 @@ import {
 } from '../../services/aiProvider';
 import { saveApiSecret } from '../../services/apiSecrets';
 import { loadWorkspace } from '../../services/workspace';
+import { SK } from '../../services/storageKeys';
 
 const DEFAULT_GIT_ACCOUNT_LABEL = 'personal';
 
@@ -82,7 +83,7 @@ export default function MobileSettingsSheet({
     const provider = getActiveProvider();
     setAIProvider(provider);
     setProviderKey(provider === 'copilot' || provider === 'custom' ? '' : getProviderKey(provider));
-    setVercelToken(localStorage.getItem('cafezin-vercel-token') ?? '');
+    setVercelToken(localStorage.getItem(SK.VERCEL_TOKEN) ?? '');
     setPublishRepoName(sanitizeRepoName(workspace?.name ?? 'workspace'));
     setPublishPrivateRepo(true);
     setGitFlowState(null);
@@ -120,14 +121,14 @@ export default function MobileSettingsSheet({
   }
 
   function handleSaveProvider() {
-    localStorage.setItem('cafezin-ai-provider', aiProvider);
-    void saveApiSecret('cafezin-ai-provider', aiProvider);
+    localStorage.setItem(SK.AI_PROVIDER, aiProvider);
+    void saveApiSecret(SK.AI_PROVIDER, aiProvider);
 
     if (aiProvider === 'custom') {
       // Endpoint and model ID: localStorage only (privacy)
       setCustomEndpoint(customEndpoint.trim());
       const mid = customModelId.trim();
-      if (mid) localStorage.setItem('cafezin-ai-model-custom', mid);
+      if (mid) localStorage.setItem(SK.AI_MODEL_CUSTOM, mid);
       // API key: optional, encrypted + synced
       void saveApiSecret('cafezin-custom-key', providerKey.trim());
     } else if (aiProvider !== 'copilot') {
@@ -155,7 +156,7 @@ export default function MobileSettingsSheet({
   }
 
   function handleSaveVercelToken() {
-    void saveApiSecret('cafezin-vercel-token', vercelToken.trim());
+    void saveApiSecret(SK.VERCEL_TOKEN, vercelToken.trim());
     setSavedSection('vercel');
     setTimeout(() => setSavedSection((current) => current === 'vercel' ? null : current), 1800);
     toast({ message: 'Token da Vercel salvo.', type: 'success' });

@@ -19,11 +19,12 @@ import ToastList from './components/mobile/ToastList';
 import { useToast } from './hooks/useToast';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import './mobile.css';
+import { SK } from './services/storageKeys';
 
 type Tab = 'files' | 'copilot' | 'voice'
 
-const LAST_WS_KEY = 'mobile-last-workspace-path';
-const MOBILE_ONBOARDING_KEY = 'cafezin-mobile-onboarding-v1-seen';
+const LAST_WS_KEY          = SK.MOBILE_LAST_WS;
+const MOBILE_ONBOARDING_KEY = SK.MOBILE_ONBOARDING;
 
 /**
  * Strip the config dir suffix if it was accidentally stored.

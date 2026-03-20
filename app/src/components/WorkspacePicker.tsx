@@ -17,6 +17,7 @@ import {
   type SyncDeviceFlowState,
 } from '../services/syncConfig';
 import type { Workspace, RecentWorkspace } from '../types';
+import { SK } from '../services/storageKeys';
 import './WorkspacePicker.css';
 import { timeAgo } from '../utils/timeAgo';
 
@@ -197,7 +198,7 @@ export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
                 : r
             );
             // Persist backfilled data to localStorage — slice to cap size
-            localStorage.setItem('cafezin-recent-workspaces', JSON.stringify(next.slice(0, 20)));
+            localStorage.setItem(SK.RECENT_WORKSPACES, JSON.stringify(next.slice(0, 20)));
             return next;
           });
         });
@@ -318,7 +319,7 @@ export default function WorkspacePicker({ onOpen }: WorkspacePickerProps) {
       const next = prev.map((r) =>
         r.path === path ? { ...r, hasGit: true, gitRemote } : r,
       );
-      localStorage.setItem('cafezin-recent-workspaces', JSON.stringify(next.slice(0, 20)));
+      localStorage.setItem(SK.RECENT_WORKSPACES, JSON.stringify(next.slice(0, 20)));
       return next;
     });
   }

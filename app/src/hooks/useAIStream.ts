@@ -351,12 +351,13 @@ export function useAIStream({
     })();
 
     if (workspace) {
-      const rawExecutor = buildToolExecutor(
-        workspace.path,
-        canvasEditorRef ?? { current: null },
+      const rawExecutor = buildToolExecutor({
+        workspacePath: workspace.path,
+        canvasEditor: canvasEditorRef ?? { current: null },
         onFileWritten,
-        (relPath, content, recordedMarks) => onMarkRecorded?.(relPath, content, model, recordedMarks),
-        (shapeIds) => {
+        onMarkRecorded: (relPath, content, recordedMarks) =>
+          onMarkRecorded?.(relPath, content, model, recordedMarks),
+        onCanvasModified: (shapeIds) => {
           if (shapeIds.length > 0 && activeFile) {
             onCanvasMarkRecorded?.(activeFile, shapeIds, model);
           }
@@ -365,17 +366,17 @@ export function useAIStream({
         activeFile,
         workspaceExportConfig,
         onExportConfigChange,
-        setMemoryContent,
-        webPreviewRef as { current: { getScreenshot: () => Promise<string | null> } | null } | undefined,
+        onMemoryWritten: setMemoryContent,
+        webPreviewRef: webPreviewRef as { current: { getScreenshot: () => Promise<string | null> } | null } | undefined,
         onAskUser,
         getActiveHtml,
         workspaceConfig,
         onWorkspaceConfigChange,
         agentId,
         activeFileContent,
-        setUserProfileContent,
+        onUserProfileWritten: setUserProfileContent,
         onTaskChanged,
-      );
+      });
       const executor = applyRiskGate(rawExecutor, {
         workspaceConfig,
         onWorkspaceConfigChange,
