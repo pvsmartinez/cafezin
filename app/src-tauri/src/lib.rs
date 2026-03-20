@@ -1,13 +1,83 @@
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
+use std::collections::HashMap;
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+use std::fs::{self, File};
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+use std::path::PathBuf;
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
 use std::process::Command;
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+use std::sync::Mutex;
 // Stdio is only needed by update_app which is desktop-only
 #[cfg(not(target_os = "ios"))]
 use std::process::Stdio;
 #[cfg(desktop)]
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::Emitter;
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+use tauri::State;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tokio::io::AsyncBufReadExt;
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[derive(Default)]
+struct ShellProcessRegistry {
+    processes: Mutex<HashMap<String, ManagedShellProcess>>,
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+struct ManagedShellProcess {
+    child: std::process::Child,
+    stdout_path: PathBuf,
+    stderr_path: PathBuf,
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn ensure_shell_cwd_allowed(cwd: &str) -> Result<(), String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    if home.is_empty() || !cwd.starts_with(&home) {
+        return Err(format!("shell_run: cwd must be within $HOME (rejected: {cwd})"));
+    }
+    Ok(())
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn cap_shell_output(bytes: &[u8]) -> String {
+    let s = String::from_utf8_lossy(bytes);
+    if s.chars().count() > 8_000 {
+        format!("{}\n\n[… output truncated]", s.chars().take(8_000).collect::<String>())
+    } else {
+        s.to_string()
+    }
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn cap_text_output(text: String) -> String {
+    if text.chars().count() > 8_000 {
+        format!("{}\n\n[… output truncated]", text.chars().take(8_000).collect::<String>())
+    } else {
+        text
+    }
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn shell_process_output_paths(id: &str) -> (PathBuf, PathBuf) {
+    let base = std::env::temp_dir();
+    (
+        base.join(format!("cafezin-shell-{id}.out.log")),
+        base.join(format!("cafezin-shell-{id}.err.log")),
+    )
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn build_shell_process_id() -> String {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let salt = format!("{:?}", std::thread::current().id());
+    format!("{millis}-{}", salt.replace(['(', ')', ' '], ""))
+}
 
 
 /// Opens the webview DevTools inspector (debug builds only).
@@ -24,29 +94,125 @@ fn open_devtools(webview_window: tauri::WebviewWindow) {
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 #[tauri::command]
 fn shell_run(cmd: String, cwd: String) -> Result<serde_json::Value, String> {
-    let home = std::env::var("HOME").unwrap_or_default();
-    if home.is_empty() || !cwd.starts_with(&home) {
-        return Err(format!("shell_run: cwd must be within $HOME (rejected: {cwd})"));
-    }
+    ensure_shell_cwd_allowed(&cwd)?;
     let output = Command::new("bash")
         .args(["-c", &cmd])
         .current_dir(&cwd)
         .output()
         .map_err(|e| e.to_string())?;
 
-    let cap = |bytes: &[u8]| -> String {
-        let s = String::from_utf8_lossy(bytes);
-        if s.chars().count() > 8_000 {
-            format!("{}\n\n[… output truncated]", s.chars().take(8_000).collect::<String>())
-        } else {
-            s.to_string()
+    Ok(serde_json::json!({
+        "stdout":    cap_shell_output(&output.stdout),
+        "stderr":    cap_shell_output(&output.stderr),
+        "exit_code": output.status.code().unwrap_or(-1),
+    }))
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn shell_run_start(
+    cmd: String,
+    cwd: String,
+    registry: State<'_, ShellProcessRegistry>,
+) -> Result<serde_json::Value, String> {
+    ensure_shell_cwd_allowed(&cwd)?;
+
+    let id = build_shell_process_id();
+    let (stdout_path, stderr_path) = shell_process_output_paths(&id);
+    let stdout_file = File::create(&stdout_path).map_err(|e| e.to_string())?;
+    let stderr_file = File::create(&stderr_path).map_err(|e| e.to_string())?;
+
+    let child = Command::new("bash")
+        .args(["-c", &cmd])
+        .current_dir(&cwd)
+        .stdout(Stdio::from(stdout_file))
+        .stderr(Stdio::from(stderr_file))
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    registry
+        .processes
+        .lock()
+        .map_err(|_| "shell_run_start: process registry lock poisoned".to_string())?
+        .insert(
+            id.clone(),
+            ManagedShellProcess {
+                child,
+                stdout_path,
+                stderr_path,
+            },
+        );
+
+    Ok(serde_json::json!({ "id": id }))
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn shell_run_status(
+    id: String,
+    registry: State<'_, ShellProcessRegistry>,
+) -> Result<serde_json::Value, String> {
+    let (running, exit_code, stdout_path, stderr_path, remove_after) = {
+        let mut guard = registry
+            .processes
+            .lock()
+            .map_err(|_| "shell_run_status: process registry lock poisoned".to_string())?;
+        let process = guard
+            .get_mut(&id)
+            .ok_or_else(|| format!("shell_run_status: process not found ({id})"))?;
+        let status = process.child.try_wait().map_err(|e| e.to_string())?;
+        let running = status.is_none();
+        let exit_code = status.and_then(|s| s.code()).unwrap_or(-1);
+        let stdout_path = process.stdout_path.clone();
+        let stderr_path = process.stderr_path.clone();
+        if !running {
+            let _ = guard.remove(&id);
         }
+        (running, exit_code, stdout_path, stderr_path, !running)
     };
 
+    let stdout = fs::read_to_string(&stdout_path).unwrap_or_default();
+    let stderr = fs::read_to_string(&stderr_path).unwrap_or_default();
+
+    if remove_after {
+        let _ = fs::remove_file(&stdout_path);
+        let _ = fs::remove_file(&stderr_path);
+    }
+
     Ok(serde_json::json!({
-        "stdout":    cap(&output.stdout),
-        "stderr":    cap(&output.stderr),
-        "exit_code": output.status.code().unwrap_or(-1),
+        "running": running,
+        "stdout": cap_text_output(stdout),
+        "stderr": cap_text_output(stderr),
+        "exit_code": if running { serde_json::Value::Null } else { serde_json::json!(exit_code) }
+    }))
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn shell_run_kill(
+    id: String,
+    registry: State<'_, ShellProcessRegistry>,
+) -> Result<serde_json::Value, String> {
+    let removed = {
+        let mut guard = registry
+            .processes
+            .lock()
+            .map_err(|_| "shell_run_kill: process registry lock poisoned".to_string())?;
+        guard.remove(&id)
+    };
+
+    let mut process = removed.ok_or_else(|| format!("shell_run_kill: process not found ({id})"))?;
+    let _ = process.child.kill();
+    let _ = process.child.wait();
+    let stdout = fs::read_to_string(&process.stdout_path).unwrap_or_default();
+    let stderr = fs::read_to_string(&process.stderr_path).unwrap_or_default();
+    let _ = fs::remove_file(&process.stdout_path);
+    let _ = fs::remove_file(&process.stderr_path);
+
+    Ok(serde_json::json!({
+        "killed": true,
+        "stdout": cap_text_output(stdout),
+        "stderr": cap_text_output(stderr),
     }))
 }
 
@@ -55,6 +221,24 @@ fn shell_run(cmd: String, cwd: String) -> Result<serde_json::Value, String> {
 #[tauri::command]
 fn shell_run(_cmd: String, _cwd: String) -> Result<serde_json::Value, String> {
     Err("shell_run is not available in App Store / iOS builds".into())
+}
+
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn shell_run_start(_cmd: String, _cwd: String) -> Result<serde_json::Value, String> {
+    Err("shell_run_start is not available in App Store / iOS builds".into())
+}
+
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn shell_run_status(_id: String) -> Result<serde_json::Value, String> {
+    Err("shell_run_status is not available in App Store / iOS builds".into())
+}
+
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn shell_run_kill(_id: String) -> Result<serde_json::Value, String> {
+    Err("shell_run_kill is not available in App Store / iOS builds".into())
 }
 
 // ── git_cli — CLI/shell variant (dev builds, Linux, Windows) ─────────────────
@@ -1211,6 +1395,7 @@ async fn update_app(app: tauri::AppHandle, project_root: String) -> Result<(), S
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(ShellProcessRegistry::default())
         .setup(|app| {            // ── Deep link handler — OAuth callback (cafezin://auth/callback) ────
             {
                 let handle = app.handle().clone();
@@ -1346,7 +1531,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo])
+        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

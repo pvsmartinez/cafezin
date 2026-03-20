@@ -126,6 +126,46 @@ async function runShellCommand(
   });
 }
 
+async function runShellCommandCancelable(
+  wsPath: string,
+  cmd: string,
+  opts?: Pick<RunExportOptions, 'shouldCancel'>,
+): Promise<{ stdout: string; stderr: string; exit_code: number }> {
+  const started = await invoke<{ id: string }>('shell_run_start', {
+    cmd,
+    cwd: wsPath,
+  });
+
+  let cancelSent = false;
+
+  while (true) {
+    if (opts?.shouldCancel?.()) {
+      if (!cancelSent) {
+        cancelSent = true;
+        await invoke('shell_run_kill', { id: started.id }).catch(() => null);
+      }
+      throw new ExportCancelledError();
+    }
+
+    const status = await invoke<{
+      running: boolean;
+      stdout: string;
+      stderr: string;
+      exit_code: number | null;
+    }>('shell_run_status', { id: started.id });
+
+    if (!status.running) {
+      return {
+        stdout: status.stdout,
+        stderr: status.stderr,
+        exit_code: status.exit_code ?? -1,
+      };
+    }
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 250));
+  }
+}
+
 /** Strip trailing `.json` from `.tldr.json` → `.tldr` then strip that too */
 function canvasBasename(relPath: string): string {
   return stripExt(stripExt(basename(relPath)));
@@ -841,12 +881,13 @@ async function exportCustom(
         phase: 'run-command',
         detail: 'Running custom command…',
       });
-      const result = await invoke<{ stdout: string; stderr: string; exit_code: number }>(
-        'shell_run', { cmd, cwd: wsPath },
-      );
+      const result = await runShellCommandCancelable(wsPath, cmd, opts);
       if (result.exit_code !== 0) errors.push(result.stderr || `exit code ${result.exit_code}`);
       else outputs.push(target.outputDir);
-    } catch (e) { errors.push(String(e)); }
+    } catch (e) {
+      if (e instanceof ExportCancelledError) throw e;
+      errors.push(String(e));
+    }
   } else {
     for (let index = 0; index < files.length; index++) {
       throwIfCancelled(opts);
@@ -863,12 +904,13 @@ async function exportCustom(
           phase: 'run-command',
           detail: `Running custom command for ${rel}…`,
         });
-        const result = await invoke<{ stdout: string; stderr: string; exit_code: number }>(
-          'shell_run', { cmd: finalCmd, cwd: wsPath },
-        );
+        const result = await runShellCommandCancelable(wsPath, finalCmd, opts);
         if (result.exit_code !== 0) errors.push(`${rel}: ${result.stderr || `exit ${result.exit_code}`}`);
         else outputs.push(`${target.outputDir}/${outName}`);
-      } catch (e) { errors.push(`${rel}: ${e}`); }
+      } catch (e) {
+        if (e instanceof ExportCancelledError) throw e;
+        errors.push(`${rel}: ${e}`);
+      }
       await yieldToUI();
     }
   }
