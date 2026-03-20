@@ -85,22 +85,44 @@ export interface UseAIStreamParams {
 
 export function buildRetryMessages(
   newMessages: ChatMessage[],
-  partialForRetry?: string,
+  retryContext?: {
+    partialForRetry?: string;
+    errorContextForRetry?: string;
+  },
 ): ChatMessage[] {
-  const partial = partialForRetry?.trim();
-  if (!partial) return newMessages;
+  const partial = retryContext?.partialForRetry?.trim();
+  const errorContext = retryContext?.errorContextForRetry?.trim();
+  if (!partial && !errorContext) return newMessages;
 
-  const retryInstruction = [
+  const blocks = [
     '[Retry note]',
-    'Your previous response was interrupted before completion.',
-    'Continue from the partial assistant output below without restarting from the beginning.',
-    'Do not repeat text that was already written unless needed to finish the sentence cleanly.',
-    '',
-    'Partial assistant output:',
-    '---',
-    partial,
-    '---',
-  ].join('\n');
+  ];
+
+  if (errorContext) {
+    blocks.push(
+      'Your previous attempt failed. Use the error details below to avoid repeating the same mistake.',
+      '',
+      'Previous error details:',
+      '---',
+      errorContext.length > 6000 ? `${errorContext.slice(0, 6000)}\n[truncated]` : errorContext,
+      '---',
+    );
+  }
+
+  if (partial) {
+    blocks.push(
+      'Your previous response was interrupted before completion.',
+      'Continue from the partial assistant output below without restarting from the beginning.',
+      'Do not repeat text that was already written unless needed to finish the sentence cleanly.',
+      '',
+      'Partial assistant output:',
+      '---',
+      partial,
+      '---',
+    );
+  }
+
+  const retryInstruction = blocks.join('\n');
 
   const nextMessages = [...newMessages];
   const lastMessage = nextMessages[nextMessages.length - 1];
@@ -192,6 +214,8 @@ export function useAIStream({
     /** Partial assistant content captured on error — included in API context on retry
      *  so the model can continue its thread of thought. Not shown in UI. */
     partialForRetry?: string;
+    /** Diagnostic error context captured on failure so retry can avoid repeating it. */
+    errorContextForRetry?: string;
   }
   const retryPayloadRef = useRef<RetryPayload | null>(null);
 
@@ -320,6 +344,12 @@ export function useAIStream({
       if (err.message === 'NOT_AUTHENTICATED') {
         onNotAuthenticated?.();
       } else {
+        if (retryPayloadRef.current) {
+          const maybeDetail = typeof (err as Error & { detail?: unknown }).detail === 'string'
+            ? String((err as Error & { detail?: unknown }).detail).trim()
+            : '';
+          retryPayloadRef.current.errorContextForRetry = maybeDetail || err.message;
+        }
         setError(err.message);
       }
       setLiveItems([]);
@@ -572,7 +602,7 @@ export function useAIStream({
   /** Re-sends the last failed message without re-appending it to the messages array. */
   async function retryLastSend(): Promise<void> {
     if (!retryPayloadRef.current || isStreaming) return;
-    const { newMessages, messagesWithUserMsg, userMsg, partialForRetry } = retryPayloadRef.current;
+    const { newMessages, messagesWithUserMsg, userMsg, partialForRetry, errorContextForRetry } = retryPayloadRef.current;
     const runId = ++runIdRef.current;
     abortRef.current = new AbortController();
     const signal = abortRef.current.signal;
@@ -584,7 +614,7 @@ export function useAIStream({
     setMessages(messagesWithUserMsg);
     // Retry payloads must end with a user message. Claude rejects assistant prefill,
     // so we encode any partial output as continuation instructions on the last user turn.
-    const apiMessages = buildRetryMessages(newMessages, partialForRetry);
+    const apiMessages = buildRetryMessages(newMessages, { partialForRetry, errorContextForRetry });
     await _runStream(apiMessages, userMsg, runId, signal);
   }
 

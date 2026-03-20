@@ -116,7 +116,38 @@ export function resolveWorkspaceFileReference(
 function shouldSkipWorkspaceReferenceNode(node: Text): boolean {
   const parent = node.parentElement;
   if (!parent) return true;
-  return !!parent.closest('a, pre, textarea, script, style');
+  // Also skip inline <code> spans — they are handled separately by linkifyCodeSpansInHtml
+  return !!parent.closest('a, code, pre, textarea, script, style');
+}
+
+/**
+ * Wraps inline <code> elements (not inside <pre>) in an <a class="ai-file-link"> chip
+ * when their entire text content resolves to a single workspace file reference.
+ */
+function linkifyCodeSpansInHtml(
+  container: HTMLElement,
+  fileTree?: FileTreeNode[],
+  workspacePath?: string,
+): void {
+  container.querySelectorAll<HTMLElement>('code').forEach((code) => {
+    // Skip code blocks (<pre><code>) and already-linked code
+    if (code.closest('pre') || code.closest('a')) return;
+    const text = code.textContent?.trim() ?? '';
+    // Must look like a single file path: no whitespace, contains a dot extension
+    if (!text || /\s/.test(text)) return;
+    const resolved = resolveWorkspaceFileReference(text, fileTree, workspacePath);
+    if (!resolved) return;
+    const anchor = document.createElement('a');
+    anchor.href = resolved.line != null ? `${resolved.path}#L${resolved.line}` : resolved.path;
+    anchor.className = 'ai-file-link';
+    anchor.setAttribute('data-file-path', resolved.path);
+    if (resolved.line != null) anchor.setAttribute('data-line', String(resolved.line));
+    anchor.title = resolved.line != null
+      ? `Open ${resolved.path} at line ${resolved.line}`
+      : `Open ${resolved.path}`;
+    code.parentNode?.insertBefore(anchor, code);
+    anchor.appendChild(code);
+  });
 }
 
 function markExistingLocalLinks(container: HTMLElement, fileTree?: FileTreeNode[], workspacePath?: string): void {
@@ -199,6 +230,7 @@ export function linkifyWorkspaceReferencesInHtml(
   container.innerHTML = html;
 
   markExistingLocalLinks(container, fileTree, workspacePath);
+  linkifyCodeSpansInHtml(container, fileTree, workspacePath);
 
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   const textNodes: Text[] = [];

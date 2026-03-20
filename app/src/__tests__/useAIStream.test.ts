@@ -18,7 +18,7 @@ describe('buildRetryMessages', () => {
       { role: 'user', content: 'Write a summary.' },
     ];
 
-    const retryMessages = buildRetryMessages(messages, 'First paragraph already started');
+    const retryMessages = buildRetryMessages(messages, { partialForRetry: 'First paragraph already started' });
     const lastMessage = retryMessages[retryMessages.length - 1];
 
     expect(lastMessage.role).toBe('user');
@@ -39,7 +39,7 @@ describe('buildRetryMessages', () => {
       },
     ];
 
-    const retryMessages = buildRetryMessages(messages, 'The layout has a broken button');
+    const retryMessages = buildRetryMessages(messages, { partialForRetry: 'The layout has a broken button' });
     const lastMessage = retryMessages[retryMessages.length - 1];
 
     expect(lastMessage.role).toBe('user');
@@ -55,10 +55,25 @@ describe('buildRetryMessages', () => {
       { role: 'assistant', content: 'Partial response' },
     ];
 
-    const retryMessages = buildRetryMessages(messages, 'Continue here');
+    const retryMessages = buildRetryMessages(messages, { partialForRetry: 'Continue here' });
     const lastMessage = retryMessages[retryMessages.length - 1];
 
     expect(lastMessage.role).toBe('user');
     expect(String(lastMessage.content)).toContain('Continue here');
+  });
+
+  it('injects previous error details even when there is no partial assistant output', () => {
+    const messages: ChatMessage[] = [
+      { role: 'user', content: 'Fix the professor panel.' },
+    ];
+
+    const retryMessages = buildRetryMessages(messages, {
+      errorContextForRetry: 'Copilot API error 400: Invalid JSON format in tool call arguments',
+    });
+    const lastMessage = retryMessages[retryMessages.length - 1];
+
+    expect(lastMessage.role).toBe('user');
+    expect(String(lastMessage.content)).toContain('Your previous attempt failed');
+    expect(String(lastMessage.content)).toContain('Invalid JSON format in tool call arguments');
   });
 });

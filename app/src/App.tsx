@@ -60,6 +60,7 @@ import { AppOverlays } from './components/app/AppOverlays';
 import { AppHeader } from './components/app/AppHeader';
 import { AppEditorArea } from './components/app/AppEditorArea';
 import { consumeLaunchWorkspacePath, openWorkspaceWindow } from './services/windowing';
+import { formatShortcutLabel, getShortcutBindings } from './keyboardShortcuts';
 import './App.css';
 
 // Eagerly init i18n before first render so translated strings show immediately
@@ -111,6 +112,26 @@ export default function App() {
     focusMode,
     setFocusMode,
   } = useAppShellState();
+  const shortcutBindings = useMemo(
+    () => getShortcutBindings(appSettings.shortcutOverrides),
+    [appSettings.shortcutOverrides],
+  );
+  const sidebarShortcutLabel = useMemo(
+    () => formatShortcutLabel(shortcutBindings.toggleSidebar),
+    [shortcutBindings.toggleSidebar],
+  );
+  const previewShortcutLabel = useMemo(
+    () => formatShortcutLabel(shortcutBindings.togglePreview),
+    [shortcutBindings.togglePreview],
+  );
+  const terminalShortcutLabel = useMemo(
+    () => formatShortcutLabel(shortcutBindings.toggleTerminal),
+    [shortcutBindings.toggleTerminal],
+  );
+  const focusModeShortcutLabel = useMemo(
+    () => formatShortcutLabel(shortcutBindings.toggleFocusMode),
+    [shortcutBindings.toggleFocusMode],
+  );
   const { forceUpdateOpen, forceUpdateRequired, forceUpdateChannel } = useForceUpdateCheck(
     compareVersions,
   );
@@ -621,6 +642,7 @@ export default function App() {
     activeTabId,
     tabs,
     fileTypeInfo,
+    shortcutOverrides: appSettings.shortcutOverrides,
     onOpenAI:        () => { setAiInitialPrompt(''); setAiOpen(true); },
     onCloseAI:       () => setAiOpen(false),
     onCloseTab:      handleCloseTab,
@@ -661,7 +683,7 @@ export default function App() {
     onReload:        reloadActiveFile,
     onNewFile:       () => { setSidebarOpen(true); setTimeout(() => newFileRef.current?.(), 80); },
     onSwitchTab:     switchToTab,
-    onToggleFind:    () => setFindReplaceOpen((v: boolean) => !v),
+    onToggleFind:    () => setFindReplaceOpen(true),
     onGlobalSearch:  () => { setSidebarOpen(true); setSidebarMode('search'); },
     onTogglePreview: () => {
       if (fileTypeInfo?.supportsPreview) {
@@ -1397,11 +1419,12 @@ export default function App() {
         <button
           className="app-focus-exit"
           onClick={() => setFocusMode(false)}
-          title="Exit Zen Mode (Esc or ⌘⇧.)"
+          title={`Exit Zen Mode (Esc or ${focusModeShortcutLabel})`}
         >✕ zen</button>
       )}
       <AppHeader
         sidebarOpen={sidebarOpen}
+        sidebarShortcutLabel={sidebarShortcutLabel}
         onToggleSidebar={() => setSidebarOpen((value) => !value)}
         activeFile={activeFile}
         title={title}
@@ -1425,6 +1448,7 @@ export default function App() {
         isDev={import.meta.env.DEV}
         aiOpen={aiOpen}
         onToggleAi={() => setAiOpen((value) => !value)}
+        previewShortcutLabel={previewShortcutLabel}
       />
 
       {/* Workspace: editor body + bottom terminal panel */}
@@ -1623,6 +1647,7 @@ export default function App() {
         fileMeta={fileMeta}
         showTerminal={appSettings.showTerminal}
         locale={appSettings.locale ?? 'en'}
+        toggleShortcutLabel={terminalShortcutLabel}
       />
       </div> {/* end app-workspace */}
 

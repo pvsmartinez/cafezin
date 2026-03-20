@@ -38,6 +38,7 @@ import { useAccountState } from '../hooks/useAccountState';
 import { getAgentCapabilityState } from '../utils/agentCapabilities';
 import { SK } from '../services/storageKeys';
 import { GeneralTab } from './settings/GeneralTab';
+import { ShortcutsTab } from './settings/ShortcutsTab';
 import { AITab } from './settings/AITab';
 import { WorkspaceTab } from './settings/WorkspaceTab';
 import { AgentTab } from './settings/AgentTab';
@@ -59,7 +60,7 @@ interface SettingsModalProps {
   initialTab?: Tab;
 }
 
-type Tab = 'general' | 'ai' | 'workspace' | 'agent' | 'sync' | 'account';
+type Tab = 'general' | 'shortcuts' | 'ai' | 'workspace' | 'agent' | 'sync' | 'account';
 
 export default function SettingsModal({
   open,
@@ -667,6 +668,10 @@ export default function SettingsModal({
             onClick={() => setTab('general')}
           >{t('settings.tabGeneral')}</button>
           <button
+            className={`sm-tab ${tab === 'shortcuts' ? 'active' : ''}`}
+            onClick={() => setTab('shortcuts')}
+          >{t('settings.tabShortcuts')}</button>
+          <button
             className={`sm-tab ${tab === 'ai' ? 'active' : ''}`}
             onClick={() => setTab('ai')}
           >IA</button>
@@ -704,6 +709,13 @@ export default function SettingsModal({
               onSaveVercelToken={handleSaveVercelToken}
               onOpenHelp={onOpenHelp}
               onContactUs={onContactUs}
+            />
+          )}
+
+          {tab === 'shortcuts' && (
+            <ShortcutsTab
+              appSettings={appSettings}
+              onAppSettingsChange={onAppSettingsChange}
             />
           )}
 

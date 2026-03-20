@@ -11,6 +11,7 @@ interface DemoHubToast {
 
 export interface AppHeaderProps {
   sidebarOpen: boolean;
+  sidebarShortcutLabel: string;
   onToggleSidebar: () => void;
   activeFile: string | null;
   title: string;
@@ -34,10 +35,12 @@ export interface AppHeaderProps {
   isDev: boolean;
   aiOpen: boolean;
   onToggleAi: () => void;
+  previewShortcutLabel: string;
 }
 
 export function AppHeader({
   sidebarOpen,
+  sidebarShortcutLabel,
   onToggleSidebar,
   activeFile,
   title,
@@ -61,6 +64,7 @@ export function AppHeader({
   isDev,
   aiOpen,
   onToggleAi,
+  previewShortcutLabel,
 }: AppHeaderProps) {
   const { t } = useTranslation();
 
@@ -70,7 +74,7 @@ export function AppHeader({
         <button
           className={`app-sidebar-toggle ${sidebarOpen ? 'active' : ''}`}
           onClick={onToggleSidebar}
-          title={sidebarOpen ? 'Hide sidebar (⌘B)' : 'Show sidebar (⌘B)'}
+          title={sidebarOpen ? `Hide sidebar (${sidebarShortcutLabel})` : `Show sidebar (${sidebarShortcutLabel})`}
         >
           <List weight="thin" size={18} />
         </button>
@@ -103,7 +107,7 @@ export function AppHeader({
             <button
               className={`app-view-btn ${viewMode === 'edit' ? 'active' : ''}`}
               onClick={() => onSetViewMode('edit')}
-              title="Edit mode (⌘⇧P to toggle)"
+              title={`Edit mode (${previewShortcutLabel} to toggle)`}
             >
               Edit
             </button>
@@ -115,8 +119,8 @@ export function AppHeader({
                   ? 'Present — keyboard: ←→ to navigate, Esc to exit'
                   : fileTypeInfo?.kind === 'html' ||
                       (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)
-                    ? 'Preview in browser (⌘⇧P to toggle)'
-                    : 'Preview rendered markdown (⌘⇧P to toggle)'
+                    ? `Preview in browser (${previewShortcutLabel} to toggle)`
+                    : `Preview rendered markdown (${previewShortcutLabel} to toggle)`
               }
             >
               {fileTypeInfo?.kind === 'canvas' ? 'Present' : 'Preview'}

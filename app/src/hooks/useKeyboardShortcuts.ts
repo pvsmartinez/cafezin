@@ -10,7 +10,7 @@
  *   Cmd/Ctrl+K           Open AI panel
  *   Cmd/Ctrl+W           Close active tab
  *   Cmd/Ctrl+,           Open settings
- *   Cmd/Ctrl+B           Toggle sidebar
+ *   Cmd/Ctrl+\           Toggle sidebar
  *   Cmd/Ctrl+S           Save current file immediately
  *   Cmd/Ctrl+Shift+R     Reload / revert file from disk
  *   Cmd/Ctrl+T / N       New file
@@ -24,6 +24,7 @@
  *   Cmd/Ctrl+J           Toggle terminal panel
  */
 import { useEffect, useRef } from 'react';
+import { getShortcutBindings, matchesShortcut, type ShortcutOverrideMap } from '../keyboardShortcuts';
 
 export interface KeyboardShortcutOptions {
   /** Whether the AI panel is currently open (used for Escape key). */
@@ -38,6 +39,7 @@ export interface KeyboardShortcutOptions {
     supportsPreview?: boolean;
     language?: string;
   } | null;
+  shortcutOverrides?: ShortcutOverrideMap;
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
   onOpenAI:       () => void;
@@ -72,97 +74,98 @@ export function useKeyboardShortcuts(opts: KeyboardShortcutOptions): void {
     function onKeyDown(e: KeyboardEvent) {
       const {
         aiOpen, activeTabId, tabs, fileTypeInfo,
+        shortcutOverrides,
         onOpenAI, onCloseAI, onCloseTab, onOpenSettings,
         onToggleSidebar, onSave, onReload, onNewFile, onSwitchTab,
         onToggleFind, onGlobalSearch, onTogglePreview, onToggleTerminal,
         onToggleFocusMode, focusMode,
       } = optsRef.current;
-      const cmd = e.metaKey || e.ctrlKey;
+      const bindings = getShortcutBindings(shortcutOverrides);
 
-      // Cmd+K → open AI panel
-      if (cmd && e.key === 'k') {
+      if (matchesShortcut(bindings.openAI, e)) {
         e.preventDefault();
         onOpenAI();
+        return;
       }
-      // Cmd+W → close current tab
-      if (cmd && !e.shiftKey && e.key === 'w') {
+      if (matchesShortcut(bindings.closeTab, e)) {
         e.preventDefault();
         if (activeTabId) onCloseTab(activeTabId);
+        return;
       }
-      // Cmd+, → open settings
-      if (cmd && e.key === ',') {
+      if (matchesShortcut(bindings.openSettings, e)) {
         e.preventDefault();
         onOpenSettings();
+        return;
       }
-      // Cmd+B → toggle sidebar
-      if (cmd && !e.shiftKey && e.key === 'b') {
+      if (matchesShortcut(bindings.toggleSidebar, e)) {
         e.preventDefault();
         onToggleSidebar();
+        return;
       }
-      // Cmd/Ctrl+S → save current file immediately
-      if (cmd && !e.shiftKey && e.key === 's') {
+      if (matchesShortcut(bindings.save, e)) {
         e.preventDefault();
         onSave();
+        return;
       }
-      // Cmd+Shift+R → reload/revert file from disk
-      if (cmd && e.shiftKey && e.key === 'r') {
+      if (matchesShortcut(bindings.reload, e)) {
         e.preventDefault();
         onReload();
+        return;
       }
-      // Cmd+T / Cmd+N → new file at workspace root
-      if (cmd && (e.key === 't' || e.key === 'n') && !e.shiftKey) {
+      if (matchesShortcut(bindings.newFile, e)) {
         e.preventDefault();
         onNewFile();
+        return;
       }
-      // Ctrl+Tab → next tab
-      if (e.ctrlKey && !e.shiftKey && e.key === 'Tab') {
+      if (matchesShortcut(bindings.nextTab, e)) {
         e.preventDefault();
         if (tabs.length > 1 && activeTabId) {
           const idx = tabs.indexOf(activeTabId);
           onSwitchTab(tabs[(idx + 1) % tabs.length]);
         }
+        return;
       }
-      // Ctrl+Shift+Tab → previous tab
-      if (e.ctrlKey && e.shiftKey && e.key === 'Tab') {
+      if (matchesShortcut(bindings.prevTab, e)) {
         e.preventDefault();
         if (tabs.length > 1 && activeTabId) {
           const idx = tabs.indexOf(activeTabId);
           onSwitchTab(tabs[(idx - 1 + tabs.length) % tabs.length]);
         }
+        return;
       }
-      // Cmd+F → toggle inline find/replace bar
-      if (cmd && !e.shiftKey && e.key === 'f') {
+      if (matchesShortcut(bindings.toggleFind, e)) {
         if (fileTypeInfo?.kind && !['pdf', 'video', 'image'].includes(fileTypeInfo.kind)) {
           e.preventDefault();
           onToggleFind();
         }
+        return;
       }
-      // Cmd+Shift+F → project-wide search
-      if (cmd && e.shiftKey && e.key === 'f') {
+      if (matchesShortcut(bindings.globalSearch, e)) {
         e.preventDefault();
         onGlobalSearch();
+        return;
       }
-      // Cmd+Shift+P → toggle Edit / Preview
-      if (cmd && e.shiftKey && e.key === 'p') {
+      if (matchesShortcut(bindings.togglePreview, e)) {
         if (fileTypeInfo?.supportsPreview) {
           e.preventDefault();
           onTogglePreview();
         }
+        return;
       }
-      // Escape → close AI panel or exit focus mode
-      if (e.key === 'Escape') {
+      if (matchesShortcut(bindings.closeAI, e)) {
         if (focusMode) { onToggleFocusMode?.(); return; }
         if (aiOpen) onCloseAI();
+        return;
       }
-      // Cmd+Shift+. → toggle focus (distraction-free) mode
-      if (cmd && e.shiftKey && e.key === '.') {
+      if (matchesShortcut(bindings.toggleFocusMode, e)) {
         e.preventDefault();
         onToggleFocusMode?.();
+        return;
       }
-      // Cmd+J → toggle terminal panel
-      if (cmd && e.key === 'j') {
+      if (matchesShortcut(bindings.toggleTerminal, e)) {
         e.preventDefault();
         onToggleTerminal();
+        return;
       }
     }
 

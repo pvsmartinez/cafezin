@@ -228,34 +228,6 @@ export function GeneralTab({
       </section>
 
       <section className="sm-section">
-        <h3 className="sm-section-title">{t('settings.sectionShortcuts')}</h3>
-        <table className="sm-shortcuts">
-          <tbody>
-            <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupFiles')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>S</kbd></td><td>{t('settings.scSave')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>W</kbd></td><td>{t('settings.scCloseTab')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>R</kbd></td><td>{t('settings.scReload')}</td></tr>
-            <tr><td><kbd>⌃</kbd><kbd>Tab</kbd></td><td>{t('settings.scNextTab')}</td></tr>
-            <tr><td><kbd>⌃</kbd><kbd>⇧</kbd><kbd>Tab</kbd></td><td>{t('settings.scPrevTab')}</td></tr>
-            <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupNav')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>F</kbd></td><td>{t('settings.scFindReplace')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>F</kbd></td><td>{t('settings.scProjectSearch')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>P</kbd></td><td>{t('settings.scTogglePreview')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>B</kbd></td><td>{t('settings.scToggleSidebar')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>J</kbd></td><td>{t('settings.scToggleTerminal')}</td></tr>
-            <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupAI')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>K</kbd></td><td>{t('settings.scOpenCopilot')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>K</kbd> <span className="sm-shortcut-note">{t('settings.scWithSelection')}</span></td><td>{t('settings.scAskCopilot')}</td></tr>
-            <tr><td><kbd>Esc</kbd></td><td>{t('settings.scCloseCopilot')}</td></tr>
-            <tr className="sm-shortcuts-group"><td colSpan={2}>{t('settings.scGroupApp')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>,</kbd></td><td>{t('settings.scOpenSettings')}</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>Click</kbd> <span className="sm-shortcut-note">{t('settings.scMultiSelectNote')}</span></td><td>{t('settings.scMultiSelect')}</td></tr>
-            <tr><td><kbd>Duplo clique</kbd> <span className="sm-shortcut-note">{t('settings.scRenameFileNote')}</span></td><td>{t('settings.scRenameFile')}</td></tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section className="sm-section">
         <h3 className="sm-section-title">{t('settings.sectionHelp')}</h3>
         <p className="sm-section-desc">{t('settings.helpDesc')}</p>
         <div className="sm-support-actions">

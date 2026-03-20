@@ -90,6 +90,40 @@ export function safeParseToolCallJson(raw: string): { name?: string; arguments?:
   return null;
 }
 
+function buildToolArgsPreview(raw: string, maxLen = 500): string {
+  const text = raw.trim();
+  if (!text) return '(empty)';
+  return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
+}
+
+export function parseToolArguments(
+  raw: string,
+):
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; error: string; preview: string } {
+  if (!raw.trim()) {
+    return { ok: true, value: {} };
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {
+        ok: false,
+        error: 'Tool arguments must be a JSON object.',
+        preview: buildToolArgsPreview(raw),
+      };
+    }
+    return { ok: true, value: parsed as Record<string, unknown> };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      preview: buildToolArgsPreview(raw),
+    };
+  }
+}
+
 // ── Text-based tool call detection ───────────────────────────────────────────
 
 export function parseTextToolCalls(text: string): Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }> {

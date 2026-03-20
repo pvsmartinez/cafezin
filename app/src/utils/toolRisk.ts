@@ -60,6 +60,9 @@ const TOOL_RISK_MAP: Record<string, RiskLevel> = {
   configure_workspace:        'low',
   remember:                   'low',
   ask_user:                   'low',
+  create_task:                'low',
+  update_task_step:           'low',
+  list_tasks:                 'low',
   save_desktop_task:          'low',
 
   // ── High-risk: destructive / external side-effects ───────────────────────

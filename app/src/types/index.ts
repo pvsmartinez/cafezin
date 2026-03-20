@@ -1,3 +1,5 @@
+import type { ShortcutOverrideMap } from '../keyboardShortcuts';
+
 /** A single part in a multipart (vision) message sent to the API. */
 export type ContentPart =
   | { type: 'text'; text: string }
@@ -541,6 +543,8 @@ export interface AppSettings {
   showTerminal: boolean;
   /** UI language — undefined means auto-detect from navigator.language */
   locale?: 'en' | 'pt-BR';
+  /** User overrides for global app keyboard shortcuts */
+  shortcutOverrides?: ShortcutOverrideMap;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {

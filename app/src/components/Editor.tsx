@@ -29,11 +29,12 @@ import { perl } from '@codemirror/legacy-modes/mode/perl';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView, keymap } from '@codemirror/view';
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands';
-import { StateField, RangeSetBuilder, Compartment } from '@codemirror/state';
+import { StateField, RangeSetBuilder, Compartment, Prec } from '@codemirror/state';
 import { Decoration, DecorationSet } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 import { linter, setDiagnostics } from '@codemirror/lint';
 import type { Diagnostic } from '@codemirror/lint';
+import { search } from '@codemirror/search';
 import { makeGhostTextExtension, type GhostCompleteFn } from '../utils/ghostText';
 import { makeLivePreviewExtension } from '../utils/livePreview';
 import { Fragment, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
@@ -66,6 +67,7 @@ export interface EditorHandle {
 interface EditorProps {
   content: string;
   onChange: (value: string) => void;
+  onToggleFind?: () => void;
   onAIRequest?: (selectedText: string) => void;
   /** When true the editor becomes read-only — shown while Copilot is writing this file. */
   isLocked?: boolean;
@@ -523,7 +525,7 @@ function applyMdToolbar(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 const Editor = forwardRef<EditorHandle, EditorProps>(
-  ({ content, onChange, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics, onGhostComplete, activeFile, onSelectionContextChange }, ref) => {
+  ({ content, onChange, onToggleFind, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics, onGhostComplete, activeFile, onSelectionContextChange }, ref) => {
     const codeMode = !!language && language !== 'markdown';
     const viewRef = useRef<EditorView | null>(null);
     const compartmentRef = useRef(new Compartment());
@@ -682,6 +684,12 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'f') {
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleFind?.();
+          return;
+        }
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
           e.preventDefault();
           const selection = window.getSelection()?.toString() ?? '';
@@ -703,7 +711,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
         }
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [onAIRequest, onFormat, codeMode],
+      [onAIRequest, onFormat, onToggleFind, codeMode],
     );
 
     // ── Clipboard image paste ─────────────────────────────────────────────────
@@ -737,8 +745,23 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       codeMode
         ? getLanguageExtension(language ?? '')
         : markdown({ base: markdownLanguage, codeLanguages: languages }),
+      // Initialize CodeMirror search state so the custom FindReplaceBar can
+      // drive search commands without ever needing the native search panel.
+      search(),
       editableCompartmentRef.current.of(EditorView.editable.of(!isLocked)),
       history(),
+      Prec.highest(
+        keymap.of([
+          {
+            key: 'Mod-f',
+            preventDefault: true,
+            run: () => {
+              onToggleFind?.();
+              return true;
+            },
+          },
+        ]),
+      ),
       keymap.of([
         ...defaultKeymap,
         ...historyKeymap,

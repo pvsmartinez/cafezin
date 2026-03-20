@@ -549,6 +549,9 @@
 .sm-shortcuts td:last-child {
   color: var(--text-muted);
 }
+.sm-shortcuts--editable td:last-child {
+  color: inherit;
+}
 .sm-shortcuts kbd {
   display: inline-block;
   background: var(--surface2);
@@ -578,6 +581,48 @@
   font-size: var(--font-size-2xs);
   color: var(--text-dim);
   opacity: 0.75;
+}
+.sm-shortcut-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+.sm-shortcuts-hint {
+  margin: 0 0 12px;
+  font-size: var(--font-size-sm);
+  color: var(--text-dim);
+}
+.sm-shortcut-actions-cell {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+.sm-shortcut-action-btn {
+  min-width: 84px;
+}
+.sm-shortcut-action-btn + .sm-shortcut-action-btn {
+  margin-left: 8px;
+}
+.sm-shortcut-action-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sm-shortcut-badge {
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+.sm-shortcut-plain {
+  font-size: var(--font-size-sm);
+  color: var(--text);
 }
 
 /* ── Sync tab ─────────────────────────────────────── */

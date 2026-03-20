@@ -32,12 +32,13 @@ interface Props {
   showTerminal?: boolean;
   /** Locale for the contact dialog (e.g. 'pt-BR'). */
   locale?: string;
+  toggleShortcutLabel?: string;
 }
 
 const MIN_HEIGHT = 100;
 const MAX_HEIGHT = 800;
 
-export default function BottomPanel({ workspacePath, open, height, onToggle, onHeightChange, requestCd, requestRun, fileMeta, showTerminal = false, locale }: Props) {
+export default function BottomPanel({ workspacePath, open, height, onToggle, onHeightChange, requestCd, requestRun, fileMeta, showTerminal = false, locale, toggleShortcutLabel = '⌘J' }: Props) {
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
   const [input, setInput] = useState('');
   const [contactOpen, setContactOpen] = useState(false);
@@ -318,7 +319,7 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
           <button
             className="bottom-panel-action-btn"
             onClick={onToggle}
-            title={open ? 'Collapse (⌘J)' : 'Expand (⌘J)'}
+            title={open ? `Collapse (${toggleShortcutLabel})` : `Expand (${toggleShortcutLabel})`}
           >{open ? '⌄' : '⌃'}</button>
         </div>
       </div>

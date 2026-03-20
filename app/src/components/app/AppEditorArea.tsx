@@ -290,6 +290,7 @@ export function AppEditorArea({
               ref={editorRef}
               content={content}
               onChange={onContentChange}
+              onToggleFind={() => onSetFindReplaceOpen(true)}
               onAIRequest={onAIRequest}
               onSelectionContextChange={onSelectionContextChange}
               aiMarks={activeFileMarks.map((mark) => ({ id: mark.id, text: mark.text }))}

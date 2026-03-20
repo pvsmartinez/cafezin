@@ -96,6 +96,16 @@
   opacity: 0.7;
 }
 
+/* When an inline <code> span is a file reference, it gets wrapped in the chip.
+   Strip the double-styling so only the chip appearance shows. */
+.md-preview-body a.ai-file-link > code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: 1em;
+}
+
 /* Inline code */
 .md-preview-body code {
   font-family: var(--font-mono);

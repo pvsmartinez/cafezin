@@ -19,7 +19,7 @@ import {
   modelSupportsVision,
   registerIncompatibleChatCompletionsModelFromError,
 } from './models';
-import { parseTextToolCalls, humanizeNetworkError } from './toolParsing';
+import { parseTextToolCalls, parseToolArguments, humanizeNetworkError } from './toolParsing';
 import { summarizeAndCompress } from './compression';
 
 // ── streamCopilotChat ─────────────────────────────────────────────────────────
@@ -561,18 +561,29 @@ export async function runCopilotAgent(
 
       const toolResultsOrdered = await Promise.all(
         allToolCalls.map(async (tc) => {
-          const args = (() => {
-            try { return JSON.parse(tc.function.arguments) as Record<string, unknown>; }
-            catch { return {} as Record<string, unknown>; }
-          })();
+          const parsedArgs = parseToolArguments(tc.function.arguments);
+          const args = parsedArgs.ok
+            ? parsedArgs.value
+            : { _invalid_json: parsedArgs.preview };
 
           const activity: ToolActivity = { callId: tc.id, name: tc.function.name, args };
           onToolActivity(activity);
 
           let result: string;
           try {
-            result = await executeTool(tc.function.name, args);
-            activity.result = result;
+            if (!parsedArgs.ok) {
+              result = [
+                `Error: Invalid JSON format in tool call arguments for ${tc.function.name}.`,
+                parsedArgs.error,
+                '',
+                'Raw arguments preview:',
+                parsedArgs.preview,
+              ].join('\n');
+              activity.error = result;
+            } else {
+              result = await executeTool(tc.function.name, args);
+              activity.result = result;
+            }
           } catch (e) {
             result = `Error: ${e}`;
             activity.error = result;

@@ -43,6 +43,9 @@ describe('getToolRiskLevel', () => {
     expect(getToolRiskLevel('multi_patch')).toBe('low');
     expect(getToolRiskLevel('canvas_op')).toBe('low');
     expect(getToolRiskLevel('write_spreadsheet')).toBe('low');
+    expect(getToolRiskLevel('create_task')).toBe('low');
+    expect(getToolRiskLevel('update_task_step')).toBe('low');
+    expect(getToolRiskLevel('list_tasks')).toBe('low');
   });
 
   it('classifies structural tools as medium', () => {
