@@ -118,6 +118,40 @@ export type ExportFormat =
   | 'git-publish' // git add -A + commit + push, useful for deploy-by-git workflows
   | 'custom';     // run an arbitrary shell command (desktop only)
 
+export type CustomExportExecutionMode = 'auto' | 'batch' | 'per-file';
+
+export interface CustomExportProgressMessage {
+  done?: number;
+  total?: number;
+  label?: string;
+  phase?: string;
+  detail?: string;
+}
+
+export interface CustomExportProtocol {
+  progressPrefix: 'CAFEZIN_PROGRESS';
+  artifactPrefix: 'CAFEZIN_ARTIFACT';
+  acceptedFormats: Array<'ratio' | 'percent' | 'json' | 'text'>;
+}
+
+export interface CustomExportInjectionSpec {
+  placeholders: string[];
+  quotedPlaceholders: string[];
+  batchPlaceholders: string[];
+}
+
+export interface CustomExportArtifactMessage {
+  path: string;
+  label?: string;
+}
+
+export interface CustomExportConfig {
+  /** Shell command run with the workspace root as cwd. */
+  command: string;
+  /** How Cafezin should invoke the command. */
+  mode?: CustomExportExecutionMode;
+}
+
 export interface ExportTarget {
   id: string;
   name: string;
@@ -156,11 +190,12 @@ export interface ExportTarget {
     /** Default true: if there are no staged changes, skip commit and still attempt push. */
     skipCommitWhenNoChanges?: boolean;
   };
-  /**
-   * For 'custom' format: shell command run with workspace root as cwd.
-   * Placeholders: {{input}} = source file, {{output}} = output path.
-   */
+  /** For 'custom' format: the Cafezin ↔ script integration contract. */
+  custom?: CustomExportConfig;
+  /** @deprecated Use custom.command */
   customCommand?: string;
+  /** @deprecated Use custom.mode */
+  customCommandMode?: CustomExportExecutionMode;
   /**
    * When set, a "Publish to Vercel" button appears after a successful export.
    * The Vercel token is read from workspace vercelConfig > global cafezin-vercel-token.
@@ -223,6 +258,36 @@ export interface ExportTarget {
 
 export interface WorkspaceExportConfig {
   targets: ExportTarget[];
+}
+
+export const CUSTOM_EXPORT_PROTOCOL: CustomExportProtocol = {
+  progressPrefix: 'CAFEZIN_PROGRESS',
+  artifactPrefix: 'CAFEZIN_ARTIFACT',
+  acceptedFormats: ['ratio', 'percent', 'json', 'text'],
+};
+
+export const CUSTOM_EXPORT_INJECTION_SPEC: CustomExportInjectionSpec = {
+  placeholders: ['{{input}}', '{{input_abs}}', '{{output}}', '{{output_abs}}', '{{workspace}}', '{{output_dir}}'],
+  quotedPlaceholders: ['{{input_q}}', '{{input_abs_q}}', '{{output_q}}', '{{output_abs_q}}', '{{workspace_q}}', '{{output_dir_q}}'],
+  batchPlaceholders: ['{{inputs}}', '{{inputs_q}}', '{{inputs_abs}}', '{{inputs_abs_q}}', '{{files_count}}'],
+};
+
+export function getCustomExportConfig(target: ExportTarget): CustomExportConfig | undefined {
+  if (target.custom?.command?.trim()) {
+    return {
+      command: target.custom.command,
+      mode: target.custom.mode ?? target.customCommandMode,
+    };
+  }
+
+  if (target.customCommand?.trim()) {
+    return {
+      command: target.customCommand,
+      mode: target.customCommandMode,
+    };
+  }
+
+  return undefined;
 }
 
 /** Vercel publish config stored per-workspace (overrides global token) */

@@ -18,7 +18,14 @@ import { invoke } from '@tauri-apps/api/core';
 import jsPDF from 'jspdf';
 import JSZip from 'jszip';
 import { exportMarkdownToPDF } from './exportPDF';
-import type { ExportTarget, WorkspaceConfig } from '../types';
+import {
+  CUSTOM_EXPORT_PROTOCOL,
+  getCustomExportConfig,
+  type CustomExportArtifactMessage,
+  type CustomExportProgressMessage,
+  type ExportTarget,
+  type WorkspaceConfig,
+} from '../types';
 import type { Editor, TLShape } from 'tldraw';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -49,15 +56,9 @@ export class ExportCancelledError extends Error {
   }
 }
 
-interface CustomScriptProgressSignal {
-  done?: number;
-  total?: number;
-  label?: string;
-  phase?: string;
-  detail?: string;
-}
+type CustomScriptProgressSignal = CustomExportProgressMessage;
 
-const CUSTOM_PROGRESS_PREFIX = 'CAFEZIN_PROGRESS';
+const CUSTOM_PROGRESS_PREFIX = CUSTOM_EXPORT_PROTOCOL.progressPrefix;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,17 @@ function applyCommandPlaceholders(template: string, values: Record<string, strin
     result = result.replace(new RegExp(`\\{\\{${escapeRegExp(key)}\\}\\}`, 'g'), value);
   }
   return result;
+}
+
+function customCommandUsesPerFilePlaceholders(cmd: string): boolean {
+  return /\{\{(input|input_q|input_abs|input_abs_q|output|output_q|output_abs|output_abs_q)\}\}/.test(cmd);
+}
+
+function resolveCustomCommandMode(target: ExportTarget, cmd: string): 'batch' | 'per-file' {
+  const customConfig = getCustomExportConfig(target);
+  if (customConfig?.mode === 'batch') return 'batch';
+  if (customConfig?.mode === 'per-file') return 'per-file';
+  return customCommandUsesPerFilePlaceholders(cmd) ? 'per-file' : 'batch';
 }
 
 function lastShellOutputLine(stdout: string, stderr: string): string | undefined {
@@ -206,6 +218,61 @@ function parseCustomProgressSignal(stdout: string, stderr: string): CustomScript
   if (stderrLine) return parseCustomProgressLine(stderrLine);
 
   return null;
+}
+
+function normalizeCustomArtifactPath(path: string, wsPath: string): string | null {
+  const trimmed = path.trim();
+  if (!trimmed) return null;
+
+  const workspaceRoot = wsPath.replace(/\/+$|\/+$/g, '');
+  const normalized = trimmed.replace(/\\/g, '/');
+  if (normalized.startsWith('/')) {
+    if (!normalized.startsWith(`${workspaceRoot}/`) && normalized !== workspaceRoot) return null;
+    const relative = normalized.slice(workspaceRoot.length).replace(/^\//, '');
+    return relative || null;
+  }
+  return normalized.replace(/^\.\//, '');
+}
+
+function parseCustomArtifactLine(line: string, wsPath: string): CustomExportArtifactMessage | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith(CUSTOM_EXPORT_PROTOCOL.artifactPrefix)) return null;
+
+  const payload = trimmed.slice(CUSTOM_EXPORT_PROTOCOL.artifactPrefix.length).trim();
+  if (!payload) return null;
+
+  if (payload.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(payload) as Partial<CustomExportArtifactMessage>;
+      const artifactPath = typeof parsed.path === 'string'
+        ? normalizeCustomArtifactPath(parsed.path, wsPath)
+        : null;
+      if (!artifactPath) return null;
+      return {
+        path: artifactPath,
+        label: typeof parsed.label === 'string' && parsed.label.trim() ? parsed.label.trim() : undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  const artifactPath = normalizeCustomArtifactPath(payload, wsPath);
+  return artifactPath ? { path: artifactPath } : null;
+}
+
+function parseCustomArtifacts(stdout: string, stderr: string, wsPath: string): string[] {
+  const seen = new Set<string>();
+  const outputs: string[] = [];
+  for (const chunk of [stdout, stderr]) {
+    for (const rawLine of chunk.split(/\r?\n/g)) {
+      const artifact = parseCustomArtifactLine(rawLine, wsPath);
+      if (!artifact || seen.has(artifact.path)) continue;
+      seen.add(artifact.path);
+      outputs.push(artifact.path);
+    }
+  }
+  return outputs;
 }
 
 function buildShellProgressDetail(baseDetail: string, stdout: string, stderr: string): string {
@@ -1019,7 +1086,8 @@ async function exportCustom(
   const t0 = Date.now();
   const outputs: string[] = [];
   const errors: string[] = [];
-  const cmd = target.customCommand?.trim() ?? '';
+  const customConfig = getCustomExportConfig(target);
+  const cmd = customConfig?.command.trim() ?? '';
   if (!cmd) {
     return { targetId: target.id, outputs: [], errors: ['No custom command configured.'], elapsed: 0 };
   }
@@ -1040,24 +1108,45 @@ async function exportCustom(
     output_dir_abs: absOutDir,
     output_dir_abs_q: shellQuote(absOutDir),
   };
+  const aggregatePlaceholders: Record<string, string> = files.length > 0 ? {
+    files_count: String(files.length),
+    inputs: files.join(' '),
+    inputs_q: files.map((file) => shellQuote(file)).join(' '),
+    inputs_abs: files.map((file) => `${wsPath}/${file}`).join(' '),
+    inputs_abs_q: files.map((file) => shellQuote(`${wsPath}/${file}`)).join(' '),
+  } : {};
+  const usesPerFilePlaceholders = customCommandUsesPerFilePlaceholders(cmd);
+  const commandMode = resolveCustomCommandMode(target, cmd);
 
-  if (files.length === 0) {
+  if (commandMode === 'batch' && usesPerFilePlaceholders) {
+    return {
+      targetId: target.id,
+      outputs: [],
+      errors: ['This custom target is set to batch mode, but the command still uses per-file placeholders like {{input}} or {{output}}. Switch the target to per-file/auto, or rewrite the command to use batch placeholders like {{inputs_q}}.'],
+      elapsed: Date.now() - t0,
+    };
+  }
+
+  if (files.length === 0 || commandMode === 'batch') {
     // Run the command once with no substitution
     try {
-      const finalCmd = applyCommandPlaceholders(cmd, basePlaceholders);
+      const finalCmd = applyCommandPlaceholders(cmd, {
+        ...basePlaceholders,
+        ...aggregatePlaceholders,
+      });
       reportProgress(opts, {
         done: 0,
-        total: 1,
+        total: Math.max(1, files.length),
         label: target.name,
         phase: 'run-command',
-        detail: 'Running custom command…',
+        detail: commandMode === 'per-file' ? 'Running custom command…' : `Running custom command once for ${Math.max(1, files.length)} matched file${Math.max(1, files.length) === 1 ? '' : 's'}…`,
       });
       const baseProgress: ExportProgressInfo = {
         done: 0,
-        total: 1,
+        total: Math.max(1, files.length),
         label: target.name,
         phase: 'run-command',
-        detail: 'Running custom command…',
+        detail: commandMode === 'per-file' ? 'Running custom command…' : `Running custom command once for ${Math.max(1, files.length)} matched file${Math.max(1, files.length) === 1 ? '' : 's'}…`,
       };
       const result = await runShellCommandCancelable(wsPath, finalCmd, {
         shouldCancel: opts?.shouldCancel,
@@ -1066,7 +1155,11 @@ async function exportCustom(
         },
       });
       if (result.exit_code !== 0) errors.push(buildShellError(result));
-      else outputs.push(target.outputDir);
+      else {
+        const artifacts = parseCustomArtifacts(result.stdout, result.stderr, wsPath);
+        if (artifacts.length > 0) outputs.push(...artifacts);
+        else outputs.push(target.outputDir);
+      }
     } catch (e) {
       if (e instanceof ExportCancelledError) throw e;
       errors.push(String(e));
@@ -1108,7 +1201,11 @@ async function exportCustom(
           },
         });
         if (result.exit_code !== 0) errors.push(`${rel}: ${buildShellError(result)}`);
-        else outputs.push(`${target.outputDir}/${outName}`);
+        else {
+          const artifacts = parseCustomArtifacts(result.stdout, result.stderr, wsPath);
+          if (artifacts.length > 0) outputs.push(...artifacts);
+          else outputs.push(`${target.outputDir}/${outName}`);
+        }
       } catch (e) {
         if (e instanceof ExportCancelledError) throw e;
         errors.push(`${rel}: ${e}`);

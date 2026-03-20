@@ -12,7 +12,16 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { runExportTarget, listAllFiles, resolveFiles, ExportCancelledError, type ExportProgressInfo, type ExportResult } from '../utils/exportWorkspace';
 import { deployToVercel, resolveVercelToken } from '../services/publishVercel';
 import { saveWorkspaceConfig } from '../services/workspace';
-import type { Workspace, ExportTarget, ExportFormat, WorkspaceExportConfig } from '../types';
+import {
+  CUSTOM_EXPORT_INJECTION_SPEC,
+  CUSTOM_EXPORT_PROTOCOL,
+  getCustomExportConfig,
+  type CustomExportExecutionMode,
+  type Workspace,
+  type ExportTarget,
+  type ExportFormat,
+  type WorkspaceExportConfig,
+} from '../types';
 import type { Editor } from 'tldraw';
 import { SK } from '../services/storageKeys';
 import './ExportModal.css';
@@ -120,6 +129,19 @@ function splitProgressDetail(progress?: ExportProgressInfo): { summary: string; 
     summary: detail.slice(0, index),
     log: detail.slice(index + marker.length),
   };
+}
+
+function getSlowExportHint(target: ExportTarget): string {
+  if (target.format === 'custom') {
+    return 'Taking longer than usual. Custom commands can be slow when the script processes many files or emits a lot of logs.';
+  }
+  if (target.format === 'pdf') {
+    return 'Taking longer than usual. Large documents, many pages or heavy Markdown rendering can do this.';
+  }
+  if (target.format === 'zip') {
+    return 'Taking longer than usual. Large bundles or many matched files can do this.';
+  }
+  return 'Taking longer than usual. Large canvases, many pages or broad include rules can do this.';
 }
 
 export default function ExportModal({
@@ -464,6 +486,7 @@ export default function ExportModal({
 
           {targets.map((target) => {
             const s = statuses.get(target.id);
+            const customConfig = getCustomExportConfig(target);
             const isExpanded = expandedId === target.id;
             const gitPublish = { ...DEFAULT_GIT_PUBLISH, ...(target.gitPublish ?? {}) };
             const targetOutLabel = target.format === 'git-publish'
@@ -569,7 +592,7 @@ export default function ExportModal({
                         <span className="em-progress-warning">No new progress for a while. This target may be stuck.</span>
                       )}
                       {!s.cancelRequested && !isStalled && isSlow && (
-                        <span className="em-progress-warning">Taking longer than usual. Large canvases, many pages or broad include rules can do this.</span>
+                        <span className="em-progress-warning">{getSlowExportHint(target)}</span>
                       )}
                     </div>
                   </>
@@ -770,23 +793,56 @@ export default function ExportModal({
                     )}
 
                     {target.format === 'custom' && (
-                      <div className="em-field">
-                        <label>Command</label>
-                        <input
-                          className="em-mono"
-                          placeholder="pandoc {{input}} -o {{output}}.pdf"
-                          value={target.customCommand ?? ''}
-                          onChange={(e) => updateTarget(target.id, { customCommand: e.target.value })}
-                        />
+                      <>
+                        <div className="em-field">
+                          <label>Command</label>
+                          <input
+                            className="em-mono"
+                            placeholder="pandoc {{input}} -o {{output}}.pdf"
+                            value={customConfig?.command ?? ''}
+                            onChange={(e) => updateTarget(target.id, {
+                              custom: {
+                                command: e.target.value,
+                                mode: customConfig?.mode,
+                              },
+                              customCommand: undefined,
+                              customCommandMode: undefined,
+                            })}
+                          />
+                        </div>
+                        <div className="em-field">
+                          <label>Execution mode</label>
+                          <select
+                            value={customConfig?.mode ?? 'auto'}
+                            onChange={(e) => updateTarget(target.id, {
+                              custom: {
+                                command: customConfig?.command ?? '',
+                                mode: e.target.value === 'auto'
+                                  ? undefined
+                                  : e.target.value as CustomExportExecutionMode,
+                              },
+                              customCommand: undefined,
+                              customCommandMode: undefined,
+                            })}
+                          >
+                            <option value="auto">Auto</option>
+                            <option value="batch">Batch once</option>
+                            <option value="per-file">Once per file</option>
+                          </select>
+                          <span className="em-hint">
+                            Auto detects per-file placeholders like {'{{input}}'} / {'{{output}}'}. Batch runs the command once for the whole target. Per-file forces one run per matched file.
+                          </span>
+                        </div>
                         <span className="em-hint">
-                          Placeholders: {'{{input}}'}, {'{{input_abs}}'}, {'{{output}}'}, {'{{output_abs}}'}, {'{{workspace}}'}, {'{{output_dir}}'}.
-                          Quoted variants: {'{{input_q}}'}, {'{{output_q}}'}, {'{{workspace_q}}'}, {'{{output_dir_q}}'}.
+                          Placeholders: {CUSTOM_EXPORT_INJECTION_SPEC.placeholders.join(', ')}.
+                          Quoted variants: {CUSTOM_EXPORT_INJECTION_SPEC.quotedPlaceholders.join(', ')}.
+                          Batch placeholders: {CUSTOM_EXPORT_INJECTION_SPEC.batchPlaceholders.join(', ')}.
                           Runs from the workspace root using your login shell when possible.
                         </span>
                         <span className="em-hint em-hint--code">
-                          Progress shortcut: print lines starting with CAFEZIN_PROGRESS. Examples: CAFEZIN_PROGRESS 3/10 Generating images, CAFEZIN_PROGRESS 42% Building PDF, or CAFEZIN_PROGRESS {`{"done":3,"total":10,"detail":"Generating images"}`}.
+                          Progress shortcut: print lines starting with {CUSTOM_EXPORT_PROTOCOL.progressPrefix}. Examples: {CUSTOM_EXPORT_PROTOCOL.progressPrefix} 3/10 Generating images, {CUSTOM_EXPORT_PROTOCOL.progressPrefix} 42% Building PDF, or {CUSTOM_EXPORT_PROTOCOL.progressPrefix} {`{"done":3,"total":10,"detail":"Generating images"}`}. To expose exact outputs back to Cafezin, print {CUSTOM_EXPORT_PROTOCOL.artifactPrefix} 07_Exports/file.pdf or {CUSTOM_EXPORT_PROTOCOL.artifactPrefix} {`{"path":"07_Exports/file.pdf"}`}.
                         </span>
-                      </div>
+                      </>
                     )}
 
                     {target.format === 'git-publish' && (

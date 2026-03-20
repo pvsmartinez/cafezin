@@ -1,7 +1,14 @@
 import { useMemo, useState, useEffect } from 'react';
 import { homeDir } from '@tauri-apps/api/path';
 import { exists, readTextFile } from '../services/fs';
-import type { ChatMessage, WorkspaceConfig, WorkspaceExportConfig } from '../types';
+import {
+  CUSTOM_EXPORT_INJECTION_SPEC,
+  CUSTOM_EXPORT_PROTOCOL,
+  getCustomExportConfig,
+  type ChatMessage,
+  type WorkspaceConfig,
+  type WorkspaceExportConfig,
+} from '../types';
 import type { Workspace } from '../types';
 import { getAgentCapabilityState } from '../utils/agentCapabilities';
 import {
@@ -26,7 +33,9 @@ function buildExportSystemSummary(workspaceExportConfig?: WorkspaceExportConfig)
       if (target.excludeFiles?.length) parts.push(`excludeFiles=${target.excludeFiles.join(', ')}`);
       if (target.description) parts.push(`description=${target.description}`);
       if (target.merge) parts.push(`merge=${target.mergeName?.trim() || 'merged'}`);
-      if (target.customCommand) parts.push(`customCommand=${target.customCommand}`);
+      const customConfig = getCustomExportConfig(target);
+      if (customConfig?.command) parts.push(`custom.command=${customConfig.command}`);
+      if (customConfig?.mode) parts.push(`custom.mode=${customConfig.mode}`);
       if (target.gitPublish) {
         parts.push(`gitRemote=${target.gitPublish.remote || 'origin'}`);
         if (target.gitPublish.branch) parts.push(`gitBranch=${target.gitPublish.branch}`);
@@ -42,8 +51,9 @@ function buildExportSystemSummary(workspaceExportConfig?: WorkspaceExportConfig)
     + `• canvas-pdf exports canvases as slide PDFs and supports merge for one combined PDF.\n`
     + `• zip bundles matched files into a zip archive.\n`
     + `• git-publish stages the whole workspace, optionally commits, then pushes. gitPublish supports commitMessage, remote, branch, skipCommitWhenNoChanges.\n`
-    + `• custom runs a shell command in the workspace root. Supported placeholders: {{input}}, {{input_abs}}, {{output}}, {{output_abs}}, {{workspace}}, {{output_dir}} and shell-safe quoted versions {{input_q}}, {{input_abs_q}}, {{output_q}}, {{output_abs_q}}, {{workspace_q}}, {{output_dir_q}}.\n`
-    + `• custom progress protocol: scripts can print lines starting with CAFEZIN_PROGRESS to stdout or stderr. Accepted forms are: 'CAFEZIN_PROGRESS 3/10 message', 'CAFEZIN_PROGRESS 42% message', or JSON like 'CAFEZIN_PROGRESS {"done":3,"total":10,"detail":"Generating images","label":"chapter-01","phase":"render"}'. Cafezin uses this to drive the progress bar.\n`
+    + `• custom runs a shell command in the workspace root through target.custom.command. target.custom.mode can be auto, batch, or per-file. Supported placeholders: ${CUSTOM_EXPORT_INJECTION_SPEC.placeholders.join(', ')} and shell-safe quoted versions ${CUSTOM_EXPORT_INJECTION_SPEC.quotedPlaceholders.join(', ')}. Batch placeholders: ${CUSTOM_EXPORT_INJECTION_SPEC.batchPlaceholders.join(', ')}.\n`
+    + `• custom progress protocol: scripts can print lines starting with ${CUSTOM_EXPORT_PROTOCOL.progressPrefix} to stdout or stderr. Accepted forms are: '${CUSTOM_EXPORT_PROTOCOL.progressPrefix} 3/10 message', '${CUSTOM_EXPORT_PROTOCOL.progressPrefix} 42% message', or JSON like '${CUSTOM_EXPORT_PROTOCOL.progressPrefix} {"done":3,"total":10,"detail":"Generating images","label":"chapter-01","phase":"render"}'. Cafezin uses this to drive the progress bar.\n`
+    + `• custom artifact protocol: scripts can declare generated files with ${CUSTOM_EXPORT_PROTOCOL.artifactPrefix}. Accepted forms are '${CUSTOM_EXPORT_PROTOCOL.artifactPrefix} relative/path/to/file.pdf' or JSON like '${CUSTOM_EXPORT_PROTOCOL.artifactPrefix} {"path":"07_Exports/manuscript_v12.pdf","label":"PDF"}'. Cafezin uses this to reveal the actual output file instead of only the folder.\n`
     + `• When helping with exports, prefer configure_export_targets to inspect/change targets before suggesting manual UI steps.\n`
     + configuredSummary;
 }
