@@ -25,6 +25,7 @@ const MIN_CHAT_BUDGET = 48_000;
 const MAX_CHAT_BUDGET = 180_000;
 const MIN_COMPRESS_BUDGET = 64_000;
 const MAX_COMPRESS_BUDGET = 220_000;
+const BASE64_DATA_URL_RE = /data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ export function getModelTokenBudgets(model: CopilotModel): ModelTokenBudgets {
   const rawChatBudget = Math.min(Math.floor(contextWindow * 0.62), contextWindow - 36_000);
   const chatBudget = Math.max(MIN_CHAT_BUDGET, Math.min(MAX_CHAT_BUDGET, rawChatBudget));
 
-  const rawCompressBudget = Math.min(Math.floor(contextWindow * 0.78), contextWindow - 24_000);
+  const rawCompressBudget = Math.min(Math.floor(contextWindow * 0.72), contextWindow - 24_000);
   const compressBudget = Math.max(
     Math.max(chatBudget + 12_000, MIN_COMPRESS_BUDGET),
     Math.min(MAX_COMPRESS_BUDGET, rawCompressBudget),
@@ -107,12 +108,16 @@ export function getModelTokenBudgets(model: CopilotModel): ModelTokenBudgets {
 
 /**
  * Rough token estimate: 1 token ≈ 4 characters of JSON-serialized content.
- * Base64 images are counted at their actual size (they DO consume context tokens).
+ * Base64 images are stripped from text content before counting because the
+ * agent already prunes/normalizes stale vision payloads separately and these
+ * raw blobs would otherwise dominate the heuristic.
  */
 export function estimateTokens(messages: ChatMessage[]): number {
   return Math.ceil(
     messages.reduce((sum, m) => {
-      const raw = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+      const raw = typeof m.content === 'string'
+        ? m.content.replace(BASE64_DATA_URL_RE, '[image]')
+        : JSON.stringify(m.content).replace(BASE64_DATA_URL_RE, '[image]');
       return sum + raw.length / 4;
     }, 0),
   );

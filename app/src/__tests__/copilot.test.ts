@@ -562,4 +562,25 @@ describe('getModelTokenBudgets', () => {
     expect(haiku.contextWindow).toBeLessThan(gemini.contextWindow);
     expect(haiku.chatBudget).toBeLessThan(gemini.chatBudget);
   });
+
+  it('compressBudget is at most 72% of contextWindow (safety margin)', () => {
+    for (const model of ['gpt-4o', 'claude-sonnet-4-5', 'gemini-2.5-pro']) {
+      const b = getModelTokenBudgets(model);
+      expect(b.compressBudget).toBeLessThanOrEqual(b.contextWindow * 0.72 + 1);
+    }
+  });
+
+  it('compressBudget is always larger than chatBudget', () => {
+    for (const model of ['gpt-4o', 'claude-haiku-4-5', 'gemini-3-pro', 'o3']) {
+      const b = getModelTokenBudgets(model);
+      expect(b.compressBudget).toBeGreaterThan(b.chatBudget);
+    }
+  });
+
+  it('compressBudget is below contextWindow (never triggers after the limit)', () => {
+    for (const model of ['gpt-4o', 'claude-sonnet-4-5', 'gemini-2.5-pro']) {
+      const b = getModelTokenBudgets(model);
+      expect(b.compressBudget).toBeLessThan(b.contextWindow);
+    }
+  });
 });

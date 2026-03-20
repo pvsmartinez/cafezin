@@ -31,7 +31,7 @@ import ExportModal from './components/ExportModal';
 import ImageSearchPanel from './components/ImageSearchPanel';
 import FindReplaceBar from './components/FindReplaceBar';
 import AIMarkOverlay from './components/AIMarkOverlay';
-import { List, House, Sparkle } from '@phosphor-icons/react';
+import { List, House, Sparkle, ArrowCircleUp, X } from '@phosphor-icons/react';
 
 import TabBar from './components/TabBar';
 import BottomPanel, { type FileMeta } from './components/BottomPanel';
@@ -71,6 +71,8 @@ import { useModals } from './hooks/useModals';
 import { useCanvasState } from './hooks/useCanvasState';
 import { useAIMarks } from './hooks/useAIMarks';
 import { useTsDiagnostics } from './hooks/useTsDiagnostics';
+import { useProactiveNudge } from './hooks/useProactiveNudge';
+import NudgeToast from './components/NudgeToast';
 import BacklinksPanel from './components/BacklinksPanel';
 import { useTranslation } from 'react-i18next';
 import './App.css';
@@ -88,6 +90,7 @@ setupI18n(loadAppSettings().locale);
 
 const FORCE_UPDATE_URL = 'https://raw.githubusercontent.com/pvsmartinez/cafezin/main/update/latest.json';
 const UPDATE_SUGGESTION_KEY = 'cafezin-last-suggested-update-version';
+const UPDATE_TOAST_DISMISSED_KEY = 'cafezin-update-toast-dismissed';
 const DESKTOP_ONBOARDING_KEY = 'cafezin-desktop-onboarding-v1-seen';
 const LEGACY_SYNC_PROMPT_KEY = 'cafezin-sync-onboarding-skipped';
 
@@ -286,6 +289,7 @@ export default function App() {
     aiInitialPrompt, setAiInitialPrompt,
   } = useModals();
   const [showUpdateReleaseModal, setShowUpdateReleaseModal] = useState(false);
+  const [updateToastVersion, setUpdateToastVersion] = useState<string | null>(null);
   const [forceUpdateOpen, setForceUpdateOpen] = useState(false);
   const [forceUpdateRequired, setForceUpdateRequired] = useState('');
   const [forceUpdateChannel, setForceUpdateChannel] = useState('release');
@@ -385,6 +389,9 @@ export default function App() {
   // Demo Hub publish status toast
   const [demoHubToast, setDemoHubToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const demoHubToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Proactive AI nudge
+  const isCanvasActive = !!activeFile?.endsWith('.tldr.json');
+  const { activeNudge, recordEdit, dismissNudge } = useProactiveNudge(isCanvasActive);
   // Clean up toast timers on unmount to avoid setState on unmounted component
   useEffect(() => () => {
     if (savedToastTimerRef.current)   clearTimeout(savedToastTimerRef.current);
@@ -517,12 +524,17 @@ export default function App() {
         if (cancelled || !update?.available || !update.version) return;
         if (compareVersions(update.version, currentVersion) <= 0) return;
 
+        // Keep backward-compat key so upgrading users don't re-see old versions
         const lastSuggested = localStorage.getItem(UPDATE_SUGGESTION_KEY);
         if (lastSuggested === update.version) return;
 
-        localStorage.setItem(UPDATE_SUGGESTION_KEY, update.version);
+        // Once-per-day gate: if user dismissed this version today, skip
+        const today = new Date().toISOString().slice(0, 10);
+        const dismissed = localStorage.getItem(UPDATE_TOAST_DISMISSED_KEY);
+        if (dismissed === `${update.version}:${today}`) return;
+
         setTimeout(() => {
-          if (!cancelled) setShowUpdateReleaseModal(true);
+          if (!cancelled) setUpdateToastVersion(update.version);
         }, 1800);
       } catch {
         // Silent fail — update suggestion should never block normal startup
@@ -1130,8 +1142,9 @@ export default function App() {
       }
 
       scheduleAutosave(workspace, activeFile, newContent);
+      recordEdit();
     },
-    [workspace, activeFile, scheduleAutosave]
+    [workspace, activeFile, scheduleAutosave, recordEdit]
   );
 
   // ── App settings persistence ─────────────────────────────────
@@ -1905,6 +1918,7 @@ export default function App() {
         requestRun={terminalRequestRun}
         fileMeta={fileMeta}
         showTerminal={appSettings.showTerminal}
+        locale={appSettings.locale ?? 'en'}
       />
       </div> {/* end app-workspace */}
 
@@ -1961,6 +1975,11 @@ export default function App() {
           onOpenFileForExport={handleOpenFileForExport}
           onRestoreAfterExport={handleRestoreAfterExport}
           onClose={() => setExportModalOpen(false)}
+          onOpenAI={(prompt) => {
+            setExportModalOpen(false);
+            setAiInitialPrompt(prompt);
+            setAiOpen(true);
+          }}
         />
       )}
 
@@ -1975,6 +1994,47 @@ export default function App() {
       {copilotOverlayActive && (
         <div className="copilot-tab-overlay" aria-live="polite">
           <span className="copilot-lock-label">Copilot a trabalhar…</span>
+        </div>
+      )}
+
+      {activeNudge && (
+        <NudgeToast
+          text={activeNudge.text}
+          onAsk={() => {
+            dismissNudge();
+            setAiInitialPrompt(activeNudge.aiPrompt);
+            setAiOpen(true);
+          }}
+          onDismiss={dismissNudge}
+        />
+      )}
+
+      {updateToastVersion && (
+        <div className="nudge-toast nudge-toast--update">
+          <ArrowCircleUp weight="fill" className="nudge-toast-icon" />
+          <span className="nudge-toast-text">
+            Versão {updateToastVersion} disponível
+          </span>
+          <button
+            className="nudge-toast-cta"
+            onClick={() => {
+              setUpdateToastVersion(null);
+              setShowUpdateReleaseModal(true);
+            }}
+          >
+            Atualizar
+          </button>
+          <button
+            className="nudge-toast-dismiss"
+            onClick={() => {
+              const today = new Date().toISOString().slice(0, 10);
+              localStorage.setItem(UPDATE_TOAST_DISMISSED_KEY, `${updateToastVersion}:${today}`);
+              setUpdateToastVersion(null);
+            }}
+            title="Dispensar"
+          >
+            <X weight="bold" />
+          </button>
         </div>
       )}
 

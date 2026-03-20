@@ -90,8 +90,7 @@ describe('getFileTypeInfo — code', () => {
     ['comp.jsx',    'javascript',  false],
     ['style.css',   'css',         false],
     ['layout.scss', 'css',         false],
-    ['index.html',  'html',        true],
-    ['page.htm',    'html',        true],
+
     ['data.json',   'json',        false],
     ['server.py',   'python',      false],
     ['lib.rs',      'rust',        false],
@@ -117,6 +116,21 @@ describe('getFileTypeInfo — code', () => {
       expect(info.defaultMode).toBe('edit');
       expect(info.supportsPreview).toBe(supportsPreview);
     });
+  });
+});
+
+// ── HTML ──────────────────────────────────────────────────────────────────────
+describe('getFileTypeInfo — html', () => {
+  it('index.html → kind=html with supportsPreview=true', () => {
+    const info = getFileTypeInfo('index.html');
+    expect(info.kind).toBe('html');
+    expect(info.supportsPreview).toBe(true);
+  });
+
+  it('page.htm → kind=html with supportsPreview=true', () => {
+    const info = getFileTypeInfo('page.htm');
+    expect(info.kind).toBe('html');
+    expect(info.supportsPreview).toBe(true);
   });
 });
 

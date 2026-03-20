@@ -521,3 +521,72 @@
 
 .em-export-all-btn:hover:not(:disabled) { opacity: 0.88; }
 .em-export-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── AI helper banner ────────────────────────────────────────────────────── */
+.em-ai-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: linear-gradient(90deg, rgba(var(--accent-rgb, 212 169 106), 0.05) 0%, transparent 80%);
+}
+
+.em-ai-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.em-ai-banner-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.em-ai-banner-text {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.em-ai-banner-cta {
+  background: none;
+  border: 1px solid rgba(var(--accent-rgb, 212 169 106), 0.4);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  padding: 3px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition: background var(--transition-fast);
+}
+
+.em-ai-banner-cta:hover {
+  background: rgba(var(--accent-rgb, 212 169 106), 0.12);
+}
+
+.em-ai-banner-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  line-height: 1;
+  flex-shrink: 0;
+  font-size: 10px;
+  transition: color var(--transition-fast);
+}
+
+.em-ai-banner-dismiss:hover { color: var(--text-muted); }

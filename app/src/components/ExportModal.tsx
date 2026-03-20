@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { X, Plus, Play, Trash, CaretDown, CaretUp, CheckCircle, WarningCircle, CircleNotch, FolderOpen, CloudArrowUp } from '@phosphor-icons/react';
+import { X, Plus, Play, Trash, CaretDown, CaretUp, CheckCircle, WarningCircle, CircleNotch, FolderOpen, CloudArrowUp, Sparkle } from '@phosphor-icons/react';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { runExportTarget, listAllFiles, resolveFiles, type ExportResult } from '../utils/exportWorkspace';
 import { deployToVercel, resolveVercelToken } from '../services/publishVercel';
@@ -89,6 +89,8 @@ interface ExportModalProps {
   /** Called after each canvas export to restore the previous tab */
   onRestoreAfterExport: () => void;
   onClose: () => void;
+  /** Called when the user wants to open AI with a pre-filled prompt */
+  onOpenAI?: (prompt: string) => void;
 }
 
 export default function ExportModal({
@@ -99,6 +101,7 @@ export default function ExportModal({
   onOpenFileForExport,
   onRestoreAfterExport,
   onClose,
+  onOpenAI,
 }: ExportModalProps) {
   const savedConfig = workspace.config.exportConfig;
   const [targets, setTargets] = useState<ExportTarget[]>(savedConfig?.targets ?? []);
@@ -108,6 +111,26 @@ export default function ExportModal({
   // Async file-count per target: targetId → number
   const [fileCounts, setFileCounts] = useState<Map<string, number>>(new Map());
   const [isRunningAll, setIsRunningAll] = useState(false);
+  const [aiHelperDismissed, setAiHelperDismissed] = useState(
+    () => localStorage.getItem('cafezin:em:aihelper') === '1',
+  );
+
+  function getAIPrompt(): string {
+    if (targets.length === 0) {
+      return 'Estou abrindo as configurações de Export do Cafezin pela primeira vez. Pode me ajudar a entender quais targets de export fazem sentido criar para o meu workspace?';
+    }
+    const expanded = targets.find((t) => t.id === expandedId);
+    const ref = expanded ?? targets[0];
+    const prompts: Record<ExportFormat, string> = {
+      'pdf': `Estou configurando um target de export "${ref.name}" (Markdown → PDF) no Cafezin. Como posso configurar os campos Include, Output dir e Custom command para produzir um PDF bem formatado?`,
+      'canvas-png': `Estou configurando um target de export de canvas para PNG no Cafezin. Como funciona o export de arquivos .tldr.json? Quais dicas você tem para este formato?`,
+      'canvas-pdf': `Estou configurando um target de export de canvas para PDF (slides) no Cafezin. Como funcionam os slides no tldraw e como otimizar este export?`,
+      'zip': `Estou configurando um target de export tipo Zip bundle no Cafezin. Que tipos de arquivo fazem sentido incluir? Como usar o custom command para processar o bundle?`,
+      'git-publish': `Estou configurando um target de Git publish no Cafezin. Como funciona? O que preciso no repositório para isso funcionar?`,
+      'custom': `Estou configurando um target de Custom command no Cafezin. Quais variáveis e placeholders estão disponíveis no comando? Como testar antes de rodar?`,
+    };
+    return prompts[ref.format] ?? prompts['custom'];
+  }
 
   // ── Async file-count preview ────────────────────────────────────────────────
   useEffect(() => {
@@ -809,6 +832,36 @@ export default function ExportModal({
             );
           })}
         </div>
+
+        {/* AI helper banner */}
+        {onOpenAI && !aiHelperDismissed && (
+          <div className="em-ai-banner">
+            <div className="em-ai-banner-left">
+              <Sparkle weight="fill" className="em-ai-banner-icon" />
+              <span className="em-ai-banner-text">
+                {targets.length === 0
+                  ? 'Precisa de ajuda para configurar seus exports?'
+                  : 'Dúvidas sobre as configurações de export?'}
+              </span>
+              <button
+                className="em-ai-banner-cta"
+                onClick={() => onOpenAI(getAIPrompt())}
+              >
+                Perguntar ao AI
+              </button>
+            </div>
+            <button
+              className="em-ai-banner-dismiss"
+              title="Dispensar"
+              onClick={() => {
+                localStorage.setItem('cafezin:em:aihelper', '1');
+                setAiHelperDismissed(true);
+              }}
+            >
+              <X weight="bold" />
+            </button>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="em-footer">

@@ -512,3 +512,30 @@ export const FREE_ACCOUNT_STATE: AccountState = {
   canUseAI: false,
 };
 
+// ── Task / plan model ─────────────────────────────────────────────────────────
+
+export type TaskStepStatus = 'pending' | 'in-progress' | 'done' | 'skipped';
+
+export interface TaskStep {
+  title: string;
+  status: TaskStepStatus;
+  /** Optional note added when the step is completed or skipped. */
+  note?: string;
+}
+
+/**
+ * A multi-step task created by the agent to track progress through a complex
+ * user request. Persisted to `.cafezin/tasks.json` in the workspace.
+ */
+export interface Task {
+  /** Stable ID, e.g. `task-1710000000`. */
+  id: string;
+  title: string;
+  description?: string;
+  /** Agent tab that owns this task. Undefined if created from the default tab. */
+  agentId?: string;
+  steps: TaskStep[];
+  createdAt: string;       // ISO timestamp
+  completedAt?: string;    // set when all steps are done/skipped
+}
+

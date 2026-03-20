@@ -153,6 +153,29 @@
   background: var(--hover-bg);
 }
 
+/* Feedback / contact link in the status bar */
+.bottom-panel-feedback-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  opacity: 0.45;
+  padding: 0 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+  transition: opacity 0.15s, color 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+  line-height: 36px;
+}
+.bottom-panel-feedback-btn:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
 /* ── Body ────────────────────────────────────────────────────────────────── */
 .bottom-panel-body {
   flex: 1;

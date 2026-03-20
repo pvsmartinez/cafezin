@@ -7,6 +7,8 @@ import { invoke } from '@tauri-apps/api/core';
 import {
   getActiveProvider, setActiveProvider, getActiveModel, setActiveModel,
   getProviderKey, PROVIDER_LABELS,
+  getCustomEndpoint, setCustomEndpoint, getCustomModelId,
+  testCustomEndpoint, type CustomEndpointDiagnostic,
   type AIProviderType,
 } from '../services/aiProvider';
 import {
@@ -381,11 +383,15 @@ export default function SettingsModal({
   // Favorites for non-Copilot providers (shown in the chat model picker)
   const [aiFavoriteIds, setAIFavoriteIds] = useState<string[]>(() => {
     const p = getActiveProvider();
-    return p !== 'copilot' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot'>) : [];
+    return p !== 'copilot' && p !== 'custom' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot'>) : [];
   });
   const [customModelInput, setCustomModelInput] = useState('');
   const [aiCopilotModels, setAICopilotModels] = useState(FALLBACK_MODELS);
   const [aiCopilotModelsLoading, setAICopilotModelsLoading] = useState(false);
+  // Custom / Local provider state
+  const [customEndpointDraft, setCustomEndpointDraft] = useState(() => getCustomEndpoint());
+  const [customDiagnostic, setCustomDiagnostic] = useState<CustomEndpointDiagnostic | null>(null);
+  const [customDiagnosticLoading, setCustomDiagnosticLoading] = useState(false);
 
   function handleAIProviderChange(p: AIProviderType) {
     setAIProviderLocal(p);
@@ -393,23 +399,52 @@ export default function SettingsModal({
     void saveApiSecret('cafezin-ai-provider', p);
     setAIProviderKey(p !== 'copilot' ? getProviderKey(p) : '');
     setAIModel(getActiveModel());
-    setAIFavoriteIds(p !== 'copilot' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot'>) : []);
+    setAIFavoriteIds(p !== 'copilot' && p !== 'custom' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot'>) : []);
     setCustomModelInput('');
+    setCustomEndpointDraft(getCustomEndpoint());
+    setCustomDiagnostic(null);
+  }
+
+  async function handleTestCustomEndpoint() {
+    setCustomDiagnostic(null);
+    setCustomDiagnosticLoading(true);
+    try {
+      const result = await testCustomEndpoint(
+        customEndpointDraft.trim(),
+        aiProviderKey.trim(),
+        aiModel.trim(),
+      );
+      setCustomDiagnostic(result);
+    } finally {
+      setCustomDiagnosticLoading(false);
+    }
+  }
+
+  function handleSaveCustomConfig() {
+    // Save endpoint URL (localStorage only — not synced to Supabase for privacy)
+    setCustomEndpoint(customEndpointDraft.trim());
+    // Save model ID via the standard per-provider key
+    const mid = aiModel.trim();
+    if (mid) setActiveModel(mid);
+    // Save API key (optional, encrypted + synced like other providers)
+    void saveApiSecret('cafezin-custom-key', aiProviderKey.trim());
+    setAIKeySaved(true);
+    setTimeout(() => setAIKeySaved(false), 2000);
   }
 
   function addCustomModel() {
-    if (aiProvider === 'copilot') return;
+    if (aiProvider === 'copilot' || aiProvider === 'custom') return;
     const id = customModelInput.trim();
     if (!id || aiFavoriteIds.includes(id)) { setCustomModelInput(''); return; }
     const next = [...aiFavoriteIds, id];
     setAIFavoriteIds(next);
-    setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot'>, next);
+    setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot' | 'custom'>, next);
     setCustomModelInput('');
   }
 
   function handleSaveAIKey() {
-    if (aiProvider === 'copilot') return;
-    const keyMap: Record<Exclude<AIProviderType, 'copilot'>, string> = {
+    if (aiProvider === 'copilot' || aiProvider === 'custom') return;
+    const keyMap: Record<Exclude<AIProviderType, 'copilot' | 'custom'>, string> = {
       openai: 'cafezin-openai-key',
       anthropic: 'cafezin-anthropic-key',
       groq: 'cafezin-groq-key',
@@ -536,13 +571,16 @@ export default function SettingsModal({
     anthropic: !!getProviderKey('anthropic'),
     groq: !!getProviderKey('groq'),
     google: !!getProviderKey('google'),
+    custom: !!getCustomEndpoint() && !!getCustomModelId(),
   };
   const copilotModelOptions = Array.from(
     new Map((aiCopilotModels.length > 0 ? aiCopilotModels : FALLBACK_MODELS).map((model) => [model.id, model])).values(),
   );
   const providerModelOptions = aiProvider === 'copilot'
     ? copilotModelOptions.map((model) => ({ id: model.id, label: model.name }))
-    : PROVIDER_CATALOG[aiProvider as Exclude<AIProviderType, 'copilot'>].map((model) => ({
+    : aiProvider === 'custom'
+    ? [] // custom model is a text input, not a dropdown
+    : PROVIDER_CATALOG[aiProvider as Exclude<AIProviderType, 'copilot' | 'custom'>].map((model) => ({
         id: model.id,
         label: model.name,
       }));
@@ -920,6 +958,8 @@ export default function SettingsModal({
                       <span className={`sm-provider-card-status ${providerConfigured[provider] ? 'is-ready' : ''}`}>
                         {provider === 'copilot'
                           ? providerConfigured[provider] ? 'Conectado' : 'Entrar pelo chat'
+                          : provider === 'custom'
+                          ? providerConfigured[provider] ? 'Configurado' : 'Configurar'
                           : providerConfigured[provider] ? 'Chave salva' : 'Sem chave'}
                       </span>
                       {aiProvider === provider && (
@@ -929,7 +969,8 @@ export default function SettingsModal({
                   ))}
                 </div>
 
-                {aiProvider !== 'copilot' && (
+                {/* Standard providers: API key field */}
+                {aiProvider !== 'copilot' && aiProvider !== 'custom' && (
                   <div className="sm-row sm-row--col">
                     <label className="sm-label">
                       {t('settings.apiKeyLabel')}
@@ -973,6 +1014,92 @@ export default function SettingsModal({
                   </div>
                 )}
 
+                {/* Custom / Local provider: endpoint + model ID + diagnostic */}
+                {aiProvider === 'custom' && (
+                  <div className="sm-custom-section">
+                    <div className="sm-custom-notice">
+                      Compatível com qualquer servidor <strong>OpenAI-compatible</strong>: Ollama, LM Studio, Jan, vLLM, OpenRouter, ou seu próprio proxy.
+                    </div>
+
+                    <div className="sm-row sm-row--col">
+                      <label className="sm-label">
+                        URL do servidor <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
+                        <span className="sm-row-desc"> — deve apontar para a raiz da API (ex: /v1)</span>
+                      </label>
+                      <input
+                        className="sm-input"
+                        type="text"
+                        value={customEndpointDraft}
+                        onChange={(e) => { setCustomEndpointDraft(e.target.value); setCustomDiagnostic(null); }}
+                        placeholder="http://localhost:11434/v1"
+                        spellCheck={false}
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    <div className="sm-row sm-row--col">
+                      <label className="sm-label">
+                        Chave da API
+                        <span className="sm-row-desc"> — opcional; não obrigatório para Ollama / LM Studio</span>
+                      </label>
+                      <input
+                        className="sm-input"
+                        type="password"
+                        value={aiProviderKey}
+                        onChange={(e) => { setAIProviderKey(e.target.value); setCustomDiagnostic(null); }}
+                        placeholder="sk-... (deixe em branco se não houver)"
+                      />
+                    </div>
+
+                    <div className="sm-row sm-row--col">
+                      <label className="sm-label">
+                        ID do modelo <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
+                        <span className="sm-row-desc"> — exatamente como listado no servidor (ex: llama3.2, mistral)</span>
+                      </label>
+                      <input
+                        className="sm-input"
+                        type="text"
+                        value={aiModel}
+                        onChange={(e) => { setAIModel(e.target.value); setCustomDiagnostic(null); }}
+                        placeholder="llama3.2"
+                        spellCheck={false}
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                      <button
+                        className={`sm-save-btn ${aiKeySaved ? 'saved' : ''}`}
+                        onClick={handleSaveCustomConfig}
+                        disabled={!customEndpointDraft.trim() || !aiModel.trim()}
+                      >
+                        {aiKeySaved ? t('settings.saved') : t('settings.save')}
+                      </button>
+                      <button
+                        className="sm-custom-test-btn"
+                        onClick={() => void handleTestCustomEndpoint()}
+                        disabled={!customEndpointDraft.trim() || !aiModel.trim() || customDiagnosticLoading}
+                      >
+                        {customDiagnosticLoading ? 'Testando…' : 'Testar conexão'}
+                      </button>
+                    </div>
+
+                    {customDiagnostic && (
+                      <div className={`sm-custom-diagnostic ${customDiagnostic.ok ? 'ok' : 'error'}`}>
+                        {customDiagnostic.ok
+                          ? `✓ Servidor respondeu em ${customDiagnostic.latencyMs}ms — tudo certo!`
+                          : `✗ ${customDiagnostic.error} — ${customDiagnostic.hint}`}
+                      </div>
+                    )}
+
+                    <div className="sm-custom-limitations">
+                      <strong>Limitações:</strong> análise de imagens / canvas visual não disponível.
+                      O modelo precisa suportar a API <code>/v1/chat/completions</code>.
+                      O endpoint e o ID do modelo ficam salvos apenas neste dispositivo.
+                    </div>
+                  </div>
+                )}
+
                 {aiProvider === 'copilot' && (
                   <div className="sm-row sm-row--col">
                     <label className="sm-label">GitHub Copilot</label>
@@ -985,6 +1112,8 @@ export default function SettingsModal({
                 )}
               </section>
 
+              {/* Default model — hidden for custom (model is set in the provider section above) */}
+              {aiProvider !== 'custom' && (
               <section className="sm-section">
                 <h3 className="sm-section-title">Modelo padrão</h3>
                 <p className="sm-section-desc">
@@ -1084,6 +1213,8 @@ export default function SettingsModal({
                   );
                 })()}
               </section>
+
+              )} {/* end aiProvider !== 'custom' */}
 
             </div>
           )}

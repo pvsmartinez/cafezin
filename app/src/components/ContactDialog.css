@@ -1,0 +1,200 @@
+/* ── Contact Dialog ──────────────────────────────────────────────────────────── */
+
+.cd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 1000);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 16px 56px; /* above the bottom bar */
+  pointer-events: all;
+}
+
+.cd-dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.32);
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-ui);
+  animation: cd-in 0.15s ease;
+}
+
+@keyframes cd-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────────── */
+.cd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cd-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cd-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 5px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  transition: color 0.1s;
+}
+.cd-close:hover { color: var(--text); }
+
+/* ── Kind selector ───────────────────────────────────────────────────────────── */
+.cd-kinds {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px 0;
+  flex-wrap: wrap;
+}
+
+.cd-kind-btn {
+  background: var(--hover-bg, rgba(255,255,255,0.05));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--font-ui);
+  padding: 3px 10px;
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+.cd-kind-btn:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+.cd-kind-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ── Fields ──────────────────────────────────────────────────────────────────── */
+.cd-field {
+  padding: 8px 14px 0;
+}
+
+.cd-textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  padding: 8px 10px;
+  resize: none;
+  box-sizing: border-box;
+  line-height: 1.5;
+  transition: border-color 0.1s;
+}
+.cd-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.cd-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  padding: 6px 10px;
+  box-sizing: border-box;
+  transition: border-color 0.1s;
+}
+.cd-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.cd-input::placeholder,
+.cd-textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* ── Error ───────────────────────────────────────────────────────────────────── */
+.cd-error {
+  font-size: 11px;
+  color: var(--red);
+  padding: 6px 14px 0;
+  margin: 0;
+}
+
+/* ── Footer / submit ─────────────────────────────────────────────────────────── */
+.cd-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 14px 12px;
+}
+
+.cd-btn-primary {
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  padding: 6px 18px;
+  transition: opacity 0.1s;
+}
+.cd-btn-primary:hover:not(:disabled) { opacity: 0.85; }
+.cd-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cd-btn-secondary {
+  background: var(--hover-bg, rgba(255,255,255,0.07));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  padding: 5px 14px;
+  transition: color 0.1s;
+}
+.cd-btn-secondary:hover { color: var(--text); }
+
+/* ── Success state ───────────────────────────────────────────────────────────── */
+.cd-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 20px;
+  text-align: center;
+}
+
+.cd-success-icon {
+  font-size: 24px;
+  color: var(--green, #4ade80);
+}
+
+.cd-success p {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}

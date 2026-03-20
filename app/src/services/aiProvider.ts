@@ -6,9 +6,12 @@
  *   openai    — OpenAI API (sk-...)
  *   anthropic — Anthropic API (sk-ant-...)
  *   groq      — Groq API (gsk_...)
+ *   google    — Google Gemini (AIza...)
+ *   custom    — Any OpenAI-compatible server (Ollama, LM Studio, OpenRouter, etc.)
  *
  * User-level settings (provider choice + keys) are persisted in localStorage
  * and synced encrypted to Supabase via saveApiSecret — available on every device.
+ * Exception: custom endpoint URL and model ID are localStorage-only (privacy).
  * Workspace config can override the model via workspace.config.preferredModel.
  */
 
@@ -20,7 +23,7 @@ import type { CopilotModel } from '../types';
 
 // ── Provider types ────────────────────────────────────────────────────────────
 
-export type AIProviderType = 'copilot' | 'openai' | 'anthropic' | 'groq' | 'google';
+export type AIProviderType = 'copilot' | 'openai' | 'anthropic' | 'groq' | 'google' | 'custom';
 
 export const PROVIDER_LABELS: Record<AIProviderType, string> = {
   copilot:   'GitHub Copilot',
@@ -28,6 +31,7 @@ export const PROVIDER_LABELS: Record<AIProviderType, string> = {
   anthropic: 'Anthropic (Claude)',
   groq:      'Groq',
   google:    'Google (Gemini)',
+  custom:    'Custom / Local',
 };
 
 export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
@@ -36,6 +40,7 @@ export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
   anthropic: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5'],
   groq:      ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'meta-llama/llama-4-scout-17b-16e-instruct'],
   google:    ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+  custom:    [], // model ID is typed freely by the user
 };
 
 export const PROVIDER_DEFAULT_MODELS: Record<AIProviderType, string> = {
@@ -44,6 +49,7 @@ export const PROVIDER_DEFAULT_MODELS: Record<AIProviderType, string> = {
   anthropic: 'claude-sonnet-4-5',
   groq:      'llama-3.3-70b-versatile',
   google:    'gemini-2.5-flash',
+  custom:    '',
 };
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
@@ -58,7 +64,24 @@ const PROVIDER_KEY_MAP: Record<Exclude<AIProviderType, 'copilot'>, string> = {
   anthropic: 'cafezin-anthropic-key',
   groq:      'cafezin-groq-key',
   google:    'cafezin-google-key',
+  custom:    'cafezin-custom-key',
 };
+
+// Custom provider — endpoint URL and model ID stored only in localStorage (never synced)
+const CUSTOM_ENDPOINT_KEY = 'cafezin-custom-endpoint';
+
+export function getCustomEndpoint(): string {
+  return localStorage.getItem(CUSTOM_ENDPOINT_KEY) ?? '';
+}
+
+export function setCustomEndpoint(url: string): void {
+  localStorage.setItem(CUSTOM_ENDPOINT_KEY, url);
+}
+
+/** Returns the stored model ID for the custom provider. */
+export function getCustomModelId(): string {
+  return localStorage.getItem(MODEL_KEY_PREFIX + 'custom') ?? '';
+}
 
 // ── Accessors ─────────────────────────────────────────────────────────────────
 
@@ -100,6 +123,9 @@ export function isAIConfigured(): boolean {
   if (p === 'copilot') {
     return !!localStorage.getItem('copilot-github-oauth-token') ||
       Object.keys(localStorage).some((key) => key.startsWith('copilot-github-oauth-token:'));
+  }
+  if (p === 'custom') {
+    return !!getCustomEndpoint() && !!getCustomModelId();
   }
   return !!getProviderKey(p);
 }
@@ -262,6 +288,7 @@ async function streamAnthropic(
  *  - OpenAI          → api.openai.com (requires API key)
  *  - Anthropic       → api.anthropic.com (requires API key, different format)
  *  - Groq            → api.groq.com (requires API key, OpenAI-compatible)
+ *  - Custom          → user-configured OpenAI-compatible endpoint (Ollama, LM Studio, etc.)
  *
  * Note: the full agent loop with workspace tools is only supported when
  * provider === 'copilot'. Other providers run plain streaming chat.
@@ -297,6 +324,22 @@ export async function streamChat(
     );
   }
 
+  if (provider === 'custom') {
+    const endpoint = getCustomEndpoint();
+    const customModel = model || getCustomModelId();
+    if (!endpoint || !customModel) {
+      onError(new Error(
+        'Servidor customizado não configurado. Acesse Configurações > Assistente IA.',
+      ));
+      return;
+    }
+    const normalized = endpoint.replace(/\/+$/, '');
+    const url = normalized.endsWith('/chat/completions')
+      ? normalized
+      : `${normalized}/chat/completions`;
+    return streamOpenAICompatible(url, getProviderKey('custom'), messages, customModel, onChunk, onDone, onError, signal);
+  }
+
   const key = getProviderKey(provider);
   if (!key) {
     onError(new Error(
@@ -321,4 +364,112 @@ export async function streamChat(
     : 'https://api.groq.com/openai/v1/chat/completions';
 
   return streamOpenAICompatible(url, key, messages, resolvedModel, onChunk, onDone, onError, signal);
+}
+
+// ── Custom endpoint diagnostics ───────────────────────────────────────────────
+
+export type CustomEndpointDiagnostic =
+  | { ok: true; latencyMs: number }
+  | { ok: false; error: string; hint: string };
+
+/**
+ * Tests a custom OpenAI-compatible endpoint with a minimal request.
+ * Returns structured diagnostic info ready to display in Settings.
+ *
+ * A 400 response where the server mentions "model" is treated as
+ * "server reachable but model not found" and reported as a distinct error.
+ * Other 400s are optimistically treated as OK (server is live, bad payload).
+ */
+export async function testCustomEndpoint(
+  baseUrl: string,
+  apiKey: string,
+  modelId: string,
+): Promise<CustomEndpointDiagnostic> {
+  const normalized = baseUrl.replace(/\/+$/, '');
+  const url = normalized.endsWith('/chat/completions')
+    ? normalized
+    : `${normalized}/chat/completions`;
+
+  const start = Date.now();
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [{ role: 'user', content: 'Hi' }],
+        max_tokens: 1,
+        stream: false,
+      }),
+    });
+
+    const latencyMs = Date.now() - start;
+
+    if (response.ok) {
+      return { ok: true, latencyMs };
+    }
+
+    const body = await response.text().catch(() => '');
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ok: false,
+        error: `Erro ${response.status} — não autorizado`,
+        hint: 'Chave de API inválida ou ausente. Verifique o campo "Chave da API".',
+      };
+    }
+    if (response.status === 404) {
+      return {
+        ok: false,
+        error: 'Endpoint não encontrado (404)',
+        hint: 'Verifique se a URL termina em /v1 — ex: http://localhost:11434/v1',
+      };
+    }
+    if (response.status === 400) {
+      const bodyLower = body.toLowerCase();
+      if (bodyLower.includes('model')) {
+        return {
+          ok: false,
+          error: 'Modelo não encontrado',
+          hint: `O servidor respondeu, mas o modelo "${modelId}" não existe. Verifique o ID do modelo.`,
+        };
+      }
+      // Other 400: server is reachable, our minimal payload was invalid — close enough
+      return { ok: true, latencyMs };
+    }
+
+    return {
+      ok: false,
+      error: `Erro ${response.status}`,
+      hint: body.slice(0, 180) || 'Resposta inesperada do servidor.',
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const isLocal = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+    const isConnRefused =
+      msg.includes('Connection refused') ||
+      msg.includes('connection refused') ||
+      msg.includes('ECONNREFUSED') ||
+      msg.includes('os error 61') ||
+      msg.includes('os error 111') ||
+      msg.includes('Failed to fetch') ||
+      msg.includes('NetworkError');
+    if (isConnRefused) {
+      return {
+        ok: false,
+        error: 'Sem conexão',
+        hint: isLocal
+          ? 'Servidor local não encontrado. Certifique-se que o serviço está rodando (ex: ollama serve).'
+          : 'Não foi possível conectar ao servidor. Verifique a URL e se o serviço está acessível.',
+      };
+    }
+    return {
+      ok: false,
+      error: 'Erro de conexão',
+      hint: msg.slice(0, 180),
+    };
+  }
 }

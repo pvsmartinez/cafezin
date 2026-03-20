@@ -29,6 +29,8 @@ import { getActiveProvider } from '../services/aiProvider';
 import type { AIProviderType } from '../services/aiProvider';
 import { getProviderModelsForPicker } from '../services/ai/providerModels';
 import { readFile, writeFile } from '../services/fs';
+import { loadWorkspaceSession, saveWorkspaceSession } from '../services/workspaceSession';
+import type { WorkspaceAgentTabSession } from '../services/workspaceSession';
 import { getGroqKey, getGroqLangPreference } from '../hooks/useVoiceInput';
 import { FALLBACK_MODELS } from '../types';
 import type { AIRecordedTextMark, AISelectionContext, CopilotModelInfo } from '../types';
@@ -104,6 +106,31 @@ interface AgentTab {
   label: string;
   status: AgentStatus;
   unread: boolean;
+  model?: string;
+  createdAt?: string;
+}
+
+function createAgentTab(index: number, model?: string, id?: string, createdAt?: string): AgentTab {
+  return {
+    id: id ?? `agent-${index}`,
+    label: `Agente ${index}`,
+    status: 'idle',
+    unread: false,
+    ...(model ? { model } : {}),
+    ...(createdAt ? { createdAt } : { createdAt: new Date().toISOString() }),
+  };
+}
+
+function restoreAgentTabs(tabs: WorkspaceAgentTabSession[] | undefined, fallbackModel?: string): AgentTab[] {
+  if (!tabs || tabs.length === 0) return [createAgentTab(1, fallbackModel)];
+  return tabs.map((tab) => ({
+    id: tab.id,
+    label: tab.label,
+    status: 'idle',
+    unread: false,
+    ...(tab.model ? { model: tab.model } : fallbackModel ? { model: fallbackModel } : {}),
+    ...(tab.createdAt ? { createdAt: tab.createdAt } : { createdAt: new Date().toISOString() }),
+  }));
 }
 
 function getTabStatusMeta(tab: AgentTab): { tone: 'idle' | 'thinking' | 'error' | 'ready'; label: string; ariaLabel: string; title: string } {
@@ -266,10 +293,11 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   }, []);
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
-  const [tabs, setTabs] = useState<AgentTab[]>([{ id: 'agent-1', label: 'Agente 1', status: 'idle', unread: false }]);
+  const [tabs, setTabs] = useState<AgentTab[]>(() => [createAgentTab(1, initialModel)]);
   const [activeTabId, setActiveTabId] = useState('agent-1');
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renamingValue, setRenamingValue] = useState('');
+  const tabsHydratedRef = useRef(false);
 
   // Track previous status per tab so we can detect thinking→idle transition
   const prevStatusRef = useRef<Map<string, AgentStatus>>(new Map());
@@ -287,6 +315,36 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
       .catch(() => {});
     return () => { unlisten?.(); };
   }, []);
+
+  useEffect(() => {
+    const restoredTabs = workspacePath
+      ? restoreAgentTabs(loadWorkspaceSession(workspacePath).aiTabs, initialModel)
+      : [createAgentTab(1, initialModel)];
+    const session = workspacePath ? loadWorkspaceSession(workspacePath) : null;
+    const nextActive = session?.activeAiTabId && restoredTabs.some((tab) => tab.id === session.activeAiTabId)
+      ? session.activeAiTabId
+      : restoredTabs[0]?.id ?? 'agent-1';
+
+    prevStatusRef.current = new Map(restoredTabs.map((tab) => [tab.id, tab.status]));
+    setTabs(restoredTabs);
+    setActiveTabId(nextActive);
+    setRenamingTabId(null);
+    setRenamingValue('');
+    tabsHydratedRef.current = true;
+  }, [workspacePath]);
+
+  useEffect(() => {
+    if (!workspacePath || !tabsHydratedRef.current) return;
+    saveWorkspaceSession(workspacePath, {
+      aiTabs: tabs.map((tab) => ({
+        id: tab.id,
+        label: tab.label,
+        ...(tab.model ? { model: tab.model } : {}),
+        ...(tab.createdAt ? { createdAt: tab.createdAt } : {}),
+      })),
+      activeAiTabId: tabs.some((tab) => tab.id === activeTabId) ? activeTabId : tabs[0]?.id ?? null,
+    });
+  }, [workspacePath, tabs, activeTabId]);
 
   // ── Voice memo panel ─────────────────────────────────────────────────────
   const [voicePanelOpen, setVoicePanelOpen] = useState(false);
@@ -337,8 +395,11 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   function addTab() {
     const n = tabs.length + 1;
     const id = `agent-${n}-${Date.now()}`;
-    const label = `Agente ${n}`;
-    setTabs((prev) => [...prev, { id, label, status: 'idle', unread: false }]);
+    const activeModel = tabs.find((tab) => tab.id === activeTabId)?.model ?? initialModel;
+    setTabs((prev) => {
+      const next = createAgentTab(n, activeModel, id);
+      return [...prev, { ...next, label: `Agente ${n}` }];
+    });
     setActiveTabId(id);
     onExpand?.();
   }
@@ -571,8 +632,11 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           modelsLoading={modelsLoading}
           onClose={onClose}
           initialPrompt={initialPrompt}
-          initialModel={initialModel}
-          onModelChange={onModelChange}
+          initialModel={tab.model ?? initialModel}
+          onModelChange={(model) => {
+            setTabs((tabs) => tabs.map((t) => t.id === tab.id ? { ...t, model } : t));
+            onModelChange?.(model);
+          }}
           documentContext={documentContext}
           agentContext={agentContext}
           workspacePath={workspacePath}

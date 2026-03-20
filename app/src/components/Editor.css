@@ -10,33 +10,65 @@
 /* ── Markdown formatting toolbar ────────────────────────────────────────────── */
 .editor-md-toolbar {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 2px;
-  padding: 4px 8px;
+  gap: 1px;
+  padding: 4px 10px;
   background: var(--bg-secondary, #1e1e1e);
   border-bottom: 1px solid var(--border, #333);
   flex-shrink: 0;
 }
 
 .editor-md-toolbar-btn {
-  padding: 2px 7px;
-  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-dim, #888);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
   white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.01em;
 }
+
+/* Heading text-label buttons need a bit more horizontal room */
+.editor-md-toolbar-btn.btn-heading {
+  width: auto;
+  padding: 0 7px;
+}
+
+.editor-md-toolbar-label {
+  line-height: 1;
+  pointer-events: none;
+}
+
 .editor-md-toolbar-btn:hover {
   background: var(--bg-hover, #2a2a2a);
   color: var(--text, #ccc);
-  border-color: var(--border, #444);
+  border-color: var(--border, #3a3a3a);
 }
 .editor-md-toolbar-btn:active {
   background: var(--bg-active, #333);
+  transform: scale(0.94);
+}
+
+/* Group separator */
+.editor-md-toolbar-sep {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: var(--border, #3a3a3a);
+  margin: 0 6px;
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
 /* Light mode overrides */
@@ -50,6 +82,10 @@ body.theme-light .editor-md-toolbar-btn {
 body.theme-light .editor-md-toolbar-btn:hover {
   background: var(--surface-deep);
   color: var(--text-bright);
+  border-color: var(--border);
+}
+body.theme-light .editor-md-toolbar-sep {
+  background: var(--border);
 }
 
 /* KaTeX block math in markdown preview */

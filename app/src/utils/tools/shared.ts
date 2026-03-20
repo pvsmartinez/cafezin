@@ -52,6 +52,8 @@ export interface ToolContext {
   onCanvasModified?: (shapeIds: string[]) => void;
   onMemoryWritten?: (newContent: string) => void;
   onUserProfileWritten?: (newContent: string) => void;
+  /** Called after a task is created or a task step is updated. */
+  onTaskChanged?: () => void;
   onExportConfigChange?: (config: WorkspaceExportConfig) => void;
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
   onAskUser?: (question: string, options?: string[]) => Promise<string>;

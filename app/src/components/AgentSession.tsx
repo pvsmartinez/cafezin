@@ -14,10 +14,11 @@ import { readFile } from '../services/fs';
 
 import { getLastRequestDump, modelSupportsVision, resolveCopilotModelForChatCompletions } from '../services/copilot';
 import { DEFAULT_MODEL } from '../types';
-import type { AIRecordedTextMark, AISelectionContext, CopilotModel, CopilotModelInfo, MessageItem } from '../types';
+import type { AIRecordedTextMark, AISelectionContext, CopilotModel, CopilotModelInfo, MessageItem, Task } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
 import type { Editor as TldrawEditor } from 'tldraw';
 import { getMimeType, IMAGE_EXTS } from '../utils/mime';
+import { getActiveTask } from '../services/taskService';
 
 import { ModelPicker } from './ai/AIModelPicker';
 import { CodeBlock, parseSegments } from './ai/AICodeBlock';
@@ -186,7 +187,20 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
   // ── Domain hooks ──────────────────────────────────────────────────────────
   const [memoryContent, setMemoryContent] = useWorkspaceMemory(workspacePath);  const [userProfileContent, setUserProfileContent] = useUserProfile();
-  const session      = useAISession({ model });
+
+  // ── Active task (loaded from .cafezin/tasks.json) ─────────────────────────
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const reloadTask = useCallback(() => {
+    if (!workspacePath) { setActiveTask(null); return; }
+    getActiveTask(workspacePath).then(setActiveTask).catch(() => setActiveTask(null));
+  }, [workspacePath]);
+  useEffect(() => { reloadTask(); }, [reloadTask]);
+  const session      = useAISession({
+    model,
+    agentId,
+    workspacePath,
+    allowLegacyRestore: agentId === 'agent-1',
+  });
   const sessionStats = useSessionStats(session.messages);
 
   const systemPrompt = useSystemPrompt({
@@ -226,6 +240,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     onStreamingChange,
     setMemoryContent,
     setUserProfileContent,
+    onTaskChanged: reloadTask,
     onNotAuthenticated,
     agentId,
     activeFileContent: documentContext,
@@ -468,6 +483,32 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             title={`${stream.quotaInfo.remaining} / ${stream.quotaInfo.limit} requests remaining`}
           >
             <div className="ai-quota-bar-fill" style={{ width: `${pct}%` }} />
+          </div>
+        );
+      })()}
+
+      {/* Active task panel */}
+      {activeTask && (() => {
+        const doneCount = activeTask.steps.filter((s) => s.status === 'done' || s.status === 'skipped').length;
+        const total = activeTask.steps.length;
+        return (
+          <div className="ai-task-panel">
+            <div className="ai-task-panel-header">
+              <span className="ai-task-panel-title">{activeTask.title}</span>
+              <span className="ai-task-panel-progress">{doneCount}/{total}</span>
+            </div>
+            <ul className="ai-task-steps">
+              {activeTask.steps.map((step, i) => (
+                <li key={i} className={`ai-task-step ai-task-step--${step.status}`}>
+                  <span className="ai-task-step-icon">
+                    {step.status === 'done'        ? '✓' :
+                     step.status === 'in-progress' ? '◎' :
+                     step.status === 'skipped'     ? '–' : '○'}
+                  </span>
+                  <span className="ai-task-step-title">{step.title}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         );
       })()}

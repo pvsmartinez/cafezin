@@ -35,7 +35,15 @@ import type { Extension } from '@codemirror/state';
 import { linter, setDiagnostics } from '@codemirror/lint';
 import type { Diagnostic } from '@codemirror/lint';
 import { makeGhostTextExtension, type GhostCompleteFn } from '../utils/ghostText';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { makeLivePreviewExtension } from '../utils/livePreview';
+import { Fragment, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import {
+  TextB, TextItalic, TextStrikethrough, Code,
+  Minus, Quotes, ListBullets, ListNumbers,
+  Link, Image, CodeBlock, Table, Sigma,
+  TextAlignLeft, TextAlignCenter, TextAlignRight, TextAlignJustify,
+  Highlighter, ListChecks, TextIndent, TextOutdent,
+} from '@phosphor-icons/react';
 import type { AISelectionContext } from '../types';
 import './Editor.css';
 
@@ -344,28 +352,80 @@ function buildSelectionContext(selectedText: string, activeFile?: string): AISel
 }
 
 // ── Markdown toolbar ─────────────────────────────────────────────────────────
-const MD_TOOLBAR_ITEMS = [
-  { label: 'B',   title: 'Bold (⌘B)',           wrap: ['**', '**'],       block: false },
-  { label: 'I',   title: 'Italic (⌘I)',          wrap: ['_', '_'],         block: false },
-  { label: 'S',   title: 'Strikethrough',        wrap: ['~~', '~~'],       block: false },
-  { label: '`',   title: 'Inline code',          wrap: ['`', '`'],         block: false },
-  { label: 'H1',  title: 'Heading 1',            prefix: '# ',             block: true  },
-  { label: 'H2',  title: 'Heading 2',            prefix: '## ',            block: true  },
-  { label: 'H3',  title: 'Heading 3',            prefix: '### ',           block: true  },
-  { label: '—',   title: 'Horizontal rule',      insert: '\n---\n',         block: false },
-  { label: '≡',   title: 'Bullet list',          prefix: '- ',             block: true  },
-  { label: '#.',  title: 'Numbered list',        prefix: '1. ',            block: true  },
-  { label: '>',   title: 'Blockquote',           prefix: '> ',             block: true  },
-  { label: '[]',  title: 'Link',                 link: true,               block: false },
-  { label: '⊡',  title: 'Image',                image: true,              block: false },
-  { label: '```', title: 'Code block',           codeBlock: true,          block: false },
-  { label: '⊞',   title: 'Table',               table: true,              block: false },
-  { label: '$$',  title: 'Math block (KaTeX)',   mathBlock: true,          block: false },
-] as const;
+type PhosphorIcon = React.ComponentType<{ size?: number; weight?: 'thin' | 'light' | 'regular' | 'bold' | 'fill' | 'duotone' }>;
+
+interface ToolbarItem {
+  title: string;
+  icon?: PhosphorIcon;
+  text?: string;
+  wrap?: readonly [string, string];
+  prefix?: string;
+  insert?: string;
+  link?: true;
+  image?: true;
+  codeBlock?: true;
+  table?: true;
+  mathBlock?: true;
+  align?: 'left' | 'center' | 'right' | 'justify';
+  highlight?: true;
+  checklist?: true;
+  superscript?: true;
+  subscript?: true;
+  indent?: 'in' | 'out';
+}
+
+const MD_TOOLBAR_GROUPS: ToolbarItem[][] = [
+  // ── Inline formatting ──────────────────────────────────────────────────────
+  [
+    { icon: TextB,             title: 'Negrito (⌘B)',            wrap: ['**', '**'] },
+    { icon: TextItalic,        title: 'Itálico (⌘I)',            wrap: ['_', '_']   },
+    { icon: TextStrikethrough, title: 'Tachado',                 wrap: ['~~', '~~'] },
+    { icon: Code,              title: 'Código inline',           wrap: ['`', '`']   },
+    { icon: Highlighter,       title: 'Realçar (highlight)',     highlight: true    },
+  ],
+  // ── Headings ───────────────────────────────────────────────────────────────
+  [
+    { text: 'H1', title: 'Título 1  (# )',    prefix: '# '   },
+    { text: 'H2', title: 'Título 2  (## )',   prefix: '## '  },
+    { text: 'H3', title: 'Título 3  (### )',  prefix: '### ' },
+  ],
+  // ── Block structure ────────────────────────────────────────────────────────
+  [
+    { icon: Minus,       title: 'Divisor horizontal',    insert: '\n---\n' },
+    { icon: Quotes,      title: 'Citação',               prefix: '> '      },
+    { icon: ListBullets, title: 'Lista com marcadores',  prefix: '- '      },
+    { icon: ListNumbers, title: 'Lista numerada',        prefix: '1. '     },
+    { icon: ListChecks,  title: 'Lista de tarefas',      checklist: true   },
+  ],
+  // ── Insert ─────────────────────────────────────────────────────────────────
+  [
+    { icon: Link,      title: 'Link',                     link: true      },
+    { icon: Image,     title: 'Imagem',                   image: true     },
+    { icon: CodeBlock, title: 'Bloco de código',          codeBlock: true },
+    { icon: Table,     title: 'Tabela',                   table: true     },
+    { icon: Sigma,     title: 'Bloco matemático (KaTeX)', mathBlock: true },
+  ],
+  // ── Alignment ───────────────────────────────────────────────────────────────
+  [
+    { icon: TextAlignLeft,    title: 'Alinhar à esquerda', align: 'left'    },
+    { icon: TextAlignCenter,  title: 'Centralizar',         align: 'center'  },
+    { icon: TextAlignRight,   title: 'Alinhar à direita',  align: 'right'   },
+    { icon: TextAlignJustify, title: 'Justificar',          align: 'justify' },
+  ],
+  // ── Superscript / subscript + indent ────────────────────────────────────────
+  [
+    { text: 'x²', title: 'Sobrescrito (superscript)', superscript: true },
+    { text: 'x₂', title: 'Subscrito (subscript)',     subscript: true   },
+  ],
+  [
+    { icon: TextIndent,  title: 'Aumentar recuo', indent: 'in'  },
+    { icon: TextOutdent, title: 'Diminuir recuo', indent: 'out' },
+  ],
+];
 
 function applyMdToolbar(
   view: import('@codemirror/view').EditorView,
-  item: typeof MD_TOOLBAR_ITEMS[number],
+  item: ToolbarItem,
 ) {
   const state = view.state;
   const { from, to } = state.selection.main;
@@ -375,38 +435,81 @@ function applyMdToolbar(
   let anchor = from;
   let head = from;
 
-  if ('wrap' in item && item.wrap) {
+  if (item.wrap) {
     const [before, after] = item.wrap;
     insert = before + (sel || 'text') + after;
     anchor = from + before.length;
     head = anchor + (sel || 'text').length;
-  } else if ('prefix' in item && item.prefix) {
+  } else if (item.prefix) {
     const lineStart = state.doc.lineAt(from).from;
     view.dispatch({ changes: { from: lineStart, insert: item.prefix } });
     view.focus();
     return;
-  } else if ('insert' in item && item.insert) {
+  } else if (item.insert) {
     insert = item.insert;
     anchor = head = from + insert.length;
-  } else if ('link' in item && item.link) {
+  } else if (item.link) {
     insert = `[${sel || 'text'}](url)`;
     anchor = from + 1;
     head = from + 1 + (sel || 'text').length;
-  } else if ('image' in item && item.image) {
+  } else if (item.image) {
     insert = `![${sel || 'alt text'}](url)`;
     anchor = from + 2;
     head = from + 2 + (sel || 'alt text').length;
-  } else if ('codeBlock' in item && item.codeBlock) {
+  } else if (item.codeBlock) {
     insert = '```\n' + (sel || '') + '\n```';
     anchor = from + 4;
     head = anchor + (sel || '').length;
-  } else if ('table' in item && item.table) {
+  } else if (item.table) {
     insert = '| Col 1 | Col 2 |\n|-------|-------|\n| cell  | cell  |';
     anchor = head = from + insert.length;
-  } else if ('mathBlock' in item && item.mathBlock) {
+  } else if (item.mathBlock) {
     insert = '$$\n' + (sel || 'expression') + '\n$$';
     anchor = from + 3;
     head = anchor + (sel || 'expression').length;
+  } else if (item.align) {
+    const inner = sel || 'texto';
+    const prefix = `<div style="text-align: ${item.align}">\n\n`;
+    const suffix = '\n\n</div>';
+    insert = prefix + inner + suffix;
+    anchor = from + prefix.length;
+    head = anchor + inner.length;
+  } else if (item.highlight) {
+    insert = `<mark>${sel || 'texto'}</mark>`;
+    anchor = from + 6; // len('<mark>')
+    head = anchor + (sel || 'texto').length;
+  } else if (item.checklist) {
+    const lineStart = state.doc.lineAt(from).from;
+    view.dispatch({ changes: { from: lineStart, insert: '- [ ] ' } });
+    view.focus();
+    return;
+  } else if (item.superscript) {
+    insert = `<sup>${sel || 'texto'}</sup>`;
+    anchor = from + 5;
+    head = anchor + (sel || 'texto').length;
+  } else if (item.subscript) {
+    insert = `<sub>${sel || 'texto'}</sub>`;
+    anchor = from + 5;
+    head = anchor + (sel || 'texto').length;
+  } else if (item.indent) {
+    // Apply to every selected line
+    const { from: selFrom, to: selTo } = state.selection.main;
+    const startLine = state.doc.lineAt(selFrom).number;
+    const endLine   = state.doc.lineAt(selTo).number;
+    const changes: { from: number; to?: number; insert: string }[] = [];
+    for (let ln = startLine; ln <= endLine; ln++) {
+      const line = state.doc.line(ln);
+      if (item.indent === 'in') {
+        changes.push({ from: line.from, insert: '  ' });
+      } else {
+        // Remove up to 2 leading spaces
+        const spaces = line.text.match(/^( {1,2})/)?.[1]?.length ?? 0;
+        if (spaces > 0) changes.push({ from: line.from, to: line.from + spaces, insert: '' });
+      }
+    }
+    if (changes.length) view.dispatch({ changes });
+    view.focus();
+    return;
   }
 
   if (insert) {
@@ -446,6 +549,11 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [], // intentionally stable — language is fixed per Editor mount (key=activeFile)
     );
+
+    // Live preview: hides Markdown syntax markers on lines without the cursor.
+    // Only active in prose mode — codeMode is stable per mount so empty deps is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const livePreviewExtension = useMemo(() => (codeMode ? [] : makeLivePreviewExtension()), []);
 
     const emitSelectionContext = useCallback((view: EditorView | null) => {
       const callback = onSelectionContextChangeRef.current;
@@ -590,8 +698,8 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
         if (!codeMode && (e.metaKey || e.ctrlKey)) {
           const view = viewRef.current;
           if (!view) return;
-          if (e.key === 'b') { e.preventDefault(); applyMdToolbar(view, MD_TOOLBAR_ITEMS[0]); return; }
-          if (e.key === 'i') { e.preventDefault(); applyMdToolbar(view, MD_TOOLBAR_ITEMS[1]); return; }
+          if (e.key === 'b') { e.preventDefault(); applyMdToolbar(view, MD_TOOLBAR_GROUPS[0][0]); return; }
+          if (e.key === 'i') { e.preventDefault(); applyMdToolbar(view, MD_TOOLBAR_GROUPS[0][1]); return; }
         }
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -648,26 +756,37 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       lintCompartmentRef.current.of(codeMode ? linter(() => []) : []),
       // Ghost text inline completions (all modes)
       ghostTextExtension,
+      // Live preview: hide syntax markers on non-cursor lines (prose only)
+      livePreviewExtension,
     ];
 
     return (
       <div className="editor-wrapper" onKeyDown={handleKeyDown} onPaste={handlePaste} data-locked={isLocked ? 'true' : undefined}>
         {/* ── Markdown formatting toolbar ── */}
         {!codeMode && (
-          <div className="editor-md-toolbar" aria-label="Markdown formatting">
-            {MD_TOOLBAR_ITEMS.map((item) => (
-              <button
-                key={item.label}
-                className="editor-md-toolbar-btn"
-                title={item.title}
-                onMouseDown={(e) => {
-                  e.preventDefault(); // prevent blur
-                  const view = viewRef.current;
-                  if (view) applyMdToolbar(view, item);
-                }}
-              >
-                {item.label}
-              </button>
+          <div className="editor-md-toolbar" aria-label="Formatação Markdown" role="toolbar">
+            {MD_TOOLBAR_GROUPS.map((group, gi) => (
+              <Fragment key={gi}>
+                {gi > 0 && <span className="editor-md-toolbar-sep" aria-hidden="true" />}
+                {group.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.title}
+                      className={`editor-md-toolbar-btn${!Icon ? ' btn-heading' : ''}`}
+                      title={item.title}
+                      aria-label={item.title}
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // prevent blur
+                        const view = viewRef.current;
+                        if (view) applyMdToolbar(view, item);
+                      }}
+                    >
+                      {Icon ? <Icon size={15} weight="regular" /> : <span className="editor-md-toolbar-label">{item.text}</span>}
+                    </button>
+                  );
+                })}
+              </Fragment>
             ))}
           </div>
         )}

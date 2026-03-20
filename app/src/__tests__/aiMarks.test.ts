@@ -57,7 +57,8 @@ describe('loadMarks', () => {
     vi.mocked(tauriFs.readTextFile).mockResolvedValue('[]');
     await loadMarks(mockWorkspace);
     expect(tauriFs.readTextFile).toHaveBeenCalledWith(
-      '/test/workspace/cafezin/ai-marks.json',
+      '/test/workspace/.cafezin/ai-marks.json',
+      undefined,
     );
   });
 });
@@ -72,12 +73,13 @@ describe('saveMarks', () => {
     await saveMarks(mockWorkspace, [sampleMark]);
 
     expect(tauriFs.mkdir).toHaveBeenCalledWith(
-      '/test/workspace/cafezin',
+      '/test/workspace/.cafezin',
       { recursive: true },
     );
     expect(tauriFs.writeTextFile).toHaveBeenCalledWith(
-      '/test/workspace/cafezin/ai-marks.json',
+      '/test/workspace/.cafezin/ai-marks.json',
       expect.any(String),
+      {},
     );
   });
 

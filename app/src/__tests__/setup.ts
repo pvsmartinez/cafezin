@@ -104,3 +104,12 @@ vi.mock('@uiw/react-codemirror', () => {
   CodeMirrorMock.displayName = 'CodeMirror';
   return { default: CodeMirrorMock };
 });
+
+// ── Mock @codemirror/lint ────────────────────────────────────────────────────
+// The real setDiagnostics calls state.field() internally. Since the CodeMirror
+// view is replaced with a plain textarea mock, state.field does not exist.
+// Mocking setDiagnostics prevents TypeError: state.field is not a function.
+vi.mock('@codemirror/lint', () => ({
+  setDiagnostics: vi.fn(() => ({})),
+  linter: vi.fn(() => []),
+}));

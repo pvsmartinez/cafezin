@@ -12,13 +12,17 @@ import {
   startGitAccountFlow,
   type SyncDeviceFlowState,
 } from '../../services/syncConfig';
-import { getActiveProvider, getProviderKey, PROVIDER_LABELS, type AIProviderType } from '../../services/aiProvider';
+import {
+  getActiveProvider, getProviderKey, PROVIDER_LABELS, type AIProviderType,
+  getCustomEndpoint, setCustomEndpoint, getCustomModelId,
+  testCustomEndpoint, type CustomEndpointDiagnostic,
+} from '../../services/aiProvider';
 import { saveApiSecret } from '../../services/apiSecrets';
 import { loadWorkspace } from '../../services/workspace';
 
 const DEFAULT_GIT_ACCOUNT_LABEL = 'personal';
 
-const PROVIDER_KEY_MAP: Record<Exclude<AIProviderType, 'copilot'>, string> = {
+const PROVIDER_KEY_MAP: Record<Exclude<AIProviderType, 'copilot' | 'custom'>, string> = {
   openai: 'cafezin-openai-key',
   anthropic: 'cafezin-anthropic-key',
   groq: 'cafezin-groq-key',
@@ -57,6 +61,11 @@ export default function MobileSettingsSheet({
   const [providerKey, setProviderKey] = useState('');
   const [vercelToken, setVercelToken] = useState('');
   const [savedSection, setSavedSection] = useState<'provider' | 'vercel' | null>(null);
+  // Custom / Local provider state
+  const [customEndpoint, setCustomEndpointState] = useState('');
+  const [customModelId, setCustomModelIdState] = useState('');
+  const [customDiagnostic, setCustomDiagnostic] = useState<CustomEndpointDiagnostic | null>(null);
+  const [customDiagnosticLoading, setCustomDiagnosticLoading] = useState(false);
 
   const [gitFlowBusy, setGitFlowBusy] = useState(false);
   const [gitFlowState, setGitFlowState] = useState<SyncDeviceFlowState | null>(null);
@@ -72,7 +81,7 @@ export default function MobileSettingsSheet({
     if (!open) return;
     const provider = getActiveProvider();
     setAIProvider(provider);
-    setProviderKey(provider === 'copilot' ? '' : getProviderKey(provider));
+    setProviderKey(provider === 'copilot' || provider === 'custom' ? '' : getProviderKey(provider));
     setVercelToken(localStorage.getItem('cafezin-vercel-token') ?? '');
     setPublishRepoName(sanitizeRepoName(workspace?.name ?? 'workspace'));
     setPublishPrivateRepo(true);
@@ -81,12 +90,16 @@ export default function MobileSettingsSheet({
     setShowAdvanced(false);
     setAdvancedMode('create');
     setAdvancedUrl('');
+    setCustomEndpointState(getCustomEndpoint());
+    setCustomModelIdState(getCustomModelId());
+    setCustomDiagnostic(null);
   }, [open, workspace?.name]);
 
   const providerHelpUrl = useMemo(() => {
     if (aiProvider === 'openai') return 'https://platform.openai.com/api-keys';
     if (aiProvider === 'anthropic') return 'https://console.anthropic.com/settings/keys';
     if (aiProvider === 'groq') return 'https://console.groq.com/keys';
+    if (aiProvider === 'custom') return 'https://github.com/ollama/ollama';
     return 'https://github.com/settings/copilot';
   }, [aiProvider]);
 
@@ -110,13 +123,35 @@ export default function MobileSettingsSheet({
     localStorage.setItem('cafezin-ai-provider', aiProvider);
     void saveApiSecret('cafezin-ai-provider', aiProvider);
 
-    if (aiProvider !== 'copilot') {
+    if (aiProvider === 'custom') {
+      // Endpoint and model ID: localStorage only (privacy)
+      setCustomEndpoint(customEndpoint.trim());
+      const mid = customModelId.trim();
+      if (mid) localStorage.setItem('cafezin-ai-model-custom', mid);
+      // API key: optional, encrypted + synced
+      void saveApiSecret('cafezin-custom-key', providerKey.trim());
+    } else if (aiProvider !== 'copilot') {
       void saveApiSecret(PROVIDER_KEY_MAP[aiProvider], providerKey.trim());
     }
 
     setSavedSection('provider');
     setTimeout(() => setSavedSection((current) => current === 'provider' ? null : current), 1800);
     toast({ message: 'Configuração de IA salva neste dispositivo.', type: 'success' });
+  }
+
+  async function handleTestCustomEndpoint() {
+    setCustomDiagnostic(null);
+    setCustomDiagnosticLoading(true);
+    try {
+      const result = await testCustomEndpoint(
+        customEndpoint.trim(),
+        providerKey.trim(),
+        customModelId.trim(),
+      );
+      setCustomDiagnostic(result);
+    } finally {
+      setCustomDiagnosticLoading(false);
+    }
   }
 
   function handleSaveVercelToken() {
@@ -222,7 +257,8 @@ export default function MobileSettingsSheet({
                 onChange={(event) => {
                   const next = event.target.value as AIProviderType;
                   setAIProvider(next);
-                  setProviderKey(next === 'copilot' ? '' : getProviderKey(next));
+                  setProviderKey(next === 'copilot' || next === 'custom' ? '' : getProviderKey(next));
+                  setCustomDiagnostic(null);
                 }}
               >
                 {Object.entries(PROVIDER_LABELS).map(([value, label]) => (
@@ -235,6 +271,53 @@ export default function MobileSettingsSheet({
               <div className="rounded-xl border border-app-border bg-surface-2 px-3 py-3 text-[12px] leading-[1.5] text-muted">
                 O login do Copilot continua sendo feito pela aba Copilot. Aqui você só escolhe o provedor padrão.
               </div>
+            ) : aiProvider === 'custom' ? (
+              <>
+                <label className="flex flex-col gap-1.5 text-[12px] text-muted">
+                  <span>URL do servidor <span className="text-red-400">*</span></span>
+                  <input
+                    type="text"
+                    className="mb-input rounded-xl px-3 py-3 text-[14px] outline-none"
+                    value={customEndpoint}
+                    onChange={(event) => { setCustomEndpointState(event.target.value); setCustomDiagnostic(null); }}
+                    placeholder="http://localhost:11434/v1"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5 text-[12px] text-muted">
+                  <span>ID do modelo <span className="text-red-400">*</span></span>
+                  <input
+                    type="text"
+                    className="mb-input rounded-xl px-3 py-3 text-[14px] outline-none"
+                    value={customModelId}
+                    onChange={(event) => { setCustomModelIdState(event.target.value); setCustomDiagnostic(null); }}
+                    placeholder="llama3.2"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5 text-[12px] text-muted">
+                  <span>Chave da API <span className="opacity-60">(opcional)</span></span>
+                  <input
+                    type="password"
+                    className="mb-input rounded-xl px-3 py-3 text-[14px] outline-none"
+                    value={providerKey}
+                    onChange={(event) => { setProviderKey(event.target.value); setCustomDiagnostic(null); }}
+                    placeholder="sk-... (deixe em branco se não houver)"
+                  />
+                </label>
+                {customDiagnostic && (
+                  <div className={`rounded-xl px-3 py-3 text-[12px] leading-[1.5] ${customDiagnostic.ok ? 'border border-green-500 bg-green-500/10 text-green-500' : 'border border-red-400 bg-red-400/10 text-red-400'}`}>
+                    {customDiagnostic.ok
+                      ? `✓ Servidor respondeu em ${customDiagnostic.latencyMs}ms — tudo certo!`
+                      : `✗ ${customDiagnostic.error} — ${customDiagnostic.hint}`}
+                  </div>
+                )}
+                <div className="rounded-xl border border-app-border bg-surface-2 px-3 py-3 text-[11px] leading-[1.5] text-muted">
+                  ⚠️ Análise de imagens não disponível. Endpoint e modelo ficam só neste dispositivo.
+                </div>
+              </>
             ) : (
               <label className="flex flex-col gap-1.5 text-[12px] text-muted">
                 <span>Chave da API</span>
@@ -252,12 +335,22 @@ export default function MobileSettingsSheet({
               <button className="btn-primary flex-1 text-[14px]" onClick={handleSaveProvider}>
                 {savedSection === 'provider' ? <><Check size={14} /> Salvo</> : 'Salvar IA'}
               </button>
-              <button
-                className="btn-secondary px-4 text-[14px]"
-                onClick={() => openUrl(providerHelpUrl).catch(() => window.open(providerHelpUrl, '_blank', 'noopener,noreferrer'))}
-              >
-                <Globe size={14} /> Abrir
-              </button>
+              {aiProvider === 'custom' ? (
+                <button
+                  className="btn-secondary px-4 text-[14px]"
+                  onClick={() => void handleTestCustomEndpoint()}
+                  disabled={!customEndpoint.trim() || !customModelId.trim() || customDiagnosticLoading}
+                >
+                  {customDiagnosticLoading ? '…' : 'Testar'}
+                </button>
+              ) : (
+                <button
+                  className="btn-secondary px-4 text-[14px]"
+                  onClick={() => openUrl(providerHelpUrl).catch(() => window.open(providerHelpUrl, '_blank', 'noopener,noreferrer'))}
+                >
+                  <Globe size={14} /> Abrir
+                </button>
+              )}
             </div>
           </div>
 

@@ -65,6 +65,8 @@ export interface UseAIStreamParams {
   onStreamingChange?: (v: boolean) => void;
   setMemoryContent: (v: string) => void;
   setUserProfileContent?: (v: string) => void;
+  /** Called after any task is created or a step is updated, so the UI can reload tasks. */
+  onTaskChanged?: () => void;
   /** Identifier for this agent instance — used to release only this agent's file locks. */
   agentId?: string;
   /**
@@ -147,6 +149,7 @@ export function useAIStream({
   onStreamingChange,
   setMemoryContent,
   setUserProfileContent,
+  onTaskChanged,
   onNotAuthenticated,
   agentId = 'agent-1',
   activeFileContent,
@@ -371,6 +374,7 @@ export function useAIStream({
         agentId,
         activeFileContent,
         setUserProfileContent,
+        onTaskChanged,
       );
       const executor = applyRiskGate(rawExecutor, {
         workspaceConfig,

@@ -299,23 +299,23 @@ describe('Editor — markdown toolbar rendering', () => {
   it('renders a button for every MD_TOOLBAR item', () => {
     const { container } = render(<Editor content="" onChange={vi.fn()} />);
     const buttons = container.querySelectorAll('.editor-md-toolbar-btn');
-    // 16 items defined in MD_TOOLBAR_ITEMS
-    expect(buttons.length).toBe(16);
+    // 26 items defined in MD_TOOLBAR_GROUPS
+    expect(buttons.length).toBe(26);
   });
 
   it('has a Bold button with correct title', () => {
     render(<Editor content="" onChange={vi.fn()} />);
-    expect(screen.getByTitle('Bold (⌘B)')).toBeInTheDocument();
+    expect(screen.getByTitle('Negrito (⌘B)')).toBeInTheDocument();
   });
 
   it('has an Italic button with correct title', () => {
     render(<Editor content="" onChange={vi.fn()} />);
-    expect(screen.getByTitle('Italic (⌘I)')).toBeInTheDocument();
+    expect(screen.getByTitle('Itálico (⌘I)')).toBeInTheDocument();
   });
 
   it('has a Math block button with correct title', () => {
     render(<Editor content="" onChange={vi.fn()} />);
-    expect(screen.getByTitle('Math block (KaTeX)')).toBeInTheDocument();
+    expect(screen.getByTitle('Bloco matemático (KaTeX)')).toBeInTheDocument();
   });
 });
 
@@ -332,7 +332,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Bold button dispatches a change wrapping with **', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Bold (⌘B)');
+    const btn = screen.getByTitle('Negrito (⌘B)');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -341,7 +341,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Italic button dispatches a change wrapping with _', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Italic (⌘I)');
+    const btn = screen.getByTitle('Itálico (⌘I)');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -350,7 +350,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Strikethrough button dispatches a change wrapping with ~~', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Strikethrough');
+    const btn = screen.getByTitle('Tachado');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -359,7 +359,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Inline code button dispatches a change wrapping with backtick', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Inline code');
+    const btn = screen.getByTitle('Código inline');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -368,7 +368,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Horizontal rule button dispatches an insert of ---', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Horizontal rule');
+    const btn = screen.getByTitle('Divisor horizontal');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -386,7 +386,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Image button dispatches a change containing ![alt text](url)', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Image');
+    const btn = screen.getByTitle('Imagem');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -395,7 +395,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Code block button dispatches a change with triple backtick fence', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Code block');
+    const btn = screen.getByTitle('Bloco de código');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -404,7 +404,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Table button dispatches a change containing | Col', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Table');
+    const btn = screen.getByTitle('Tabela');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -413,7 +413,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Math block button dispatches a change with $$', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Math block (KaTeX)');
+    const btn = screen.getByTitle('Bloco matemático (KaTeX)');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -422,7 +422,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('H1 button dispatches a prefix insert (dispatch called)', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Heading 1');
+    const btn = screen.getByTitle(/Título 1/);
     fireEvent.mouseDown(btn);
     // prefix-type items dispatch with changes containing '# '
     expect(dispatch).toHaveBeenCalled();
@@ -432,7 +432,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Blockquote button dispatches a prefix insert with > ', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Blockquote');
+    const btn = screen.getByTitle('Citação');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -441,7 +441,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Bullet list button dispatches a prefix insert with - ', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Bullet list');
+    const btn = screen.getByTitle('Lista com marcadores');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -450,7 +450,7 @@ describe('Editor — toolbar button actions', () => {
 
   it('Numbered list button dispatches a prefix insert with 1. ', async () => {
     const { dispatch } = await getViewDispatch();
-    const btn = screen.getByTitle('Numbered list');
+    const btn = screen.getByTitle('Lista numerada');
     fireEvent.mouseDown(btn);
     expect(dispatch).toHaveBeenCalled();
     const call = dispatch.mock.calls[0][0];
@@ -529,7 +529,7 @@ describe('Editor — Cmd+B / Cmd+I prose shortcuts', () => {
 
 // ── Code mode toolbar ─────────────────────────────────────────────────────────
 describe('Editor — code mode toolbar', () => {
-  it('renders the Format button when language + onFormat are provided', () => {
+  it('does NOT render a Format button inside the editor (it lives in the app header)', () => {
     render(
       <Editor
         content="const x = 1"
@@ -538,7 +538,7 @@ describe('Editor — code mode toolbar', () => {
         onFormat={vi.fn()}
       />,
     );
-    expect(screen.getByTitle('Format file (Prettier)')).toBeInTheDocument();
+    expect(screen.queryByTitle('Format file (Prettier)')).not.toBeInTheDocument();
   });
 
   it('does NOT render the Format button when onFormat is not provided', () => {
@@ -554,9 +554,9 @@ describe('Editor — code mode toolbar', () => {
     expect(screen.queryByTitle('Format file (Prettier)')).not.toBeInTheDocument();
   });
 
-  it('calls onFormat when the Format button is clicked', async () => {
+  it('⌥F keyboard shortcut calls onFormat in code mode', async () => {
     const onFormat = vi.fn();
-    render(
+    const { container } = render(
       <Editor
         content="const x = 1"
         onChange={vi.fn()}
@@ -566,7 +566,8 @@ describe('Editor — code mode toolbar', () => {
     );
     await act(async () => {});
 
-    fireEvent.click(screen.getByTitle('Format file (Prettier)'));
+    const wrapper = container.querySelector('.editor-wrapper')!;
+    fireEvent.keyDown(wrapper, { key: 'f', altKey: true });
     expect(onFormat).toHaveBeenCalledOnce();
   });
 });

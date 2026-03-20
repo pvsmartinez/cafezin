@@ -592,6 +592,24 @@ export async function runCopilotAgent(
       }
 
       // ── Context management ────────────────────────────────────────────────
+      // Prune stale vision messages BEFORE the budget check so images don't
+      // artificially inflate the estimate or block compression when it's needed.
+      const firstAssistantIdxForPrune = loop.findIndex((m) => m.role === 'assistant');
+      if (firstAssistantIdxForPrune !== -1) {
+        const staleVisionIdxs = loop.reduce<number[]>((acc, m, i) => {
+          if (i > firstAssistantIdxForPrune &&
+              m.role === 'user' && Array.isArray(m.content) &&
+              (m.content as any[]).some((p: any) => p.type === 'image_url')) acc.push(i);
+          return acc;
+        }, []);
+        // Keep only the most recent vision message; drop all older ones.
+        if (staleVisionIdxs.length > 1) {
+          for (let i = staleVisionIdxs.length - 2; i >= 0; i--) {
+            loop.splice(staleVisionIdxs[i], 1);
+          }
+        }
+      }
+
       const estimatedTok = estimateTokens(loop);
       console.debug('[agent] estimated tokens after round', round, ':', estimatedTok);
 
@@ -618,18 +636,6 @@ export async function runCopilotAgent(
           if (assistantIdxs.length > MAX_KEEP_ROUNDS) {
             const keepFrom = assistantIdxs[assistantIdxs.length - MAX_KEEP_ROUNDS];
             loop.splice(firstAssistantIdx, keepFrom - firstAssistantIdx);
-          }
-        }
-        const firstAssistantIdxPrune = loop.findIndex((m) => m.role === 'assistant');
-        const visionIdxs = loop.reduce<number[]>((acc, m, i) => {
-          if (i > firstAssistantIdxPrune &&
-              m.role === 'user' && Array.isArray(m.content) &&
-              (m.content as any[]).some((p: any) => p.type === 'image_url')) acc.push(i);
-          return acc;
-        }, []);
-        if (visionIdxs.length > 1) {
-          for (let i = visionIdxs.length - 2; i >= 0; i--) {
-            loop.splice(visionIdxs[i], 1);
           }
         }
       }

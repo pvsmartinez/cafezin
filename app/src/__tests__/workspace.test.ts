@@ -37,14 +37,14 @@ describe('readFile', () => {
     vi.mocked(tauriFs.readTextFile).mockResolvedValue('hello content');
     const ws = makeWorkspace();
     const text = await readFile(ws, 'notes.md');
-    expect(tauriFs.readTextFile).toHaveBeenCalledWith('/test/ws/notes.md');
+    expect(tauriFs.readTextFile).toHaveBeenCalledWith('/test/ws/notes.md', undefined);
     expect(text).toBe('hello content');
   });
 
   it('supports nested paths', async () => {
     vi.mocked(tauriFs.readTextFile).mockResolvedValue('nested');
     await readFile(makeWorkspace(), 'docs/guide.md');
-    expect(tauriFs.readTextFile).toHaveBeenCalledWith('/test/ws/docs/guide.md');
+    expect(tauriFs.readTextFile).toHaveBeenCalledWith('/test/ws/docs/guide.md', undefined);
   });
 });
 
@@ -54,7 +54,7 @@ describe('writeFile', () => {
     vi.mocked(tauriFs.writeTextFile).mockResolvedValue(undefined);
     const ws = makeWorkspace();
     await writeFile(ws, 'output.md', 'some text');
-    expect(tauriFs.writeTextFile).toHaveBeenCalledWith('/test/ws/output.md', 'some text');
+    expect(tauriFs.writeTextFile).toHaveBeenCalledWith('/test/ws/output.md', 'some text', {});
   });
 });
 
@@ -213,6 +213,7 @@ describe('duplicateFile', () => {
     expect(tauriFs.copyFile).toHaveBeenCalledWith(
       '/test/ws/script.ts',
       '/test/ws/script copy.ts',
+      {},
     );
   });
 });

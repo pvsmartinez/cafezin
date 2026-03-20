@@ -595,7 +595,8 @@ export function executeCanvasCommands(editor: Editor, aiText: string): { count: 
   const match = matches[matches.length - 1];
   let count = 0;
   const errors: string[] = [];
-  const beforeShapeIds = new Set(editor.getCurrentPageShapes().map((shape) => String(shape.id)));
+  // Collect affected shape IDs (created + updated) deduplicated via Set.
+  const affectedShapeIds = new Set<string>();
 
   // Atomic rollback: create a history stopping point before any mutations.
   // If any command fails we bail back to this mark so the canvas is never left
@@ -613,6 +614,7 @@ export function executeCanvasCommands(editor: Editor, aiText: string): { count: 
     try {
       const result = runCommand(editor, parsed);
       count += result.count;
+      if (result.shapeId) affectedShapeIds.add(String(result.shapeId));
     } catch (e) {
       errors.push(`Command "${parsed.op}" failed: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -625,12 +627,7 @@ export function executeCanvasCommands(editor: Editor, aiText: string): { count: 
     return { count: 0, shapeIds: [], errors };
   }
 
-  const createdShapeIds = editor
-    .getCurrentPageShapes()
-    .map((shape) => String(shape.id))
-    .filter((shapeId) => !beforeShapeIds.has(shapeId));
-
-  return { count, shapeIds: createdShapeIds, errors };
+  return { count, shapeIds: [...affectedShapeIds], errors };
 }
 
 type CommandResult = { count: number; shapeId: string | null };

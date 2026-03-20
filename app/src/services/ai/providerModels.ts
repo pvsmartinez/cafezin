@@ -25,6 +25,7 @@ const VENDOR_LABELS: Record<Exclude<AIProviderType, 'copilot'>, string> = {
   anthropic: 'Anthropic',
   groq:      'Groq',
   google:    'Google',
+  custom:    'Custom',
 };
 
 /**
@@ -57,6 +58,8 @@ export const PROVIDER_CATALOG: Record<Exclude<AIProviderType, 'copilot'>, Provid
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', supportsTools: true, supportsVision: true },
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', supportsTools: true, supportsVision: true },
   ],
+  // Custom: no fixed catalog — model ID is supplied by the user
+  custom: [],
 };
 
 // ── Favorites (localStorage) ──────────────────────────────────────────────────
@@ -106,10 +109,27 @@ function resolveModelInfo(id: string, catalog: ProviderModelInfo[]): ProviderMod
 /**
  * Returns the model list for the chat picker:
  * favorites if set, otherwise the full catalog.
+ *
+ * For the 'custom' provider the catalog is always empty — we return the
+ * configured model ID (if any) as a single option so the chat picker
+ * has something to render.
  */
 export function getProviderModelsForPicker(
   provider: Exclude<AIProviderType, 'copilot'>,
 ): CopilotModelInfo[] {
+  if (provider === 'custom') {
+    const modelId = localStorage.getItem('cafezin-ai-model-custom') ?? '';
+    if (!modelId) return [];
+    return [{
+      id: modelId,
+      name: modelId,
+      multiplier: 1,
+      isPremium: false,
+      vendor: 'Custom',
+      supportsVision: false,
+    }];
+  }
+
   const favIds = getFavoriteModelIds(provider);
   const catalog = PROVIDER_CATALOG[provider] ?? [];
   const vendor = VENDOR_LABELS[provider];
@@ -137,6 +157,10 @@ export function providerModelSupportsVision(provider: string, modelId: string): 
   if (provider === 'copilot') {
     // Copilot's own logic: o-series reasoning models don't accept images
     return !/^o\d/.test(modelId);
+  }
+  if (provider === 'custom') {
+    // Custom provider: vision not supported (we can't know what the server supports)
+    return false;
   }
   const catalog = PROVIDER_CATALOG[provider as Exclude<AIProviderType, 'copilot'>];
   const found = catalog?.find((m) => m.id === modelId);

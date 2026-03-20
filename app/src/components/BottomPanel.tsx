@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { onTerminalEntry, emitTerminalEntry } from '../services/terminalBus';
 import type { TerminalEntry } from '../services/terminalBus';
+import ContactDialog from './ContactDialog';
 import './BottomPanel.css';
 
 export interface FileMeta {
@@ -29,14 +30,17 @@ interface Props {
   fileMeta?: FileMeta;
   /** When false (default), hide the terminal UI — only show the file metrics strip. */
   showTerminal?: boolean;
+  /** Locale for the contact dialog (e.g. 'pt-BR'). */
+  locale?: string;
 }
 
 const MIN_HEIGHT = 100;
 const MAX_HEIGHT = 800;
 
-export default function BottomPanel({ workspacePath, open, height, onToggle, onHeightChange, requestCd, requestRun, fileMeta, showTerminal = false }: Props) {
+export default function BottomPanel({ workspacePath, open, height, onToggle, onHeightChange, requestCd, requestRun, fileMeta, showTerminal = false, locale }: Props) {
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
   const [input, setInput] = useState('');
+  const [contactOpen, setContactOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [cwd, setCwd] = useState(workspacePath);
   const historyIdxRef = useRef(-1);
@@ -208,7 +212,6 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
       return text;
     })();
     const hasTsDiags = fileMeta && fileMeta.tsErrors !== undefined;
-    if (!metrics && !hasTsDiags) return null;
     return (
       <div className="bottom-panel" style={{ height: 36 }}>
         <div className="bottom-panel-tabrow" style={{ cursor: 'default' }}>
@@ -227,7 +230,15 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
               </span>
             )}
           </div>
+          <button
+            className="bottom-panel-feedback-btn"
+            onClick={() => setContactOpen(true)}
+            title="Feedback · Bug · Feature request"
+          >
+            feedback
+          </button>
         </div>
+        <ContactDialog open={contactOpen} locale={locale} onClose={() => setContactOpen(false)} />
       </div>
     );
   }
@@ -293,6 +304,13 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
         })()}
         <div className="bottom-panel-tabrow-actions" onClick={(e) => e.stopPropagation()}>
           <button
+            className="bottom-panel-feedback-btn"
+            onClick={() => setContactOpen(true)}
+            title="Feedback · Bug · Feature request"
+          >
+            feedback
+          </button>
+          <button
             className="bottom-panel-action-btn"
             onClick={() => setEntries([])}
             title="Clear terminal"
@@ -304,6 +322,8 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
           >{open ? '⌄' : '⌃'}</button>
         </div>
       </div>
+
+      <ContactDialog open={contactOpen} locale={locale} onClose={() => setContactOpen(false)} />
 
       {/* Terminal content — only visible when expanded */}
       {open && (

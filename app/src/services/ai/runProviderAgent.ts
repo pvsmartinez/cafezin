@@ -22,7 +22,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import type { ChatMessage, ToolActivity } from '../../types';
 import type { ToolDefinition, ToolExecutor } from '../../utils/tools/shared';
-import { getActiveProvider, getProviderKey, getActiveModel } from '../aiProvider';
+import { getActiveProvider, getProviderKey, getActiveModel, getCustomEndpoint } from '../aiProvider';
 import { chatToModelMessages } from './messageConverter';
 import { toVercelToolSet } from './tools-adapter';
 import { providerModelSupportsVision } from './providerModels';
@@ -57,6 +57,17 @@ function buildLanguageModel(provider: string, model: string) {
     return createOpenAI({
       baseURL: 'https://api.groq.com/openai/v1',
       apiKey: getProviderKey('groq'),
+      ...fetchOpt,
+    })(model);
+  }
+  if (provider === 'custom') {
+    const endpoint = getCustomEndpoint().replace(/\/+$/, '');
+    if (!endpoint) throw new Error('Endpoint customizado não configurado.');
+    return createOpenAI({
+      baseURL: endpoint,
+      // Some local servers (Ollama, LM Studio) don’t require an API key.
+      // The SDK requires a non-empty string, so we fall back to 'no-key'.
+      apiKey: getProviderKey('custom') || 'no-key',
       ...fetchOpt,
     })(model);
   }

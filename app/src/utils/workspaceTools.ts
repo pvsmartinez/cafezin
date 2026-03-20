@@ -15,6 +15,7 @@ import { FILE_TOOL_DEFS, executeFileTools } from './tools/fileTools';
 import { CANVAS_TOOL_DEFS, executeCanvasTools } from './tools/canvasTools';
 import { WEB_TOOL_DEFS, executeWebTools } from './tools/webTools';
 import { CONFIG_TOOL_DEFS, executeConfigTools } from './tools/configTools';
+import { TASK_TOOL_DEFS, executeTaskTools } from './tools/taskTools';
 import type { AIRecordedTextMark, Workspace, WorkspaceConfig, WorkspaceExportConfig } from '../types';
 import { isToolEnabledByWorkspace } from './agentCapabilities';
 
@@ -27,6 +28,7 @@ export const WORKSPACE_TOOLS = [
   ...CANVAS_TOOL_DEFS,
   ...WEB_TOOL_DEFS,
   ...CONFIG_TOOL_DEFS,
+  ...TASK_TOOL_DEFS,
 ];
 
 export function getWorkspaceTools(
@@ -61,6 +63,7 @@ export function buildToolExecutor(
    *  base edits on unsaved editor content rather than stale disk content. */
   activeFileContent?: string,
   onUserProfileWritten?: (newContent: string) => void,
+  onTaskChanged?: () => void,
 ) {
   const ctx = {
     workspacePath,
@@ -80,9 +83,10 @@ export function buildToolExecutor(
     getActiveHtml,
     agentId,
     activeFileContent,
+    onTaskChanged,
   };
 
-  const domains = [executeFileTools, executeCanvasTools, executeWebTools, executeConfigTools];
+  const domains = [executeFileTools, executeCanvasTools, executeWebTools, executeConfigTools, executeTaskTools];
 
   return async (name: string, args: Record<string, unknown>): Promise<string> => {
     for (const domain of domains) {
