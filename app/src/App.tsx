@@ -396,6 +396,8 @@ export default function App() {
   // Pandoc PDF export
   const [pandocBusy, setPandocBusy] = useState(false);
   const [pandocError, setPandocError] = useState<string | null>(null);
+  const [pandocStatus, setPandocStatus] = useState<{ detail?: string; cancelRequested?: boolean } | null>(null);
+  const pandocCancelRef = useRef(false);
   // Export lock — shown while auto-opening a canvas for export (blur + coffee animation)
   const [exportLock, setExportLock] = useState(false);
   const [exportLockState, setExportLockState] = useState<{
@@ -1107,20 +1109,44 @@ export default function App() {
     if (!workspace || !activeFile) return;
     const outRelPath = activeFile.replace(/\.[^/.]+$/, '') + '.pdf';
     const outAbsPath = `${workspace.path}/${outRelPath}`;
+    pandocCancelRef.current = false;
     setPandocBusy(true);
     setPandocError(null);
+    setPandocStatus({ detail: `Starting PDF export for ${activeFile}…`, cancelRequested: false });
     try {
       await exportMarkdownToPDF(content, outAbsPath, workspace.path, {
         features: workspace.config.features,
+        hooks: {
+          shouldCancel: () => pandocCancelRef.current,
+          onProgress: (_phase, detail) => {
+            setPandocStatus({ detail, cancelRequested: pandocCancelRef.current });
+          },
+        },
       });
       // Refresh sidebar so the PDF appears in the file tree
       await refreshWorkspace(workspace);
       await handleOpenFile(outRelPath);
     } catch (err) {
-      setPandocError(String((err as Error)?.message ?? err));
+      const message = String((err as Error)?.message ?? err);
+      if (message.includes('Export canceled by user.')) {
+        setPandocError(null);
+      } else {
+        setPandocError(message);
+      }
     } finally {
       setPandocBusy(false);
+      setPandocStatus(null);
+      pandocCancelRef.current = false;
     }
+  }
+
+  function handleCancelExportPDF() {
+    if (!pandocBusy) return;
+    pandocCancelRef.current = true;
+    setPandocStatus((current) => ({
+      detail: current?.detail ?? 'Stopping PDF export…',
+      cancelRequested: true,
+    }));
   }
 
   // ── Clipboard image paste (from Editor) ─────────────────────────────
@@ -1379,6 +1405,8 @@ export default function App() {
         viewMode={viewMode}
         onSetViewMode={handleViewModeChange}
         pandocBusy={pandocBusy}
+        pandocStatus={pandocStatus}
+        onCancelPandocExport={handleCancelExportPDF}
         activeTabId={activeTabId}
         saveError={saveError}
         onRetrySave={handleRetrySave}

@@ -420,17 +420,32 @@ body.theme-light .app {
 
 /* -- Export PDF busy indicator (shown while pandoc is running) ---------- */
 .app-export-pdf-btn.busy {
-  background: none;
-  border: 1px solid var(--border2);
-  color: var(--text-muted);
+  background: rgba(var(--yellow-rgb), 0.08);
+  border: 1px solid rgba(var(--yellow-rgb), 0.28);
+  color: var(--yellow);
   font-size: var(--font-size-xs);
-  font-weight: 500;
+  font-weight: 600;
   padding: 3px 9px;
   border-radius: var(--radius-md);
-  opacity: 0.5;
   white-space: nowrap;
   flex-shrink: 0;
-  pointer-events: none;
+  cursor: pointer;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--transition-base), border-color var(--transition-base), color var(--transition-base);
+}
+
+.app-export-pdf-btn.busy:hover {
+  background: rgba(var(--red-rgb), 0.12);
+  border-color: rgba(var(--red-rgb), 0.35);
+  color: var(--red);
+}
+
+.app-export-pdf-btn.busy.stopping {
+  background: rgba(var(--red-rgb), 0.1);
+  border-color: rgba(var(--red-rgb), 0.3);
+  color: var(--red);
 }
 
 /* ── Idea Dump button ────────────────────────────── */

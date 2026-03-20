@@ -20,6 +20,8 @@ export interface AppHeaderProps {
   viewMode: 'edit' | 'preview';
   onSetViewMode: (mode: 'edit' | 'preview') => void;
   pandocBusy: boolean;
+  pandocStatus: { detail?: string; cancelRequested?: boolean } | null;
+  onCancelPandocExport: () => void;
   activeTabId: string | null;
   saveError: string | null;
   onRetrySave: () => void;
@@ -46,6 +48,8 @@ export function AppHeader({
   viewMode,
   onSetViewMode,
   pandocBusy,
+  pandocStatus,
+  onCancelPandocExport,
   activeTabId,
   saveError,
   onRetrySave,
@@ -154,7 +158,17 @@ export function AppHeader({
           </>
         )}
 
-        {pandocBusy && <span className="app-export-pdf-btn busy">Exporting…</span>}
+        {pandocBusy && (
+          <button
+            className={`app-export-pdf-btn busy${pandocStatus?.cancelRequested ? ' stopping' : ''}`}
+            title={pandocStatus?.detail ?? 'PDF export in progress'}
+            onClick={onCancelPandocExport}
+          >
+            {pandocStatus?.cancelRequested
+              ? 'Stopping PDF…'
+              : `Stop PDF${pandocStatus?.detail ? ` · ${pandocStatus.detail}` : ''}`}
+          </button>
+        )}
 
         {activeTabId && fileTypeInfo && !['pdf', 'video', 'audio', 'image'].includes(fileTypeInfo.kind) && (
           saveError ? (
