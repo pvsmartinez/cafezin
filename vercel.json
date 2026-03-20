@@ -542,6 +542,84 @@
       ],
       "destination": "/br/comparar-google-docs-ai",
       "permanent": false
+    },
+    {
+      "source": "/compare-bear",
+      "has": [{ "type": "cookie", "key": "cafezin_locale", "value": "pt-BR" }],
+      "destination": "/br/comparar-bear",
+      "permanent": false
+    },
+    {
+      "source": "/compare-bear",
+      "missing": [{ "type": "cookie", "key": "cafezin_locale" }],
+      "has": [{ "type": "header", "key": "accept-language", "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)" }],
+      "destination": "/br/comparar-bear",
+      "permanent": false
+    },
+    {
+      "source": "/compare-ulysses",
+      "has": [{ "type": "cookie", "key": "cafezin_locale", "value": "pt-BR" }],
+      "destination": "/br/comparar-ulysses",
+      "permanent": false
+    },
+    {
+      "source": "/compare-ulysses",
+      "missing": [{ "type": "cookie", "key": "cafezin_locale" }],
+      "has": [{ "type": "header", "key": "accept-language", "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)" }],
+      "destination": "/br/comparar-ulysses",
+      "permanent": false
+    },
+    {
+      "source": "/compare-ia-writer",
+      "has": [{ "type": "cookie", "key": "cafezin_locale", "value": "pt-BR" }],
+      "destination": "/br/comparar-ia-writer",
+      "permanent": false
+    },
+    {
+      "source": "/compare-ia-writer",
+      "missing": [{ "type": "cookie", "key": "cafezin_locale" }],
+      "has": [{ "type": "header", "key": "accept-language", "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)" }],
+      "destination": "/br/comparar-ia-writer",
+      "permanent": false
+    },
+    {
+      "source": "/compare-apple-notes",
+      "has": [{ "type": "cookie", "key": "cafezin_locale", "value": "pt-BR" }],
+      "destination": "/br/comparar-apple-notes",
+      "permanent": false
+    },
+    {
+      "source": "/compare-apple-notes",
+      "missing": [{ "type": "cookie", "key": "cafezin_locale" }],
+      "has": [{ "type": "header", "key": "accept-language", "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)" }],
+      "destination": "/br/comparar-apple-notes",
+      "permanent": false
+    },
+    {
+      "source": "/students",
+      "has": [{ "type": "cookie", "key": "cafezin_locale", "value": "pt-BR" }],
+      "destination": "/br/estudantes",
+      "permanent": false
+    },
+    {
+      "source": "/students",
+      "missing": [{ "type": "cookie", "key": "cafezin_locale" }],
+      "has": [{ "type": "header", "key": "accept-language", "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)" }],
+      "destination": "/br/estudantes",
+      "permanent": false
+    },
+    {
+      "source": "/copywriters",
+      "has": [{ "type": "cookie", "key": "cafezin_locale", "value": "pt-BR" }],
+      "destination": "/br/redatores",
+      "permanent": false
+    },
+    {
+      "source": "/copywriters",
+      "missing": [{ "type": "cookie", "key": "cafezin_locale" }],
+      "has": [{ "type": "header", "key": "accept-language", "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)" }],
+      "destination": "/br/redatores",
+      "permanent": false
     }
   ]
 }
