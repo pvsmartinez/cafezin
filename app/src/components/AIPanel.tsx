@@ -21,15 +21,16 @@ import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
 import {
   fetchCopilotModels,
   filterChatCompletionsCompatibleModels,
+  resolveCopilotModelForChatCompletions,
   startDeviceFlow,
   getStoredOAuthToken,
   clearOAuthToken,
 } from '../services/copilot';
 import type { DeviceFlowState } from '../services/copilot';
 import { COPILOT_MODELS_CHANGED_EVENT } from '../services/copilot/constants';
-import { getActiveProvider } from '../services/aiProvider';
+import { getActiveModel, getActiveProvider } from '../services/aiProvider';
 import type { AIProviderType } from '../services/aiProvider';
-import { getProviderModelsForPicker } from '../services/ai/providerModels';
+import { getProviderCatalog, getProviderModelsForPicker } from '../services/ai/providerModels';
 import { readFile, writeFile } from '../services/fs';
 import { loadWorkspaceSession, saveWorkspaceSession } from '../services/workspaceSession';
 import type { WorkspaceAgentTabSession } from '../services/workspaceSession';
@@ -255,16 +256,46 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     setAuthStatus('unauthenticated');
   }
 
+  function resolveTabModelForProvider(
+    provider: AIProviderType,
+    requestedModel: string | undefined,
+    models: CopilotModelInfo[],
+  ): string | undefined {
+    if (provider === 'copilot') {
+      return resolveCopilotModelForChatCompletions(requestedModel ?? getActiveModel(), models);
+    }
+
+    const catalog = getProviderCatalog(provider);
+    const catalogIds = new Set(catalog.map((model) => model.id));
+
+    const requested = requestedModel?.trim();
+    if (requested && catalogIds.has(requested)) return requested;
+
+    const stored = getActiveModel();
+    if (stored && catalogIds.has(stored)) return stored;
+
+    return catalog[0]?.id ?? models[0]?.id ?? requestedModel;
+  }
+
   // ── Shared models (fetched once, available to all agent tabs) ─────────────
   const [availableModels, setAvailableModels] = useState<CopilotModelInfo[]>(FALLBACK_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
   const modelsLoadedRef = useRef(false);
+  const [activeProvider, setActiveProviderState] = useState<AIProviderType>(() => getActiveProvider());
 
   useEffect(() => {
     if (!isOpen) return;
     const provider = getActiveProvider();
+    setActiveProviderState(provider);
     if (provider !== 'copilot') {
-      setAvailableModels(getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot'>));
+      const nextModels = getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot'>);
+      setAvailableModels(nextModels);
+      setTabs((tabs) => tabs.map((tab) => ({
+        ...tab,
+        ...(resolveTabModelForProvider(provider, tab.model ?? initialModel, nextModels)
+          ? { model: resolveTabModelForProvider(provider, tab.model ?? initialModel, nextModels) }
+          : {}),
+      })));
       setModelsLoading(false);
       return;
     }
@@ -282,8 +313,16 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   useEffect(() => {
     function handleProviderChanged() {
       const provider = getActiveProvider();
+      setActiveProviderState(provider);
       if (provider !== 'copilot') {
-        setAvailableModels(getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot'>));
+        const nextModels = getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot'>);
+        setAvailableModels(nextModels);
+        setTabs((tabs) => tabs.map((tab) => ({
+          ...tab,
+          ...(resolveTabModelForProvider(provider, tab.model ?? initialModel, nextModels)
+            ? { model: resolveTabModelForProvider(provider, tab.model ?? initialModel, nextModels) }
+            : {}),
+        })));
         setModelsLoading(false);
       } else {
         // Force Copilot model reload on next panel open.
@@ -297,12 +336,31 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   useEffect(() => {
     function handleCopilotModelsChanged() {
       if (getActiveProvider() !== 'copilot') return;
-      setAvailableModels((current) => filterChatCompletionsCompatibleModels(current));
+      setAvailableModels((current) => {
+        const filtered = filterChatCompletionsCompatibleModels(current);
+        setTabs((tabs) => tabs.map((tab) => ({
+          ...tab,
+          ...(resolveTabModelForProvider('copilot', tab.model ?? initialModel, filtered)
+            ? { model: resolveTabModelForProvider('copilot', tab.model ?? initialModel, filtered) }
+            : {}),
+        })));
+        return filtered;
+      });
       modelsLoadedRef.current = false;
     }
     window.addEventListener(COPILOT_MODELS_CHANGED_EVENT, handleCopilotModelsChanged);
     return () => window.removeEventListener(COPILOT_MODELS_CHANGED_EVENT, handleCopilotModelsChanged);
-  }, []);
+  }, [initialModel]);
+
+  useEffect(() => {
+    if (!availableModels.length) return;
+    setTabs((tabs) => tabs.map((tab) => ({
+      ...tab,
+      ...(resolveTabModelForProvider(activeProvider, tab.model ?? initialModel, availableModels)
+        ? { model: resolveTabModelForProvider(activeProvider, tab.model ?? initialModel, availableModels) }
+        : {}),
+    })));
+  }, [activeProvider, availableModels, initialModel]);
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   const [tabs, setTabs] = useState<AgentTab[]>(() => [createAgentTab(1, initialModel)]);
@@ -639,7 +697,8 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           agentLabel={tab.label}
           isActive={tab.id === activeTabId}
           onNotAuthenticated={() => setAuthStatus('unauthenticated')}
-          onSignOut={handleSignOut}
+          onSignOut={activeProvider === 'copilot' ? handleSignOut : undefined}
+          activeProvider={activeProvider}
           availableModels={availableModels}
           modelsLoading={modelsLoading}
           onClose={onClose}

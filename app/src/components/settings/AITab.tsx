@@ -4,7 +4,8 @@ import {
   type CustomEndpointDiagnostic,
   type AIProviderType,
 } from '../../services/aiProvider';
-import { PROVIDER_CATALOG, setFavoriteModelIds } from '../../services/ai/providerModels';
+import type { ProviderModelInfo } from '../../services/ai/providerModels';
+import { setFavoriteModelIds } from '../../services/ai/providerModels';
 import type { AppSettings } from '../../types';
 
 export interface AITabProps {
@@ -34,7 +35,13 @@ export interface AITabProps {
   onSaveCustomConfig: () => void;
   hasCopilotAuth: boolean;
   aiCopilotModelsLoading: boolean;
+  aiProviderModelsLoading: boolean;
+  aiProviderModelsError: string | null;
+  aiProviderModelsUpdatedAt: string | null;
+  canRefreshProviderModels: boolean;
+  onRefreshProviderModels: () => void;
   providerConfigured: Record<AIProviderType, boolean>;
+  providerModelCatalog: ProviderModelInfo[];
   resolvedProviderModelOptions: { id: string; label: string }[];
 }
 
@@ -65,7 +72,13 @@ export function AITab({
   onSaveCustomConfig,
   hasCopilotAuth,
   aiCopilotModelsLoading,
+  aiProviderModelsLoading,
+  aiProviderModelsError,
+  aiProviderModelsUpdatedAt,
+  canRefreshProviderModels,
+  onRefreshProviderModels,
   providerConfigured,
+  providerModelCatalog,
   resolvedProviderModelOptions,
 }: AITabProps) {
   const { t } = useTranslation();
@@ -277,6 +290,33 @@ export function AITab({
         </p>
 
         <div className="sm-row sm-row--col">
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="sm-row-desc">
+              {aiProvider === 'copilot'
+                ? 'A lista do Copilot vem ao vivo da sua conta.'
+                : 'Atualize a lista direto do provider ativo para evitar catálogo defasado.'}
+            </span>
+            <button
+              className="sm-save-btn"
+              onClick={onRefreshProviderModels}
+              disabled={!canRefreshProviderModels || aiProviderModelsLoading}
+            >
+              {aiProviderModelsLoading ? 'Atualizando…' : 'Atualizar lista'}
+            </button>
+          </div>
+          {aiProviderModelsUpdatedAt && (
+            <span className="sm-row-desc">
+              Última atualização: {new Date(aiProviderModelsUpdatedAt).toLocaleString()}
+            </span>
+          )}
+          {aiProviderModelsError && (
+            <span className="sm-row-desc" style={{ color: 'var(--red, #e53e3e)' }}>
+              {aiProviderModelsError}
+            </span>
+          )}
+        </div>
+
+        <div className="sm-row sm-row--col">
           <label className="sm-label">{t('settings.defaultModelLabel')}</label>
           {aiProvider === 'copilot' && aiCopilotModelsLoading && (
             <span className="sm-row-desc">Carregando modelos do Copilot…</span>
@@ -302,7 +342,7 @@ export function AITab({
         </div>
 
         {aiProvider !== 'copilot' && (() => {
-          const catalog = PROVIDER_CATALOG[aiProvider as Exclude<AIProviderType, 'copilot'>] ?? [];
+          const catalog = providerModelCatalog;
           const catalogIds = new Set(catalog.map((m) => m.id));
           const customFavIds = aiFavoriteIds.filter((id) => !catalogIds.has(id));
           return (
@@ -322,7 +362,7 @@ export function AITab({
                           ? [...aiFavoriteIds, m.id]
                           : aiFavoriteIds.filter((id) => id !== m.id);
                         setAIFavoriteIds(next);
-                        setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot'>, next);
+                        setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot' | 'custom'>, next);
                       }}
                     />
                     <span>{m.name}</span>
@@ -339,7 +379,7 @@ export function AITab({
                       onChange={() => {
                         const next = aiFavoriteIds.filter((i) => i !== id);
                         setAIFavoriteIds(next);
-                        setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot'>, next);
+                        setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot' | 'custom'>, next);
                       }}
                     />
                     <span>{id}</span>

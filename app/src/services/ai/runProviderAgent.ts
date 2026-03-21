@@ -23,6 +23,7 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import type { ChatMessage, ToolActivity } from '../../types';
 import type { ToolDefinition, ToolExecutor } from '../../utils/tools/shared';
 import { getActiveProvider, getProviderKey, getActiveModel, getCustomEndpoint } from '../aiProvider';
+import { buildProviderRequestDump, formatProviderError, setLastProviderRequestDump } from './diagnostics';
 import { chatToModelMessages } from './messageConverter';
 import { toVercelToolSet } from './tools-adapter';
 import { providerModelSupportsVision } from './providerModels';
@@ -40,11 +41,21 @@ const CANVAS_VISION_TOOLS = new Set([
 
 // ── Provider factory ──────────────────────────────────────────────────────────
 
+function normalizeOpenAICompatibleBaseURL(endpoint: string): string {
+  return endpoint
+    .replace(/\/+$/, '')
+    .replace(/\/chat\/completions$/, '')
+    .replace(/\/responses$/, '');
+}
+
 function buildLanguageModel(provider: string, model: string) {
   const fetchOpt = { fetch: tauriFetch as unknown as typeof fetch };
 
   if (provider === 'openai') {
-    return createOpenAI({ apiKey: getProviderKey('openai'), ...fetchOpt })(model);
+    return createOpenAI({
+      apiKey: getProviderKey('openai'),
+      ...fetchOpt,
+    }).chat(model);
   }
   if (provider === 'anthropic') {
     return createAnthropic({ apiKey: getProviderKey('anthropic'), ...fetchOpt })(model);
@@ -53,23 +64,25 @@ function buildLanguageModel(provider: string, model: string) {
     return createGoogleGenerativeAI({ apiKey: getProviderKey('google'), ...fetchOpt })(model);
   }
   if (provider === 'groq') {
-    // Groq is OpenAI-compatible
+    // Groq is OpenAI-compatible, but only exposes chat completions.
     return createOpenAI({
       baseURL: 'https://api.groq.com/openai/v1',
+      name: 'groq',
       apiKey: getProviderKey('groq'),
       ...fetchOpt,
-    })(model);
+    }).chat(model);
   }
   if (provider === 'custom') {
-    const endpoint = getCustomEndpoint().replace(/\/+$/, '');
+    const endpoint = normalizeOpenAICompatibleBaseURL(getCustomEndpoint());
     if (!endpoint) throw new Error('Endpoint customizado não configurado.');
     return createOpenAI({
       baseURL: endpoint,
+      name: 'custom',
       // Some local servers (Ollama, LM Studio) don’t require an API key.
       // The SDK requires a non-empty string, so we fall back to 'no-key'.
       apiKey: getProviderKey('custom') || 'no-key',
       ...fetchOpt,
-    })(model);
+    }).chat(model);
   }
 
   throw new Error(`Unsupported provider for agentic loop: ${provider}`);
@@ -99,6 +112,7 @@ export async function runProviderAgent(
     const provider = getActiveProvider();
     const resolvedModel = model || getActiveModel();
     const supportsVision = providerModelSupportsVision(provider, resolvedModel);
+    let streamedText = '';
 
     // If the model has no vision, filter out canvas screenshot tools and warn.
     let activeTools = tools;
@@ -114,9 +128,16 @@ export async function runProviderAgent(
 
     const langModel = buildLanguageModel(provider, resolvedModel);
     const modelMessages = chatToModelMessages(messages);
+    setLastProviderRequestDump(buildProviderRequestDump({
+      provider,
+      model: resolvedModel,
+      messages,
+      tools: activeTools,
+    }));
 
     // Pending vision message to be injected before the next LLM step.
     let pendingVisionInject: { url: string; label: string } | null = null;
+    const reasoningBuffers = new Map<string, string>();
 
     // Wrap executor: detect screenshot sentinels, replace with placeholder text,
     // store the image URL so prepareStep can inject it as a vision message.
@@ -189,15 +210,66 @@ export async function runProviderAgent(
 
       onChunk: ({ chunk }) => {
         if (chunk.type === 'text-delta') {
-          onChunk((chunk as any).delta ?? '');
+          const text = (chunk as any).text ?? (chunk as any).delta ?? '';
+          if (!text) return;
+          streamedText += text;
+          onChunk(text);
+          return;
+        }
+
+        if (chunk.type === 'reasoning-delta') {
+          const callId = `thinking_${(chunk as any).id ?? 'unknown'}`;
+          const text = (chunk as any).text ?? (chunk as any).delta ?? '';
+          if (!reasoningBuffers.has(callId)) {
+            reasoningBuffers.set(callId, '');
+          }
+          const next = (reasoningBuffers.get(callId) ?? '') + text;
+          reasoningBuffers.set(callId, next);
+          onToolActivity({
+            callId,
+            name: '__thinking__',
+            args: {},
+            kind: 'thinking',
+            thinkingText: next,
+          });
         }
       },
-      onFinish: ({ finishReason }) => {
+      onFinish: ({ finishReason, text, steps }) => {
+        for (const [callId, reasoningText] of reasoningBuffers.entries()) {
+          onToolActivity({
+            callId,
+            name: '__thinking__',
+            args: {},
+            kind: 'thinking',
+            thinkingText: reasoningText,
+            result: reasoningText || 'Reasoning completed.',
+          });
+        }
+
+        const aggregateText = [
+          text,
+          ...steps.map((step) => step.text),
+        ].filter((value): value is string => typeof value === 'string' && value.length > 0)
+          .join('');
+
+        if (aggregateText && aggregateText.length > streamedText.length) {
+          const suffix = aggregateText.slice(streamedText.length);
+          if (suffix) {
+            streamedText += suffix;
+            onChunk(suffix);
+          }
+        }
+
         if (finishReason === 'length') onExhausted?.();
         onDone();
       },
       onError: ({ error }) => {
-        onError(error instanceof Error ? error : new Error(String(error)));
+        onError(formatProviderError(error, {
+          provider,
+          model: resolvedModel,
+          messages,
+          tools: activeTools,
+        }));
       },
     });
 
@@ -207,6 +279,11 @@ export async function runProviderAgent(
       onDone();
       return;
     }
-    onError(err instanceof Error ? err : new Error(String(err)));
+    onError(formatProviderError(err, {
+      provider: getActiveProvider(),
+      model: model || getActiveModel(),
+      messages,
+      tools,
+    }));
   }
 }

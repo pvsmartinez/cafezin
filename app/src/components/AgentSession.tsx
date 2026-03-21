@@ -13,6 +13,9 @@ import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '../services/fs';
 
 import { getLastRequestDump, modelSupportsVision, resolveCopilotModelForChatCompletions } from '../services/copilot';
+import { getActiveModel, type AIProviderType } from '../services/aiProvider';
+import { getLastProviderRequestDump } from '../services/ai/diagnostics';
+import { getProviderCatalog } from '../services/ai/providerModels';
 import { DEFAULT_MODEL } from '../types';
 import type { AIRecordedTextMark, AISelectionContext, CopilotModel, CopilotModelInfo, MessageItem, Task } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
@@ -45,7 +48,8 @@ export interface AgentSessionProps {
 
   // ── Auth (managed by parent AIPanel) ─────────────────────────────────────
   onNotAuthenticated: () => void;
-  onSignOut: () => void;
+  onSignOut?: () => void;
+  activeProvider: AIProviderType;
   /** Shared model list loaded once by AIPanel. */
   availableModels: CopilotModelInfo[];
   modelsLoading: boolean;
@@ -98,6 +102,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   isActive,
   onNotAuthenticated,
   onSignOut,
+  activeProvider,
   availableModels,
   modelsLoading,
   onClose,
@@ -129,13 +134,34 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   selectionContext,
 }, ref) {
 
+  function resolveSessionModel(requestedModel?: string | null): CopilotModel {
+    if (activeProvider === 'copilot') {
+      return resolveCopilotModelForChatCompletions(requestedModel ?? DEFAULT_MODEL, availableModels);
+    }
+
+    const providerCatalog = getProviderCatalog(activeProvider);
+    const providerCatalogIds = new Set(providerCatalog.map((item) => item.id));
+
+    const requested = (requestedModel ?? '').trim();
+    if (requested && providerCatalogIds.has(requested)) {
+      return requested as CopilotModel;
+    }
+
+    const stored = getActiveModel();
+    if (stored && providerCatalogIds.has(stored)) {
+      return stored as CopilotModel;
+    }
+
+    return (providerCatalog[0]?.id ?? availableModels[0]?.id ?? requestedModel ?? DEFAULT_MODEL) as CopilotModel;
+  }
+
   // ── Model ─────────────────────────────────────────────────────────────────
   const [model, setModel] = useState<CopilotModel>(() =>
-    resolveCopilotModelForChatCompletions(initialModel ?? DEFAULT_MODEL, availableModels),
+    resolveSessionModel(initialModel ?? DEFAULT_MODEL),
   );
   useEffect(() => {
-    setModel(resolveCopilotModelForChatCompletions(initialModel ?? DEFAULT_MODEL, availableModels));
-  }, [initialModel, availableModels]);
+    setModel(resolveSessionModel(initialModel ?? DEFAULT_MODEL));
+  }, [initialModel, availableModels, activeProvider]);
 
   // ── Input / attachments ───────────────────────────────────────────────────
   const [input, setInput] = useState(initialPrompt);
@@ -303,7 +329,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   function handleRestoreSession() {
     const restoredModel = session.handleRestoreSession();
     if (restoredModel) {
-      const resolved = resolveCopilotModelForChatCompletions(restoredModel, availableModels);
+      const resolved = resolveSessionModel(restoredModel);
       setModel(resolved);
       onModelChange?.(resolved);
     }
@@ -475,7 +501,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             models={availableModels}
             value={model}
             onChange={(id) => {
-              const resolved = resolveCopilotModelForChatCompletions(id, availableModels);
+              const resolved = resolveSessionModel(id);
               setModel(resolved);
               onModelChange?.(resolved);
             }}
@@ -728,7 +754,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             <button
               className="ai-error-copy"
               onClick={() => {
-                const dump = getLastRequestDump();
+                const dump = activeProvider === 'copilot' ? getLastRequestDump() : getLastProviderRequestDump();
                 navigator.clipboard.writeText(`ERROR:\n${stream.error}\n\nLAST REQUEST DUMP:\n${dump}`);
               }}
               title="Copy error + full last request to clipboard"

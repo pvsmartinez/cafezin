@@ -12,7 +12,12 @@ import {
   type AIProviderType,
 } from '../services/aiProvider';
 import {
-  PROVIDER_CATALOG, getFavoriteModelIds, setFavoriteModelIds,
+  getProviderCatalog,
+  getProviderCatalogMeta,
+  getFavoriteModelIds,
+  refreshProviderCatalog,
+  setFavoriteModelIds,
+  type ProviderModelInfo,
 } from '../services/ai/providerModels';
 import {
   fetchCopilotModels,
@@ -384,26 +389,58 @@ export default function SettingsModal({
   // Favorites for non-Copilot providers (shown in the chat model picker)
   const [aiFavoriteIds, setAIFavoriteIds] = useState<string[]>(() => {
     const p = getActiveProvider();
-    return p !== 'copilot' && p !== 'custom' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot'>) : [];
+    return p !== 'copilot' && p !== 'custom' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot' | 'custom'>) : [];
   });
   const [customModelInput, setCustomModelInput] = useState('');
   const [aiCopilotModels, setAICopilotModels] = useState(FALLBACK_MODELS);
   const [aiCopilotModelsLoading, setAICopilotModelsLoading] = useState(false);
+  const [aiProviderCatalog, setAIProviderCatalog] = useState<ProviderModelInfo[]>(() => {
+    const p = getActiveProvider();
+    return p !== 'copilot' ? getProviderCatalog(p as Exclude<AIProviderType, 'copilot'>) : [];
+  });
+  const [aiProviderModelsLoading, setAIProviderModelsLoading] = useState(false);
+  const [aiProviderModelsError, setAIProviderModelsError] = useState<string | null>(null);
+  const [aiProviderModelsUpdatedAt, setAIProviderModelsUpdatedAt] = useState<string | null>(() => {
+    const p = getActiveProvider();
+    return p !== 'copilot' ? getProviderCatalogMeta(p as Exclude<AIProviderType, 'copilot'>)?.updatedAt ?? null : null;
+  });
   // Custom / Local provider state
   const [customEndpointDraft, setCustomEndpointDraft] = useState(() => getCustomEndpoint());
   const [customDiagnostic, setCustomDiagnostic] = useState<CustomEndpointDiagnostic | null>(null);
   const [customDiagnosticLoading, setCustomDiagnosticLoading] = useState(false);
 
+  function syncSelectedProviderCatalog(p: AIProviderType) {
+    if (p === 'copilot') {
+      setAIProviderCatalog([]);
+      setAIProviderModelsUpdatedAt(null);
+      setAIProviderModelsError(null);
+      return;
+    }
+    setAIProviderCatalog(getProviderCatalog(p));
+    setAIProviderModelsUpdatedAt(getProviderCatalogMeta(p)?.updatedAt ?? null);
+    setAIProviderModelsError(null);
+  }
+
   function handleAIProviderChange(p: AIProviderType) {
+    const nextCatalog = p !== 'copilot' ? getProviderCatalog(p as Exclude<AIProviderType, 'copilot'>) : [];
+    const storedModel = getActiveModel();
+    const nextModel = p === 'copilot'
+      ? storedModel
+      : nextCatalog.some((model) => model.id === storedModel)
+      ? storedModel
+      : nextCatalog[0]?.id ?? storedModel;
+
     setAIProviderLocal(p);
     setActiveProvider(p);
     void saveApiSecret('cafezin-ai-provider', p);
     setAIProviderKey(p !== 'copilot' ? getProviderKey(p) : '');
-    setAIModel(getActiveModel());
-    setAIFavoriteIds(p !== 'copilot' && p !== 'custom' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot'>) : []);
+    setAIModel(nextModel);
+    setAIFavoriteIds(p !== 'copilot' && p !== 'custom' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot' | 'custom'>) : []);
     setCustomModelInput('');
     setCustomEndpointDraft(getCustomEndpoint());
     setCustomDiagnostic(null);
+    setAIProviderModelsLoading(false);
+    syncSelectedProviderCatalog(p);
   }
 
   async function handleTestCustomEndpoint() {
@@ -465,6 +502,63 @@ export default function SettingsModal({
     void saveApiSecret('cafezin-ai-model', nextModel);
     setAIModelSaved(true);
     setTimeout(() => setAIModelSaved(false), 2000);
+  }
+
+  async function handleRefreshProviderModels() {
+    setAIProviderModelsError(null);
+
+    if (aiProvider === 'copilot') {
+      const hasCopilotAccess =
+        !!getStoredOAuthToken(workspace?.config.githubOAuth?.clientId?.trim() || undefined) ||
+        !!getStoredOAuthToken();
+      if (!hasCopilotAccess) {
+        setAIProviderModelsError('Entre no Copilot pelo painel do chat antes de atualizar a lista.');
+        return;
+      }
+
+      setAICopilotModelsLoading(true);
+      try {
+        const models = await fetchCopilotModels(workspace?.config.githubOAuth?.clientId?.trim() || undefined);
+        if (models.length > 0) {
+          setAICopilotModels(models);
+          setAIModel((current) => resolveCopilotModelForChatCompletions(current, models));
+          setAIProviderModelsUpdatedAt(new Date().toISOString());
+        }
+      } catch (err) {
+        setAIProviderModelsError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setAICopilotModelsLoading(false);
+      }
+      return;
+    }
+
+    if (aiProvider === 'custom') return;
+
+    setAIProviderModelsLoading(true);
+    try {
+      const models = await refreshProviderCatalog(aiProvider, { apiKey: aiProviderKey });
+      const modelIds = new Set(models.map((model) => model.id));
+      const nextFavoriteIds = aiFavoriteIds.filter((id) => modelIds.has(id));
+      const resolvedFavoriteIds = nextFavoriteIds.length > 0
+        ? nextFavoriteIds
+        : models.map((model) => model.id);
+      const resolvedModel = modelIds.has(aiModel)
+        ? aiModel
+        : resolvedFavoriteIds[0] ?? models[0]?.id ?? '';
+
+      setAIProviderCatalog(models);
+      setAIProviderModelsUpdatedAt(getProviderCatalogMeta(aiProvider)?.updatedAt ?? new Date().toISOString());
+      setAIFavoriteIds(resolvedFavoriteIds);
+      setFavoriteModelIds(aiProvider, resolvedFavoriteIds);
+      if (resolvedModel && resolvedModel !== aiModel) {
+        setAIModel(resolvedModel);
+        setActiveModel(resolvedModel);
+      }
+    } catch (err) {
+      setAIProviderModelsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAIProviderModelsLoading(false);
+    }
   }
   // New button form state
   const [newBtnLabel, setNewBtnLabel] = useState('');
@@ -587,7 +681,7 @@ export default function SettingsModal({
     ? copilotModelOptions.map((model) => ({ id: model.id, label: model.name }))
     : aiProvider === 'custom'
     ? [] // custom model is a text input, not a dropdown
-    : PROVIDER_CATALOG[aiProvider as Exclude<AIProviderType, 'copilot' | 'custom'>].map((model) => ({
+    : aiProviderCatalog.map((model) => ({
         id: model.id,
         label: model.name,
       }));
@@ -748,7 +842,19 @@ export default function SettingsModal({
               onSaveCustomConfig={handleSaveCustomConfig}
               hasCopilotAuth={hasCopilotAuth}
               aiCopilotModelsLoading={aiCopilotModelsLoading}
+              aiProviderModelsLoading={aiProvider === 'copilot' ? aiCopilotModelsLoading : aiProviderModelsLoading}
+              aiProviderModelsError={aiProviderModelsError}
+              aiProviderModelsUpdatedAt={aiProviderModelsUpdatedAt}
+              canRefreshProviderModels={
+                aiProvider === 'copilot'
+                  ? hasCopilotAuth
+                  : aiProvider === 'custom'
+                  ? false
+                  : !!(aiProviderKey.trim() || getProviderKey(aiProvider))
+              }
+              onRefreshProviderModels={() => void handleRefreshProviderModels()}
               providerConfigured={providerConfigured}
+              providerModelCatalog={aiProviderCatalog}
               resolvedProviderModelOptions={resolvedProviderModelOptions}
             />
           )}
