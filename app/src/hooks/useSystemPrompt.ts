@@ -1,6 +1,7 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { homeDir } from '@tauri-apps/api/path';
 import { exists, readTextFile } from '../services/fs';
+import { buildWorkspaceMemoryPromptText } from '../services/memoryMetadata';
 import {
   CUSTOM_EXPORT_INJECTION_SPEC,
   CUSTOM_EXPORT_PROTOCOL,
@@ -77,17 +78,35 @@ function buildActiveTaskSummary(activeTask?: Task | null): string {
 
 // ── Memory loader ─────────────────────────────────────────────────────────────
 /** Loads and keeps .cafezin/memory.md in sync whenever the workspace changes. */
-export function useWorkspaceMemory(workspacePath: string | undefined): [string, (v: string) => void] {
+export function useWorkspaceMemory(
+  workspacePath: string | undefined,
+  refreshToken = 0,
+): [string, (v: string) => void] {
   const [memoryContent, setMemoryContent] = useState('');
+  const reloadMemory = useCallback((markdownOverride?: string) => {
+    if (!workspacePath) {
+      setMemoryContent('');
+      return;
+    }
+    void buildWorkspaceMemoryPromptText(workspacePath, markdownOverride)
+      .then(setMemoryContent)
+      .catch(() => setMemoryContent(typeof markdownOverride === 'string' ? markdownOverride : ''));
+  }, [workspacePath]);
+
   useEffect(() => {
     if (!workspacePath) { setMemoryContent(''); return; }
     const memPath = `${workspacePath}/.cafezin/memory.md`;
     exists(memPath).then((found) => {
       if (!found) { setMemoryContent(''); return; }
-      readTextFile(memPath).then(setMemoryContent).catch(() => setMemoryContent(''));
+      reloadMemory();
     }).catch(() => setMemoryContent(''));
-  }, [workspacePath]);
-  return [memoryContent, setMemoryContent];
+  }, [workspacePath, refreshToken, reloadMemory]);
+
+  const handleMemoryWritten = useCallback((newMarkdown: string) => {
+    reloadMemory(newMarkdown);
+  }, [reloadMemory]);
+
+  return [memoryContent, handleMemoryWritten];
 }
 // ── User profile loader ────────────────────────────────────────────
 /**
@@ -309,6 +328,14 @@ NEVER use N add_slide + N add_note when create_lesson does it in one.` : '',
       hasTools
         ? `You have access to workspace tools. ALWAYS call the appropriate tool when the user asks about their documents, wants to find/summarize/cross-reference content, or asks you to create/edit files. Never guess at file contents — read them first. When writing a file, always call the write_workspace_file tool — do not output the file as a code block.
 
+When locating files, implementations, or facts in the workspace, do not stop after one failed literal search:
+• Keep discovery tools available throughout the turn — you may need to re-scan the workspace after an initial guess fails.
+• Start broad with search_workspace_index or outline_workspace to find likely files by headings, exports, keys, and structure.
+• Then run search_workspace multiple times with reformulations: synonyms, abbreviations, singular/plural, Portuguese/English variants, and likely implementation terms.
+• Use regex proactively when names may vary. Example patterns: /auth|login|session/i, /agent|copilot|assistant/i, /billing|checkout|subscription/i.
+• If the user describes something semantically ("the file that handles checkout", "this may live in another file"), infer plausible terms and search for those terms instead of waiting for exact wording.
+• Only conclude that something is missing or not found after at least one structural discovery step plus multiple targeted searches fail.
+
 For targeted edits to existing files, choose the right tool:
 • Single surgical edit → patch_workspace_file (finds exact text and replaces it in-place)
 • Multiple coordinated edits across one or more files → multi_patch (applies all patches in one round-trip, faster and more atomic than calling patch_workspace_file repeatedly)
@@ -365,6 +392,10 @@ MEMORY HYGIENE — use manage_memory() to keep files clean:
 
 At the START of a long work session, always read the injected user profile and workspace memory
 blocks above before taking any action. They define hard constraints you must follow.
+If the injected workspace memory includes a "Memory review status" block, those entries are potentially stale:
+  • Re-read the linked source files before relying on them.
+  • Update or replace stale entries after you verify the facts.
+  • When saving file-derived facts with remember(), pass source_files when helpful so Cafezin can track them.
 
 ── VERIFY / TEST WORKFLOW ──────────────────────────────────────────────────────
 When working on a code workspace (any folder with package.json, pyproject.toml, Makefile, etc.):

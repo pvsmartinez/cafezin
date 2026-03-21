@@ -19,6 +19,8 @@ use tauri::State;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tokio::io::AsyncBufReadExt;
 
+mod rag;
+
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 #[derive(Default)]
 struct ShellProcessRegistry {
@@ -1006,6 +1008,34 @@ fn ensure_config_dir(workspace_path: String) -> Result<(), String> {
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn rag_rebuild_index(workspace_path: String) -> Result<rag::RagBuildSummary, String> {
+    tokio::task::spawn_blocking(move || rag::rebuild_index(&workspace_path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn rag_search(
+    workspace_path: String,
+    query: String,
+    limit: Option<usize>,
+    active_file: Option<String>,
+    recent_files: Option<Vec<String>>,
+) -> Result<rag::RagSearchResult, String> {
+    tokio::task::spawn_blocking(move || {
+        rag::search_workspace(
+            &workspace_path,
+            &query,
+            limit.unwrap_or(10),
+            active_file.as_deref(),
+            recent_files.as_deref().unwrap_or(&[]),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ── Tauri command dispatchers (one per git command, no duplication) ───────────────
 #[tauri::command]
 fn git_init(path: String) -> Result<String, String> { git::git_init(path) }
@@ -1543,8 +1573,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo])
+        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, rag_rebuild_index, rag_search, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

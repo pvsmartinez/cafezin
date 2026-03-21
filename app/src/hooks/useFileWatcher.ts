@@ -84,6 +84,7 @@ export interface UseFileWatcherOptions {
   onRefresh: (
     ws: Workspace,
     nextState?: { files: string[]; fileTree: Workspace['fileTree'] },
+    changedPaths?: string[],
   ) => Promise<void>;
   /** Callback to push new content to the editor for the active tab. */
   setContent: (content: string) => void;
@@ -106,6 +107,7 @@ export function useFileWatcher({
     let unwatch: (() => void | Promise<void>) | null = null;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
+    const pendingChangedPaths = new Set<string>();
     // Guard against the race where the cleanup runs *before* fsWatch resolves.
     // Without this flag the resolved unlistener would never be called, leaving a
     // stale watcher running until the next workspace switch.
@@ -138,8 +140,10 @@ export function useFileWatcher({
       debounceTimer = setTimeout(async () => {
         const ws = workspaceRef.current;
         if (!ws || ws.path !== watchPath) return;
+        const changedPaths = Array.from(pendingChangedPaths);
+        pendingChangedPaths.clear();
         try {
-          await onRefresh(ws);
+          await onRefresh(ws, undefined, changedPaths);
         } catch {
           /* workspace may have been closed — ignore */
         }
@@ -158,6 +162,11 @@ export function useFileWatcher({
           (path) => !isInternalWatchPath(path, watchPath),
         );
         if (!hasUserChange) return;
+        for (const path of event.paths) {
+          if (isInternalWatchPath(path, watchPath)) continue;
+          const relPath = toRelativeWatchPath(path, watchPath);
+          if (relPath) pendingChangedPaths.add(relPath);
+        }
         scheduleRefresh();
       },
       { recursive: true },

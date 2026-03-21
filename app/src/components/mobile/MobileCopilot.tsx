@@ -75,6 +75,16 @@ Use it proactively whenever the user asks for something that requires the deskto
 Save a clear task description so the user sees it as a reminder when they open the workspace on their computer.
 Do NOT use it for things you can already do here (file edits, writing, web search).`;
 
+const MOBILE_SEARCH_CONTEXT = `\
+## Search and discovery rules
+When looking for a file, feature, or fact in the workspace, do not stop after one literal search.
+
+- Start broad with search_workspace_index or outline_workspace to locate likely files by headings, exports, keys, and structure.
+- Then use search_workspace with multiple reformulations: synonyms, abbreviations, singular/plural, Portuguese/English variants, and implementation terms.
+- Use regex proactively when wording may vary, for example /auth|login|session/i or /agent|copilot|assistant/i.
+- If the user describes something semantically, infer likely terms and search for those instead of waiting for exact wording.
+- Only say you could not find something after both structural discovery and multiple targeted searches fail.`;
+
 // ── Simple markdown renderer for chat bubbles ────────────────────────────────
 function MobileMdMessage({
   content,
@@ -292,6 +302,7 @@ export default function MobileCopilot({
     const systemParts: string[] = [
       'You are a helpful coding and writing assistant. Keep answers concise and clear.',
       MOBILE_SYSTEM_CONTEXT,
+      MOBILE_SEARCH_CONTEXT,
     ];
     if (workspace) {
       systemParts.push(`Workspace: ${workspace.name}.`);
@@ -722,4 +733,3 @@ export default function MobileCopilot({
     </div>
   );
 }
-

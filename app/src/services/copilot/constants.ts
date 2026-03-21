@@ -1,5 +1,7 @@
 export const COPILOT_API_URL = 'https://api.githubcopilot.com/chat/completions';
-export const CHAT_COMPLETIONS_BLOCKED_MODELS = new Set(['gpt-5.4', 'gpt-5.4-mini']);
+export const COPILOT_CLIENT_SESSION_STORAGE_KEY = 'cafezin:copilot-client-session-id';
+export const COPILOT_CLIENT_MACHINE_STORAGE_KEY = 'cafezin:copilot-client-machine-id';
+export const CHAT_COMPLETIONS_BLOCKED_MODELS = new Set<string>();
 export const CHAT_COMPLETIONS_RUNTIME_BLOCKLIST_KEY = 'cafezin-copilot-blocked-chat-models';
 export const COPILOT_MODELS_CHANGED_EVENT = 'cafezin-copilot-models-changed';
 

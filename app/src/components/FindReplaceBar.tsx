@@ -14,6 +14,7 @@ import {
   findPrevious,
   replaceNext,
   replaceAll,
+  RegExpCursor,
 } from '@codemirror/search';
 import { SearchCursor } from '@codemirror/search';
 import type { EditorHandle } from './Editor';
@@ -61,11 +62,19 @@ function countCMMatches(
   view: ReturnType<EditorHandle['getView']>,
   query: SearchQuery,
 ): number {
-  if (!view) return 0;
+  if (!view || !query.search) return 0;
   const doc = view.state.doc;
-  const cursor = new SearchCursor(doc, query.search, 0, doc.length);
   let n = 0;
-  while (!cursor.next().done) n++;
+  if (query.regexp) {
+    try {
+      const c = new RegExpCursor(doc, query.search, { ignoreCase: !query.caseSensitive });
+      while (!c.next().done) n++;
+    } catch { /* invalid regex */ }
+  } else {
+    const norm = query.caseSensitive ? undefined : (s: string) => s.toLowerCase();
+    const c = new SearchCursor(doc, query.search, 0, doc.length, norm);
+    while (!c.next().done) n++;
+  }
   return n;
 }
 

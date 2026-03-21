@@ -74,6 +74,7 @@ interface AIPanelProps {
   agentContext?: string;
   workspacePath?: string;
   workspace?: Workspace | null;
+  memoryRefreshKey?: number;
   canvasEditorRef?: React.RefObject<TldrawEditor | null>;
   onFileWritten?: (path: string) => void;
   onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
@@ -200,6 +201,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   agentContext,
   workspacePath,
   workspace,
+  memoryRefreshKey = 0,
   canvasEditorRef,
   onFileWritten,
   onMarkRecorded,
@@ -282,6 +284,8 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   const [modelsLoading, setModelsLoading] = useState(false);
   const modelsLoadedRef = useRef(false);
   const [activeProvider, setActiveProviderState] = useState<AIProviderType>(() => getActiveProvider());
+  const copilotOAuthClientIdRef = useRef(copilotOAuthClientId);
+  copilotOAuthClientIdRef.current = copilotOAuthClientId;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -325,8 +329,12 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
         })));
         setModelsLoading(false);
       } else {
-        // Force Copilot model reload on next panel open.
+        // Switch TO Copilot — fetch models immediately (panel may already be open).
         modelsLoadedRef.current = false;
+        setModelsLoading(true);
+        fetchCopilotModels(copilotOAuthClientIdRef.current)
+          .then((models) => { setAvailableModels(models); setModelsLoading(false); })
+          .catch(() => setModelsLoading(false));
       }
     }
     window.addEventListener('cafezin-provider-changed', handleProviderChanged);
@@ -712,6 +720,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           agentContext={agentContext}
           workspacePath={workspacePath}
           workspace={workspace}
+          memoryRefreshKey={memoryRefreshKey}
           canvasEditorRef={canvasEditorRef}
           onFileWritten={onFileWritten}
           onMarkRecorded={onMarkRecorded}

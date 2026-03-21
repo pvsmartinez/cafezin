@@ -1,11 +1,17 @@
 import { fetch } from '@tauri-apps/plugin-http';
-import type { ChatMessage, CopilotStreamChunk, CopilotModel, ToolActivity } from '../../types';
+import type { ChatMessage, CopilotStreamChunk, CopilotModel, ToolActivity, TokenUsage } from '../../types';
 import { DEFAULT_MODEL } from '../../types';
 import type { ToolDefinition, ToolExecutor } from '../../utils/workspaceTools';
-import { COPILOT_API_URL, EDITOR_HEADERS } from './constants';
+import {
+  COPILOT_API_URL,
+  COPILOT_CLIENT_MACHINE_STORAGE_KEY,
+  COPILOT_CLIENT_SESSION_STORAGE_KEY,
+  EDITOR_HEADERS,
+} from './constants';
 import {
   CopilotDiagnosticError,
   buildRequestDump,
+  type CopilotRequestDumpMeta,
   setLastRequestDump,
   updateRateLimit,
   isQuotaError,
@@ -21,6 +27,131 @@ import {
 } from './models';
 import { parseTextToolCalls, parseToolArguments, humanizeNetworkError } from './toolParsing';
 import { summarizeAndCompress } from './compression';
+
+type CopilotInitiator = 'user' | 'agent';
+type CopilotInteractionType = 'chat' | 'agent';
+
+const EXPORT_TOOL_NAMES = new Set(['export_workspace', 'configure_export_targets']);
+const MEMORY_TOOL_NAMES = new Set(['remember', 'manage_memory']);
+const SETTINGS_TOOL_NAMES = new Set(['configure_workspace']);
+const OPTIONAL_TASK_TOOL_NAMES = new Set(['save_desktop_task']);
+const DESTRUCTIVE_TOOL_NAMES = new Set(['rename_workspace_file', 'delete_workspace_file', 'scaffold_workspace']);
+
+function newCopilotId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}_${crypto.randomUUID()}`;
+  }
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getPersistentCopilotId(storageKey: string, prefix: string): string {
+  if (typeof localStorage === 'undefined') return newCopilotId(prefix);
+  try {
+    const existing = localStorage.getItem(storageKey)?.trim();
+    if (existing) return existing;
+    const created = newCopilotId(prefix);
+    localStorage.setItem(storageKey, created);
+    return created;
+  } catch {
+    return newCopilotId(prefix);
+  }
+}
+
+function contentToPlainText(content: ChatMessage['content']): string {
+  if (typeof content === 'string') return content;
+  return content
+    .map((part) => (part.type === 'text' ? part.text : '[image]'))
+    .join(' ');
+}
+
+function buildCopilotRequestContext(interactionType: CopilotInteractionType) {
+  return {
+    interactionType,
+    interactionId: newCopilotId(interactionType),
+    clientSessionId: getPersistentCopilotId(COPILOT_CLIENT_SESSION_STORAGE_KEY, 'cs'),
+    clientMachineId: getPersistentCopilotId(COPILOT_CLIENT_MACHINE_STORAGE_KEY, 'cm'),
+  };
+}
+
+function buildCopilotHeaders(
+  sessionToken: string,
+  requestContext: ReturnType<typeof buildCopilotRequestContext>,
+  initiator: CopilotInitiator,
+): Record<string, string> {
+  return {
+    Authorization: `Bearer ${sessionToken}`,
+    'Content-Type': 'application/json',
+    ...EDITOR_HEADERS,
+    'X-Interaction-Id': requestContext.interactionId,
+    'X-Interaction-Type': requestContext.interactionType,
+    'X-Client-Session-Id': requestContext.clientSessionId,
+    'X-Client-Machine-Id': requestContext.clientMachineId,
+    'X-Initiator': initiator,
+  };
+}
+
+function buildDumpMeta(
+  requestContext: ReturnType<typeof buildCopilotRequestContext>,
+  initiator: CopilotInitiator,
+  patch?: Partial<CopilotRequestDumpMeta>,
+): CopilotRequestDumpMeta {
+  return {
+    interactionType: requestContext.interactionType,
+    interactionId: requestContext.interactionId,
+    clientSessionId: requestContext.clientSessionId,
+    clientMachineId: requestContext.clientMachineId,
+    initiator,
+    ...patch,
+  };
+}
+
+function inferCopilotToolIntent(messages: ChatMessage[]) {
+  const lastUser = [...messages].reverse().find((message) => message.role === 'user');
+  const prompt = contentToPlainText(lastUser?.content ?? '').trim();
+  const normalized = prompt.toLowerCase();
+  const hasInjectedContext =
+    normalized.includes('[context: user sent this prompt while') ||
+    normalized.includes('[attached file:') ||
+    normalized.includes('[attached selection:');
+
+  return {
+    hasInjectedContext,
+    isGreetingOnly: /^(hi|hello|hey|oi|ola|olá|bom dia|boa tarde|boa noite|yo|sup)[!. ]*$/i.test(prompt),
+    isReviewOrEdit:
+      /\b(review|revise|revisar|rewrite|edit|improve|improve it|melhor|polish|refine|fix|corrig|coeso|engajan|coes[oa])\b/i.test(prompt),
+    isSearchOrResearch:
+      /\b(search|find|look for|buscar|procura|onde|where|consisten|cross[- ]reference|compare|compare with|pesquis)\b/i.test(prompt),
+    isExport:
+      /\b(export|publish|deploy|build|gerar pdf|pdf|subir|publicar)\b/i.test(prompt),
+    isMemory:
+      /\b(remember|memory|memor|lembra|lembre|perfil|preference|preferencia)\b/i.test(prompt),
+    isSettings:
+      /\b(setting|settings|config|configura|workspace config|configure workspace)\b/i.test(prompt),
+    isTask:
+      /\b(task|todo|plan|steps|plano|etapas|track)\b/i.test(prompt),
+    wantsDangerousMutation:
+      /\b(rename|renome|delete|remove|apaga|exclui|scaffold|novo workspace|new workspace)\b/i.test(prompt),
+  };
+}
+
+function filterCopilotToolsForTurn(
+  tools: ToolDefinition[],
+  messages: ChatMessage[],
+  _round: number,
+): ToolDefinition[] {
+  const intent = inferCopilotToolIntent(messages);
+  if (intent.isGreetingOnly && !intent.hasInjectedContext) return [];
+
+  return tools.filter((tool) => {
+    const name = tool.function.name;
+    if (!intent.isExport && EXPORT_TOOL_NAMES.has(name)) return false;
+    if (!intent.isMemory && MEMORY_TOOL_NAMES.has(name)) return false;
+    if (!intent.isSettings && SETTINGS_TOOL_NAMES.has(name)) return false;
+    if (!intent.isTask && OPTIONAL_TASK_TOOL_NAMES.has(name)) return false;
+    if (!intent.wantsDangerousMutation && DESTRUCTIVE_TOOL_NAMES.has(name)) return false;
+    return true;
+  });
+}
 
 // ── streamCopilotChat ─────────────────────────────────────────────────────────
 
@@ -42,29 +173,31 @@ export async function streamCopilotChat(
   try {
     if (signal?.aborted) return;
     const sessionToken = await getCopilotSessionToken(oauthClientId);
+    const requestContext = buildCopilotRequestContext('chat');
     const resolvedModel = resolveCopilotModelForChatCompletions(model);
     if (resolvedModel !== model) {
       console.warn(`[Copilot] model "${model}" is not accessible via /chat/completions; using "${resolvedModel}" instead`);
     }
 
     const cleanMessages = sanitizeLoop([...messages]);
-    setLastRequestDump(buildRequestDump(cleanMessages, resolvedModel, tools));
 
     const MAX_RETRIES = 3;
     let response: Awaited<ReturnType<typeof fetch>> | null = null;
     let lastError: Error | null = null;
+    let messagesForRequest = cleanMessages;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       if (signal?.aborted) return;
       if (attempt > 0) {
         await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
       }
       const MAX_PAYLOAD_BYTES = 6 * 1024 * 1024; // 6 MB
-      let messagesForRequest = cleanMessages;
+      messagesForRequest = cleanMessages;
       const bodyCandidate = JSON.stringify({
         model: resolvedModel,
         messages: cleanMessages,
         ...(tools ? { tools, tool_choice: 'auto' } : {}),
         stream: true,
+        stream_options: { include_usage: true },
         ...modelApiParams(resolvedModel, 0.7, 16384),
       });
       if (bodyCandidate.length > MAX_PAYLOAD_BYTES) {
@@ -78,21 +211,26 @@ export async function streamCopilotChat(
               (m.content as any[]).some((p: any) => p.type === 'image_url')),
         );
       }
+      setLastRequestDump(buildRequestDump(
+        messagesForRequest,
+        resolvedModel,
+        tools,
+        undefined,
+        undefined,
+        buildDumpMeta(requestContext, 'user'),
+      ));
       let r: Awaited<ReturnType<typeof fetch>>;
       try {
         r = await fetch(COPILOT_API_URL, {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${sessionToken}`,
-            'Content-Type': 'application/json',
-            ...EDITOR_HEADERS,
-          },
+          headers: buildCopilotHeaders(sessionToken, requestContext, 'user'),
           signal,
           body: JSON.stringify({
             model: resolvedModel,
             messages: messagesForRequest,
             ...(tools ? { tools, tool_choice: 'auto' } : {}),
             stream: true,
+            stream_options: { include_usage: true },
             ...modelApiParams(resolvedModel, 0.7, 16384),
           }),
         });
@@ -115,8 +253,13 @@ export async function streamCopilotChat(
 
     if (!response.ok) {
       const errorText = await response.text();
-      setLastRequestDump(buildRequestDump(cleanMessages, resolvedModel, tools, response.status, errorText));
-      console.error('[Copilot] API error diagnostic:\n' + buildRequestDump(cleanMessages, resolvedModel, tools));
+      const errorMeta = buildDumpMeta(requestContext, 'user', {
+        requestId: response.headers.get('request-id'),
+        githubRequestId: response.headers.get('x-github-request-id'),
+        copilotUsage: response.headers.get('copilot_usage'),
+      });
+      setLastRequestDump(buildRequestDump(messagesForRequest, resolvedModel, tools, response.status, errorText, errorMeta));
+      console.error('[Copilot] API error diagnostic:\n' + buildRequestDump(messagesForRequest, resolvedModel, tools, response.status, errorText, errorMeta));
 
       let cleanError: string;
       if (errorText.trim().startsWith('<')) {
@@ -153,6 +296,10 @@ export async function streamCopilotChat(
 
     const decoder = new TextDecoder();
     let buffer = '';
+    let finalUsage: TokenUsage | null = null;
+    const requestId = response.headers.get('request-id');
+    const githubRequestId = response.headers.get('x-github-request-id');
+    const copilotUsage = response.headers.get('copilot_usage');
 
     while (true) {
       const { done, value } = await reader.read();
@@ -169,6 +316,7 @@ export async function streamCopilotChat(
 
         try {
           const chunk: CopilotStreamChunk = JSON.parse(trimmed.slice(6));
+          if (chunk.usage) finalUsage = chunk.usage;
           const text = chunk.choices[0]?.delta?.content;
           if (text) onChunk(text);
         } catch {
@@ -176,6 +324,20 @@ export async function streamCopilotChat(
         }
       }
     }
+
+    setLastRequestDump(buildRequestDump(
+      messagesForRequest,
+      resolvedModel,
+      tools,
+      undefined,
+      undefined,
+      buildDumpMeta(requestContext, 'user', {
+        requestId,
+        githubRequestId,
+        usage: finalUsage,
+        copilotUsage,
+      }),
+    ));
 
     onDone();
   } catch (err) {
@@ -223,6 +385,7 @@ export async function fetchGhostCompletion(
   oauthClientId?: string,
 ): Promise<string> {
   const sessionToken = await getCopilotSessionToken(oauthClientId);
+  const requestContext = buildCopilotRequestContext('chat');
 
   const prefixSnip = prefix.slice(-1500);
   const suffixSnip = suffix.slice(0, 400);
@@ -248,11 +411,7 @@ export async function fetchGhostCompletion(
 
   const res = await fetch(COPILOT_API_URL, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${sessionToken}`,
-      'Content-Type': 'application/json',
-      ...EDITOR_HEADERS,
-    },
+    headers: buildCopilotHeaders(sessionToken, requestContext, 'user'),
     signal,
     body,
   });
@@ -291,15 +450,11 @@ export async function runCopilotAgent(
 ): Promise<void> {
   try {
     const sessionToken = await getCopilotSessionToken(oauthClientId);
+    const requestContext = buildCopilotRequestContext('agent');
     const resolvedModel = resolveCopilotModelForChatCompletions(model);
     if (resolvedModel !== model) {
       console.warn(`[agent] model "${model}" is not accessible via /chat/completions; using "${resolvedModel}" instead`);
     }
-    const headers = {
-      Authorization: `Bearer ${sessionToken}`,
-      'Content-Type': 'application/json',
-      ...EDITOR_HEADERS,
-    };
 
     const loop = sanitizeLoop([...messages]);
     const MAX_ROUNDS = 100;
@@ -316,23 +471,37 @@ export async function runCopilotAgent(
       let res: Awaited<ReturnType<typeof fetch>> | null = null;
       let lastFetchError: Error | null = null;
       let loopForRequest = loop as typeof loop;
+      const initiator: CopilotInitiator = round === 0 ? 'user' : 'agent';
+      let activeTools = filterCopilotToolsForTurn(tools, loopForRequest, round);
+      let requestUsage: TokenUsage | null = null;
+      let requestId: string | null = null;
+      let githubRequestId: string | null = null;
+      let copilotUsage: string | null = null;
 
       for (let attempt = 0; attempt < 3; attempt++) {
         if (signal?.aborted) return;
         if (attempt > 0) await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
-        setLastRequestDump(buildRequestDump(loopForRequest, resolvedModel, tools));
+        activeTools = filterCopilotToolsForTurn(tools, loopForRequest, round);
+        setLastRequestDump(buildRequestDump(
+          loopForRequest,
+          resolvedModel,
+          activeTools,
+          undefined,
+          undefined,
+          buildDumpMeta(requestContext, initiator),
+        ));
         let r: Awaited<ReturnType<typeof fetch>>;
         try {
           r = await fetch(COPILOT_API_URL, {
             method: 'POST',
-            headers,
+            headers: buildCopilotHeaders(sessionToken, requestContext, initiator),
             signal,
             body: JSON.stringify({
               model: resolvedModel,
               messages: loopForRequest,
-              tools,
-              tool_choice: 'auto',
+              ...(activeTools.length > 0 ? { tools: activeTools, tool_choice: 'auto' } : {}),
               stream: true,
+              stream_options: { include_usage: true },
               ...modelApiParams(resolvedModel, 0.3, 16000),
             }),
           });
@@ -355,6 +524,7 @@ export async function runCopilotAgent(
               ...loopForRequest.slice(0, -1),
               { role: 'user' as const, content: `${label} (image omitted — too large for API)` },
             ];
+            activeTools = filterCopilotToolsForTurn(tools, loopForRequest, round);
             console.warn('[agent] 400 with vision message — retrying without image');
             continue;
           }
@@ -371,8 +541,13 @@ export async function runCopilotAgent(
 
       if (!res.ok) {
         const errText = await res.text();
-        setLastRequestDump(buildRequestDump(loopForRequest, resolvedModel, tools, res.status, errText));
-        console.error('[agent] API error diagnostic:\n' + buildRequestDump(loopForRequest, resolvedModel, tools));
+        const errorMeta = buildDumpMeta(requestContext, initiator, {
+          requestId: res.headers.get('request-id'),
+          githubRequestId: res.headers.get('x-github-request-id'),
+          copilotUsage: res.headers.get('copilot_usage'),
+        });
+        setLastRequestDump(buildRequestDump(loopForRequest, resolvedModel, activeTools, res.status, errText, errorMeta));
+        console.error('[agent] API error diagnostic:\n' + buildRequestDump(loopForRequest, resolvedModel, activeTools, res.status, errText, errorMeta));
         let cleanMsg: string;
         if (errText.trim().startsWith('<')) {
           cleanMsg = `GitHub returned a ${res.status} (server error) — please retry in a moment`;
@@ -385,12 +560,27 @@ export async function runCopilotAgent(
             cleanMsg = `Copilot API error ${res.status}: ${errText}`;
           }
         }
+        if (res.status === 429 || res.status === 402 || isQuotaError(cleanMsg)) {
+          updateRateLimit({ quotaExceeded: true, remaining: 0 });
+        }
         registerIncompatibleChatCompletionsModelFromError(cleanMsg);
         throw new Error(cleanMsg);
       }
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No response body');
+      {
+        const remaining = res.headers.get('x-ratelimit-remaining') ?? res.headers.get('x-copilot-quota-remaining');
+        const limit = res.headers.get('x-ratelimit-limit') ?? res.headers.get('x-copilot-quota-limit');
+        updateRateLimit({
+          remaining: remaining !== null ? parseInt(remaining, 10) : undefined,
+          limit: limit !== null ? parseInt(limit, 10) : undefined,
+          quotaExceeded: false,
+        });
+      }
+      requestId = res.headers.get('request-id');
+      githubRequestId = res.headers.get('x-github-request-id');
+      copilotUsage = res.headers.get('copilot_usage');
 
       const decoder = new TextDecoder();
       let buffer = '';
@@ -418,7 +608,8 @@ export async function runCopilotAgent(
           if (!trimmed.startsWith('data: ')) continue;
 
           try {
-            const chunk = JSON.parse(trimmed.slice(6));
+            const chunk: CopilotStreamChunk = JSON.parse(trimmed.slice(6));
+            if (chunk.usage) requestUsage = chunk.usage;
             const choice = chunk.choices[0];
             if (!choice) continue;
 
@@ -524,6 +715,20 @@ export async function runCopilotAgent(
       console.debug('[agent] round', round, 'finish_reason:', finishReason,
         'native tool_calls:', toolCallsMap.size,
         'content length:', fullContent.length);
+
+      setLastRequestDump(buildRequestDump(
+        loopForRequest,
+        resolvedModel,
+        activeTools,
+        undefined,
+        undefined,
+        buildDumpMeta(requestContext, initiator, {
+          requestId,
+          githubRequestId,
+          usage: requestUsage,
+          copilotUsage,
+        }),
+      ));
 
       const nativeToolCalls = Array.from(toolCallsMap.values());
       if (nativeToolCalls.length === 0 && functionCallFallback) {
@@ -631,7 +836,7 @@ export async function runCopilotAgent(
         onChunk('\n\n_[Context approaching limit — summarizing prior session and continuing...]_\n\n');
         const compressed = await summarizeAndCompress(
           loop,
-          headers,
+          buildCopilotHeaders(sessionToken, requestContext, 'agent'),
           resolvedModel,
           workspacePath,
           sessionId ?? 's_unknown',

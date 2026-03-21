@@ -545,6 +545,8 @@ export interface AppSettings {
   locale?: 'en' | 'pt-BR';
   /** User overrides for global app keyboard shortcuts */
   shortcutOverrides?: ShortcutOverrideMap;
+  /** Show inline ghost-text completions while typing in the editor */
+  inlineCompletions: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -556,6 +558,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   sidebarOpenDefault: true,
   formatOnSave: true,
   showTerminal: false,
+  inlineCompletions: true,
 };
 
 export const APP_SETTINGS_KEY = 'cafezin-app-settings';

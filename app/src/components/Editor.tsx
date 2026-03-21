@@ -27,14 +27,65 @@ import { powerShell } from '@codemirror/legacy-modes/mode/powershell';
 import { r } from '@codemirror/legacy-modes/mode/r';
 import { perl } from '@codemirror/legacy-modes/mode/perl';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { EditorView, keymap } from '@codemirror/view';
+import { EditorView, keymap, ViewPlugin } from '@codemirror/view';
+import type { ViewUpdate } from '@codemirror/view';
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands';
 import { StateField, RangeSetBuilder, Compartment, Prec } from '@codemirror/state';
 import { Decoration, DecorationSet } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 import { linter, setDiagnostics } from '@codemirror/lint';
 import type { Diagnostic } from '@codemirror/lint';
-import { search } from '@codemirror/search';
+import { search, SearchCursor, RegExpCursor, getSearchQuery } from '@codemirror/search';
+// ── Custom search match highlighter ─────────────────────────────────────────
+// CodeMirror's built-in searchHighlighter only fires when the native search
+// panel is open (panel != null). Since we use our own FindReplaceBar without
+// ever opening the native panel, we provide our own ViewPlugin that highlights
+// all occurrences based on the active SearchQuery, regardless of panel state.
+const _searchMatchMark = Decoration.mark({ class: 'cm-searchMatch' });
+const _searchMatchSelectedMark = Decoration.mark({ class: 'cm-searchMatch cm-searchMatch-selected' });
+const externalSearchHighlight = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = this.buildDecorations(view);
+    }
+    update(update: ViewUpdate) {
+      const prev = getSearchQuery(update.startState);
+      const cur = getSearchQuery(update.state);
+      if (update.docChanged || update.viewportChanged || update.selectionSet || prev !== cur) {
+        this.decorations = this.buildDecorations(update.view);
+      }
+    }
+    buildDecorations(view: EditorView): DecorationSet {
+      const q = getSearchQuery(view.state);
+      if (!q.search) return Decoration.none;
+      const builder = new RangeSetBuilder<Decoration>();
+      for (const { from, to } of view.visibleRanges) {
+        if (q.regexp) {
+          try {
+            const c = new RegExpCursor(view.state.doc, q.search, { ignoreCase: !q.caseSensitive }, from, to);
+            while (!c.next().done) {
+              const { from: f, to: t } = c.value;
+              const sel = view.state.selection.ranges.some(r => r.from === f && r.to === t);
+              builder.add(f, t, sel ? _searchMatchSelectedMark : _searchMatchMark);
+            }
+          } catch { /* invalid regex — skip */ }
+        } else {
+          const norm = q.caseSensitive ? undefined : (s: string) => s.toLowerCase();
+          const c = new SearchCursor(view.state.doc, q.search, from, to, norm);
+          while (!c.next().done) {
+            const { from: f, to: t } = c.value;
+            const sel = view.state.selection.ranges.some(r => r.from === f && r.to === t);
+            builder.add(f, t, sel ? _searchMatchSelectedMark : _searchMatchMark);
+          }
+        }
+      }
+      return builder.finish();
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
 import { makeGhostTextExtension, type GhostCompleteFn } from '../utils/ghostText';
 import { makeLivePreviewExtension } from '../utils/livePreview';
 import { Fragment, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
@@ -748,6 +799,8 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       // Initialize CodeMirror search state so the custom FindReplaceBar can
       // drive search commands without ever needing the native search panel.
       search(),
+      // Custom highlighter — shows cm-searchMatch decorations without panel.
+      externalSearchHighlight,
       editableCompartmentRef.current.of(EditorView.editable.of(!isLocked)),
       history(),
       Prec.highest(

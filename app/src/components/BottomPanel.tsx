@@ -33,12 +33,29 @@ interface Props {
   /** Locale for the contact dialog (e.g. 'pt-BR'). */
   locale?: string;
   toggleShortcutLabel?: string;
+  workspaceStatus?: {
+    text: string;
+    tone?: 'busy' | 'ready' | 'muted';
+  } | null;
 }
 
 const MIN_HEIGHT = 100;
 const MAX_HEIGHT = 800;
 
-export default function BottomPanel({ workspacePath, open, height, onToggle, onHeightChange, requestCd, requestRun, fileMeta, showTerminal = false, locale, toggleShortcutLabel = '⌘J' }: Props) {
+export default function BottomPanel({
+  workspacePath,
+  open,
+  height,
+  onToggle,
+  onHeightChange,
+  requestCd,
+  requestRun,
+  fileMeta,
+  showTerminal = false,
+  locale,
+  toggleShortcutLabel = '⌘J',
+  workspaceStatus = null,
+}: Props) {
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
   const [input, setInput] = useState('');
   const [contactOpen, setContactOpen] = useState(false);
@@ -230,6 +247,12 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
                 )}
               </span>
             )}
+            {workspaceStatus && (
+              <span className={`bottom-panel-metric bottom-panel-workspace-status is-${workspaceStatus.tone ?? 'muted'}`}>
+                {workspaceStatus.tone === 'busy' && <span className="bottom-panel-workspace-spinner" aria-hidden="true" />}
+                {workspaceStatus.text}
+              </span>
+            )}
           </div>
           <button
             className="bottom-panel-feedback-btn"
@@ -277,27 +300,36 @@ export default function BottomPanel({ workspacePath, open, height, onToggle, onH
           })()}
         </div>
         {/* File metrics status strip — always visible */}
-        {fileMeta && (() => {
-          const { kind, wordCount, lines, slides, fileStat } = fileMeta;
+        {(fileMeta || workspaceStatus) && (() => {
+          const kind = fileMeta?.kind ?? null;
+          const wordCount = fileMeta?.wordCount ?? 0;
+          const lines = fileMeta?.lines ?? 0;
+          const slides = fileMeta?.slides ?? 0;
+          const fileStat = fileMeta?.fileStat ?? null;
           let text: string | null = null;
           if (fileStat && (kind === 'video' || kind === 'audio' || kind === 'image' || kind === 'pdf')) text = fileStat;
           else if (kind === 'markdown') text = `${wordCount.toLocaleString()} words`;
           else if (kind === 'canvas' && slides > 0) text = `${slides} slide${slides !== 1 ? 's' : ''}`;
           else if (kind === 'code' && lines > 0) text = `${lines.toLocaleString()} lines`;
-          if (!text) return null;
           return (
             <div className="bottom-panel-metrics" onClick={(e) => e.stopPropagation()}>
-              <span className="bottom-panel-metric">{text}</span>
-              {fileMeta.tsErrors !== undefined && (
+              {text && <span className="bottom-panel-metric">{text}</span>}
+              {fileMeta?.tsErrors !== undefined && (
                 <span className={`bottom-panel-metric bottom-panel-ts-diag${
-                  (fileMeta.tsErrors ?? 0) > 0 ? ' ts-has-errors' : ''
+                  (fileMeta?.tsErrors ?? 0) > 0 ? ' ts-has-errors' : ''
                 }`}>
-                  {(fileMeta.tsErrors ?? 0) > 0
-                    ? `✕ ${fileMeta.tsErrors} error${fileMeta.tsErrors !== 1 ? 's' : ''}`
+                  {(fileMeta?.tsErrors ?? 0) > 0
+                    ? `✕ ${fileMeta?.tsErrors} error${fileMeta?.tsErrors !== 1 ? 's' : ''}`
                     : `✓ no errors`}
-                  {(fileMeta.tsWarnings ?? 0) > 0 && (
-                    <span className="ts-warnings"> ▲ {fileMeta.tsWarnings}</span>
+                  {(fileMeta?.tsWarnings ?? 0) > 0 && (
+                    <span className="ts-warnings"> ▲ {fileMeta?.tsWarnings}</span>
                   )}
+                </span>
+              )}
+              {workspaceStatus && (
+                <span className={`bottom-panel-metric bottom-panel-workspace-status is-${workspaceStatus.tone ?? 'muted'}`}>
+                  {workspaceStatus.tone === 'busy' && <span className="bottom-panel-workspace-spinner" aria-hidden="true" />}
+                  {workspaceStatus.text}
                 </span>
               )}
             </div>

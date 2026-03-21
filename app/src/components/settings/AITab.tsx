@@ -107,6 +107,21 @@ export function AITab({
             <span className="sm-toggle-track" />
           </label>
         </div>
+
+        <div className="sm-row">
+          <div className="sm-row-label">
+            <span>Completions inline</span>
+            <span className="sm-row-desc">Sugestões de texto enquanto você escreve (Tab para aceitar). Usa o modelo mais barato do provider ativo.</span>
+          </div>
+          <label className="sm-toggle">
+            <input
+              type="checkbox"
+              checked={appSettings.inlineCompletions !== false}
+              onChange={(e) => setApp('inlineCompletions', e.target.checked)}
+            />
+            <span className="sm-toggle-track" />
+          </label>
+        </div>
       </section>
 
       <section className="sm-section">

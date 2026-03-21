@@ -31,18 +31,20 @@ describe('useAISession persistence helpers', () => {
   });
 
   it('persists and restores sessions independently per workspace/tab', () => {
-    persistSession(sampleMessages, 'claude-sonnet', '/workspace-a', 'agent-1');
-    persistSession([{ role: 'user', content: 'Other' }], 'gpt-4o', '/workspace-b', 'agent-2');
+    persistSession(sampleMessages, 'claude-sonnet', 'session-a', '/workspace-a', 'agent-1');
+    persistSession([{ role: 'user', content: 'Other' }], 'gpt-4o', 'session-b', '/workspace-b', 'agent-2');
 
     expect(loadSavedSession('/workspace-a', 'agent-1')).toEqual({
       messages: sampleMessages,
       model: 'claude-sonnet',
       savedAt: expect.any(String),
+      sessionId: 'session-a',
     });
     expect(loadSavedSession('/workspace-b', 'agent-2')).toEqual({
       messages: [{ role: 'user', content: 'Other' }],
       model: 'gpt-4o',
       savedAt: expect.any(String),
+      sessionId: 'session-b',
     });
     expect(loadSavedSession('/workspace-a', 'agent-2')).toBeNull();
   });

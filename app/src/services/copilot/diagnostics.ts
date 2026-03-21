@@ -1,4 +1,4 @@
-import type { ChatMessage, CopilotModel } from '../../types';
+import type { ChatMessage, CopilotModel, TokenUsage } from '../../types';
 import type { ToolDefinition } from '../../utils/workspaceTools';
 
 // ── CopilotDiagnosticError ────────────────────────────────────────────────────
@@ -29,6 +29,18 @@ export function getLastRequestDump(): string { return _lastRequestDump; }
 /** Updates the stored request dump (called by streaming.ts before each API call). */
 export function setLastRequestDump(s: string): void { _lastRequestDump = s; }
 
+export interface CopilotRequestDumpMeta {
+  interactionType?: string;
+  interactionId?: string;
+  clientSessionId?: string;
+  clientMachineId?: string;
+  initiator?: 'user' | 'agent';
+  requestId?: string | null;
+  githubRequestId?: string | null;
+  usage?: TokenUsage | null;
+  copilotUsage?: string | null;
+}
+
 /** Build a human-readable dump of a request payload for diagnostics / copy-to-clipboard. */
 export function buildRequestDump(
   messages: ChatMessage[],
@@ -36,6 +48,7 @@ export function buildRequestDump(
   tools: ToolDefinition[] | undefined,
   status?: number,
   errorBody?: string,
+  meta?: CopilotRequestDumpMeta,
 ): string {
   const msgLines = messages.map((m, i) => {
     const tcIds = (m as any).tool_calls?.map((tc: any) => tc.id) ?? [];
@@ -63,9 +76,19 @@ export function buildRequestDump(
   const toolNames = tools ? tools.map((t) => t.function?.name ?? (t as any).name).join(', ') : 'none';
   const lines = [
     `Timestamp : ${new Date().toISOString()}`,
+    'Provider  : copilot',
     `Model     : ${model}`,
     `Tools     : ${toolNames}`,
     `Messages  : ${messages.length}`,
+    ...(meta?.interactionType ? [`Interaction Type : ${meta.interactionType}`] : []),
+    ...(meta?.interactionId ? [`Interaction Id   : ${meta.interactionId}`] : []),
+    ...(meta?.initiator ? [`Initiator        : ${meta.initiator}`] : []),
+    ...(meta?.clientSessionId ? [`Client Session   : ${meta.clientSessionId}`] : []),
+    ...(meta?.clientMachineId ? [`Client Machine   : ${meta.clientMachineId}`] : []),
+    ...(meta?.requestId ? [`Request Id       : ${meta.requestId}`] : []),
+    ...(meta?.githubRequestId ? [`GitHub Request  : ${meta.githubRequestId}`] : []),
+    ...(meta?.usage ? [`Usage     : prompt=${meta.usage.prompt_tokens} completion=${meta.usage.completion_tokens} total=${meta.usage.total_tokens}`] : []),
+    ...(meta?.copilotUsage ? [`Copilot Usage    : ${meta.copilotUsage}`] : []),
     ...msgLines,
   ];
   if (status !== undefined) lines.push(`Status    : ${status}`);

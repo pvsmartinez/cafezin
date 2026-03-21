@@ -34,6 +34,15 @@ export const PROVIDER_LABELS: Record<AIProviderType, string> = {
   custom:    'Custom / Local',
 };
 
+export const PROVIDER_SHORT_LABELS: Record<AIProviderType, string> = {
+  copilot:   'Copilot',
+  openai:    'OpenAI',
+  anthropic: 'Claude',
+  groq:      'Groq',
+  google:    'Gemini',
+  custom:    'Local',
+};
+
 export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
   copilot:   [], // dynamically loaded from /models endpoint
   openai:    ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini', 'o3-mini', 'o3'],
@@ -275,6 +284,128 @@ async function streamAnthropic(
   } catch (e) {
     if ((e as Error).name === 'AbortError') { onDone(); return; }
     onError(e instanceof Error ? e : new Error(String(e)));
+  }
+}
+
+// ── Ghost text — cheapest model per provider ─────────────────────────────────
+
+/**
+ * The cheapest (or free) model to use for inline ghost-text completions
+ * per provider. These models are used for background calls the user did not
+ * explicitly initiate, so we prefer zero or low cost.
+ */
+const PROVIDER_GHOST_MODELS: Record<AIProviderType, string> = {
+  copilot:   'gpt-5-mini',          // multiplier 0 — completely free
+  openai:    'gpt-4o-mini',         // cheapest OpenAI chat model
+  anthropic: 'claude-3-5-haiku',    // cheapest Anthropic model
+  groq:      'llama-3.1-8b-instant',// fast & free-tier on Groq
+  google:    'gemini-2.0-flash',    // fastest/cheapest Gemini
+  custom:    '',                    // resolved at call time from stored config
+};
+
+/**
+ * Fetches a single inline ghost-text completion using the active provider
+ * and its cheapest configured model.
+ * Returns '' on any error so the editor fails silently.
+ */
+export async function fetchProviderGhostCompletion(
+  prefix: string,
+  suffix: string,
+  language: string,
+  signal: AbortSignal,
+  oauthClientId?: string,
+): Promise<string> {
+  const provider = getActiveProvider();
+
+  // Delegate Copilot to its dedicated implementation (uses Copilot session token).
+  if (provider === 'copilot') {
+    const { fetchGhostCompletion } = await import('./copilot/streaming');
+    return fetchGhostCompletion(prefix, suffix, language, signal, oauthClientId);
+  }
+
+  const langHint = language && language !== 'markdown' ? ` language="${language}"` : '';
+  const prefixSnip = prefix.slice(-1500);
+  const suffixSnip = suffix.slice(0, 400);
+  const userContent = `<file${langHint}>${prefixSnip}<CURSOR>${suffixSnip}</file>\nComplete from <CURSOR>. Output the completion text only, no markdown fences, no explanations.`;
+  const messages = [
+    {
+      role: 'system',
+      content:
+        'You are an inline text completion assistant. Given a file snippet with a <CURSOR> marker, output the most natural continuation. Output ONLY the completion text — no markdown fences, no explanations, no introductory phrases. If no useful completion exists, output nothing.',
+    },
+    { role: 'user', content: userContent },
+  ];
+  const commonParams = { max_tokens: 100, temperature: 0, stop: ['\n\n\n'] };
+
+  try {
+    if (provider === 'custom') {
+      const endpoint = getCustomEndpoint();
+      const model = getCustomModelId();
+      if (!endpoint || !model) return '';
+      const normalized = endpoint.replace(/\/+$/, '');
+      const url = normalized.endsWith('/chat/completions')
+        ? normalized
+        : `${normalized}/chat/completions`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${getProviderKey('custom')}`,
+          'Content-Type': 'application/json',
+        },
+        signal,
+        body: JSON.stringify({ model, messages, stream: false, ...commonParams }),
+      });
+      if (!res.ok) return '';
+      const data = await res.json() as { choices?: { message?: { content?: string } }[] };
+      return data.choices?.[0]?.message?.content?.trimEnd() ?? '';
+    }
+
+    const key = getProviderKey(provider);
+    if (!key) return '';
+    const model = PROVIDER_GHOST_MODELS[provider];
+
+    if (provider === 'anthropic') {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json',
+        },
+        signal,
+        body: JSON.stringify({
+          model,
+          max_tokens: commonParams.max_tokens,
+          system: messages[0].content,
+          messages: [{ role: 'user', content: userContent }],
+          stop_sequences: commonParams.stop,
+          temperature: commonParams.temperature,
+        }),
+      });
+      if (!res.ok) return '';
+      const data = await res.json() as { content?: { type: string; text: string }[] };
+      const block = data.content?.find((b) => b.type === 'text');
+      return block?.text?.trimEnd() ?? '';
+    }
+
+    const url =
+      provider === 'openai'  ? 'https://api.openai.com/v1/chat/completions' :
+      provider === 'groq'    ? 'https://api.groq.com/openai/v1/chat/completions' :
+      /* google */             'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+    const authHeader: Record<string, string> = provider === 'google'
+      ? { 'x-goog-api-key': key }
+      : { Authorization: `Bearer ${key}` };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { ...authHeader, 'Content-Type': 'application/json' },
+      signal,
+      body: JSON.stringify({ model, messages, stream: false, ...commonParams }),
+    });
+    if (!res.ok) return '';
+    const data = await res.json() as { choices?: { message?: { content?: string } }[] };
+    return data.choices?.[0]?.message?.content?.trimEnd() ?? '';
+  } catch {
+    return '';
   }
 }
 

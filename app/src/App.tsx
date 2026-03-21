@@ -14,6 +14,8 @@ import UpdateModal from './components/UpdateModal';
 import UpdateReleaseModal from './components/UpdateReleaseModal';
 import { loadPendingTasks } from './services/mobilePendingTasks';
 import type { MobilePendingTask } from './services/mobilePendingTasks';
+import { markWorkspaceMemoryEntriesStale } from './services/memoryMetadata';
+import { rebuildWorkspaceRagIndex } from './services/rag';
 
 import BottomPanel, { type FileMeta } from './components/BottomPanel';
 import { useDragResize } from './hooks/useDragResize';
@@ -41,7 +43,7 @@ import {
 } from './services/workspace';
 import { useAuthSession } from './hooks/useAuthSession';
 import { onLockedFilesChange, getLockedFiles } from './services/copilotLock';
-import { fetchGhostCompletion } from './services/copilot';
+import { fetchProviderGhostCompletion } from './services/aiProvider';
 import { loadWorkspaceSession, saveWorkspaceSession } from './services/workspaceSession';
 import { getFileTypeInfo } from './utils/fileType';
 import { normalizeWorkspaceExportConfig, type AISelectionContext, type Workspace, type AppSettings, type WorkspaceExportConfig, type WorkspaceConfig } from './types';
@@ -205,6 +207,8 @@ export default function App() {
     return () => clearTimeout(t);
   }, [content]);
   const [fileStat, setFileStat] = useState<string | null>(null);
+  const [ragStatus, setRagStatus] = useState<{ text: string; tone: 'busy' | 'ready' | 'muted' } | null>(null);
+  const [memoryRefreshKey, setMemoryRefreshKey] = useState(0);
 
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   // Find + Replace bar (Ctrl/Cmd+F)
@@ -609,6 +613,114 @@ export default function App() {
   // ── Keep a stable ref to workspace so watcher callback always sees latest ───
   const workspaceRef = useRef<typeof workspace>(workspace);
   useEffect(() => { workspaceRef.current = workspace; }, [workspace]);
+  const ragStatusHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ragReindexDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ragReindexRunningRef = useRef(false);
+  const ragReindexQueuedRef = useRef(false);
+  const ragReindexQueuedPathRef = useRef<string | null>(null);
+  const ragReindexQueuedReasonRef = useRef<'initial' | 'update'>('update');
+
+  const clearRagHideTimer = useCallback(() => {
+    if (!ragStatusHideTimerRef.current) return;
+    clearTimeout(ragStatusHideTimerRef.current);
+    ragStatusHideTimerRef.current = null;
+  }, []);
+
+  const clearRagDebounce = useCallback(() => {
+    if (!ragReindexDebounceRef.current) return;
+    clearTimeout(ragReindexDebounceRef.current);
+    ragReindexDebounceRef.current = null;
+  }, []);
+
+  const startRagReindex = useCallback((path: string, reason: 'initial' | 'update') => {
+    if (!path) return;
+    if (ragReindexRunningRef.current) {
+      ragReindexQueuedRef.current = true;
+      ragReindexQueuedPathRef.current = path;
+      if (reason === 'update' || ragReindexQueuedReasonRef.current !== 'update') {
+        ragReindexQueuedReasonRef.current = reason;
+      }
+      return;
+    }
+
+    ragReindexRunningRef.current = true;
+    clearRagHideTimer();
+    if (mountedRef.current && workspaceRef.current?.path === path) {
+      setRagStatus({
+        text: reason === 'initial' ? 'Indexando busca hibrida...' : 'Atualizando busca hibrida...',
+        tone: 'busy',
+      });
+    }
+
+    void rebuildWorkspaceRagIndex(path)
+      .then((summary) => {
+        if (!mountedRef.current || workspaceRef.current?.path !== path) return;
+        if (summary?.available) {
+          setRagStatus({ text: 'Busca hibrida pronta', tone: 'ready' });
+          ragStatusHideTimerRef.current = setTimeout(() => {
+            ragStatusHideTimerRef.current = null;
+            if (mountedRef.current && workspaceRef.current?.path === path) {
+              setRagStatus(null);
+            }
+          }, 3200);
+        } else {
+          setRagStatus(null);
+        }
+      })
+      .catch(() => {
+        if (mountedRef.current && workspaceRef.current?.path === path) {
+          setRagStatus(null);
+        }
+      })
+      .finally(() => {
+        ragReindexRunningRef.current = false;
+        if (ragReindexQueuedRef.current) {
+          const nextPath = ragReindexQueuedPathRef.current ?? path;
+          const nextReason = ragReindexQueuedReasonRef.current;
+          ragReindexQueuedRef.current = false;
+          ragReindexQueuedPathRef.current = null;
+          ragReindexQueuedReasonRef.current = 'update';
+          startRagReindex(nextPath, nextReason);
+        }
+      });
+  }, [clearRagHideTimer, mountedRef, workspaceRef]);
+
+  const scheduleRagReindex = useCallback((
+    path: string,
+    reason: 'initial' | 'update' = 'update',
+    delayMs = 900,
+  ) => {
+    if (!path) return;
+    clearRagDebounce();
+    ragReindexDebounceRef.current = setTimeout(() => {
+      ragReindexDebounceRef.current = null;
+      startRagReindex(path, reason);
+    }, delayMs);
+  }, [clearRagDebounce, startRagReindex]);
+
+  const refreshMemoryPrompt = useCallback(() => {
+    setMemoryRefreshKey((prev) => prev + 1);
+  }, []);
+
+  const markWorkspaceMemoryForChangedPaths = useCallback(async (
+    workspacePath: string,
+    changedPaths?: string[],
+  ) => {
+    if (!workspacePath || !changedPaths || changedPaths.length === 0) return;
+    try {
+      const marked = await markWorkspaceMemoryEntriesStale(workspacePath, changedPaths);
+      if (marked > 0) refreshMemoryPrompt();
+    } catch (err) {
+      console.error('Failed to update memory freshness:', err);
+    }
+  }, [refreshMemoryPrompt]);
+
+  useEffect(() => {
+    return () => {
+      clearRagHideTimer();
+      clearRagDebounce();
+    };
+  }, [clearRagDebounce, clearRagHideTimer]);
 
   // Persist tab + preview state per workspace (debounced, 800 ms)
   useEffect(() => {
@@ -777,11 +889,14 @@ export default function App() {
   const refreshWorkspace = useCallback(async (
     ws: Workspace,
     nextState?: { files: string[]; fileTree: Workspace['fileTree'] },
+    changedPaths?: string[],
   ) => {
     const fileTree = nextState?.fileTree ?? await refreshFileTree(ws);
     const files = nextState?.files ?? flatMdFiles(fileTree);
     setWorkspace((prev) => prev ? { ...prev, files, fileTree } : prev);
-  }, []);
+    scheduleRagReindex(ws.path, 'update');
+    void markWorkspaceMemoryForChangedPaths(ws.path, changedPaths);
+  }, [markWorkspaceMemoryForChangedPaths, scheduleRagReindex]);
 
   // ── File system watcher ────────────────────────────────────────────────────
   // Placed after refreshWorkspace to avoid temporal-dead-zone issues.
@@ -1216,14 +1331,17 @@ export default function App() {
     try { await saveWorkspaceConfig(updated); } catch (err) { console.error('Failed to save model pref:', err); }
   }, [workspace]);
 
-  const handleFileWritten = useCallback(async (_path: string) => {
+  const handleFileWritten = useCallback(async (path: string) => {
     if (!workspace) return;
     try {
-      await refreshWorkspace(workspace);
+      await refreshWorkspace(workspace, undefined, path ? [path] : undefined);
+      if (path === '.cafezin/memory.md') {
+        refreshMemoryPrompt();
+      }
     } catch (err) {
       console.error('Failed to refresh workspace after file write:', err);
     }
-  }, [workspace, refreshWorkspace]);
+  }, [workspace, refreshWorkspace, refreshMemoryPrompt]);
 
   // AI document context: for canvas, send live shape summary + command protocol
   // canvasEditorRef is a ref — intentionally not in deps (changes don't trigger re-render).
@@ -1264,6 +1382,13 @@ export default function App() {
     // Cancel any pending auto-save and clear all tabs
     cancelAutosave();
     clearAll();
+    clearRagHideTimer();
+    clearRagDebounce();
+    ragReindexQueuedRef.current = false;
+    ragReindexQueuedPathRef.current = null;
+    ragReindexQueuedReasonRef.current = 'update';
+    setRagStatus(null);
+    setMemoryRefreshKey(0);
     setWorkspace(null);
     setDirtyFiles(new Set());
     setAiMarks([]);
@@ -1298,6 +1423,10 @@ export default function App() {
         );
       })
       .catch(() => { /* non-fatal — agent falls back to live outline_workspace */ });
+
+    // Warm the local hybrid search index in the background. Query-time search
+    // still performs an incremental refresh, so stale or failed warmups are non-fatal.
+    scheduleRagReindex(ws.path, 'initial', 120);
 
     // Check for pending tasks queued from mobile
     const pending = await loadPendingTasks(ws.path);
@@ -1572,7 +1701,7 @@ export default function App() {
           onFileSaved={() => handleFileWritten(activeFile ?? '')}
           onFormat={handleFormat}
           onImagePaste={handleEditorImagePaste}
-          onGhostComplete={fetchGhostCompletion}
+          onGhostComplete={appSettings.inlineCompletions !== false ? fetchProviderGhostCompletion : undefined}
         />
 
 
@@ -1593,6 +1722,7 @@ export default function App() {
           agentContext={workspace.agentContext}
           workspacePath={workspace.path}
           workspace={workspace}
+          memoryRefreshKey={memoryRefreshKey}
           canvasEditorRef={canvasEditorRef}
           onFileWritten={handleFileWritten}
           onMarkRecorded={handleMarkRecorded}
@@ -1648,6 +1778,7 @@ export default function App() {
         showTerminal={appSettings.showTerminal}
         locale={appSettings.locale ?? 'en'}
         toggleShortcutLabel={terminalShortcutLabel}
+        workspaceStatus={ragStatus}
       />
       </div> {/* end app-workspace */}
 
@@ -1708,4 +1839,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -16,6 +16,7 @@ import { walkFilesFlat } from '../../services/workspace';
 import { lockFile, unlockFile, waitForUnlock } from '../../services/copilotLock';
 import { parseSpreadsheetFile, serializeSheetToCSV, serializeSheetToTSV, sheetToMarkdownTable } from '../../services/spreadsheet';
 import { loadWorkspaceIndex, extractFileOutline, rankWorkspaceIndex } from '../../services/workspaceIndex';
+import { searchWorkspaceRag } from '../../services/rag';
 import type { SheetTab } from '../../services/spreadsheet';
 import type { AIRecordedTextMark, AISpreadsheetTarget } from '../../types';
 import type { ToolDefinition, DomainExecutor } from './shared';
@@ -61,20 +62,21 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
       name: 'search_workspace_index',
       description:
         'Search the pre-built workspace index and return ranked files with their structural outlines. ' +
-        'Much faster than outline_workspace (no file reads — results come from the cached index). ' +
-        'Ideal as a first step when localising relevant files: it ranks by query relevance, recency, and structural richness. ' +
+        'When a query is supplied, it also attempts local hybrid retrieval (semantic chunk search + lexical ranking) before falling back to the structural index. ' +
+        'Much faster than outline_workspace (no full file reads in the common path). ' +
+        'Ideal as a first step when localising relevant files: it ranks by query relevance, recency, structure, and local semantic similarity when available. ' +
         'After finding candidate files, read their full content with read_workspace_file. ' +
         '• Omit query to get the top files ranked by recency and active file. ' +
-        '• Supply query to filter and rank by keyword relevance against file paths and outlines. ' +
-        'Returns up to 15 results with their outline (headings, exports, word count, etc.).',
+        '• Supply a natural-language query or keywords to retrieve likely files even when wording differs. ' +
+        'Returns up to 15 results with their outline (headings, exports, word count, etc.) and may include the best matching chunk snippet.',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
             description:
-              'Keywords to search for. Matched against file paths and structural outlines. ' +
-              'E.g. "chapter introduction" or "authentication hook". Omit to get top-ranked files by recency.',
+              'Natural-language query or keywords. Matched against file paths, structural outlines, and local semantic chunks when available. ' +
+              'E.g. "chapter introduction", "authentication hook", or "the file that handles checkout". Omit to get top-ranked files by recency.',
           },
         },
         required: [],
@@ -682,6 +684,29 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
     // ── search_workspace_index ────────────────────────────────────────────
     case 'search_workspace_index': {
       const query = String(args.query ?? '').trim();
+      if (query) {
+        const ragResult = await searchWorkspaceRag(workspacePath, query, {
+          limit: 12,
+          activeFile: ctx.activeFile,
+          recentFiles: ctx.workspaceConfig?.recentFiles,
+        });
+        if (ragResult && ragResult.hits.length > 0) {
+          const ageMin = ragResult.builtAt
+            ? Math.round((Date.now() - Number(ragResult.builtAt)) / 60_000)
+            : 0;
+          const freshness = ragResult.builtAt
+            ? ageMin < 2 ? '' : ` [index built ${ageMin} min ago]`
+            : '';
+          const lines = ragResult.hits.map((hit) => {
+            const kb = (hit.size / 1024).toFixed(1);
+            const title = hit.title ? `\n  best chunk: ${hit.title} [lines ${hit.startLine}-${hit.endLine}]` : '';
+            const snippet = hit.snippet ? `\n  snippet: ${hit.snippet}` : '';
+            return `📄 ${hit.path}  (${kb} KB)\n  hybrid score: ${hit.combinedScore.toFixed(2)} · semantic ${hit.semanticScore.toFixed(2)} · lexical ${hit.lexicalScore.toFixed(2)}${hit.outline ? `\n${hit.outline}` : ''}${title}${snippet}`;
+          });
+          return `Top ${ragResult.hits.length} files matching "${query}" via local hybrid search${freshness}:\n\n${lines.join('\n\n')}`;
+        }
+      }
+
       const index = await loadWorkspaceIndex(workspacePath);
       if (!index) {
         return (

@@ -9,6 +9,14 @@ import { runExportTarget } from '../exportWorkspace';
 import { safeResolvePath } from './shared';
 import { appendPendingTask } from '../../services/mobilePendingTasks';
 import { resolveCopilotModelForChatCompletions } from '../../services/copilot';
+import {
+  buildWorkspaceMemoryPromptText,
+  buildWorkspaceSourceRefs,
+  getUserProfileMemoryPaths,
+  syncMemoryMetadataWithMarkdown,
+  updateMemoryMetadataEntry,
+  type MemoryEntryKind,
+} from '../../services/memoryMetadata';
 import type { ToolDefinition, DomainExecutor } from './shared';
 import {
   CUSTOM_EXPORT_INJECTION_SPEC,
@@ -165,6 +173,7 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
         'Save a fact or preference so it persists across chat sessions. ' +
         'Use scope="user" for things about the USER (communication style, pet peeves, what the AI has done wrong, how they like to work) — these are saved globally and apply to EVERY workspace. ' +
         'Use the default scope (omit it) for project-specific facts (character names, plot decisions, world-building, tech notes) — saved to this workspace only. ' +
+        'Workspace memories can optionally be linked to source files so they are marked for review when those files change. ' +
         'Call this proactively without being asked whenever you learn something worth remembering: ' +
         'a correction the user made, a preference they stated, a mistake you should not repeat.',
       parameters: {
@@ -183,6 +192,16 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
             enum: ['user', 'workspace'],
             description: '"user" = global user profile (persists across all workspaces). "workspace" = this project only (default).',
           },
+          kind: {
+            type: 'string',
+            enum: ['durable', 'derived'],
+            description: 'Optional memory kind. durable = stable preference/rule. derived = extracted from workspace files and should be re-verified if source files change.',
+          },
+          source_files: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional workspace-relative source files to link this memory to. Use for facts derived from files so they can be marked needs_review later.',
+          },
         },
         required: ['content'],
       },
@@ -199,6 +218,7 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
         '"read" — return the current contents of a memory file (scope: workspace or user). ' +
         '"rewrite" — replace the entire file with a consolidated, deduplicated version you craft. ' +
         '"delete_entry" — remove a single bullet entry by its exact text. ' +
+        'Workspace reads may include a review-status note when file-linked memories became stale. ' +
         'Run "read" first, then "rewrite" with a cleaned version that: removes duplicates, merges related items, drops outdated facts, and keeps only what is truly useful.',
       parameters: {
         type: 'object',
@@ -607,21 +627,26 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
       const memContent = String(args.content ?? '').trim();
       const heading    = String(args.heading  ?? '').trim();
       const scope      = String(args.scope    ?? 'workspace').trim();
+      const requestedKind = String(args.kind ?? '').trim();
       if (!memContent) return 'Error: content is required.';
 
       const isUserScope = scope === 'user';
 
       let abs: string;
       let memRelPath: string;
+      let metadataAbs: string;
       if (isUserScope) {
         // User profile: ~/.cafezin/user-profile.md — global across workspaces
         const home = await homeDir();
-        abs = `${home.replace(/\/$/, '')}/.cafezin/user-profile.md`;
+        const paths = getUserProfileMemoryPaths(home);
+        abs = paths.markdownPath;
+        metadataAbs = paths.metadataPath;
         memRelPath = '~/.cafezin/user-profile.md';
       } else {
         memRelPath = '.cafezin/memory.md';
         try { abs = safeResolvePath(workspacePath, memRelPath); }
         catch (e) { return String(e); }
+        metadataAbs = safeResolvePath(workspacePath, '.cafezin/memory.meta.json');
       }
 
       const dir = abs.split('/').slice(0, -1).join('/');
@@ -646,6 +671,28 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
 
       try {
         await writeTextFile(abs, updated);
+        await syncMemoryMetadataWithMarkdown(metadataAbs, updated);
+        const explicitSourceFiles = Array.isArray(args.source_files)
+          ? (args.source_files as unknown[]).map((value) => String(value).trim()).filter(Boolean)
+          : [];
+        const implicitSourceFiles = !isUserScope && ctx.activeFile && ctx.activeFile !== '.cafezin/memory.md'
+          ? [ctx.activeFile]
+          : [];
+        const sourceFiles = explicitSourceFiles.length > 0 ? explicitSourceFiles : implicitSourceFiles;
+        const kind: MemoryEntryKind = requestedKind === 'derived' || requestedKind === 'durable'
+          ? requestedKind
+          : (!isUserScope && sourceFiles.length > 0 ? 'derived' : 'durable');
+        const sourceRefs = !isUserScope && sourceFiles.length > 0
+          ? await buildWorkspaceSourceRefs(workspacePath, sourceFiles)
+          : [];
+        await updateMemoryMetadataEntry({
+          metadataPath: metadataAbs,
+          markdown: updated,
+          heading: sectionTitle,
+          content: memContent,
+          kind,
+          sourceRefs,
+        });
         if (isUserScope) {
           onUserProfileWritten?.(updated);
         } else {
@@ -683,6 +730,9 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
       if (action === 'read') {
         if (!(await exists(abs))) return `${label} does not exist yet.`;
         const text = await readTextFile(abs);
+        if (!isUser) {
+          return await buildWorkspaceMemoryPromptText(workspacePath, text);
+        }
         return text || `${label} is empty.`;
       }
 
@@ -691,6 +741,10 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
         if (!newContent) return 'Error: content is required for rewrite.';
         if (!(await exists(dir))) await mkdir(dir, { recursive: true });
         await writeTextFile(abs, newContent + '\n');
+        const metadataPath = isUser
+          ? getUserProfileMemoryPaths(await homeDir()).metadataPath
+          : safeResolvePath(workspacePath, '.cafezin/memory.meta.json');
+        await syncMemoryMetadataWithMarkdown(metadataPath, newContent);
         if (isUser) onUserProfileWritten?.(newContent);
         else onMemoryWritten?.(newContent);
         const lines = newContent.split('\n').filter(Boolean).length;
@@ -708,6 +762,10 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
           .join('\n');
         if (updated === text) return `Entry not found in ${label}: "${target}"`;
         await writeTextFile(abs, updated);
+        const metadataPath = isUser
+          ? getUserProfileMemoryPaths(await homeDir()).metadataPath
+          : safeResolvePath(workspacePath, '.cafezin/memory.meta.json');
+        await syncMemoryMetadataWithMarkdown(metadataPath, updated);
         if (isUser) onUserProfileWritten?.(updated);
         else onMemoryWritten?.(updated);
         return `Deleted entry from ${label}: "${target}"`;

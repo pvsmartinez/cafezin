@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { newSessionId } from '../services/copilotLog';
 import type { ChatMessage, CopilotModel } from '../types';
 import { timeAgo } from '../utils/timeAgo';
@@ -15,6 +16,32 @@ export interface SavedSession {
   messages: ChatMessage[];
   model: string;
   savedAt: string;
+  sessionId?: string;
+  startedAt?: string;
+}
+
+function applySavedSession(
+  savedSession: SavedSession,
+  sessionIdRef: MutableRefObject<string>,
+  sessionStartedAtRef: MutableRefObject<string>,
+  workspacePath: string | undefined,
+  agentId: string,
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>,
+  setSavedSession: Dispatch<SetStateAction<SavedSession | null>>,
+): string {
+  sessionIdRef.current = savedSession.sessionId ?? newSessionId();
+  sessionStartedAtRef.current = savedSession.startedAt ?? savedSession.savedAt ?? new Date().toISOString();
+  persistSession(
+    savedSession.messages,
+    savedSession.model,
+    sessionIdRef.current,
+    workspacePath,
+    agentId,
+    sessionStartedAtRef.current,
+  );
+  setMessages(savedSession.messages);
+  setSavedSession(loadSavedSession(workspacePath, agentId));
+  return savedSession.model;
 }
 
 function readSavedSession(key: string): SavedSession | null {
@@ -72,8 +99,10 @@ export function markLegacySessionMigrated() {
 export function persistSession(
   msgs: ChatMessage[],
   mdl: string,
+  sessionId: string,
   workspacePath?: string,
   agentId?: string,
+  startedAt?: string,
 ) {
   // Only persist user/assistant roles; strip attached images (base64) to stay within storage limits
   const slim = msgs
@@ -89,7 +118,13 @@ export function persistSession(
   try {
     localStorage.setItem(
       getScopedSessionKey(workspacePath, agentId),
-      JSON.stringify({ messages: slim, model: mdl, savedAt: new Date().toISOString() }),
+      JSON.stringify({
+        messages: slim,
+        model: mdl,
+        savedAt: new Date().toISOString(),
+        sessionId,
+        ...(startedAt ? { startedAt } : {}),
+      }),
     );
   } catch { /* quota exceeded — skip silently */ }
 }
@@ -144,7 +179,14 @@ export function useAISession({
   const conversationKey = messages.filter((m) => m.role === 'user' || m.role === 'assistant').length;
   useEffect(() => {
     if (conversationKey === 0) return;
-    persistSession(messages, model, workspacePath, agentId);
+    persistSession(
+      messages,
+      model,
+      sessionIdRef.current,
+      workspacePath,
+      agentId,
+      sessionStartedAtRef.current,
+    );
     savedSessionSourceRef.current = 'scoped';
     setSavedSession(loadSavedSession(workspacePath, agentId));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,14 +203,33 @@ export function useAISession({
   /** Returns the restored model string (for the caller to call setModel), or null if no session. */
   function handleRestoreSession(): string | null {
     if (!savedSession) return null;
-    persistSession(savedSession.messages, savedSession.model, workspacePath, agentId);
+    const restoredModel = applySavedSession(
+      savedSession,
+      sessionIdRef,
+      sessionStartedAtRef,
+      workspacePath,
+      agentId,
+      setMessages,
+      setSavedSession,
+    );
     if (savedSessionSourceRef.current === 'legacy') {
       markLegacySessionMigrated();
       savedSessionSourceRef.current = 'scoped';
     }
-    setMessages(savedSession.messages);
-    setSavedSession(loadSavedSession(workspacePath, agentId));
-    return savedSession.model;
+    return restoredModel;
+  }
+
+  function handleRestoreSpecificSession(nextSession: SavedSession): string {
+    savedSessionSourceRef.current = 'scoped';
+    return applySavedSession(
+      nextSession,
+      sessionIdRef,
+      sessionStartedAtRef,
+      workspacePath,
+      agentId,
+      setMessages,
+      setSavedSession,
+    );
   }
 
   return {
@@ -180,5 +241,6 @@ export function useAISession({
     sessionStartedAtRef,
     handleNewChat,
     handleRestoreSession,
+    handleRestoreSpecificSession,
   };
 }

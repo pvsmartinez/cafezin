@@ -47,9 +47,10 @@ interface ModelPickerProps {
   onChange: (id: CopilotModel) => void;
   loading: boolean;
   onSignOut?: () => void;
+  providerLabel?: string;
 }
 
-export function ModelPicker({ models, value, onChange, loading, onSignOut }: ModelPickerProps) {
+export function ModelPicker({ models, value, onChange, loading, onSignOut, providerLabel }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -149,7 +150,10 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut }: Mod
         title="Switch model"
         disabled={loading}
       >
-        <span className="ai-model-trigger-name">{loading ? '…' : current.name}</span>
+        <span className="ai-model-trigger-info">
+          {providerLabel && <span className="ai-model-trigger-provider">{providerLabel}</span>}
+          <span className="ai-model-trigger-name">{loading ? '…' : current.name}</span>
+        </span>
         <MultiplierBadge value={current.multiplier} />
         <span className="ai-model-trigger-caret">▾</span>
       </button>

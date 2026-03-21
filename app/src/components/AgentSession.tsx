@@ -13,7 +13,7 @@ import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '../services/fs';
 
 import { getLastRequestDump, modelSupportsVision, resolveCopilotModelForChatCompletions } from '../services/copilot';
-import { getActiveModel, type AIProviderType } from '../services/aiProvider';
+import { getActiveModel, type AIProviderType, PROVIDER_SHORT_LABELS } from '../services/aiProvider';
 import { getLastProviderRequestDump } from '../services/ai/diagnostics';
 import { getProviderCatalog } from '../services/ai/providerModels';
 import { DEFAULT_MODEL } from '../types';
@@ -33,6 +33,7 @@ import { useVoiceInput } from '../hooks/useVoiceInput';
 import { useSystemPrompt, useWorkspaceMemory, useUserProfile } from '../hooks/useSystemPrompt';
 import { useAIStream } from '../hooks/useAIStream';
 import { useAIScreenshot } from '../hooks/useAIScreenshot';
+import { loadHistoricalSessions, type HistoricalSession } from '../services/aiSessionHistory';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ export interface AgentSessionProps {
   agentContext?: string;
   workspacePath?: string;
   workspace?: Workspace | null;
+  memoryRefreshKey?: number;
   canvasEditorRef?: React.RefObject<TldrawEditor | null>;
   onFileWritten?: (path: string) => void;
   onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
@@ -113,6 +115,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   agentContext = '',
   workspacePath,
   workspace,
+  memoryRefreshKey = 0,
   canvasEditorRef,
   onFileWritten,
   onMarkRecorded,
@@ -169,6 +172,10 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   const [pendingFileRef, setPendingFileRef] = useState<{ name: string; content: string } | null>(null);
   const [pendingSelectionContext, setPendingSelectionContext] = useState<AISelectionContext | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historicalSessions, setHistoricalSessions] = useState<HistoricalSession[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   // true  → user is at the bottom → keep auto-scrolling during streaming
@@ -211,7 +218,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   }, [input]);
 
   // ── Domain hooks ──────────────────────────────────────────────────────────
-  const [memoryContent, setMemoryContent] = useWorkspaceMemory(workspacePath);  const [userProfileContent, setUserProfileContent] = useUserProfile();
+  const [memoryContent, setMemoryContent] = useWorkspaceMemory(workspacePath, memoryRefreshKey);  const [userProfileContent, setUserProfileContent] = useUserProfile();
 
   // ── Active task (loaded from .cafezin/tasks.json) ─────────────────────────
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -340,6 +347,49 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     }, 100);
   }
 
+  const closeHistoryPanel = useCallback(() => {
+    setIsHistoryOpen(false);
+    setHistoryError(null);
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const sessions = await loadHistoricalSessions(workspacePath);
+      setHistoricalSessions(sessions.filter((entry) => entry.sessionId !== session.sessionIdRef.current));
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : 'Falha ao carregar sessões antigas.');
+      setHistoricalSessions([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [workspacePath, session.sessionIdRef]);
+
+  const openHistoryPanel = useCallback(() => {
+    setIsHistoryOpen(true);
+    void loadHistory();
+  }, [loadHistory]);
+
+  const handleRestoreHistoricalSession = useCallback((historySession: HistoricalSession) => {
+    const restoredModel = session.handleRestoreSpecificSession({
+      messages: historySession.messages,
+      model: historySession.model,
+      savedAt: historySession.savedAt,
+      sessionId: historySession.sessionId,
+      startedAt: historySession.startedAt,
+    });
+    const resolved = resolveSessionModel(restoredModel);
+    setModel(resolved);
+    onModelChange?.(resolved);
+    closeHistoryPanel();
+    setTimeout(() => {
+      isPinnedToBottom.current = true;
+      const el = messagesContainerRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }, 100);
+  }, [closeHistoryPanel, onModelChange, session]);
+
   useEffect(() => {
     if (isPinnedToBottom.current) {
       // Use instant scroll during streaming (liveItems change every chunk —
@@ -368,6 +418,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     }
     prevStreamingRef.current = stream.isStreaming;
   }, [stream.isStreaming]);
+
+  useEffect(() => {
+    if (session.messages.length > 0 && isHistoryOpen) {
+      setIsHistoryOpen(false);
+    }
+  }, [session.messages.length, isHistoryOpen]);
 
   // Notify parent of status changes for tab indicators
   useEffect(() => {
@@ -493,6 +549,56 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="ai-agent-session" style={{ display: isActive ? undefined : 'none' }}>
+      {isHistoryOpen && (
+        <div className="ai-history-overlay" onClick={closeHistoryPanel}>
+          <div className="ai-history-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="ai-history-panel-header">
+              <div>
+                <div className="ai-history-panel-title">Sessões antigas</div>
+                <div className="ai-history-panel-subtitle">Escolha uma sessão anterior para restaurar nesta aba.</div>
+              </div>
+              <button className="ai-btn-ghost ai-history-close" onClick={closeHistoryPanel} type="button">
+                Fechar
+              </button>
+            </div>
+
+            <div className="ai-history-panel-body">
+              {historyLoading && <div className="ai-history-empty">Carregando sessões…</div>}
+              {!historyLoading && historyError && <div className="ai-history-empty">{historyError}</div>}
+              {!historyLoading && !historyError && historicalSessions.length === 0 && (
+                <div className="ai-history-empty">Nenhuma sessão antiga encontrada neste workspace.</div>
+              )}
+              {!historyLoading && !historyError && historicalSessions.length > 0 && (
+                <div className="ai-history-list">
+                  {historicalSessions.map((historySession) => (
+                    <button
+                      key={`${historySession.sessionId}-${historySession.savedAt}`}
+                      className="ai-history-item"
+                      type="button"
+                      onClick={() => handleRestoreHistoricalSession(historySession)}
+                    >
+                      <div className="ai-history-item-top">
+                        <span className="ai-history-item-preview">{historySession.preview}</span>
+                        <span className="ai-history-item-time">{fmtRelative(historySession.savedAt)}</span>
+                      </div>
+                      <div className="ai-history-item-meta">
+                        <span>{historySession.userMessageCount} {historySession.userMessageCount === 1 ? 'mensagem' : 'mensagens'}</span>
+                        <span>{historySession.model}</span>
+                        {historySession.toolCalls > 0 && <span>{historySession.toolCalls} tools</span>}
+                        {historySession.archiveCount > 0 && <span>{historySession.archiveCount} resumo{historySession.archiveCount !== 1 ? 's' : ''}</span>}
+                      </div>
+                      {historySession.archiveSummary && (
+                        <div className="ai-history-item-summary">{historySession.archiveSummary}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Per-session header: model picker + label */}
       <div className="ai-panel-header">
         <span className="ai-panel-title">✶ {agentLabel}</span>
@@ -507,6 +613,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             }}
             loading={modelsLoading}
             onSignOut={onSignOut}
+            providerLabel={PROVIDER_SHORT_LABELS[activeProvider]}
           />
         </div>
       </div>
@@ -591,13 +698,19 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             <span className="ai-hint">Enter to send · Shift+Enter new line · Esc to close</span>
             {agentContext && <div className="ai-agent-notice"><Sparkle weight="fill" size={12} /> AGENT.md loaded as context</div>}
             {session.savedSession && session.savedSession.messages.length > 0 && (
-              <button className="ai-restore-session-btn" onClick={handleRestoreSession}>
+              <button className="ai-restore-session-btn" onClick={handleRestoreSession} type="button">
                 <span className="ai-restore-session-label"><ArrowCounterClockwise weight="thin" size={12} /> Restore last conversation</span>
                 <span className="ai-restore-session-meta">
                   {session.savedSession.messages.filter((m) => m.role === 'user').length}{' '}
                   message{session.savedSession.messages.filter((m) => m.role === 'user').length !== 1 ? 's' : ''}{' '}
                   · {fmtRelative(session.savedSession.savedAt)}
                 </span>
+              </button>
+            )}
+            {workspacePath && (
+              <button className="ai-restore-session-btn ai-restore-session-btn--secondary" onClick={openHistoryPanel} type="button">
+                <span className="ai-restore-session-label"><FileText weight="thin" size={12} /> Abrir sessões antigas</span>
+                <span className="ai-restore-session-meta">Ver todas as sessões salvas deste workspace</span>
               </button>
             )}
           </div>
