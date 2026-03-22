@@ -293,7 +293,7 @@ export function AppEditorArea({
               onToggleFind={() => onSetFindReplaceOpen(true)}
               onAIRequest={onAIRequest}
               onSelectionContextChange={onSelectionContextChange}
-              aiMarks={activeFileMarks.map((mark) => ({ id: mark.id, text: mark.text }))}
+              aiMarks={activeFileMarks.map((mark) => ({ id: mark.id, text: mark.text, revert: mark.revert }))}
               onAIMarkEdited={onMarkReviewed}
               fontSize={appSettings.editorFontSize}
               onImagePaste={onImagePaste}

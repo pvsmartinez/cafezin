@@ -664,12 +664,24 @@ export default function App() {
             }
           }, 3200);
         } else {
-          setRagStatus(null);
+          setRagStatus({
+            text: summary?.error
+              ? `Busca hibrida indisponivel: ${summary.error}`
+              : 'Busca hibrida indisponivel',
+            tone: 'muted',
+          });
+          ragStatusHideTimerRef.current = setTimeout(() => {
+            ragStatusHideTimerRef.current = null;
+            if (mountedRef.current && workspaceRef.current?.path === path) {
+              setRagStatus(null);
+            }
+          }, 5200);
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('[RAG] rebuild failed:', error);
         if (mountedRef.current && workspaceRef.current?.path === path) {
-          setRagStatus(null);
+          setRagStatus({ text: 'Busca hibrida indisponivel', tone: 'muted' });
         }
       })
       .finally(() => {
@@ -1608,9 +1620,9 @@ export default function App() {
                   const m = activeFileMarks[0];
                   if (m.canvasShapeIds?.length && canvasEditorRef.current) {
                     const bounds = canvasEditorRef.current.getShapePageBounds(m.canvasShapeIds[0] as TLShapeId);
-                    if (bounds) canvasEditorRef.current.zoomToBounds(bounds, { animation: { duration: 300 }, inset: 60 });
+                  if (bounds) canvasEditorRef.current.zoomToBounds(bounds, { animation: { duration: 300 }, inset: 60 });
                   } else {
-                    setTimeout(() => editorRef.current?.jumpToText(m.text), 120);
+                    setTimeout(() => editorRef.current?.jumpToText({ text: m.text, revert: m.revert }), 120);
                   }
                 }
               }}

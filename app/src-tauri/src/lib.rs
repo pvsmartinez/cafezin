@@ -17,6 +17,7 @@ use tauri::Emitter;
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 use tauri::State;
 use tauri_plugin_deep_link::DeepLinkExt;
+#[cfg(not(target_os = "ios"))]
 use tokio::io::AsyncBufReadExt;
 
 mod rag;
@@ -1436,8 +1437,11 @@ async fn update_app(app: tauri::AppHandle, project_root: String) -> Result<(), S
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .manage(ShellProcessRegistry::default())
+    let builder = tauri::Builder::default();
+    #[cfg(not(any(feature = "mas", target_os = "ios")))]
+    let builder = builder.manage(ShellProcessRegistry::default());
+
+    builder
         .setup(|app| {            // ── Deep link handler — OAuth callback (cafezin://auth/callback) ────
             {
                 let handle = app.handle().clone();

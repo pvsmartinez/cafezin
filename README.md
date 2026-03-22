@@ -53,11 +53,14 @@ Current public positioning:
 | Script            | Description                                          |
 | ----------------- | ---------------------------------------------------- |
 | `scripts/sync.sh` | Stage all changes, commit, and push to `origin/main` |
+| `scripts/release-version.sh` | Checkpoint dirty changes, bump `major`/`minor`/`patch`, sync app versions, push, and trigger macOS + Windows + iOS release flows |
 
 Usage:
 
 ```sh
 bash scripts/sync.sh "optional commit message"
+bash scripts/release-version.sh patch
+bash scripts/release-version.sh minor --no-wait-windows
 ```
 
 ## Getting Started

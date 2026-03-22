@@ -80,6 +80,30 @@ echo ""
 # =============================================================================
 # iOS
 # =============================================================================
+patch_ios_project_settings() {
+  local project_yml="$APPLE_DIR/project.yml"
+  [[ -f "$project_yml" ]] || return 0
+
+  if grep -q '^[[:space:]]*CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION:' "$project_yml"; then
+    sed -i '' 's/^\([[:space:]]*CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION:\).*/\1 YES/' "$project_yml"
+  else
+    sed -i '' '/ENABLE_BITCODE: false/a\
+        CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
+' "$project_yml"
+  fi
+
+  if ! grep -q '^[[:space:]]*- sdk: libiconv\.tbd' "$project_yml"; then
+    sed -i '' '/- framework: libapp.a/a\
+      - sdk: libiconv.tbd\
+      - sdk: libz.tbd
+' "$project_yml"
+  fi
+
+  if command -v xcodegen >/dev/null 2>&1; then
+    (cd "$APPLE_DIR" && xcodegen generate >/dev/null)
+  fi
+}
+
 build_ios_dev() {
   if [[ -z "${APPLE_DEVELOPMENT_TEAM:-}" ]]; then
     echo "  ERROR: APPLE_DEVELOPMENT_TEAM não definido no .env.local" >&2; return 1
@@ -88,8 +112,10 @@ build_ios_dev() {
 
   if [[ ! -d "$APPLE_DIR" ]]; then
     echo "▸ [iOS] tauri ios init…"
-    VITE_TAURI_MOBILE=true npx tauri ios init
+    VITE_TAURI_MOBILE=true npx tauri ios init --ci
   fi
+
+  patch_ios_project_settings
 
   echo "▸ [iOS] build debug…"
   VITE_TAURI_MOBILE=true npx tauri ios build
@@ -117,8 +143,10 @@ build_ios_release() {
 
   if [[ ! -d "$APPLE_DIR" ]]; then
     echo "▸ [iOS] tauri ios init…"
-    VITE_TAURI_MOBILE=true npx tauri ios init
+    VITE_TAURI_MOBILE=true npx tauri ios init --ci
   fi
+
+  patch_ios_project_settings
 
   /usr/libexec/PlistBuddy -c "Set :teamID $APPLE_DEVELOPMENT_TEAM" "$EXPORT_OPTS" 2>/dev/null || \
     /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_DEVELOPMENT_TEAM" "$EXPORT_OPTS"
@@ -132,7 +160,7 @@ build_ios_release() {
   fi
 
   echo "▸ [iOS] build release (build: $BUILD_NUM)…"
-  VITE_TAURI_MOBILE=true npx tauri ios build --release
+  VITE_TAURI_MOBILE=true npx tauri ios build --release --build-number "$BUILD_NUM"
 
   IPA_PATH=""
   for candidate in \

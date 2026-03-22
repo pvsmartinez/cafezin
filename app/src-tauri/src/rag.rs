@@ -66,7 +66,7 @@ mod imp {
     const SEARCH_CANDIDATE_LIMIT: usize = 48;
     const CHUNK_SNIPPET_CHARS: usize = 260;
 
-    static EMBEDDING_MODEL: OnceLock<Result<Mutex<TextEmbedding>, String>> = OnceLock::new();
+    static EMBEDDING_MODEL: OnceLock<Mutex<Option<TextEmbedding>>> = OnceLock::new();
 
     #[derive(Debug, Clone)]
     struct ChunkRecord {
@@ -540,18 +540,24 @@ mod imp {
         chunk_text(text)
     }
 
-    fn embedding_model() -> Result<&'static Mutex<TextEmbedding>, String> {
-        let model = EMBEDDING_MODEL.get_or_init(|| {
-            TextEmbedding::try_new(
+    fn with_embedding_model<T>(
+        f: impl FnOnce(&mut TextEmbedding) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let guard = EMBEDDING_MODEL.get_or_init(|| Mutex::new(None));
+        let mut slot = guard
+            .lock()
+            .map_err(|_| "FastEmbed model lock poisoned".to_string())?;
+        if slot.is_none() {
+            let model = TextEmbedding::try_new(
                 InitOptions::new(EmbeddingModel::AllMiniLML6V2).with_show_download_progress(false),
             )
-            .map(Mutex::new)
-            .map_err(|e| format!("Failed to initialize FastEmbed model: {e}"))
-        });
-        match model {
-            Ok(model) => Ok(model),
-            Err(err) => Err(err.clone()),
+            .map_err(|e| format!("Failed to initialize FastEmbed model: {e}"))?;
+            *slot = Some(model);
         }
+        let model = slot
+            .as_mut()
+            .ok_or_else(|| "FastEmbed model was not initialized".to_string())?;
+        f(model)
     }
 
     fn embed_passages(texts: &[String]) -> Result<Vec<Vec<f32>>, String> {
@@ -559,18 +565,23 @@ mod imp {
             return Ok(Vec::new());
         }
         let inputs: Vec<String> = texts.iter().map(|text| format!("passage: {text}")).collect();
-        let guard = embedding_model()?;
-        let mut model = guard.lock().map_err(|_| "FastEmbed model lock poisoned".to_string())?;
-        model.embed(inputs, None).map_err(|e| format!("Failed to embed passages: {e}"))
+        with_embedding_model(|model| {
+            model
+                .embed(inputs, None)
+                .map_err(|e| format!("Failed to embed passages: {e}"))
+        })
     }
 
     fn embed_query(text: &str) -> Result<Vec<f32>, String> {
-        let guard = embedding_model()?;
-        let mut model = guard.lock().map_err(|_| "FastEmbed model lock poisoned".to_string())?;
-        let embeddings = model
-            .embed(vec![format!("query: {text}")], None)
-            .map_err(|e| format!("Failed to embed query: {e}"))?;
-        embeddings.into_iter().next().ok_or_else(|| "Empty embedding result".to_string())
+        with_embedding_model(|model| {
+            let embeddings = model
+                .embed(vec![format!("query: {text}")], None)
+                .map_err(|e| format!("Failed to embed query: {e}"))?;
+            embeddings
+                .into_iter()
+                .next()
+                .ok_or_else(|| "Empty embedding result".to_string())
+        })
     }
 
     fn encode_embedding(values: &[f32]) -> Vec<u8> {

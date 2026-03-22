@@ -54,7 +54,7 @@ export default function AIMarkOverlay({
 
     const next: MarkPos[] = [];
     for (const mark of marks) {
-      const coords = editorRef.current?.getMarkCoords(mark.text);
+      const coords = editorRef.current?.getMarkCoords({ text: mark.text, revert: mark.revert });
       if (!coords) continue;
       next.push({
         actionsTop: coords.top - containerRect.top,

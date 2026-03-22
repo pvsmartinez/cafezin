@@ -4,6 +4,7 @@ export interface RagBuildSummary {
   available: boolean;
   model: string;
   schemaVersion: string;
+  error?: string;
   builtAt?: string | null;
   filesIndexed: number;
   chunksIndexed: number;
@@ -30,6 +31,7 @@ export interface RagSearchHit {
 export interface RagSearchResult {
   available: boolean;
   model: string;
+  error?: string;
   builtAt?: string | null;
   filesIndexed: number;
   chunksIndexed: number;
@@ -40,12 +42,29 @@ function isTauriRuntime() {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+function formatInvokeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 export async function rebuildWorkspaceRagIndex(workspacePath: string): Promise<RagBuildSummary | null> {
   if (!isTauriRuntime()) return null;
   try {
     return await invoke<RagBuildSummary>('rag_rebuild_index', { workspacePath });
-  } catch {
-    return null;
+  } catch (error) {
+    const message = formatInvokeError(error);
+    console.error('[RAG] rebuild failed:', message);
+    return {
+      available: false,
+      model: 'AllMiniLML6V2',
+      schemaVersion: '1',
+      error: message,
+      filesIndexed: 0,
+      chunksIndexed: 0,
+      filesScanned: 0,
+      filesUpdated: 0,
+      filesRemoved: 0,
+    };
   }
 }
 
@@ -67,7 +86,16 @@ export async function searchWorkspaceRag(
       activeFile: options.activeFile,
       recentFiles: options.recentFiles ?? [],
     });
-  } catch {
-    return null;
+  } catch (error) {
+    const message = formatInvokeError(error);
+    console.error('[RAG] search failed:', message);
+    return {
+      available: false,
+      model: 'AllMiniLML6V2',
+      error: message,
+      filesIndexed: 0,
+      chunksIndexed: 0,
+      hits: [],
+    };
   }
 }

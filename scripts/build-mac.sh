@@ -49,6 +49,23 @@ if ! command -v rustc &>/dev/null; then
   exit 1
 fi
 
+# Apple clang 17's new linker is currently crashing on some Rust build-script
+# executables. Force the classic linker for local Tauri builds on that toolchain.
+configure_macos_linker_workaround() {
+  [[ "$(uname -s)" == "Darwin" ]] || return 0
+  [[ "${CAFEZIN_USE_CLASSIC_LINKER:-auto}" != "0" ]] || return 0
+
+  local cc_version
+  cc_version="$(cc --version 2>/dev/null | head -1 || true)"
+
+  if [[ "${CAFEZIN_USE_CLASSIC_LINKER:-auto}" == "1" || "$cc_version" == *"Apple clang version 17.0.0"* ]]; then
+    if [[ " ${RUSTFLAGS:-} " != *" -C link-arg=-Wl,-ld_classic "* ]]; then
+      export RUSTFLAGS="${RUSTFLAGS:+${RUSTFLAGS} }-C link-arg=-Wl,-ld_classic"
+    fi
+    echo "▸ Using Apple classic linker workaround for Rust builds"
+  fi
+}
+
 # ── Load signing key for release builds ─────────────────────────────────────
 SIGNING_KEY_FILE="$HOME/.tauri/cafezin.key"
 if [[ "$DO_RELEASE" == "true" ]]; then
@@ -98,6 +115,7 @@ if [[ "$DO_RELEASE" == "true" ]]; then
     fi
   fi
 
+  configure_macos_linker_workaround
   echo "▸ Cleaning previous updater artifacts..."
   find "$APP_DIR/src-tauri/target/release/bundle/macos" -maxdepth 1 \( -name '*.tar.gz' -o -name '*.tar.gz.sig' \) -delete 2>/dev/null || true
 
@@ -108,6 +126,7 @@ if [[ "$DO_RELEASE" == "true" ]]; then
   npm run tauri build -- --bundles dmg
 else
   echo "▸ Running Tauri production build (bundles: $BUNDLES)..."
+  configure_macos_linker_workaround
   npm run tauri build -- --bundles "$BUNDLES"
 fi
 

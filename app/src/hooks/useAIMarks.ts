@@ -19,6 +19,7 @@ import {
 import { readTextFile, writeTextFile } from '../services/fs';
 import { generateId } from '../utils/generateId';
 import { applyTextMarkRevert } from '../utils/aiMarkRevert';
+import { hasAIMarkMatch } from '../utils/aiMarkMatch';
 import type { AIRecordedTextMark, Workspace, AIEditMark } from '../types';
 
 // ── Pure helper (also exported for use in App.tsx's handleInsert) ──────────
@@ -310,7 +311,7 @@ export function useAIMarks({
             (m) => m.fileRelPath === file && !m.reviewed,
           );
           const toRemove = fileMarks
-            .filter((m) => !m.canvasShapeIds?.length && !newContent.includes(m.text))
+            .filter((m) => !m.canvasShapeIds?.length && !hasAIMarkMatch(newContent, { text: m.text, revert: m.revert }))
             .map((m) => m.id);
           if (toRemove.length === 0) return prev;
           const updated = prev.map((m) =>
@@ -348,7 +349,7 @@ export function useAIMarks({
         console.warn('[useAIMarks] All shapes in canvas mark have been deleted — skipping zoom');
       }
     } else {
-      editorRef.current?.jumpToText(mark.text);
+      editorRef.current?.jumpToText({ text: mark.text, revert: mark.revert });
     }
   }, [activeFileMarks, aiNavIndex, canvasEditorRef, editorRef]);
 
@@ -373,7 +374,7 @@ export function useAIMarks({
         console.warn('[useAIMarks] All shapes in canvas mark have been deleted — skipping zoom');
       }
     } else {
-      editorRef.current?.jumpToText(mark.text);
+      editorRef.current?.jumpToText({ text: mark.text, revert: mark.revert });
     }
   }, [activeFileMarks, aiNavIndex, canvasEditorRef, editorRef]);
 

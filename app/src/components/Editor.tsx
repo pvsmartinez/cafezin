@@ -27,7 +27,7 @@ import { powerShell } from '@codemirror/legacy-modes/mode/powershell';
 import { r } from '@codemirror/legacy-modes/mode/r';
 import { perl } from '@codemirror/legacy-modes/mode/perl';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { EditorView, keymap, ViewPlugin } from '@codemirror/view';
+import { EditorView, keymap, ViewPlugin, WidgetType } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands';
 import { StateField, RangeSetBuilder, Compartment, Prec } from '@codemirror/state';
@@ -96,14 +96,15 @@ import {
   TextAlignLeft, TextAlignCenter, TextAlignRight, TextAlignJustify,
   Highlighter, ListChecks, TextIndent, TextOutdent,
 } from '@phosphor-icons/react';
-import type { AISelectionContext } from '../types';
+import type { AISelectionContext, AITextRevert } from '../types';
+import { findAIMarkOccurrences, findAIMarkRange } from '../utils/aiMarkMatch';
 import './Editor.css';
 
 // ── Public handle exposed via ref ─────────────────────────────────────────────
 export interface EditorHandle {
   /** Select and scroll to the first occurrence of `text` in the document.
    *  Returns true if found. */
-  jumpToText(text: string): boolean;
+  jumpToText(target: { text: string; revert?: AITextRevert } | string): boolean;
   /** Move the cursor to a specific 1-based line number and centre the viewport. */
   jumpToLine(lineNo: number): void;
   /** Expose the raw CodeMirror EditorView so external search bars can drive it. */
@@ -112,7 +113,7 @@ export interface EditorHandle {
    * Returns the client-relative bounding rect of the first occurrence of `text`
    * in the editor, or null if the text isn't found.
    */
-  getMarkCoords(text: string): { top: number; left: number; bottom: number; right: number } | null;
+  getMarkCoords(target: { text: string; revert?: AITextRevert } | string): { top: number; left: number; bottom: number; right: number } | null;
 }
 
 interface EditorProps {
@@ -126,7 +127,7 @@ interface EditorProps {
    * AI-generated marks to highlight.  Each entry carries the mark id and the
    * exact inserted text so edits inside a marked range auto-promote to reviewed.
    */
-  aiMarks?: { id: string; text: string }[];
+  aiMarks?: { id: string; text: string; revert?: AITextRevert }[];
   /** Called when the user edits content that falls inside an AI-marked range. */
   onAIMarkEdited?: (markId: string) => void;
   /** Editor font size in pixels (default 14) */
@@ -166,41 +167,90 @@ interface EditorProps {
 }
 
 // ── AI-mark decoration helpers ────────────────────────────────────────────────
-function buildAIDecorations(docText: string, texts: string[]): DecorationSet {
-  const mark = Decoration.mark({ class: 'cm-ai-mark' });
-  type R = { from: number; to: number };
-  const ranges: R[] = [];
+class AIRemovedTextWidget extends WidgetType {
+  constructor(private readonly beforeText: string) {
+    super();
+  }
 
-  for (const text of texts) {
-    if (!text || text.length < 4) continue;
-    let pos = 0;
-    let idx: number;
-    while ((idx = docText.indexOf(text, pos)) !== -1) {
-      ranges.push({ from: idx, to: idx + text.length });
-      pos = idx + text.length;
+  eq(other: AIRemovedTextWidget): boolean {
+    return other.beforeText === this.beforeText;
+  }
+
+  toDOM() {
+    const wrap = document.createElement('div');
+    wrap.className = 'cm-ai-removed-block';
+
+    const prefix = document.createElement('span');
+    prefix.className = 'cm-ai-removed-prefix';
+    prefix.textContent = 'Old';
+
+    const text = document.createElement('span');
+    text.className = 'cm-ai-removed-text';
+    text.textContent = this.beforeText;
+
+    wrap.append(prefix, text);
+    return wrap;
+  }
+
+  ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+function buildAIDecorations(docText: string, marks: Array<{ text: string; revert?: AITextRevert }>): DecorationSet {
+  const markDeco = Decoration.mark({ class: 'cm-ai-mark' });
+
+  // Collect all decorations into a single array so we can sort them together.
+  // RangeSetBuilder requires entries in ascending (from, startSide) order.
+  type DecoEntry = { from: number; to: number; deco: Decoration; side: number };
+  const entries: DecoEntry[] = [];
+
+  // Mark decorations (highlighted ranges)
+  const sortedRanges = marks.flatMap((target) => findAIMarkOccurrences(docText, target));
+  sortedRanges.sort((a, b) => a.from - b.from);
+  let prevTo = -1;
+  for (const r of sortedRanges) {
+    if (r.from >= prevTo && r.from < r.to) {
+      entries.push({ from: r.from, to: r.to, deco: markDeco, side: 0 });
+      prevTo = r.to;
     }
   }
 
-  ranges.sort((a, b) => a.from - b.from);
+  // Widget decorations for "removed text" (revert blocks), side: -1
+  for (const target of marks) {
+    if (!target.revert?.beforeText.trim()) continue;
+    const range = findAIMarkRange(docText, target);
+    if (!range || range.from < 0 || range.from > range.to) continue;
+    entries.push({
+      from: range.from,
+      to: range.from,
+      deco: Decoration.widget({
+        widget: new AIRemovedTextWidget(target.revert.beforeText),
+        side: -1,
+        block: true,
+      }),
+      side: -1,
+    });
+  }
+
+  // Sort by position; at the same position, widgets (side -1) precede marks (side 0)
+  entries.sort((a, b) => a.from !== b.from ? a.from - b.from : a.side - b.side);
+
   const builder = new RangeSetBuilder<Decoration>();
-  let prevTo = -1;
-  for (const r of ranges) {
-    if (r.from >= prevTo && r.from < r.to) {
-      builder.add(r.from, r.to, mark);
-      prevTo = r.to;
-    }
+  for (const { from, to, deco } of entries) {
+    builder.add(from, to, deco);
   }
   return builder.finish();
 }
 
-function makeAIMarkField(texts: string[]) {
+function makeAIMarkField(marks: Array<{ text: string; revert?: AITextRevert }>) {
   return StateField.define<DecorationSet>({
     create(state) {
-      return buildAIDecorations(state.doc.toString(), texts);
+      return buildAIDecorations(state.doc.toString(), marks);
     },
     update(decs, tr) {
       return tr.docChanged
-        ? buildAIDecorations(tr.newDoc.toString(), texts)
+        ? buildAIDecorations(tr.newDoc.toString(), marks)
         : decs;
     },
     provide: (f) => EditorView.decorations.from(f),
@@ -351,6 +401,30 @@ function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
       borderRight:  `1px solid ${aiMarkBorderS}`,
       borderRadius: '2px',
       boxShadow: `0 0 0 1px ${aiMarkShadow}`,
+    },
+    '.cm-ai-removed-block': {
+      display: 'block',
+      margin: '4px 0 6px',
+      padding: '4px 8px',
+      whiteSpace: 'pre-wrap',
+      borderRadius: '6px',
+      borderLeft: `3px solid ${isDark ? 'rgba(216, 120, 120, 0.7)' : 'rgba(179, 72, 72, 0.7)'}`,
+      backgroundColor: isDark ? 'rgba(120, 42, 42, 0.14)' : 'rgba(214, 107, 107, 0.1)',
+      color: isDark ? '#f0b3b3' : '#9e3b3b',
+      boxSizing: 'border-box',
+    },
+    '.cm-ai-removed-prefix': {
+      marginRight: '8px',
+      fontSize: '0.76em',
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      textDecoration: 'none',
+      opacity: '0.85',
+    },
+    '.cm-ai-removed-text': {
+      textDecoration: 'line-through',
+      textDecorationThickness: '1.5px',
     },
   }, { dark: isDark });
 }
@@ -586,7 +660,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
 
     // Stable refs so the single update-listener always sees the latest values
     // without needing to be recreated on every render.
-    const aiMarksRef = useRef<{ id: string; text: string }[]>([]);
+    const aiMarksRef = useRef<{ id: string; text: string; revert?: AITextRevert }[]>([]);
     const onAIMarkEditedRef = useRef<((id: string) => void) | undefined>(undefined);
     const onSelectionContextChangeRef = useRef<typeof onSelectionContextChange>(undefined);
     aiMarksRef.current = aiMarks ?? [];
@@ -637,18 +711,14 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
           const alreadyFired = new Set<string>();
 
           update.changes.iterChangedRanges((fromA, toA) => {
-            for (const { id, text } of marks) {
-              if (alreadyFired.has(id) || !text || text.length < 4) continue;
-              let pos = 0;
-              let idx: number;
-              // A mark is "touched" if any instance of its text overlaps [fromA, toA).
-              while ((idx = oldDoc.indexOf(text, pos)) !== -1) {
-                if (idx < toA && idx + text.length > fromA) {
-                  alreadyFired.add(id);
-                  callback(id);
+            for (const mark of marks) {
+              if (alreadyFired.has(mark.id)) continue;
+              for (const range of findAIMarkOccurrences(oldDoc, mark)) {
+                if (range.from < toA && range.to > fromA) {
+                  alreadyFired.add(mark.id);
+                  callback(mark.id);
                   break;
                 }
-                pos = idx + text.length;
               }
             }
           });
@@ -663,15 +733,15 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       }, [emitSelectionContext]);
 
     useImperativeHandle(ref, () => ({
-      jumpToText(text: string): boolean {
+      jumpToText(target: { text: string; revert?: AITextRevert } | string): boolean {
         const view = viewRef.current;
         if (!view) return false;
-        const idx = view.state.doc.toString().indexOf(text);
-        if (idx === -1) return false;
+        const range = findAIMarkRange(view.state.doc.toString(), target);
+        if (!range) return false;
         view.dispatch({
-          selection: { anchor: idx, head: idx + text.length },
+          selection: { anchor: range.from, head: range.to },
           scrollIntoView: true,
-          effects: EditorView.scrollIntoView(idx, { y: 'center' }),
+          effects: EditorView.scrollIntoView(range.from, { y: 'center' }),
         });
         view.focus();
         return true;
@@ -691,12 +761,12 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       getView(): EditorView | null {
         return viewRef.current;
       },
-      getMarkCoords(text: string): { top: number; left: number; bottom: number; right: number } | null {
+      getMarkCoords(target: { text: string; revert?: AITextRevert } | string): { top: number; left: number; bottom: number; right: number } | null {
         const view = viewRef.current;
         if (!view) return null;
-        const idx = view.state.doc.toString().indexOf(text);
-        if (idx === -1) return null;
-        const coords = view.coordsAtPos(idx);
+        const range = findAIMarkRange(view.state.doc.toString(), target);
+        if (!range) return null;
+        const coords = view.coordsAtPos(range.from);
         if (!coords) return null;
         return { top: coords.top, left: coords.left, bottom: coords.bottom, right: coords.right };
       },
@@ -706,7 +776,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       if (!viewRef.current) return;
       viewRef.current.dispatch({
         effects: compartmentRef.current.reconfigure(
-          makeAIMarkField((aiMarks ?? []).map((m) => m.text)),
+          makeAIMarkField(aiMarks ?? []),
         ),
       });
     }, [aiMarks]);
@@ -826,7 +896,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       fontCompartmentRef.current.of(makeEditorTheme(fontSize, codeMode, isDark)),
       // Prose wraps; code does not
       ...(codeMode ? [] : [EditorView.lineWrapping]),
-      compartmentRef.current.of(makeAIMarkField((aiMarks ?? []).map((m) => m.text))),
+      compartmentRef.current.of(makeAIMarkField(aiMarks ?? [])),
       aiMarkEditListener,
       // Lint state field — active in code mode; provides squiggles for TS/JS errors
       lintCompartmentRef.current.of(codeMode ? linter(() => []) : []),

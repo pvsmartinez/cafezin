@@ -81,6 +81,11 @@ fi
 export APPLE_DEVELOPMENT_TEAM
 export VITE_TAURI_MOBILE=true
 
+PYTHON_BIN="python3.11"
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+fi
+
 # ── Renew Apple Sign In client secret ────────────────────────────────────────
 # The Apple JWT expires in ~6 months. We regenerate on every submission so it
 # never expires in production. Generating a new token does NOT invalidate the
@@ -90,20 +95,24 @@ APPLE_SIWA_PY="$(dirname "$SCRIPT_DIR")/../pedrin/secrets/apple-signin/gen_apple
 SUPABASE_PAT="$(grep '^SUPABASE_PAT=' "$(dirname "$SCRIPT_DIR")/../pedrin/.env" | cut -d'=' -f2- | tr -d '[:space:]')"
 
 if [[ -f "$APPLE_SIWA_PY" && -n "$SUPABASE_PAT" ]]; then
-  APPLE_JWT="$(python3.11 "$APPLE_SIWA_PY" --token-only 2>/dev/null)"
-  if [[ -n "$APPLE_JWT" ]]; then
-    PATCH_RESULT="$(curl -s -o /dev/null -w "%{http_code}" -X PATCH \
-      "https://api.supabase.com/v1/projects/dxxwlnvemqgpdrnkzrcr/config/auth" \
-      -H "Authorization: Bearer $SUPABASE_PAT" \
-      -H "Content-Type: application/json" \
-      -d "{\"external_apple_secret\": \"$APPLE_JWT\"}")"
-    if [[ "$PATCH_RESULT" == "200" ]]; then
-      echo "✓ Apple Sign In secret renovado no Supabase"
+  APPLE_JWT=""
+  if APPLE_JWT="$("$PYTHON_BIN" "$APPLE_SIWA_PY" --token-only 2>/dev/null)"; then
+    if [[ -n "$APPLE_JWT" ]]; then
+      PATCH_RESULT="$(curl -s -o /dev/null -w "%{http_code}" -X PATCH \
+        "https://api.supabase.com/v1/projects/dxxwlnvemqgpdrnkzrcr/config/auth" \
+        -H "Authorization: Bearer $SUPABASE_PAT" \
+        -H "Content-Type: application/json" \
+        -d "{\"external_apple_secret\": \"$APPLE_JWT\"}")"
+      if [[ "$PATCH_RESULT" == "200" ]]; then
+        echo "✓ Apple Sign In secret renovado no Supabase"
+      else
+        echo "  ⚠ Falha ao renovar Apple secret (HTTP $PATCH_RESULT) — continuando mesmo assim"
+      fi
     else
-      echo "  ⚠ Falha ao renovar Apple secret (HTTP $PATCH_RESULT) — continuando mesmo assim"
+      echo "✓ Apple Sign In secret ainda está válido — renovação desnecessária"
     fi
   else
-    echo "  ⚠ Não foi possível gerar Apple JWT — continuando mesmo assim"
+    echo "  ⚠ Não foi possível gerar Apple JWT com $PYTHON_BIN — continuando mesmo assim"
   fi
 else
   echo "  ⚠ gen_apple_secret.py ou SUPABASE_PAT não encontrado — pulando renovação"
@@ -117,8 +126,8 @@ fi
 
 # Ensure gen/apple/ exists (created by `tauri ios init`)
 if [[ ! -d "$APPLE_DIR" ]]; then
-  echo "  Gen directory not found. Running tauri ios init first…"
-  cd "$APP_DIR" && VITE_TAURI_MOBILE=true npx tauri ios init
+  echo "  iOS project not initialized yet. Running tauri ios init --ci…"
+  cd "$APP_DIR" && VITE_TAURI_MOBILE=true npx tauri ios init --ci
 fi
 
 cp "$EXPORT_OPTS" "$APPLE_DIR/ExportOptions.plist"
@@ -147,10 +156,18 @@ fi
 echo "═══════════════════════════════════════════════════════"
 echo ""
 
-# NOTE: We do NOT patch gen/apple/app_iOS/Info.plist here because
-# `npx tauri ios build` regenerates it from tauri.conf.json, overwriting
-# any patches made before the build. The build number is injected into
-# the IPA *after* the build in the post-processing section below.
+# Tauri's generated iOS target still reads CFBundleVersion from the generated
+# Info.plist, so we stamp both version fields there before building.
+INFO_PLIST="$APPLE_DIR/app_iOS/Info.plist"
+if [[ -f "$INFO_PLIST" ]]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUM" "$INFO_PLIST" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BUILD_NUM" "$INFO_PLIST"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VER" "$INFO_PLIST" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $MARKETING_VER" "$INFO_PLIST"
+  echo "✓ Info.plist version fields set to $MARKETING_VER ($BUILD_NUM)"
+else
+  echo "  ⚠ Info.plist not found — run 'npx tauri ios init' first"
+fi
 
 # ── Patch project.yml (sets CFBundleVersion before xcodegen runs) ─────────────
 # Tauri does NOT regenerate project.yml on each build (only on `tauri ios init`),
@@ -159,7 +176,24 @@ PROJECT_YML="$APPLE_DIR/project.yml"
 if [[ -f "$PROJECT_YML" ]]; then
   # Replace CFBundleVersion value (quoted or unquoted) with the new build number
   sed -i '' "s/CFBundleVersion: .*/CFBundleVersion: \"$BUILD_NUM\"/" "$PROJECT_YML"
+  if grep -q '^[[:space:]]*CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION:' "$PROJECT_YML"; then
+    sed -i '' 's/^\([[:space:]]*CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION:\).*/\1 YES/' "$PROJECT_YML"
+  else
+    sed -i '' '/ENABLE_BITCODE: false/a\
+        CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
+' "$PROJECT_YML"
+  fi
+  if ! grep -q '^[[:space:]]*- sdk: libiconv\.tbd' "$PROJECT_YML"; then
+    sed -i '' '/- framework: libapp.a/a\
+      - sdk: libiconv.tbd\
+      - sdk: libz.tbd
+' "$PROJECT_YML"
+  fi
   echo "✓ project.yml CFBundleVersion set to $BUILD_NUM"
+  if command -v xcodegen >/dev/null 2>&1; then
+    (cd "$APPLE_DIR" && xcodegen generate >/dev/null)
+    echo "✓ Xcode project regenerated"
+  fi
 else
   echo "  ⚠ project.yml not found — run 'npx tauri ios init' first"
 fi
@@ -173,7 +207,7 @@ cd "$APP_DIR"
 # when both debug and release versions exist in Externals simultaneously
 find "$APPLE_DIR/Externals" -name "libapp.a" -delete 2>/dev/null || true
 
-npx tauri ios build --ci
+npx tauri ios build --ci --build-number "$BUILD_NUM"
 
 echo ""
 echo "▶ Locating IPA…"
@@ -228,6 +262,23 @@ else
 fi
 popd > /dev/null
 
+IPA_INFO_PLIST="$(find "$WORK_DIR/Payload" -path '*.app/Info.plist' 2>/dev/null | head -1 || true)"
+if [[ -n "$IPA_INFO_PLIST" ]]; then
+  IPA_CF_BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$IPA_INFO_PLIST" 2>/dev/null || true)"
+  IPA_CF_SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$IPA_INFO_PLIST" 2>/dev/null || true)"
+  echo "✓ IPA metadata: version $IPA_CF_SHORT_VERSION ($IPA_CF_BUNDLE_VERSION)"
+  if [[ "$IPA_CF_BUNDLE_VERSION" != "$BUILD_NUM" ]]; then
+    echo ""
+    echo "  ERROR: IPA bundle version mismatch."
+    echo "  Expected CFBundleVersion: $BUILD_NUM"
+    echo "  Actual CFBundleVersion:   ${IPA_CF_BUNDLE_VERSION:-<missing>}"
+    echo ""
+    exit 1
+  fi
+else
+  echo "  ⚠ Could not inspect IPA Info.plist before upload"
+fi
+
 if [[ "$SKIP_UPLOAD" == "true" ]]; then
   echo ""
   echo "═══════════════════════════════════════════════════════"
@@ -241,13 +292,20 @@ fi
 echo ""
 echo "▶ Uploading to App Store Connect (TestFlight)…"
 
-if xcrun altool \
+ALTOOL_LOG="$(mktemp)"
+set +e
+xcrun altool \
   --upload-app \
   -f "$IPA_PATH" \
   -t ios \
   --apiKey  "$APPLE_API_KEY_ID" \
   --apiIssuer "$APPLE_API_ISSUER_ID" \
-  --verbose; then
+  --verbose 2>&1 | tee "$ALTOOL_LOG"
+ALTOOL_STATUS=${PIPESTATUS[0]}
+set -e
+
+if [[ $ALTOOL_STATUS -eq 0 ]] \
+  && ! rg -q 'status code: 409|Failed to upload package|ENTITY_ERROR|ERROR: \[altool\]' "$ALTOOL_LOG"; then
   echo ""
   echo "═══════════════════════════════════════════════════════"
   echo "  ✓ Upload complete!"
@@ -260,6 +318,8 @@ if xcrun altool \
   echo "═══════════════════════════════════════════════════════"
 else
   echo ""
-  echo "  ERROR: Upload failed. Check altool output above."
+  echo "  ERROR: Upload failed."
+  echo "  Review the altool output above."
+  echo ""
   exit 1
 fi
