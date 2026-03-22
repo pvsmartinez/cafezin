@@ -226,15 +226,15 @@ echo "✓ Version bump committed and pushed"
 echo ""
 echo "── [4/5] Trigger platform releases ─────────────────────────────────"
 if [[ "$WAIT_WINDOWS" == "true" ]]; then
-  "$SCRIPT_DIR/release-all.sh" --tag "$TAG"
+  bash "$SCRIPT_DIR/release-all.sh" --tag "$TAG"
 else
-  "$SCRIPT_DIR/release-all.sh" --tag "$TAG" --no-wait-windows
+  bash "$SCRIPT_DIR/release-all.sh" --tag "$TAG" --no-wait-windows
 fi
 
 if [[ "$RUN_IOS" == "true" ]]; then
   echo ""
   echo "── [5/5] iOS / TestFlight ──────────────────────────────────────────"
-  "$SCRIPT_DIR/build-ios.sh"
+  bash "$SCRIPT_DIR/build-ios.sh"
 fi
 
 echo ""
