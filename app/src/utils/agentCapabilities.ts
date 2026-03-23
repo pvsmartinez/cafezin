@@ -28,6 +28,12 @@ export interface AgentCapabilityState {
   web: boolean;
 }
 
+export interface AgentWorkspaceProfile {
+  longFormWriting: boolean;
+  spreadsheetCentric: boolean;
+  codeWorkspace: boolean;
+}
+
 export type AgentCapabilitySource =
   | WorkspaceConfig
   | Pick<Workspace, 'config' | 'fileTree' | 'workspaceIndex'>
@@ -42,6 +48,14 @@ function flattenFiles(nodes: FileTreeNode[] | undefined): string[] {
     else files.push(node.path.toLowerCase());
   }
   return files;
+}
+
+function countFilesByPredicate(files: string[], predicate: (path: string) => boolean): number {
+  let count = 0;
+  for (const path of files) {
+    if (predicate(path)) count += 1;
+  }
+  return count;
 }
 
 export function detectAgentCapabilitiesFromFileTree(fileTree?: FileTreeNode[]): AgentCapabilityState {
@@ -92,6 +106,28 @@ export function getAgentCapabilityState(source?: AgentCapabilitySource): AgentCa
     canvas: resolveCapability(workspaceConfig?.features?.canvas?.agentTools, detected.canvas),
     spreadsheet: resolveCapability(workspaceConfig?.features?.spreadsheet?.agentTools, detected.spreadsheet),
     web: resolveCapability(workspaceConfig?.features?.web?.agentTools, detected.web),
+  };
+}
+
+export function getAgentWorkspaceProfile(source?: AgentCapabilitySource): AgentWorkspaceProfile {
+  const files = flattenFiles(extractFileTree(source));
+  const markdownCount = countFilesByPredicate(files, (path) => /\.(md|mdx|txt)$/i.test(path));
+  const spreadsheetCount = countFilesByPredicate(files, (path) => /\.(csv|tsv|xlsx|xls|ods|xlsm|xlsb)$/i.test(path));
+  const codeCount = countFilesByPredicate(files, (path) => /\.(ts|tsx|js|jsx|py|rs|java|go|rb|php|c|cc|cpp|h|hpp|css|scss|sql)$/i.test(path));
+  const codeProjectMarkers = countFilesByPredicate(files, (path) =>
+    /(^|\/)(package\.json|tsconfig\.json|pyproject\.toml|cargo\.toml|makefile|vite\.config\.[^/]+|next\.config\.[^/]+|requirements\.txt)$/i.test(path),
+  );
+  const chapterLikeMarkdown = countFilesByPredicate(files, (path) =>
+    /\.(md|mdx|txt)$/i.test(path) && /(chapter|cap(?:itulo)?[-_ ]?\d+|manuscript|outline|notes|roteiro|aula[-_ ]?\d+)/i.test(path),
+  );
+
+  return {
+    longFormWriting:
+      markdownCount >= 6 && (chapterLikeMarkdown >= 2 || markdownCount >= codeCount + spreadsheetCount),
+    spreadsheetCentric:
+      spreadsheetCount >= 1 && spreadsheetCount >= markdownCount && spreadsheetCount >= Math.max(1, codeCount / 2),
+    codeWorkspace:
+      codeProjectMarkers >= 1 || codeCount >= 8,
   };
 }
 

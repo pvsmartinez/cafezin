@@ -96,6 +96,87 @@ function buildToolArgsPreview(raw: string, maxLen = 500): string {
   return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
 }
 
+function stripMarkdownFence(raw: string): string {
+  return raw.trim().replace(/^```(?:json)?\n([\s\S]*?)\n```$/g, '$1').trim();
+}
+
+function tryParseToolArgsObject(raw: string): Record<string, unknown> | null {
+  const parsed = JSON.parse(raw) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  return parsed as Record<string, unknown>;
+}
+
+function balanceJsonClosers(raw: string): string | null {
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+
+  for (const ch of raw) {
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === '{' || ch === '[') {
+      stack.push(ch);
+      continue;
+    }
+    if (ch === '}' || ch === ']') {
+      const expected = ch === '}' ? '{' : '[';
+      if (stack[stack.length - 1] === expected) {
+        stack.pop();
+        continue;
+      }
+      return null;
+    }
+  }
+
+  let repaired = raw;
+  if (inString) repaired += '"';
+  for (let i = stack.length - 1; i >= 0; i--) {
+    repaired += stack[i] === '{' ? '}' : ']';
+  }
+  return repaired;
+}
+
+function repairToolArguments(raw: string): Record<string, unknown> | null {
+  const text = stripMarkdownFence(raw);
+  if (!text) return {};
+
+  const attempts = [
+    text,
+    text.replace(/,\s*([}\]])/g, '$1'),
+    text.replace(/\r\n/g, '\n'),
+  ];
+  const balanced = balanceJsonClosers(text);
+  if (balanced && !attempts.includes(balanced)) attempts.push(balanced);
+  if (balanced) {
+    const withoutTrailingCommas = balanced.replace(/,\s*([}\]])/g, '$1');
+    if (!attempts.includes(withoutTrailingCommas)) attempts.push(withoutTrailingCommas);
+  }
+
+  for (const attempt of attempts) {
+    try {
+      const parsed = tryParseToolArgsObject(attempt);
+      if (parsed) return parsed;
+    } catch { /* try next */ }
+  }
+
+  return null;
+}
+
 export function parseToolArguments(
   raw: string,
 ):
@@ -106,16 +187,18 @@ export function parseToolArguments(
   }
 
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return {
-        ok: false,
-        error: 'Tool arguments must be a JSON object.',
-        preview: buildToolArgsPreview(raw),
-      };
-    }
-    return { ok: true, value: parsed as Record<string, unknown> };
+    const parsed = tryParseToolArgsObject(raw);
+    if (parsed) return { ok: true, value: parsed };
+    return {
+      ok: false,
+      error: 'Tool arguments must be a JSON object.',
+      preview: buildToolArgsPreview(raw),
+    };
   } catch (error) {
+    const repaired = repairToolArguments(raw);
+    if (repaired) {
+      return { ok: true, value: repaired };
+    }
     return {
       ok: false,
       error: error instanceof Error ? error.message : String(error),

@@ -76,4 +76,26 @@ describe('buildRetryMessages', () => {
     expect(String(lastMessage.content)).toContain('Your previous attempt failed');
     expect(String(lastMessage.content)).toContain('Invalid JSON format in tool call arguments');
   });
+
+  it('compacts retry payloads instead of resending huge error and partial blocks', () => {
+    const messages: ChatMessage[] = [
+      { role: 'user', content: 'Continue.' },
+    ];
+
+    const retryMessages = buildRetryMessages(messages, {
+      partialForRetry: `intro ${'x'.repeat(2200)}`,
+      errorContextForRetry: [
+        'Timestamp : 2026-03-22T23:06:11.738Z',
+        'Status    : 400',
+        'Error body: {"error":{"message":"Invalid JSON format in tool call arguments"}}',
+        `noise ${'y'.repeat(4000)}`,
+      ].join('\n'),
+    });
+    const lastMessage = retryMessages[retryMessages.length - 1];
+
+    expect(lastMessage.role).toBe('user');
+    expect(String(lastMessage.content)).toContain('Status    : 400');
+    expect(String(lastMessage.content)).toContain('[earlier partial output omitted]');
+    expect(String(lastMessage.content)).not.toContain(`noise ${'y'.repeat(2000)}`);
+  });
 });

@@ -1,7 +1,7 @@
 import type { AgentInstructionSource, FileTreeNode, WorkspaceIndex } from '../types';
 
 const MAX_GUIDANCE_CHARS = 3600;
-const MAX_FILE_HINTS = 12;
+const MAX_FILE_HINTS = 8;
 const IMPORTANT_FILE_NAMES = new Set([
   'readme.md',
   'agent.md',
@@ -290,34 +290,21 @@ export function summarizeWorkspaceFiles(
     })
     .slice(0, options.maxFiles ?? MAX_FILE_HINTS);
 
-  // Build a lookup map for index outlines — O(1) per file
-  const indexOutlineMap = new Map<string, string>(
-    options.workspaceIndex?.entries
-      .filter((e) => e.outline)
-      .map((e) => [e.path, e.outline]) ?? [],
-  );
-
   const lines = [
     `Workspace snapshot: ${files.length} file(s) total ` +
       `(${counts.markdown} markdown, ${counts.canvas} canvas, ${counts.spreadsheet} spreadsheets, ${counts.html} html, ${counts.code} code, ${counts.other} other).`,
-    'Priority files to inspect first:',
   ];
 
-  for (const path of topFiles) {
+  const labeled = topFiles.map((path) => {
     const tags: string[] = [];
     if (path === options.activeFile) tags.push('active');
     if (options.recentFiles?.includes(path)) tags.push('recent');
     if (IMPORTANT_FILE_NAMES.has(path.toLowerCase().split('/').pop() ?? '')) tags.push('key');
-    const tagStr = tags.length > 0 ? ` [${tags.join(', ')}]` : '';
+    return tags.length > 0 ? `${path} [${tags.join(', ')}]` : path;
+  });
 
-    const outline = indexOutlineMap.get(path);
-    // Only show the first 2 outline lines in the prompt summary to stay compact
-    const outlineSnippet = outline
-      ? outline.split('\n').slice(0, 2).join(' · ').replace(/\s+/g, ' ').trim()
-      : '';
-    lines.push(outlineSnippet
-      ? `- ${path}${tagStr} — ${outlineSnippet}`
-      : `- ${path}${tagStr}`);
+  if (labeled.length > 0) {
+    lines.push(`Likely relevant now: ${labeled.join('; ')}`);
   }
 
   return lines.join('\n');
@@ -345,6 +332,15 @@ export function truncateDocumentContext(
 ): string {
   const clean = documentContext.trim();
   if (!clean) return '';
+  if (!activeFile) return '';
+  const normalized = clean.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (
+    normalized === '# untitled document start writing here…'
+    || normalized === '# untitled document start writing here...'
+    || (normalized.includes('untitled document') && normalized.includes('start writing here'))
+  ) {
+    return '';
+  }
   if (clean.length <= maxChars) return clean;
 
   const lower = activeFile?.toLowerCase() ?? '';

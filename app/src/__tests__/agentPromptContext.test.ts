@@ -76,6 +76,7 @@ describe('summarizeWorkspaceFiles', () => {
     });
 
     expect(summary).toContain('Workspace snapshot: 7 file(s) total');
+    expect(summary).toContain('Likely relevant now:');
     expect(summary).toContain('docs/chapter-01.md [active, recent]');
     expect(summary).toContain('docs/plan.md [recent, key]');
     expect(summary).toContain('README.md [key]');
@@ -100,5 +101,9 @@ describe('truncateDocumentContext', () => {
 
   it('leaves short content untouched', () => {
     expect(truncateDocumentContext('short text', 'notes.md', 100)).toBe('short text');
+  });
+
+  it('drops placeholder context when no real file is active', () => {
+    expect(truncateDocumentContext('# Untitled Document\n\nStart writing here…', undefined, 100)).toBe('');
   });
 });

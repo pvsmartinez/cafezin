@@ -34,13 +34,13 @@ function cursorOverlaps(view: EditorView, nodeFrom: number, nodeTo: number): boo
 
 function buildDecorations(view: EditorView): DecorationSet {
   const { state } = view;
-  const { from: vpFrom, to: vpTo } = view.viewport;
 
   const entries: { from: number; to: number }[] = [];
 
+  // Iterate the full tree (not just the viewport) to avoid a feedback loop:
+  // hiding `### ` changes line layout → viewport.to shifts → heading falls outside
+  // the processed range → mark reappears → layout reverts → marks hidden again → flicker.
   syntaxTree(state).iterate({
-    from: vpFrom,
-    to:   vpTo,
     enter(node) {
       if (cursorOverlaps(view, node.from, node.to)) return;
 

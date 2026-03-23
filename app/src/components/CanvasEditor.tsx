@@ -146,6 +146,7 @@ export default function CanvasEditor({
   const mainDivRef   = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountCleanupRef = useRef<(() => void) | null>(null);
   // Stable ref so store listeners always call the latest onChange.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -194,6 +195,8 @@ export default function CanvasEditor({
   // ── Clear blob URL cache when this canvas instance unmounts ─────────────────
   useEffect(() => {
     return () => {
+      mountCleanupRef.current?.();
+      mountCleanupRef.current = null;
       clearAssetBlobCache();
       if (canvasRelPath) unregisterCanvasEditor(canvasRelPath);
     };
@@ -314,10 +317,13 @@ export default function CanvasEditor({
 
   // ── Mount handler — sets up all tldraw store listeners ───────────────────────
   function handleMount(editor: Editor) {
+    mountCleanupRef.current?.();
+    mountCleanupRef.current = null;
     editorRef.current = editor;
     onEditorReady?.(editor);
     // Register in the global registry so canvas_op can find this editor by file path.
     if (canvasRelPath) registerCanvasEditor(canvasRelPath, editor);
+    const cleanups: Array<() => void> = [];
 
     try {
       editor.user.updateUserPreferences({ colorScheme: darkMode ? 'dark' : 'light', isSnapMode: true });
@@ -371,15 +377,15 @@ export default function CanvasEditor({
       }, 80);
     };
     syncFrames();
-    editor.store.listen(syncFrames, { scope: 'document' });
+    cleanups.push(editor.store.listen(syncFrames, { scope: 'document' }));
 
     // Keep frameToolActive in sync with tldraw's active tool.
-    editor.store.listen(
+    cleanups.push(editor.store.listen(
       () => { setFrameToolActive(editor.getCurrentToolId() === 'frame'); },
       { scope: 'session' },
-    );
+    ));
 
-    editor.store.listen(
+    cleanups.push(editor.store.listen(
       () => {
         const summary = summarizeCanvasSelection(editor);
         if (!summary) {
@@ -394,11 +400,11 @@ export default function CanvasEditor({
         });
       },
       { scope: 'session' },
-    );
+    ));
 
     // Enforce isThemeBg shapes stay at back. Guarded: skip during drag/resize.
     let bgEnforceRaf: number | null = null;
-    editor.store.listen(
+    cleanups.push(editor.store.listen(
       () => {
         if (bgEnforceRaf !== null) return;
         bgEnforceRaf = requestAnimationFrame(() => {
@@ -412,7 +418,7 @@ export default function CanvasEditor({
         });
       },
       { scope: 'document' },
-    );
+    ));
 
     // Track the frame most centered in viewport → highlight strip card in edit mode.
     let viewportRaf: number | null = null;
@@ -430,13 +436,13 @@ export default function CanvasEditor({
       });
       setFrameIndex(bestIdx);
     };
-    editor.store.listen(() => {
+    cleanups.push(editor.store.listen(() => {
       if (viewportRaf !== null) return;
       viewportRaf = requestAnimationFrame(() => { viewportRaf = null; updateViewportFrame(); });
-    });
+    }));
 
     // ── Debounced save + preview regeneration ──
-    editor.store.listen(
+    cleanups.push(editor.store.listen(
       () => {
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
@@ -464,12 +470,12 @@ export default function CanvasEditor({
         }, 900);
       },
       { scope: 'document' },
-    );
+    ));
 
     // ── New arrow default: elbow kind (like FigJam) ──────────────────────────
     // tldraw creates arrows with kind:'arc' (straight/curved) by default.
     // We patch newly created arrows to kind:'elbow' so connectors look cleaner.
-    editor.store.listen(
+    cleanups.push(editor.store.listen(
       (changes) => {
         const newArrowIds: string[] = [];
         for (const record of Object.values(changes.changes.added ?? {})) {
@@ -489,10 +495,10 @@ export default function CanvasEditor({
         });
       },
       { scope: 'document', source: 'user' },
-    );
+    ));
 
     // ── AI mark user-edit detection ──
-    editor.store.listen(
+    cleanups.push(editor.store.listen(
       (changes) => {
         const marks = aiMarksRef.current.filter((m) => !m.reviewed && m.canvasShapeIds?.length);
         if (marks.length === 0) return;
@@ -507,7 +513,7 @@ export default function CanvasEditor({
         }
       },
       { scope: 'document', source: 'user' },
-    );
+    ));
 
     // ── "Type to edit" — select a shape then type to enter text mode ──
     const TEXT_EDITABLE_TYPES = new Set(['geo', 'text', 'arrow', 'note']);
@@ -537,6 +543,31 @@ export default function CanvasEditor({
       });
     };
     editor.getContainer().addEventListener('keydown', typeToEditHandler, true);
+    cleanups.push(() => editor.getContainer().removeEventListener('keydown', typeToEditHandler, true));
+
+    mountCleanupRef.current = () => {
+      if (syncFramesTimer) {
+        clearTimeout(syncFramesTimer);
+        syncFramesTimer = null;
+      }
+      if (bgEnforceRaf !== null) {
+        cancelAnimationFrame(bgEnforceRaf);
+        bgEnforceRaf = null;
+      }
+      if (viewportRaf !== null) {
+        cancelAnimationFrame(viewportRaf);
+        viewportRaf = null;
+      }
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      if (previewTimerRef.current) {
+        clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = null;
+      }
+      for (const cleanup of cleanups.splice(0)) cleanup();
+    };
 
     const initialSelection = summarizeCanvasSelection(editor);
     if (!initialSelection) {

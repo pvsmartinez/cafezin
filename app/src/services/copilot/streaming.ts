@@ -777,13 +777,22 @@ export async function runCopilotAgent(
           let result: string;
           try {
             if (!parsedArgs.ok) {
+              const rewriteHint = tc.function.name === 'write_workspace_file'
+                ? [
+                    '',
+                    'This usually means the JSON was truncated mid-write.',
+                    'If you are editing an existing large file, resend the change with patch_workspace_file or multi_patch instead of rewriting the whole file.',
+                    'If you really need write_workspace_file, resend a complete JSON object with both "path" and "content".',
+                  ].join('\n')
+                : '';
               result = [
                 `Error: Invalid JSON format in tool call arguments for ${tc.function.name}.`,
                 parsedArgs.error,
+                rewriteHint,
                 '',
                 'Raw arguments preview:',
                 parsedArgs.preview,
-              ].join('\n');
+              ].filter(Boolean).join('\n');
               activity.error = result;
             } else {
               result = await executeTool(tc.function.name, args);

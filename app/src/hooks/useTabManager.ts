@@ -95,11 +95,58 @@ export interface TabManager {
   /** Promote a preview tab to a permanent one (e.g. on double-click in TabBar). */
   promoteTab: (filePath: string) => void;
 
+  /** Remap one file/folder prefix across tabs + active state after a rename/move. */
+  remapPaths: (fromPath: string, toPath: string) => void;
+
+  /** Drop tabs whose paths no longer exist in the workspace. */
+  pruneTabs: (existingPaths: Set<string>) => void;
+
   /**
    * Clear all tab state — used when switching workspaces.
    * Does NOT call onClosed (dirty state is also cleared wholesale by the caller).
    */
   clearAll: () => void;
+}
+
+export function remapTabPath(path: string, fromPath: string, toPath: string): string {
+  if (path === fromPath) return toPath;
+  if (path.startsWith(`${fromPath}/`)) return `${toPath}${path.slice(fromPath.length)}`;
+  return path;
+}
+
+export function remapTabList(paths: string[], fromPath: string, toPath: string): string[] {
+  return dedupeTabs(paths.map((path) => remapTabPath(path, fromPath, toPath)));
+}
+
+export function pruneTabList(paths: string[], existingPaths: Set<string>): string[] {
+  return paths.filter((path) => existingPaths.has(path));
+}
+
+export function resolvePrunedActiveTab(
+  currentTabs: string[],
+  currentActive: string | null,
+  nextTabs: string[],
+): string | null {
+  if (!currentActive) return null;
+  if (nextTabs.includes(currentActive)) return currentActive;
+  const idx = currentTabs.indexOf(currentActive);
+  return nextTabs[idx] ?? nextTabs[idx - 1] ?? null;
+}
+
+function dedupeTabs(paths: string[]): string[] {
+  return Array.from(new Set(paths));
+}
+
+function remapMapKeys<V>(
+  source: Map<string, V>,
+  fromPath: string,
+  toPath: string,
+): Map<string, V> {
+  const next = new Map<string, V>();
+  for (const [key, value] of source.entries()) {
+    next.set(remapTabPath(key, fromPath, toPath), value);
+  }
+  return next;
 }
 
 export function useTabManager(
@@ -251,6 +298,68 @@ export function useTabManager(
     setPreviewTabId((prev) => (prev === filePath ? null : prev));
   }
 
+  function remapPaths(fromPath: string, toPath: string) {
+    if (!fromPath || !toPath || fromPath === toPath) return;
+
+    tabContentsRef.current = remapMapKeys(tabContentsRef.current, fromPath, toPath);
+    tabViewModeRef.current = remapMapKeys(tabViewModeRef.current, fromPath, toPath);
+    savedContentRef.current = remapMapKeys(savedContentRef.current, fromPath, toPath);
+
+    const nextTabs = remapTabList(tabsRef.current, fromPath, toPath);
+    setTabs(nextTabs);
+
+    const nextPreview = previewTabIdRef.current
+      ? remapTabPath(previewTabIdRef.current, fromPath, toPath)
+      : null;
+    setPreviewTabId(nextPreview);
+
+    const currentActive = activeTabIdRef.current;
+    const nextActive = currentActive
+      ? remapTabPath(currentActive, fromPath, toPath)
+      : null;
+
+    if (nextActive !== currentActive) {
+      setActiveTabId(nextActive);
+      if (nextActive) {
+        setContent(tabContentsRef.current.get(nextActive) ?? content);
+        setViewMode(
+          tabViewModeRef.current.get(nextActive) ??
+          (getFileTypeInfo(nextActive).defaultMode as 'edit' | 'preview'),
+        );
+      } else {
+        setContent(fallbackContent);
+        setViewMode('edit');
+      }
+    }
+  }
+
+  function pruneTabs(existingPaths: Set<string>) {
+    const currentTabs = tabsRef.current;
+    const staleTabs = currentTabs.filter((path) => !existingPaths.has(path));
+    if (staleTabs.length === 0) return;
+
+    const nextTabs = pruneTabList(currentTabs, existingPaths);
+    _cleanRefs(staleTabs);
+    setTabs(nextTabs);
+    setPreviewTabId((prev) => (prev && existingPaths.has(prev) ? prev : null));
+
+    const currentActive = activeTabIdRef.current;
+    if (currentActive && !existingPaths.has(currentActive)) {
+      const nextActive = resolvePrunedActiveTab(currentTabs, currentActive, nextTabs);
+      setActiveTabId(nextActive);
+      if (nextActive) {
+        setContent(tabContentsRef.current.get(nextActive) ?? '');
+        setViewMode(
+          tabViewModeRef.current.get(nextActive) ??
+          (getFileTypeInfo(nextActive).defaultMode as 'edit' | 'preview'),
+        );
+      } else {
+        setContent(fallbackContent);
+        setViewMode('edit');
+      }
+    }
+  }
+
   function clearAll() {
     tabContentsRef.current.clear();
     tabViewModeRef.current.clear();
@@ -287,6 +396,8 @@ export function useTabManager(
     closeToRight,
     reorderTabs,
     promoteTab,
+    remapPaths,
+    pruneTabs,
     clearAll,
   };
 }

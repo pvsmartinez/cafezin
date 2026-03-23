@@ -100,86 +100,108 @@ export function useBacklinks(
   const [backlinks, setBacklinks] = useState<LinkRef[]>([]);
   const [outlinks, setOutlinks] = useState<LinkRef[]>([]);
   const [loading, setLoading] = useState(false);
-  const cancelRef = useRef(false);
 
+  // Cached link map: Map<filePath, outgoing-link-paths[]>
+  // Built once per workspace/file-list change; queried cheaply on tab switches.
+  const [linkMap, setLinkMap] = useState<Map<string, string[]> | null>(null);
+
+  // Content-based key to avoid rebuilding when fileTree reference changes but
+  // the actual file list is identical (e.g. workspace refresh after save).
+  const buildKeyRef = useRef('');
+
+  // ── Effect 1: rebuild link map when the workspace file list actually changes ─
+  // Does NOT depend on activeFile — tab switches no longer trigger file I/O.
   useEffect(() => {
-    if (!activeFile || !workspace || !enabled) {
+    if (!workspace || !enabled) {
+      buildKeyRef.current = '';
+      setLinkMap(null);
+      setLoading(false);
       setBacklinks([]);
       setOutlinks([]);
       return;
     }
 
-    // Only scan markdown files
-    if (!/\.(md|mdx|txt)$/i.test(activeFile)) {
-      setBacklinks([]);
-      setOutlinks([]);
-      return;
-    }
-
-    cancelRef.current = false;
-
-    const activeFilePath = activeFile;
     const mdFiles = collectMdFiles(workspace);
+    const newKey = `${workspace.path}|${mdFiles.join('\0')}`;
 
-    async function scan() {
-      const wsPath = workspace!.path;
+    // File list content unchanged — no need to re-read anything.
+    if (newKey === buildKeyRef.current) return;
+    buildKeyRef.current = newKey;
 
-      // Read all markdown files in parallel — skip exists() check, readTextFile
-      // already throws on missing files (saving one IPC round-trip per file).
+    let cancelled = false;
+    setLoading(true);
+
+    const timer = setTimeout(async () => {
+      const wsPath = workspace.path;
+
+      // Read all markdown files in parallel — skip exists() check.
       const results = await Promise.all(
         mdFiles.map(async (filePath) => {
-          if (cancelRef.current) return null;
+          if (cancelled) return null;
           try {
             const text = await readTextFile(`${wsPath}/${filePath}`);
-            return { filePath, text };
+            return { filePath, links: extractLinks(text, filePath) };
           } catch {
             return null; // file unreadable or deleted — skip
           }
         }),
       );
 
-      if (cancelRef.current) return;
+      if (cancelled) return;
 
-      const foundBacklinks: LinkRef[] = [];
-      const foundOutlinks: LinkRef[] = [];
-
+      const map = new Map<string, string[]>();
       for (const result of results) {
-        if (!result) continue;
-        const { filePath, text } = result;
-        const links = extractLinks(text, filePath);
+        if (result) map.set(result.filePath, result.links);
+      }
+      setLinkMap(map);
+      setLoading(false);
+    }, 250);
 
-        if (filePath === activeFilePath) {
-          // outlinks: what this file points to
-          for (const target of links) {
-            if (target !== activeFilePath) {
-              foundOutlinks.push({ path: target, label: labelFromPath(target) });
-            }
-          }
-        } else {
-          // check if this file links to the active file
-          if (links.includes(activeFilePath)) {
-            foundBacklinks.push({ path: filePath, label: labelFromPath(filePath) });
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  // workspace?.fileTree changes reference when files are added/deleted;
+  // workspace?.path changes on workspace switch. activeFile is intentionally
+  // NOT a dep here — tab switches must not trigger file reads.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace?.path, workspace?.fileTree, enabled]);
+
+  // ── Effect 2: derive backlinks for the active file — pure in-memory ──────
+  // Runs on every tab switch but does ZERO file I/O; just filters the cached map.
+  useEffect(() => {
+    if (!activeFile || !enabled || !linkMap) {
+      if (!activeFile || !enabled) {
+        setBacklinks([]);
+        setOutlinks([]);
+      }
+      return;
+    }
+
+    if (!/\.(md|mdx|txt)$/i.test(activeFile)) {
+      setBacklinks([]);
+      setOutlinks([]);
+      return;
+    }
+
+    const foundBacklinks: LinkRef[] = [];
+    const foundOutlinks: LinkRef[] = [];
+
+    for (const [filePath, links] of linkMap) {
+      if (filePath === activeFile) {
+        for (const target of links) {
+          if (target !== activeFile) {
+            foundOutlinks.push({ path: target, label: labelFromPath(target) });
           }
         }
-      }
-
-      if (!cancelRef.current) {
-        setBacklinks(foundBacklinks);
-        setOutlinks(foundOutlinks);
-        setLoading(false);
+      } else if (links.includes(activeFile)) {
+        foundBacklinks.push({ path: filePath, label: labelFromPath(filePath) });
       }
     }
 
-    // Small debounce so rapid tab switches don't trigger bursts of parallel reads
-    setLoading(true);
-    const timer = setTimeout(() => { scan(); }, 250);
-    return () => {
-      cancelRef.current = true;
-      clearTimeout(timer);
-    };
-  // Re-scan only when file or workspace tree changes (not on every keystroke)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFile, workspace?.path, workspace?.fileTree, enabled]);
+    setBacklinks(foundBacklinks);
+    setOutlinks(foundOutlinks);
+  }, [activeFile, linkMap, enabled]);
 
   return { backlinks, outlinks, loading };
 }

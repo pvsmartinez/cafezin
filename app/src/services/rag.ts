@@ -99,3 +99,12 @@ export async function searchWorkspaceRag(
     };
   }
 }
+
+export async function releaseWorkspaceRagResources(): Promise<void> {
+  if (!isTauriRuntime()) return;
+  try {
+    await invoke('rag_release_resources');
+  } catch (error) {
+    console.error('[RAG] release failed:', formatInvokeError(error));
+  }
+}

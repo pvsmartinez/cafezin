@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectAgentCapabilitiesFromFileTree, getAgentCapabilityState } from '../utils/agentCapabilities';
+import { detectAgentCapabilitiesFromFileTree, getAgentCapabilityState, getAgentWorkspaceProfile } from '../utils/agentCapabilities';
 import type { FileTreeNode, WorkspaceConfig, WorkspaceIndex } from '../types';
 
 const file = (path: string): FileTreeNode => ({
@@ -67,5 +67,41 @@ describe('agentCapabilities', () => {
     expect(detected.canvas).toBe(true);
     expect(detected.web).toBe(true);
     expect(detected.spreadsheet).toBe(true);
+  });
+
+  it('detects a long-form writing workspace from many chapter-like markdown files', () => {
+    const profile = getAgentWorkspaceProfile({
+      config: { name: 'Livro' },
+      fileTree: [
+        file('01_Manuscript/chapter-01.md'),
+        file('01_Manuscript/chapter-02.md'),
+        file('01_Manuscript/chapter-03.md'),
+        file('01_Manuscript/chapter-04.md'),
+        file('notes/outline.md'),
+        file('notes/characters.md'),
+      ],
+    });
+
+    expect(profile.longFormWriting).toBe(true);
+    expect(profile.codeWorkspace).toBe(false);
+  });
+
+  it('detects a code workspace from project markers and source files', () => {
+    const profile = getAgentWorkspaceProfile({
+      config: { name: 'App' },
+      fileTree: [
+        file('package.json'),
+        file('tsconfig.json'),
+        file('src/App.tsx'),
+        file('src/main.tsx'),
+        file('src/utils.ts'),
+        file('src/data.ts'),
+        file('src/lib.ts'),
+        file('src/view.tsx'),
+      ],
+    });
+
+    expect(profile.codeWorkspace).toBe(true);
+    expect(profile.longFormWriting).toBe(false);
   });
 });

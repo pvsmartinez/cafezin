@@ -17,7 +17,7 @@ import { getActiveModel, type AIProviderType, PROVIDER_SHORT_LABELS } from '../s
 import { getLastProviderRequestDump } from '../services/ai/diagnostics';
 import { getProviderCatalog } from '../services/ai/providerModels';
 import { DEFAULT_MODEL } from '../types';
-import type { AIRecordedTextMark, AISelectionContext, CopilotModel, CopilotModelInfo, MessageItem, Task } from '../types';
+import type { AgentContextSnapshot, AIRecordedTextMark, AISelectionContext, CopilotModel, CopilotModelInfo, MessageItem, Task } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
 import type { Editor as TldrawEditor } from 'tldraw';
 import { getMimeType, IMAGE_EXTS } from '../utils/mime';
@@ -69,6 +69,10 @@ export interface AgentSessionProps {
   memoryRefreshKey?: number;
   canvasEditorRef?: React.RefObject<TldrawEditor | null>;
   onFileWritten?: (path: string) => void;
+  onPathRenamed?: (fromPath: string, toPath: string) => void;
+  getLiveFileContent?: (relPath: string) => string | null;
+  isFileDirty?: (relPath: string) => boolean;
+  getAgentContextSnapshot?: () => AgentContextSnapshot;
   onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
   onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
   activeFile?: string;
@@ -118,6 +122,10 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   memoryRefreshKey = 0,
   canvasEditorRef,
   onFileWritten,
+  onPathRenamed,
+  getLiveFileContent,
+  isFileDirty,
+  getAgentContextSnapshot,
   onMarkRecorded,
   onCanvasMarkRecorded,
   activeFile,
@@ -224,8 +232,8 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const reloadTask = useCallback(() => {
     if (!workspacePath) { setActiveTask(null); return; }
-    getActiveTask(workspacePath).then(setActiveTask).catch(() => setActiveTask(null));
-  }, [workspacePath]);
+    getActiveTask(workspacePath, agentId).then(setActiveTask).catch(() => setActiveTask(null));
+  }, [workspacePath, agentId]);
   useEffect(() => { reloadTask(); }, [reloadTask]);
   const session      = useAISession({
     model,
@@ -266,6 +274,10 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     workspaceConfig,
     onWorkspaceConfigChange,
     onFileWritten,
+    onPathRenamed,
+    getLiveFileContent,
+    isFileDirty,
+    getAgentContextSnapshot,
     onMarkRecorded,
     onCanvasMarkRecorded,
     webPreviewRef,
@@ -398,6 +410,13 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       const isStreaming = stream.isStreaming;
       const el = messagesContainerRef.current;
       if (el) {
+        // Don't auto-scroll while the user has an active text selection inside
+        // the chat container — it would push their selection off-screen.
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && el.contains(sel.anchorNode)) {
+          isPinnedToBottom.current = false; // unpin so the next chunk doesn't retry
+          return;
+        }
         if (isStreaming) {
           el.scrollTop = el.scrollHeight;
         } else {

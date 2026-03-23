@@ -90,6 +90,7 @@ export function useTsDiagnostics(
   filePath: string | null,
   workspacePath: string | null,
   enabled: boolean,
+  dirty: boolean,
 ): TsDiagnosticResult {
   const [result, setResult] = useState<TsDiagnosticResult>(EMPTY);
   const reqIdRef = useRef(0);
@@ -99,7 +100,7 @@ export function useTsDiagnostics(
   contentRef.current = content;
 
   useEffect(() => {
-    if (!enabled || !filePath || !workspacePath) {
+    if (!enabled || dirty || !filePath || !workspacePath) {
       setResult(EMPTY);
       return;
     }
@@ -126,9 +127,7 @@ export function useTsDiagnostics(
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-    // Re-run when content changes (debounced) or when the active file switches
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, filePath, workspacePath, enabled]);
+  }, [dirty, enabled, filePath, workspacePath]);
 
   return result;
 }

@@ -54,6 +54,7 @@ export interface ToolContext {
   workspaceConfig?: WorkspaceConfig;
   webPreviewRef?: { current: { getScreenshot: () => Promise<string | null> } | null };
   onFileWritten?: (path: string) => void;
+  onPathRenamed?: (fromPath: string, toPath: string) => void;
   onMarkRecorded?: (relPath: string, content: string, recordedMarks?: AIRecordedTextMark[]) => void;
   onCanvasModified?: (shapeIds: string[]) => void;
   onMemoryWritten?: (newContent: string) => void;
@@ -64,6 +65,8 @@ export interface ToolContext {
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
   onAskUser?: (question: string, options?: string[]) => Promise<string>;
   getActiveHtml?: () => { html: string; absPath: string } | null;
+  getLiveFileContent?: (relPath: string) => string | null;
+  isFileDirty?: (relPath: string) => boolean;
   /** Agent that owns locks created by this executor call. */
   agentId?: string;
   /**

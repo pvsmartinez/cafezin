@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   runCopilotAgent,
   getLastRateLimit,
@@ -16,6 +16,7 @@ import type { RiskLevel } from '../utils/toolRisk';
 import { canvasToDataUrl, compressDataUrl } from '../utils/canvasAI';
 import { unlockAllByAgent } from '../services/copilotLock';
 import type {
+  AgentContextSnapshot,
   AIRecordedTextMark,
   AISelectionContext,
   ChatMessage,
@@ -57,6 +58,10 @@ export interface UseAIStreamParams {
   workspaceConfig?: WorkspaceConfig;
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
   onFileWritten?: (path: string) => void;
+  onPathRenamed?: (fromPath: string, toPath: string) => void;
+  getLiveFileContent?: (relPath: string) => string | null;
+  isFileDirty?: (relPath: string) => boolean;
+  getAgentContextSnapshot?: () => AgentContextSnapshot;
   onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
   onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
   // ── Misc ──────────────────────────────────────────────────────────────────
@@ -94,22 +99,38 @@ export function buildRetryMessages(
   const errorContext = retryContext?.errorContextForRetry?.trim();
   if (!partial && !errorContext) return newMessages;
 
+  const compactErrorContext = (() => {
+    if (!errorContext) return '';
+    const important = errorContext
+      .split('\n')
+      .filter((line) => /copilot api error|status\s+:|error body:|request id|github request|invalid json|tool_call id=|raw arguments preview:/i.test(line))
+      .join('\n')
+      .trim();
+    const source = important.length >= 80 ? important : errorContext;
+    return source.length > 1400 ? `${source.slice(0, 1400)}\n[truncated]` : source;
+  })();
+  const compactPartial = (() => {
+    if (!partial) return '';
+    if (partial.length <= 1200) return partial;
+    return `[earlier partial output omitted]\n${partial.slice(-1100)}`;
+  })();
+
   const blocks = [
     '[Retry note]',
   ];
 
-  if (errorContext) {
+  if (compactErrorContext) {
     blocks.push(
-      'Your previous attempt failed. Use the error details below to avoid repeating the same mistake.',
+      'Your previous attempt failed. Use the compact error details below to avoid repeating the same mistake.',
       '',
       'Previous error details:',
       '---',
-      errorContext.length > 6000 ? `${errorContext.slice(0, 6000)}\n[truncated]` : errorContext,
+      compactErrorContext,
       '---',
     );
   }
 
-  if (partial) {
+  if (compactPartial) {
     blocks.push(
       'Your previous response was interrupted before completion.',
       'Continue from the partial assistant output below without restarting from the beginning.',
@@ -117,7 +138,7 @@ export function buildRetryMessages(
       '',
       'Partial assistant output:',
       '---',
-      partial,
+      compactPartial,
       '---',
     );
   }
@@ -164,6 +185,10 @@ export function useAIStream({
   workspaceConfig,
   onWorkspaceConfigChange,
   onFileWritten,
+  onPathRenamed,
+  getLiveFileContent,
+  isFileDirty,
+  getAgentContextSnapshot,
   onMarkRecorded,
   onCanvasMarkRecorded,
   webPreviewRef,
@@ -218,10 +243,103 @@ export function useAIStream({
     errorContextForRetry?: string;
   }
   const retryPayloadRef = useRef<RetryPayload | null>(null);
+  const lastSeenContextRef = useRef<Pick<AgentContextSnapshot, 'activeFile' | 'activeFileRevision' | 'workspaceStructureRevision' | 'workspaceChangeSeq'> & { activeFileContent?: string } | null>(null);
+
+  /**
+   * Computes a compact unified-diff-style summary of what changed between two text versions.
+   * Covers the contiguous changed region (first diff from top, first diff from bottom)
+   * with `ctx` lines of surrounding context. Capped at `maxLines` to avoid flooding context.
+   */
+  function computeLineDiff(oldText: string, newText: string, ctx = 3, maxLines = 80): string {
+    const oldLines = oldText.split('\n');
+    const newLines = newText.split('\n');
+    // Find first differing line from the top
+    let top = 0;
+    while (top < oldLines.length && top < newLines.length && oldLines[top] === newLines[top]) top++;
+    if (top === oldLines.length && top === newLines.length) return '(no textual changes detected)';
+    // Find first differing line from the bottom
+    let oldBot = oldLines.length - 1;
+    let newBot = newLines.length - 1;
+    while (oldBot > top && newBot > top && oldLines[oldBot] === newLines[newBot]) { oldBot--; newBot--; }
+    // Build diff block with context
+    const ctxStart = Math.max(0, top - ctx);
+    const parts: string[] = [];
+    const oldFrom = top + 1;
+    const newFrom = top + 1;
+    const oldCount = oldBot - top + 1;
+    const newCount = newBot - top + 1;
+    parts.push(`@@ -${oldFrom},${oldCount} +${newFrom},${newCount} @@`);
+    for (let i = ctxStart; i < top; i++) parts.push(` ${oldLines[i]}`);
+    for (let i = top; i <= oldBot; i++) parts.push(`-${oldLines[i]}`);
+    for (let i = top; i <= newBot; i++) parts.push(`+${newLines[i]}`);
+    for (let i = 1; i <= ctx; i++) {
+      if (oldBot + i < oldLines.length) parts.push(` ${oldLines[oldBot + i]}`);
+    }
+    if (parts.length > maxLines) {
+      return parts.slice(0, maxLines).join('\n') + '\n[… diff truncated]';
+    }
+    return parts.join('\n');
+  }
 
   function setIsStreaming(v: boolean) {
     setIsStreamingState(v);
     onStreamingChange?.(v);
+  }
+
+  function buildContextFreshnessNote(snapshot: AgentContextSnapshot): string {
+    const previous = lastSeenContextRef.current;
+    const lines = [
+      '[Live editor/workspace state for this request]',
+      `Active file: ${snapshot.activeFile ?? '(none)'}`,
+      `Active file revision: ${snapshot.activeFileRevision}`,
+      `Unsaved changes in active file: ${snapshot.activeFileDirty ? 'yes' : 'no'}`,
+      `Autosave pending for active file: ${snapshot.autosavePending ? 'yes' : 'no'}`,
+      `Workspace structure revision: ${snapshot.workspaceStructureRevision}`,
+    ];
+
+    if (!previous) {
+      lines.push('This agent has not seen this live editor/workspace snapshot yet.');
+    } else {
+      const sameFile = snapshot.activeFile === previous.activeFile;
+      const activeFileChanged = !sameFile || snapshot.activeFileRevision !== previous.activeFileRevision;
+      const workspaceChanged = snapshot.workspaceStructureRevision !== previous.workspaceStructureRevision;
+      lines.push(
+        `Changed since this agent last sent a request: active file ${activeFileChanged ? 'yes' : 'no'}; workspace structure ${workspaceChanged ? 'yes' : 'no'}.`,
+      );
+
+      if (activeFileChanged && sameFile && previous.activeFileContent && snapshot.activeFileContent) {
+        // Show a compact diff so the agent sees exactly what changed without needing to re-read the whole file
+        const diff = computeLineDiff(previous.activeFileContent, snapshot.activeFileContent);
+        lines.push(
+          `\n⚠ IMPORTANT: "${snapshot.activeFile}" was edited since your last response. ` +
+          'Do NOT rely on file content from earlier in this conversation — it is stale. ' +
+          'The diff below shows exactly what changed. If you need the full current text, call read_workspace_file.',
+        );
+        lines.push(`\n--- ${snapshot.activeFile} (previous)\n+++ ${snapshot.activeFile} (current)\n${diff}`);
+      } else if (activeFileChanged) {
+        lines.push(
+          `\n⚠ IMPORTANT: The active file has changed since your last response. ` +
+          'Any file content from earlier in this conversation may be stale. ' +
+          'Call read_workspace_file to get the current content before answering questions about its text.',
+        );
+      }
+
+      const recentChanges = snapshot.recentWorkspaceChanges
+        .filter((change) => change.seq > previous.workspaceChangeSeq)
+        .slice(-6);
+      if (recentChanges.length > 0) {
+        lines.push('Recent workspace changes since the last request:');
+        for (const change of recentChanges) lines.push(`- ${change.summary}`);
+      }
+    }
+
+    lines.push(
+      'Treat this live state as newer than earlier conversation turns. ' +
+      'If file paths or structure matter and the workspace changed, rerun outline_workspace or search_workspace_index. ' +
+      'If exact text matters, prefer search_workspace and read_workspace_file because they can inspect live open buffers.',
+    );
+
+    return lines.join('\n');
   }
 
   // ── ask_user ──────────────────────────────────────────────────────────────
@@ -245,6 +363,17 @@ export function useAIStream({
   // capturing stale state. Updated on every render (same pattern as dirtyFilesRef).
   const isStreamingRef = useRef(false);
   isStreamingRef.current = isStreaming;
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      unlockAllByAgent(agentId);
+      askUserResolveRef.current?.('');
+      askUserResolveRef.current = null;
+      onStreamingChange?.(false);
+    };
+  }, [agentId, onStreamingChange]);
 
   // ── Stop ─────────────────────────────────────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -385,6 +514,7 @@ export function useAIStream({
         workspacePath: workspace.path,
         canvasEditor: canvasEditorRef ?? { current: null },
         onFileWritten,
+        onPathRenamed,
         onMarkRecorded: (relPath, content, recordedMarks) =>
           onMarkRecorded?.(relPath, content, model, recordedMarks),
         onCanvasModified: (shapeIds) => {
@@ -404,6 +534,8 @@ export function useAIStream({
         onWorkspaceConfigChange,
         agentId,
         activeFileContent,
+        getLiveFileContent,
+        isFileDirty,
         onUserProfileWritten: setUserProfileContent,
         onTaskChanged,
       });
@@ -561,7 +693,20 @@ export function useAIStream({
     const selectionContext = capturedSelectionContext
       ? `[Attached selection: "${capturedSelectionContext.label}"]\n---\n${capturedSelectionContext.content}\n---\n\n`
       : '';
-    const apiText = `${fileContext}${selectionContext}${prefix}${textToSend || 'Describe what you see in this screenshot and note any issues.'}`;
+    const contextFreshness = getAgentContextSnapshot?.();
+    const freshnessContext = contextFreshness
+      ? `${buildContextFreshnessNote(contextFreshness)}\n\n`
+      : '';
+    if (contextFreshness) {
+      lastSeenContextRef.current = {
+        activeFile: contextFreshness.activeFile,
+        activeFileRevision: contextFreshness.activeFileRevision,
+        workspaceStructureRevision: contextFreshness.workspaceStructureRevision,
+        workspaceChangeSeq: contextFreshness.workspaceChangeSeq,
+        activeFileContent: contextFreshness.activeFileContent,
+      };
+    }
+    const apiText = `${freshnessContext}${fileContext}${selectionContext}${prefix}${textToSend || 'Describe what you see in this screenshot and note any issues.'}`;
 
     let finalUserMsg: ChatMessage = (activeFile || capturedFileRef || capturedSelectionContext)
       ? { role: 'user', content: apiText }

@@ -1,6 +1,5 @@
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { languages } from '@codemirror/language-data';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { javascript } from '@codemirror/lang-javascript';
@@ -865,7 +864,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       // file-specific grammar for code files.
       codeMode
         ? getLanguageExtension(language ?? '')
-        : markdown({ base: markdownLanguage, codeLanguages: languages }),
+        : markdown({ base: markdownLanguage }),
       // Initialize CodeMirror search state so the custom FindReplaceBar can
       // drive search commands without ever needing the native search panel.
       search(),
@@ -896,6 +895,13 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       fontCompartmentRef.current.of(makeEditorTheme(fontSize, codeMode, isDark)),
       // Prose wraps; code does not
       ...(codeMode ? [] : [EditorView.lineWrapping]),
+      // Allow native spell-check (and Grammarly) in prose mode.
+      // CodeMirror defaults to spellcheck=false on its contenteditable element;
+      // Grammarly fights to re-enable it via macOS accessibility APIs, causing
+      // a MutationObserver loop. Setting it here lets CM and Grammarly agree.
+      EditorView.contentAttributes.of({
+        spellcheck: codeMode ? 'false' : 'true',
+      }),
       compartmentRef.current.of(makeAIMarkField(aiMarks ?? [])),
       aiMarkEditListener,
       // Lint state field — active in code mode; provides squiggles for TS/JS errors

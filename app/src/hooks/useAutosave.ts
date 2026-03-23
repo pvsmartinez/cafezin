@@ -8,11 +8,19 @@
  * Call `scheduleAutosave(ws, filePath, newContent)` on every content change.
  * The hook updates the dirty-file set immediately and flushes the write after
  * `autosaveDelayRef.current` milliseconds.  A delay of 0 means "never auto-save".
+ *
+ * `trackFileEdit` (config.json write) is rate-limited to once per minute to
+ * avoid a second I/O write on every autosave tick.
  */
 import { useRef, useCallback, useEffect } from 'react';
 import type { MutableRefObject, Dispatch, SetStateAction } from 'react';
 import type { Workspace } from '../types';
 import { writeFile, trackFileEdit } from '../services/workspace';
+
+// Config.json records lastEditedAt — only needed for "workspace last edited" display.
+// Writing it every autosave (potentially 1×/second) was causing a second disk write
+// and a root setWorkspace re-render per keystroke cycle. 60s is plenty.
+const TRACK_EDIT_RATE_MS = 60_000;
 
 export interface UseAutosaveOptions {
   savedContentRef: MutableRefObject<Map<string, string>>;
@@ -32,6 +40,9 @@ export function useAutosave({
 }: UseAutosaveOptions) {
   const saveTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveDelayRef = useRef<number>(initialDelay);
+  const pendingSaveFileRef = useRef<string | null>(null);
+  // Timestamp of the last config.json write via trackFileEdit
+  const lastTrackEditRef = useRef<number>(0);
 
   const scheduleAutosave = useCallback(
     (ws: Workspace, file: string, newContent: string) => {
@@ -48,11 +59,13 @@ export function useAutosave({
 
       if (!isDirty) {
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        pendingSaveFileRef.current = null;
         return;
       }
 
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       if (autosaveDelayRef.current === 0) return;
+      pendingSaveFileRef.current = file;
 
       saveTimerRef.current = setTimeout(async () => {
         try {
@@ -65,12 +78,19 @@ export function useAutosave({
             return next;
           });
           setSaveError(null);
-          trackFileEdit(ws).then((updated) => {
-            setWorkspace(updated);
-          }).catch(() => {});
+          // Rate-limit config.json writes: skip if written recently.
+          const now = Date.now();
+          if (now - lastTrackEditRef.current >= TRACK_EDIT_RATE_MS) {
+            lastTrackEditRef.current = now;
+            trackFileEdit(ws).then((updated) => {
+              setWorkspace(updated);
+            }).catch(() => {});
+          }
         } catch (err) {
           console.error('Auto-save failed:', err);
           setSaveError(String((err as Error)?.message ?? err));
+        } finally {
+          if (pendingSaveFileRef.current === file) pendingSaveFileRef.current = null;
         }
       }, autosaveDelayRef.current);
     },
@@ -83,6 +103,7 @@ export function useAutosave({
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
+    pendingSaveFileRef.current = null;
   }, []);
 
   // Cancel any pending write on unmount to avoid setState-on-unmounted-component
@@ -92,5 +113,5 @@ export function useAutosave({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { saveTimerRef, autosaveDelayRef, scheduleAutosave, cancelAutosave };
+  return { saveTimerRef, autosaveDelayRef, pendingSaveFileRef, scheduleAutosave, cancelAutosave };
 }

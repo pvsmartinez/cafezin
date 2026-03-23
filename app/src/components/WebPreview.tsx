@@ -1,6 +1,5 @@
 import { useMemo, useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
 import { Sparkle } from '@phosphor-icons/react';
-import { toPng } from 'html-to-image';
 import './WebPreview.css';
 import { buildSrcDoc, renderHtmlOffscreen } from '../utils/htmlPreview';
 
@@ -17,6 +16,15 @@ interface WebPreviewProps {
   filename: string;
   /** When true (Copilot is writing this file) freeze live updates and show an overlay. */
   isLocked?: boolean;
+}
+
+async function captureNodeAsPng(node: HTMLElement, width: number, height: number) {
+  const { toPng } = await import('html-to-image');
+  return toPng(node, {
+    width,
+    height,
+    backgroundColor: '#ffffff',
+  });
 }
 
 /**
@@ -95,11 +103,11 @@ const WebPreview = forwardRef<WebPreviewHandle, WebPreviewProps>(function WebPre
       const iframe = iframeRef.current;
       if (iframe?.contentDocument?.body) {
         try {
-          return await toPng(iframe.contentDocument.body, {
-            width: iframe.offsetWidth || 900,
-            height: iframe.offsetHeight || 600,
-            backgroundColor: '#ffffff',
-          });
+          return await captureNodeAsPng(
+            iframe.contentDocument.body,
+            iframe.offsetWidth || 900,
+            iframe.offsetHeight || 600,
+          );
         } catch {
           // fall through to off-screen fallback
         }

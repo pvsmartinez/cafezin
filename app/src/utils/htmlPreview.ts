@@ -6,7 +6,6 @@
  *   - workspaceTools.ts       — screenshot_preview offscreen fallback
  */
 
-import { toPng } from 'html-to-image';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
 // ── Asset path rewriting ─────────────────────────────────────────────────────
@@ -107,6 +106,7 @@ export async function renderHtmlOffscreen(
   document.body.appendChild(container);
 
   try {
+    const { toPng } = await import('html-to-image');
     return await toPng(container, { width: 900, backgroundColor: '#ffffff' });
   } catch {
     return null;

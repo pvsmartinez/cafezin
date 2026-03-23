@@ -46,23 +46,53 @@ function syncThemeClass() {
 // when the user has configured light mode.
 syncThemeClass();
 
+type ThemeListenerWindow = Window & {
+  __cafezinThemeSyncCleanup?: (() => void) | undefined;
+};
+
 const systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
 const handleSystemThemeChange = () => syncThemeClass();
+const handleStorageThemeChange = (event: StorageEvent) => {
+  if (event.key === 'cafezin-app-settings') {
+    syncThemeClass();
+  }
+};
+
+const themeListenerWindow = window as ThemeListenerWindow;
+themeListenerWindow.__cafezinThemeSyncCleanup?.();
 
 if (typeof systemThemeQuery.addEventListener === 'function') {
   systemThemeQuery.addEventListener('change', handleSystemThemeChange);
 } else {
   type LegacyMediaQueryList = MediaQueryList & {
     addListener?: (listener: (event: MediaQueryListEvent) => void) => void;
+    removeListener?: (listener: (event: MediaQueryListEvent) => void) => void;
   };
   (systemThemeQuery as LegacyMediaQueryList).addListener?.(handleSystemThemeChange);
 }
 
-window.addEventListener('storage', (event) => {
-  if (event.key === 'cafezin-app-settings') {
-    syncThemeClass();
+window.addEventListener('storage', handleStorageThemeChange);
+
+themeListenerWindow.__cafezinThemeSyncCleanup = () => {
+  if (typeof systemThemeQuery.removeEventListener === 'function') {
+    systemThemeQuery.removeEventListener('change', handleSystemThemeChange);
+  } else {
+    type LegacyMediaQueryList = MediaQueryList & {
+      removeListener?: (listener: (event: MediaQueryListEvent) => void) => void;
+    };
+    (systemThemeQuery as LegacyMediaQueryList).removeListener?.(handleSystemThemeChange);
   }
-});
+  window.removeEventListener('storage', handleStorageThemeChange);
+  if (themeListenerWindow.__cafezinThemeSyncCleanup) {
+    delete themeListenerWindow.__cafezinThemeSyncCleanup;
+  }
+};
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    themeListenerWindow.__cafezinThemeSyncCleanup?.();
+  });
+}
 
 // Detect mobile platform.
 // Primary: TAURI_ENV_PLATFORM is automatically injected by Tauri for every build

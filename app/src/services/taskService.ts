@@ -1,8 +1,8 @@
 /**
  * Task service — read/write the per-workspace task list.
  *
- * Tasks are stored in `.cafezin/tasks.json` inside the workspace folder and
- * survive context compression (the agent reads them from disk, not from chat).
+ * Tasks are stored in `.cafezin/tasks.json` inside the workspace folder, but
+ * scoped by `agentId` so each AI chat tracks its own plan independently.
  */
 
 import { readTextFile, writeTextFile, mkdir, exists } from './fs';
@@ -14,6 +14,12 @@ const TASKS_FILENAME = '.cafezin/tasks.json';
 
 function tasksPath(workspacePath: string): string {
   return `${workspacePath}/${TASKS_FILENAME}`;
+}
+
+function taskBelongsToAgent(task: Task, agentId?: string): boolean {
+  if (!agentId) return true;
+  if (agentId === 'agent-1') return !task.agentId || task.agentId === agentId;
+  return task.agentId === agentId;
 }
 
 export async function loadTasks(workspacePath: string): Promise<Task[]> {
@@ -71,9 +77,10 @@ export async function updateTaskStep(
   stepIndex: number,
   status: TaskStepStatus,
   note?: string,
+  agentId?: string,
 ): Promise<Task | null> {
   const tasks = await loadTasks(workspacePath);
-  const idx = tasks.findIndex((t) => t.id === taskId);
+  const idx = tasks.findIndex((t) => t.id === taskId && taskBelongsToAgent(t, agentId));
   if (idx === -1) return null;
   const task = tasks[idx];
   if (stepIndex < 0 || stepIndex >= task.steps.length) return null;
@@ -100,15 +107,16 @@ export async function updateTaskStep(
 export async function listTasks(
   workspacePath: string,
   filter: 'active' | 'completed' | 'all' = 'all',
+  agentId?: string,
 ): Promise<Task[]> {
-  const tasks = await loadTasks(workspacePath);
+  const tasks = (await loadTasks(workspacePath)).filter((task) => taskBelongsToAgent(task, agentId));
   if (filter === 'active') return tasks.filter((t) => !t.completedAt);
   if (filter === 'completed') return tasks.filter((t) => !!t.completedAt);
   return tasks;
 }
 
 /** Returns the most recent active task (first non-completed task). */
-export async function getActiveTask(workspacePath: string): Promise<Task | null> {
-  const tasks = await loadTasks(workspacePath);
+export async function getActiveTask(workspacePath: string, agentId?: string): Promise<Task | null> {
+  const tasks = await listTasks(workspacePath, 'active', agentId);
   return tasks.find((t) => !t.completedAt) ?? null;
 }

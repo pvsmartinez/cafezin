@@ -64,6 +64,24 @@ export interface AISelectionContext {
   content: string;
 }
 
+export interface WorkspaceChangeNotice {
+  seq: number;
+  summary: string;
+  at: string;
+}
+
+export interface AgentContextSnapshot {
+  activeFile?: string;
+  activeFileRevision: number;
+  activeFileDirty: boolean;
+  autosavePending: boolean;
+  workspaceStructureRevision: number;
+  workspaceChangeSeq: number;
+  recentWorkspaceChanges: WorkspaceChangeNotice[];
+  /** Current in-memory content of the active file at the time of this snapshot. */
+  activeFileContent?: string;
+}
+
 export interface AITextRevert {
   beforeText: string;
   afterText: string;
@@ -644,7 +662,8 @@ export interface TaskStep {
 
 /**
  * A multi-step task created by the agent to track progress through a complex
- * user request. Persisted to `.cafezin/tasks.json` in the workspace.
+ * user request. Persisted to `.cafezin/tasks.json` in the workspace and scoped
+ * to one AI chat via `agentId`.
  */
 export interface Task {
   /** Stable ID, e.g. `task-1710000000`. */
@@ -657,4 +676,3 @@ export interface Task {
   createdAt: string;       // ISO timestamp
   completedAt?: string;    // set when all steps are done/skipped
 }
-

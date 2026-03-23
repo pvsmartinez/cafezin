@@ -376,8 +376,12 @@ interface SidebarProps {
   onAINext: () => void;
   /** Called after a file is deleted — parent should clear it from active state */
   onFileDeleted: (relPath: string) => void;
+  /** Remap open tabs / active state after a file or folder rename/move. */
+  onPathRenamed?: (oldPath: string, newPath: string) => void;
   /** Called when a search result line is clicked */
   onSearchFileOpen: (relPath: string, lineNo?: number, matchText?: string) => void;
+  /** Manually refresh the workspace from disk. */
+  onRefreshFiles?: () => Promise<void>;
   /** Files currently being written by the Copilot agent */
   lockedFiles?: Set<string>;
   /** Current sidebar panel mode */
@@ -421,7 +425,9 @@ export default function Sidebar({
   onAIPrev,
   onAINext,
   onFileDeleted,
+  onPathRenamed,
   onSearchFileOpen,
+  onRefreshFiles,
   lockedFiles,
   sidebarMode,
   onSidebarModeChange,
@@ -445,6 +451,7 @@ export default function Sidebar({
   const [pendingDelete, setPendingDelete] = useState<PendingDeleteDialog | null>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'done' | 'error'>('idle');
+  const [refreshingFiles, setRefreshingFiles] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [gitChangedCount, setGitChangedCount] = useState(0);
   const [aiEditsOpen, setAiEditsOpen] = useState(false);
@@ -504,10 +511,9 @@ export default function Sidebar({
     const dir_ = dirSet.has(oldPath);
     await updateFileReferences(workspace, workspace.fileTree, oldPath, newPath, dir_);
     await renameFile(workspace, oldPath, newPath);
+    onPathRenamed?.(oldPath, newPath);
     const { files, fileTree } = await refreshWorkspaceFiles(workspace);
     onWorkspaceChange({ ...workspace, files, fileTree });
-    // If the renamed file was the active one, notify parent
-    if (activeFile === oldPath) onFileSelect(newPath);
     cancelRename();
   }
 
@@ -573,9 +579,9 @@ export default function Sidebar({
     const newRel = destDir ? `${destDir}/${srcRel.split('/').pop()!}` : srcRel.split('/').pop()!;
     await updateFileReferences(workspace, workspace.fileTree, srcRel, newRel, isDir_);
     await moveFile(workspace, srcRel, destDir);
+    onPathRenamed?.(srcRel, newRel);
     const { files, fileTree } = await refreshWorkspaceFiles(workspace);
     onWorkspaceChange({ ...workspace, files, fileTree });
-    if (activeFile === srcRel || activeFile?.startsWith(srcRel + '/')) onFileSelect(newRel);
   }
 
   function handleDeleteFile(relPath: string) {
@@ -630,9 +636,9 @@ export default function Sidebar({
     const newRel = destDir ? `${destDir}/${srcPath.split('/').pop()!}` : srcPath.split('/').pop()!;
     await updateFileReferences(workspace, workspace.fileTree, srcPath, newRel, isDir_);
     await moveFile(workspace, srcPath, destDir);
+    onPathRenamed?.(srcPath, newRel);
     const { files, fileTree } = await refreshWorkspaceFiles(workspace);
     onWorkspaceChange({ ...workspace, files, fileTree });
-    if (activeFile === srcPath || activeFile?.startsWith(srcPath + '/')) onFileSelect(newRel);
   }
 
   // Flatten fileTree into all folder paths, excluding src and its descendants
@@ -845,6 +851,16 @@ export default function Sidebar({
       <div className="sidebar-explorer-label">
         <span>{t('sidebar.explorerLabel')}</span>
         <div className="sidebar-explorer-actions">
+          <button
+            className="sidebar-explorer-action"
+            title="Reload files"
+            onClick={() => {
+              if (!onRefreshFiles || refreshingFiles) return;
+              setRefreshingFiles(true);
+              void onRefreshFiles().finally(() => setRefreshingFiles(false));
+            }}
+            disabled={refreshingFiles}
+          ><ArrowsClockwise weight="thin" size={13} /></button>
           <button className="sidebar-explorer-action" title={t('sidebar.newFileTitle')} onClick={() => startCreating('')}><FilePlus weight="thin" size={13} /></button>
           <button className="sidebar-explorer-action" title={t('sidebar.newFolderTitle')} onClick={() => startCreating('', 'folder')}><FolderPlus weight="thin" size={13} /></button>
           <button className="sidebar-explorer-action" title={t('sidebar.collapseAllTitle')} onClick={() => setExpandedDirs(new Set())}><Minus weight="thin" size={13} /></button>
@@ -1279,4 +1295,3 @@ export default function Sidebar({
     </>
   );
 }
-

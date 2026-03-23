@@ -1,10 +1,9 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import { copyFile, writeFile as writeBinaryFile, mkdir, exists, readDir } from './services/fs';
 import type { EditorHandle } from './components/Editor';
-import AIPanel from './components/AIPanel';
 import type { AIPanelHandle, PendingVoiceMemo } from './components/AIPanel';
 import WorkspacePicker from './components/WorkspacePicker';
 import SplashScreen from './components/SplashScreen';
@@ -15,7 +14,7 @@ import UpdateReleaseModal from './components/UpdateReleaseModal';
 import { loadPendingTasks } from './services/mobilePendingTasks';
 import type { MobilePendingTask } from './services/mobilePendingTasks';
 import { markWorkspaceMemoryEntriesStale } from './services/memoryMetadata';
-import { rebuildWorkspaceRagIndex } from './services/rag';
+
 
 import BottomPanel, { type FileMeta } from './components/BottomPanel';
 import { useDragResize } from './hooks/useDragResize';
@@ -46,7 +45,7 @@ import { onLockedFilesChange, getLockedFiles } from './services/copilotLock';
 import { fetchProviderGhostCompletion } from './services/aiProvider';
 import { loadWorkspaceSession, saveWorkspaceSession } from './services/workspaceSession';
 import { getFileTypeInfo } from './utils/fileType';
-import { normalizeWorkspaceExportConfig, type AISelectionContext, type Workspace, type AppSettings, type WorkspaceExportConfig, type WorkspaceConfig } from './types';
+import { normalizeWorkspaceExportConfig, type AgentContextSnapshot, type AISelectionContext, type Workspace, type WorkspaceChangeNotice, type AppSettings, type WorkspaceExportConfig, type WorkspaceConfig } from './types';
 import { APP_SETTINGS_KEY } from './types';
 import { setupI18n } from './i18n';
 import { useBacklinks } from './hooks/useBacklinks';
@@ -84,6 +83,40 @@ function compareVersions(a: string, b: string): number {
 
 const FALLBACK_CONTENT = `# Untitled Document\n\nStart writing here…\n`;
 const launchWorkspacePath = consumeLaunchWorkspacePath();
+const AIPanel = lazy(() => import('./components/AIPanel'));
+
+function collectWorkspaceFilePaths(nodes: Workspace['fileTree']): Set<string> {
+  const paths = new Set<string>();
+  for (const node of nodes) {
+    if (node.isDirectory) {
+      for (const child of collectWorkspaceFilePaths(node.children ?? [])) paths.add(child);
+      continue;
+    }
+    paths.add(node.path);
+  }
+  return paths;
+}
+
+function remapPathSet(paths: Set<string>, fromPath: string, toPath: string): Set<string> {
+  const next = new Set<string>();
+  for (const path of paths) {
+    if (path === fromPath) next.add(toPath);
+    else if (path.startsWith(`${fromPath}/`)) next.add(`${toPath}${path.slice(fromPath.length)}`);
+    else next.add(path);
+  }
+  return next;
+}
+
+function diffWorkspacePaths(
+  previousTree: Workspace['fileTree'] | undefined,
+  nextTree: Workspace['fileTree'] | undefined,
+): { added: string[]; removed: string[] } {
+  const previous = previousTree ? collectWorkspaceFilePaths(previousTree) : new Set<string>();
+  const next = nextTree ? collectWorkspaceFilePaths(nextTree) : new Set<string>();
+  const added = Array.from(next).filter((path) => !previous.has(path)).sort();
+  const removed = Array.from(previous).filter((path) => !next.has(path)).sort();
+  return { added, removed };
+}
 
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -194,21 +227,35 @@ export default function App() {
     tabContentsRef, tabViewModeRef, savedContentRef,
     activeTabIdRef, tabsRef,
     switchToTab, addTab, closeTab, closeAllTabs, closeOthers, closeToRight, reorderTabs,
-    promoteTab, clearAll,
+    promoteTab, remapPaths, pruneTabs, clearAll,
   } = useTabManager({ fallbackContent: FALLBACK_CONTENT });
   // Debounce word/line count so the status bar doesn't update on every keystroke.
+  // For large documents (>100KB), skip the expensive split/filter and estimate from
+  // newline count — a 300-page book is ~500KB and split(/\s+/) creates ~80K strings.
   const [wordCount, setWordCount] = useState(() => content.trim().split(/\s+/).filter(Boolean).length);
   const [lineCount, setLineCount] = useState(() => content.split('\n').length);
   useEffect(() => {
     const t = setTimeout(() => {
-      setWordCount(content.trim().split(/\s+/).filter(Boolean).length);
-      setLineCount(content.split('\n').length);
-    }, 300);
+      const lines = content.split('\n');
+      setLineCount(lines.length);
+      if (content.length > 100_000) {
+        // For large docs: count non-empty lines × ~8 words/line as a fast approximation.
+        // Accurate enough for the status bar; avoids creating 80K+ string arrays per tick.
+        setWordCount(lines.filter((l) => l.trim().length > 0).length * 8);
+      } else {
+        setWordCount(content.trim().split(/\s+/).filter(Boolean).length);
+      }
+    }, 1000);
     return () => clearTimeout(t);
   }, [content]);
   const [fileStat, setFileStat] = useState<string | null>(null);
-  const [ragStatus, setRagStatus] = useState<{ text: string; tone: 'busy' | 'ready' | 'muted' } | null>(null);
   const [memoryRefreshKey, setMemoryRefreshKey] = useState(0);
+  const activeFileRef = useRef<string | null>(null);
+  activeFileRef.current = activeFile;
+  const fileRevisionRef = useRef<Map<string, number>>(new Map());
+  const workspaceStructureRevisionRef = useRef(0);
+  const workspaceChangeSeqRef = useRef(0);
+  const workspaceChangeLogRef = useRef<WorkspaceChangeNotice[]>([]);
 
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   // Find + Replace bar (Ctrl/Cmd+F)
@@ -217,6 +264,11 @@ export default function App() {
   const [pendingJumpLine, setPendingJumpLine] = useState<number | null>(null);
   const [lockedFiles, setLockedFiles] = useState<Set<string>>(() => getLockedFiles());
   const prevLockedRef = useRef<Set<string>>(getLockedFiles());
+  const bumpFileRevision = useCallback((path: string | null | undefined) => {
+    if (!path) return;
+    const next = (fileRevisionRef.current.get(path) ?? 0) + 1;
+    fileRevisionRef.current.set(path, next);
+  }, []);
 
   // Subscribe to Copilot file-lock changes; auto-reload files the agent just finished writing
   useEffect(() => {
@@ -235,13 +287,13 @@ export default function App() {
           const freshText = await readFile(ws, filePath);
           savedContentRef.current.set(filePath, freshText);
           tabContentsRef.current.set(filePath, freshText);
+          bumpFileRevision(filePath);
           if (filePath === activeTabIdRef.current) setContent(freshText);
         } catch { /* file may have been deleted — ignore */ }
       }
     });
     return unsub;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [bumpFileRevision]);
   // Stable refs declared early (before hooks that reference them)
   const editorRef = useRef<EditorHandle>(null);
   const editorAreaRef = useRef<HTMLDivElement>(null);
@@ -259,6 +311,7 @@ export default function App() {
     aiOpen, setAiOpen,
     aiInitialPrompt, setAiInitialPrompt,
   } = useModals();
+  const [aiPanelMounted, setAiPanelMounted] = useState(aiOpen);
   const {
     showUpdateReleaseModal,
     setShowUpdateReleaseModal,
@@ -279,6 +332,10 @@ export default function App() {
     compareVersions,
   });
 
+  useEffect(() => {
+    if (aiOpen) setAiPanelMounted(true);
+  }, [aiOpen]);
+
   // Voice memos recorded on mobile without transcripts
   const [pendingVoiceMemos, setPendingVoiceMemos] = useState<PendingVoiceMemo[]>([]);
   const [mobilePendingTasks, setMobilePendingTasks] = useState<MobilePendingTask[]>([]);
@@ -291,6 +348,9 @@ export default function App() {
     canvasSlideCount, setCanvasSlideCount,
   } = useCanvasState();
   const [aiSelectionContext, setAiSelectionContext] = useState<AISelectionContext | null>(null);
+  const aiOpenRef = useRef(aiOpen);
+  aiOpenRef.current = aiOpen;
+  const shouldRenderAiPanel = aiPanelMounted || aiOpen;
   // ── Copilot tab-switch overlay ───────────────────────────────────────────
   const [copilotOverlayActive, setCopilotOverlayActive] = useState(false);
   const copilotTabSwitchRef = useRef<(relPath: string) => Promise<void>>(async () => {});
@@ -329,13 +389,44 @@ export default function App() {
   // Keep a stable ref so keyboard-shortcut closures can read the latest width
   const sidebarWidthRef = useRef(sidebarWidth);
   sidebarWidthRef.current = sidebarWidth;
-  const { autosaveDelayRef, scheduleAutosave, cancelAutosave } = useAutosave({
+  const { autosaveDelayRef, pendingSaveFileRef, scheduleAutosave, cancelAutosave } = useAutosave({
     savedContentRef,
     setDirtyFiles,
     setSaveError: (err) => setSaveError(err as string | null),
     setWorkspace,
     initialDelay: initSettings.autosaveDelay,
   });
+
+  const pushWorkspaceChangeNotices = useCallback((summaries: string[]) => {
+    if (summaries.length === 0) return;
+    const now = new Date().toISOString();
+    const notices = summaries.map((summary) => ({
+      seq: ++workspaceChangeSeqRef.current,
+      summary,
+      at: now,
+    }));
+    workspaceChangeLogRef.current = [...workspaceChangeLogRef.current, ...notices].slice(-12);
+    workspaceStructureRevisionRef.current += 1;
+  }, []);
+
+  const recordWorkspaceStructureDiff = useCallback((
+    previousTree: Workspace['fileTree'] | undefined,
+    nextTree: Workspace['fileTree'] | undefined,
+  ) => {
+    const { added, removed } = diffWorkspacePaths(previousTree, nextTree);
+    if (added.length === 0 && removed.length === 0) return;
+    const summaries = [
+      ...added.slice(0, 6).map((path) => `New file: ${path}`),
+      ...removed.slice(0, 6).map((path) => `Removed file: ${path}`),
+    ];
+    if (added.length > 6) summaries.push(`More new files: +${added.length - 6}`);
+    if (removed.length > 6) summaries.push(`More removed files: +${removed.length - 6}`);
+    pushWorkspaceChangeNotices(summaries);
+  }, [pushWorkspaceChangeNotices]);
+
+  const getLiveFileContent = useCallback((relPath: string): string | null => {
+    return tabContentsRef.current.get(relPath) ?? null;
+  }, [tabContentsRef]);
   // ── AI edit marks ────────────────────────────────────────────────────────
   const {
     aiMarks, setAiMarks,
@@ -434,6 +525,25 @@ export default function App() {
   // Always-fresh ref for dirty state so watcher can check without stale closure
   const dirtyFilesRef = useRef<Set<string>>(dirtyFiles);
   dirtyFilesRef.current = dirtyFiles;
+  const isFileDirty = useCallback((relPath: string): boolean => {
+    return dirtyFilesRef.current.has(relPath);
+  }, []);
+  const getAgentContextSnapshot = useCallback((): AgentContextSnapshot => {
+    const currentActiveFile = activeFileRef.current ?? undefined;
+    const currentRevision = currentActiveFile
+      ? (fileRevisionRef.current.get(currentActiveFile) ?? 0)
+      : 0;
+    return {
+      activeFile: currentActiveFile,
+      activeFileRevision: currentRevision,
+      activeFileDirty: !!(currentActiveFile && dirtyFilesRef.current.has(currentActiveFile)),
+      autosavePending: !!(currentActiveFile && pendingSaveFileRef.current === currentActiveFile),
+      workspaceStructureRevision: workspaceStructureRevisionRef.current,
+      workspaceChangeSeq: workspaceChangeSeqRef.current,
+      recentWorkspaceChanges: workspaceChangeLogRef.current,
+      activeFileContent: currentActiveFile ? (tabContentsRef.current.get(currentActiveFile) ?? undefined) : undefined,
+    };
+  }, [pendingSaveFileRef, tabContentsRef]);
   // Ref passed to Sidebar so ⌘T/⌘N can trigger new-file creation
   const newFileRef = useRef<(() => void) | null>(null);
   // Drag-drop from Finder
@@ -450,11 +560,13 @@ export default function App() {
   );
   // TypeScript/JS diagnostics — run tsc on the active file when it's a code file
   const tsEnabled = fileTypeInfo?.language === 'typescript' || fileTypeInfo?.language === 'javascript';
+  const tsDiagnosticsDirty = activeFile ? dirtyFiles.has(activeFile) : false;
   const tsDiags = useTsDiagnostics(
     content,
     activeFile ?? null,
     workspace?.path ?? null,
     tsEnabled,
+    tsDiagnosticsDirty,
   );
   const fileMeta = useMemo<FileMeta>(() => ({
     kind: fileTypeInfo?.kind ?? null,
@@ -613,103 +725,6 @@ export default function App() {
   // ── Keep a stable ref to workspace so watcher callback always sees latest ───
   const workspaceRef = useRef<typeof workspace>(workspace);
   useEffect(() => { workspaceRef.current = workspace; }, [workspace]);
-  const ragStatusHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ragReindexDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ragReindexRunningRef = useRef(false);
-  const ragReindexQueuedRef = useRef(false);
-  const ragReindexQueuedPathRef = useRef<string | null>(null);
-  const ragReindexQueuedReasonRef = useRef<'initial' | 'update'>('update');
-
-  const clearRagHideTimer = useCallback(() => {
-    if (!ragStatusHideTimerRef.current) return;
-    clearTimeout(ragStatusHideTimerRef.current);
-    ragStatusHideTimerRef.current = null;
-  }, []);
-
-  const clearRagDebounce = useCallback(() => {
-    if (!ragReindexDebounceRef.current) return;
-    clearTimeout(ragReindexDebounceRef.current);
-    ragReindexDebounceRef.current = null;
-  }, []);
-
-  const startRagReindex = useCallback((path: string, reason: 'initial' | 'update') => {
-    if (!path) return;
-    if (ragReindexRunningRef.current) {
-      ragReindexQueuedRef.current = true;
-      ragReindexQueuedPathRef.current = path;
-      if (reason === 'update' || ragReindexQueuedReasonRef.current !== 'update') {
-        ragReindexQueuedReasonRef.current = reason;
-      }
-      return;
-    }
-
-    ragReindexRunningRef.current = true;
-    clearRagHideTimer();
-    if (mountedRef.current && workspaceRef.current?.path === path) {
-      setRagStatus({
-        text: reason === 'initial' ? 'Indexando busca hibrida...' : 'Atualizando busca hibrida...',
-        tone: 'busy',
-      });
-    }
-
-    void rebuildWorkspaceRagIndex(path)
-      .then((summary) => {
-        if (!mountedRef.current || workspaceRef.current?.path !== path) return;
-        if (summary?.available) {
-          setRagStatus({ text: 'Busca hibrida pronta', tone: 'ready' });
-          ragStatusHideTimerRef.current = setTimeout(() => {
-            ragStatusHideTimerRef.current = null;
-            if (mountedRef.current && workspaceRef.current?.path === path) {
-              setRagStatus(null);
-            }
-          }, 3200);
-        } else {
-          setRagStatus({
-            text: summary?.error
-              ? `Busca hibrida indisponivel: ${summary.error}`
-              : 'Busca hibrida indisponivel',
-            tone: 'muted',
-          });
-          ragStatusHideTimerRef.current = setTimeout(() => {
-            ragStatusHideTimerRef.current = null;
-            if (mountedRef.current && workspaceRef.current?.path === path) {
-              setRagStatus(null);
-            }
-          }, 5200);
-        }
-      })
-      .catch((error) => {
-        console.error('[RAG] rebuild failed:', error);
-        if (mountedRef.current && workspaceRef.current?.path === path) {
-          setRagStatus({ text: 'Busca hibrida indisponivel', tone: 'muted' });
-        }
-      })
-      .finally(() => {
-        ragReindexRunningRef.current = false;
-        if (ragReindexQueuedRef.current) {
-          const nextPath = ragReindexQueuedPathRef.current ?? path;
-          const nextReason = ragReindexQueuedReasonRef.current;
-          ragReindexQueuedRef.current = false;
-          ragReindexQueuedPathRef.current = null;
-          ragReindexQueuedReasonRef.current = 'update';
-          startRagReindex(nextPath, nextReason);
-        }
-      });
-  }, [clearRagHideTimer, mountedRef, workspaceRef]);
-
-  const scheduleRagReindex = useCallback((
-    path: string,
-    reason: 'initial' | 'update' = 'update',
-    delayMs = 900,
-  ) => {
-    if (!path) return;
-    clearRagDebounce();
-    ragReindexDebounceRef.current = setTimeout(() => {
-      ragReindexDebounceRef.current = null;
-      startRagReindex(path, reason);
-    }, delayMs);
-  }, [clearRagDebounce, startRagReindex]);
-
   const refreshMemoryPrompt = useCallback(() => {
     setMemoryRefreshKey((prev) => prev + 1);
   }, []);
@@ -726,13 +741,6 @@ export default function App() {
       console.error('Failed to update memory freshness:', err);
     }
   }, [refreshMemoryPrompt]);
-
-  useEffect(() => {
-    return () => {
-      clearRagHideTimer();
-      clearRagDebounce();
-    };
-  }, [clearRagDebounce, clearRagHideTimer]);
 
   // Persist tab + preview state per workspace (debounced, 800 ms)
   useEffect(() => {
@@ -753,6 +761,7 @@ export default function App() {
       const text = await readFile(workspace, activeTabId);
       savedContentRef.current.set(activeTabId, text);
       tabContentsRef.current.set(activeTabId, text);
+      bumpFileRevision(activeTabId);
       setContent(text);
       setDirtyFiles((prev) => { const next = new Set(prev); next.delete(activeTabId); return next; });
     } catch (err) {
@@ -788,6 +797,7 @@ export default function App() {
           if (formatted !== current) {
             textToSave = formatted;
             tabContentsRef.current.set(activeTabId, formatted);
+            bumpFileRevision(activeTabId);
             setContent(formatted);
           }
         }
@@ -905,10 +915,47 @@ export default function App() {
   ) => {
     const fileTree = nextState?.fileTree ?? await refreshFileTree(ws);
     const files = nextState?.files ?? flatMdFiles(fileTree);
+    const previousTree = workspaceRef.current?.path === ws.path ? workspaceRef.current.fileTree : undefined;
+    recordWorkspaceStructureDiff(previousTree, fileTree);
     setWorkspace((prev) => prev ? { ...prev, files, fileTree } : prev);
-    scheduleRagReindex(ws.path, 'update');
     void markWorkspaceMemoryForChangedPaths(ws.path, changedPaths);
-  }, [markWorkspaceMemoryForChangedPaths, scheduleRagReindex]);
+  }, [markWorkspaceMemoryForChangedPaths, recordWorkspaceStructureDiff]);
+
+  const handleRefreshWorkspaceFiles = useCallback(async () => {
+    if (!workspace) return;
+    try {
+      await refreshWorkspace(workspace);
+    } catch (err) {
+      console.error('Failed to refresh workspace:', err);
+      setSaveError(`Could not refresh workspace: ${(err as Error)?.message ?? String(err)}`);
+    }
+  }, [refreshWorkspace, workspace]);
+
+  const handlePathRenamed = useCallback((fromPath: string, toPath: string) => {
+    if (!fromPath || !toPath || fromPath === toPath) return;
+    remapPaths(fromPath, toPath);
+    setDirtyFiles((prev) => remapPathSet(prev, fromPath, toPath));
+    setAiMarks((prev) => prev.map((mark) => {
+      if (mark.fileRelPath === fromPath) return { ...mark, fileRelPath: toPath };
+      if (mark.fileRelPath.startsWith(`${fromPath}/`)) {
+        return { ...mark, fileRelPath: `${toPath}${mark.fileRelPath.slice(fromPath.length)}` };
+      }
+      return mark;
+    }));
+  }, [remapPaths, setAiMarks]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    const existingPaths = collectWorkspaceFilePaths(workspace.fileTree);
+    pruneTabs(existingPaths);
+    setDirtyFiles((prev) => {
+      const next = new Set<string>();
+      for (const path of prev) {
+        if (existingPaths.has(path)) next.add(path);
+      }
+      return next;
+    });
+  }, [workspace, pruneTabs]);
 
   // ── File system watcher ────────────────────────────────────────────────────
   // Placed after refreshWorkspace to avoid temporal-dead-zone issues.
@@ -1109,6 +1156,7 @@ export default function App() {
       const text = await readFile(workspace, filename);
       savedContentRef.current.set(filename, text);
       tabContentsRef.current.set(filename, text);
+      bumpFileRevision(filename);
       tabViewModeRef.current.set(filename, info.defaultMode as 'edit' | 'preview');
       addTab(filename);
       switchToTab(filename);
@@ -1124,9 +1172,14 @@ export default function App() {
 
   function handleWorkspaceChange(ws: Workspace) {
     const isSameWorkspace = workspace?.path === ws.path;
+    if (isSameWorkspace) {
+      recordWorkspaceStructureDiff(workspaceRef.current?.fileTree, ws.fileTree);
+    }
     setWorkspace(ws);
     // On workspace switch, close all tabs and go to home
-    if (!isSameWorkspace) clearAll();
+    if (!isSameWorkspace) {
+      clearAll();
+    }
   }
 
   async function handleCreateFirstWorkspaceFile() {
@@ -1153,11 +1206,13 @@ export default function App() {
   // ── Auto-save (debounced 1s) ─────────────────────────────────
   const handleContentChange = useCallback(
     (newContent: string) => {
+      const previousContent = activeFile ? tabContentsRef.current.get(activeFile) : null;
       // Canvas files are self-managed by tldraw — never feed changed JSON back
       // into React state or tldraw will see the `snapshot` prop change and reset.
       if (!activeFile?.endsWith('.tldr.json')) setContent(newContent);
       // Keep per-tab content ref in sync so switching away/back is lossless
       if (activeFile) tabContentsRef.current.set(activeFile, newContent);
+      if (activeFile && previousContent !== newContent) bumpFileRevision(activeFile);
       if (!workspace || !activeFile) return;
 
       // Auto-remove AI marks whose text no longer exists in the document
@@ -1182,7 +1237,7 @@ export default function App() {
       scheduleAutosave(workspace, activeFile, newContent);
       recordEdit();
     },
-    [workspace, activeFile, scheduleAutosave, recordEdit]
+    [workspace, activeFile, scheduleAutosave, recordEdit, bumpFileRevision]
   );
 
   // ── App settings persistence ─────────────────────────────────
@@ -1358,7 +1413,7 @@ export default function App() {
   // AI document context: for canvas, send live shape summary + command protocol
   // canvasEditorRef is a ref — intentionally not in deps (changes don't trigger re-render).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const aiDocumentContext = useMemo(() => {
+  const aiDocumentContextLive = useMemo(() => {
     if (fileTypeInfo?.kind === 'canvas') {
       return canvasEditorRef.current
         ? canvasAIContext(canvasEditorRef.current, activeFile ?? '')
@@ -1367,6 +1422,18 @@ export default function App() {
     return content;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileTypeInfo?.kind, activeFile, content]);
+
+  // Debounce: propagate to AIPanel at most once per 2s so AgentSession doesn't
+  // re-render on every keystroke. Freshness is still handled at send-time via
+  // getAgentContextSnapshot(). File/canvas switches update immediately via the
+  // second effect so the AI always sees the right document on tab change.
+  const [aiDocumentContext, setAiDocumentContext] = useState(aiDocumentContextLive);
+  useEffect(() => {
+    const t = setTimeout(() => setAiDocumentContext(aiDocumentContextLive), 2000);
+    return () => clearTimeout(t);
+  }, [aiDocumentContextLive]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setAiDocumentContext(aiDocumentContextLive); }, [activeFile, fileTypeInfo?.kind]);
   // ── File deleted ────────────────────────────────────────
   function handleFileDeleted(relPath: string) {
     if (tabs.includes(relPath)) {
@@ -1394,13 +1461,11 @@ export default function App() {
     // Cancel any pending auto-save and clear all tabs
     cancelAutosave();
     clearAll();
-    clearRagHideTimer();
-    clearRagDebounce();
-    ragReindexQueuedRef.current = false;
-    ragReindexQueuedPathRef.current = null;
-    ragReindexQueuedReasonRef.current = 'update';
-    setRagStatus(null);
     setMemoryRefreshKey(0);
+    fileRevisionRef.current.clear();
+    workspaceStructureRevisionRef.current = 0;
+    workspaceChangeSeqRef.current = 0;
+    workspaceChangeLogRef.current = [];
     setWorkspace(null);
     setDirtyFiles(new Set());
     setAiMarks([]);
@@ -1420,6 +1485,10 @@ export default function App() {
   async function handleWorkspaceLoaded(ws: Workspace) {
     // Clear any previous workspace state
     clearAll();
+    fileRevisionRef.current.clear();
+    workspaceStructureRevisionRef.current = 0;
+    workspaceChangeSeqRef.current = 0;
+    workspaceChangeLogRef.current = [];
     setWorkspace(ws);
     setHomeVisible(true);
     // Load AI edit marks for this workspace
@@ -1435,10 +1504,6 @@ export default function App() {
         );
       })
       .catch(() => { /* non-fatal — agent falls back to live outline_workspace */ });
-
-    // Warm the local hybrid search index in the background. Query-time search
-    // still performs an incremental refresh, so stale or failed warmups are non-fatal.
-    scheduleRagReindex(ws.path, 'initial', 120);
 
     // Check for pending tasks queued from mobile
     const pending = await loadPendingTasks(ws.path);
@@ -1462,6 +1527,7 @@ export default function App() {
             const text = await readFile(ws, filePath);
             savedContentRef.current.set(filePath, text);
             tabContentsRef.current.set(filePath, text);
+            bumpFileRevision(filePath);
             tabViewModeRef.current.set(filePath, info.defaultMode as 'edit' | 'preview');
             return filePath;
           } catch { return null; /* file deleted since last session — skip */ }
@@ -1509,12 +1575,13 @@ export default function App() {
       const fresh = await readFile(workspace, activeFile);
       savedContentRef.current.set(activeFile, fresh);
       tabContentsRef.current.set(activeFile, fresh);
+      bumpFileRevision(activeFile);
       setContent(fresh);
     } catch {
       // Keep whatever is on disk if reload fails.
     }
     setCanvasResetKey((value) => value + 1);
-  }, [activeFile, savedContentRef, setContent, tabContentsRef, workspace]);
+  }, [activeFile, bumpFileRevision, savedContentRef, setContent, tabContentsRef, workspace]);
 
   // ── No workspace yet — show picker ──────────────────────────
   if (!workspace) {
@@ -1629,7 +1696,9 @@ export default function App() {
               onAIPrev={handleAINavPrev}
               onAINext={handleAINavNext}
               onFileDeleted={handleFileDeleted}
+              onPathRenamed={handlePathRenamed}
               onSearchFileOpen={handleSearchFileOpen}
+              onRefreshFiles={handleRefreshWorkspaceFiles}
               lockedFiles={lockedFiles}
               newFileRef={newFileRef}
               onOpenTerminalAt={(relDir) => {
@@ -1720,48 +1789,56 @@ export default function App() {
 
         {/* AI panel resize handle — only visible when open */}
         {aiOpen && <div className="resize-divider" onMouseDown={startAiDrag} />}
-        <AIPanel
-          ref={aiPanelRef}
-          isOpen={aiOpen}
-          onClose={() => setAiOpen(false)}
-          collapsed={aiPanelCollapsed}
-          onCollapse={collapseAiPanel}
-          onExpand={expandAiPanel}
-          initialPrompt={aiInitialPrompt}
-          initialModel={workspace.config.preferredModel}
-          onModelChange={handleModelChange}
-          documentContext={aiDocumentContext}
-          agentContext={workspace.agentContext}
-          workspacePath={workspace.path}
-          workspace={workspace}
-          memoryRefreshKey={memoryRefreshKey}
-          canvasEditorRef={canvasEditorRef}
-          onFileWritten={handleFileWritten}
-          onMarkRecorded={handleMarkRecorded}
-          onCanvasMarkRecorded={handleCanvasMarkRecorded}
-          activeFile={activeFile ?? undefined}
-          rescanFramesRef={rescanFramesRef}
-          onStreamingChange={setIsAIStreaming}
-          style={aiOpen ? { width: aiPanelWidth } : undefined}
-          screenshotTargetRef={editorAreaRef}
-          webPreviewRef={webPreviewRef}
-          getActiveHtml={
-            fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview && activeFile
-              ? () => ({ html: content, absPath: `${workspace.path}/${activeFile}` })
-              : undefined
-          }
-          workspaceExportConfig={workspace.config.exportConfig}
-          onExportConfigChange={handleExportConfigChange}
-          workspaceConfig={workspace.config}
-          appLocale={appSettings.locale}
-          onWorkspaceConfigChange={handleWorkspaceConfigChange}
-          onOpenFileReference={handleSearchFileOpen}
-          selectionContext={aiSelectionContext}
-          pendingVoiceMemos={pendingVoiceMemos}
-          onVoiceMemoHandled={(stem) =>
-            setPendingVoiceMemos((prev) => prev.filter((m) => m.stem !== stem))
-          }
-        />
+        {shouldRenderAiPanel && (
+          <Suspense fallback={null}>
+            <AIPanel
+              ref={aiPanelRef}
+              isOpen={aiOpen}
+              onClose={() => setAiOpen(false)}
+              collapsed={aiPanelCollapsed}
+              onCollapse={collapseAiPanel}
+              onExpand={expandAiPanel}
+              initialPrompt={aiInitialPrompt}
+              initialModel={workspace.config.preferredModel}
+              onModelChange={handleModelChange}
+              documentContext={aiDocumentContext}
+              agentContext={workspace.agentContext}
+              workspacePath={workspace.path}
+              workspace={workspace}
+              memoryRefreshKey={memoryRefreshKey}
+              canvasEditorRef={canvasEditorRef}
+              onFileWritten={handleFileWritten}
+              onPathRenamed={handlePathRenamed}
+              getLiveFileContent={getLiveFileContent}
+              isFileDirty={isFileDirty}
+              getAgentContextSnapshot={getAgentContextSnapshot}
+              onMarkRecorded={handleMarkRecorded}
+              onCanvasMarkRecorded={handleCanvasMarkRecorded}
+              activeFile={activeFile ?? undefined}
+              rescanFramesRef={rescanFramesRef}
+              onStreamingChange={setIsAIStreaming}
+              style={aiOpen ? { width: aiPanelWidth } : undefined}
+              screenshotTargetRef={editorAreaRef}
+              webPreviewRef={webPreviewRef}
+              getActiveHtml={
+                fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview && activeFile
+                  ? () => ({ html: content, absPath: `${workspace.path}/${activeFile}` })
+                  : undefined
+              }
+              workspaceExportConfig={workspace.config.exportConfig}
+              onExportConfigChange={handleExportConfigChange}
+              workspaceConfig={workspace.config}
+              appLocale={appSettings.locale}
+              onWorkspaceConfigChange={handleWorkspaceConfigChange}
+              onOpenFileReference={handleSearchFileOpen}
+              selectionContext={aiSelectionContext}
+              pendingVoiceMemos={pendingVoiceMemos}
+              onVoiceMemoHandled={(stem) =>
+                setPendingVoiceMemos((prev) => prev.filter((m) => m.stem !== stem))
+              }
+            />
+          </Suspense>
+        )}
 
         {/* Drag-and-drop overlay — shown while dragging files from Finder */}
         {dragOver && (
@@ -1790,7 +1867,6 @@ export default function App() {
         showTerminal={appSettings.showTerminal}
         locale={appSettings.locale ?? 'en'}
         toggleShortcutLabel={terminalShortcutLabel}
-        workspaceStatus={ragStatus}
       />
       </div> {/* end app-workspace */}
 

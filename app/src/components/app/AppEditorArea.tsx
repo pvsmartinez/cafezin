@@ -5,11 +5,7 @@ import type { EditorHandle } from '../Editor';
 import { CanvasErrorBoundary } from '../CanvasErrorBoundary';
 import { EditorErrorBoundary } from '../EditorErrorBoundary';
 import WorkspaceHome from '../WorkspaceHome';
-import MarkdownPreview from '../MarkdownPreview';
-import WebPreview, { type WebPreviewHandle } from '../WebPreview';
-import PDFViewer from '../PDFViewer';
-import MediaViewer from '../MediaViewer';
-import SpreadsheetViewer from '../SpreadsheetViewer';
+import type { WebPreviewHandle } from '../WebPreview';
 import FindReplaceBar from '../FindReplaceBar';
 import AIMarkOverlay from '../AIMarkOverlay';
 import TabBar from '../TabBar';
@@ -18,6 +14,11 @@ import type { AIEditMark, AISelectionContext, AppSettings, Workspace } from '../
 import type { FileTypeInfo } from '../../utils/fileType';
 
 const CanvasEditor = lazy(() => import('../CanvasEditor'));
+const MarkdownPreview = lazy(() => import('../MarkdownPreview'));
+const WebPreview = lazy(() => import('../WebPreview'));
+const PDFViewer = lazy(() => import('../PDFViewer'));
+const MediaViewer = lazy(() => import('../MediaViewer'));
+const SpreadsheetViewer = lazy(() => import('../SpreadsheetViewer'));
 
 type ViewMode = 'edit' | 'preview';
 
@@ -184,42 +185,42 @@ export function AppEditorArea({
           onReload={onOpenFile}
           onClose={onCloseTab}
         >
-          {fileTypeInfo?.kind === 'pdf' && activeFile ? (
-            <PDFViewer
-              absPath={`${workspace.path}/${activeFile}`}
-              filename={activeFile}
-              onStat={onSetFileStat}
-            />
-          ) : fileTypeInfo?.kind === 'spreadsheet' && activeFile ? (
-            <SpreadsheetViewer
-              absPath={`${workspace.path}/${activeFile}`}
-              filename={activeFile}
-              onStat={onSetFileStat}
-              onSelectionContextChange={onSelectionContextChange}
-              aiMarks={activeFileMarks}
-              aiHighlight={aiHighlight}
-              aiNavIndex={aiNavIndex}
-              onAIPrev={onAIPrev}
-              onAINext={onAINext}
-              onMarkReviewed={onMarkReviewed}
-              onMarkRejected={onMarkRejected}
-              onMarkUserEdited={onMarkUserEdited}
-            />
-          ) : (fileTypeInfo?.kind === 'video' || fileTypeInfo?.kind === 'audio' || fileTypeInfo?.kind === 'image') && activeFile ? (
-            <MediaViewer
-              absPath={`${workspace.path}/${activeFile}`}
-              filename={activeFile}
-              kind={fileTypeInfo.kind}
-              onStat={onSetFileStat}
-            />
-          ) : fileTypeInfo?.kind === 'canvas' && activeFile ? (
-            <CanvasErrorBoundary
-              key={`${activeFile}-${canvasResetKey}`}
-              workspacePath={workspace.path}
-              canvasRelPath={activeFile}
-              onRecovered={onRecoverCanvas}
-            >
-              <Suspense fallback={<div className="canvas-loading">Loading canvas…</div>}>
+          <Suspense fallback={<div className="canvas-loading">Loading file…</div>}>
+            {fileTypeInfo?.kind === 'pdf' && activeFile ? (
+              <PDFViewer
+                absPath={`${workspace.path}/${activeFile}`}
+                filename={activeFile}
+                onStat={onSetFileStat}
+              />
+            ) : fileTypeInfo?.kind === 'spreadsheet' && activeFile ? (
+              <SpreadsheetViewer
+                absPath={`${workspace.path}/${activeFile}`}
+                filename={activeFile}
+                onStat={onSetFileStat}
+                onSelectionContextChange={onSelectionContextChange}
+                aiMarks={activeFileMarks}
+                aiHighlight={aiHighlight}
+                aiNavIndex={aiNavIndex}
+                onAIPrev={onAIPrev}
+                onAINext={onAINext}
+                onMarkReviewed={onMarkReviewed}
+                onMarkRejected={onMarkRejected}
+                onMarkUserEdited={onMarkUserEdited}
+              />
+            ) : (fileTypeInfo?.kind === 'video' || fileTypeInfo?.kind === 'audio' || fileTypeInfo?.kind === 'image') && activeFile ? (
+              <MediaViewer
+                absPath={`${workspace.path}/${activeFile}`}
+                filename={activeFile}
+                kind={fileTypeInfo.kind}
+                onStat={onSetFileStat}
+              />
+            ) : fileTypeInfo?.kind === 'canvas' && activeFile ? (
+              <CanvasErrorBoundary
+                key={`${activeFile}-${canvasResetKey}`}
+                workspacePath={workspace.path}
+                canvasRelPath={activeFile}
+                onRecovered={onRecoverCanvas}
+              >
                 <CanvasEditor
                   key={`${activeFile}-${canvasResetKey}`}
                   content={content}
@@ -244,68 +245,68 @@ export function AppEditorArea({
                   canvasRelPath={activeFile ?? undefined}
                   onSelectionContextChange={onSelectionContextChange}
                 />
-              </Suspense>
-            </CanvasErrorBoundary>
-          ) : !activeFile && homeVisible ? (
-            <WorkspaceHome
-              workspace={workspace}
-              onOpenFile={onOpenFile}
-              onCreateFirstFile={onCreateFirstWorkspaceFile}
-              aiMarks={aiMarks}
-              onOpenAIReview={onOpenAIReview}
-              onSwitchWorkspace={onSwitchWorkspace}
-              onActivateSync={onActivateSync}
-              onClose={() => onSetHomeVisible(false)}
-            />
-          ) : !activeFile ? (
-            <div
-              className="ws-empty"
-              onClick={() => onSetHomeVisible(true)}
-              title="Abrir workspace home"
-              role="button"
-              tabIndex={0}
-              onKeyDown={(event) => event.key === 'Enter' && onSetHomeVisible(true)}
-            >
-              <span className="ws-empty-logo">✦</span>
-              <span className="ws-empty-name">cafezin</span>
-            </div>
-          ) : viewMode === 'preview' && fileTypeInfo?.kind === 'markdown' ? (
-            <MarkdownPreview
-              content={content}
-              onNavigate={onOpenFile}
-              currentFilePath={activeFile ?? undefined}
-              features={workspace.config.features}
-            />
-          ) : viewMode === 'preview' && (fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && activeFile ? (
-            <WebPreview
-              ref={webPreviewRef}
-              content={content}
-              absPath={`${workspace.path}/${activeFile}`}
-              filename={activeFile}
-              isLocked={lockedFiles.has(activeFile)}
-            />
-          ) : (
-            <Editor
-              key={activeFile ?? 'none'}
-              ref={editorRef}
-              content={content}
-              onChange={onContentChange}
-              onToggleFind={() => onSetFindReplaceOpen(true)}
-              onAIRequest={onAIRequest}
-              onSelectionContextChange={onSelectionContextChange}
-              aiMarks={activeFileMarks.map((mark) => ({ id: mark.id, text: mark.text, revert: mark.revert }))}
-              onAIMarkEdited={onMarkReviewed}
-              fontSize={appSettings.editorFontSize}
-              onImagePaste={onImagePaste}
-              language={fileTypeInfo?.language}
-              activeFile={activeFile ?? undefined}
-              isDark={isDarkTheme}
-              isLocked={activeFile ? lockedFiles.has(activeFile) : false}
-              onFormat={fileTypeInfo?.kind === 'code' ? onFormat : undefined}
-              diagnostics={tsDiagnostics}
-              onGhostComplete={onGhostComplete}
-            />
-          )}
+              </CanvasErrorBoundary>
+            ) : !activeFile && homeVisible ? (
+              <WorkspaceHome
+                workspace={workspace}
+                onOpenFile={onOpenFile}
+                onCreateFirstFile={onCreateFirstWorkspaceFile}
+                aiMarks={aiMarks}
+                onOpenAIReview={onOpenAIReview}
+                onSwitchWorkspace={onSwitchWorkspace}
+                onActivateSync={onActivateSync}
+                onClose={() => onSetHomeVisible(false)}
+              />
+            ) : !activeFile ? (
+              <div
+                className="ws-empty"
+                onClick={() => onSetHomeVisible(true)}
+                title="Abrir workspace home"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => event.key === 'Enter' && onSetHomeVisible(true)}
+              >
+                <span className="ws-empty-logo">✦</span>
+                <span className="ws-empty-name">cafezin</span>
+              </div>
+            ) : viewMode === 'preview' && fileTypeInfo?.kind === 'markdown' ? (
+              <MarkdownPreview
+                content={content}
+                onNavigate={onOpenFile}
+                currentFilePath={activeFile ?? undefined}
+                features={workspace.config.features}
+              />
+            ) : viewMode === 'preview' && (fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && activeFile ? (
+              <WebPreview
+                ref={webPreviewRef}
+                content={content}
+                absPath={`${workspace.path}/${activeFile}`}
+                filename={activeFile}
+                isLocked={lockedFiles.has(activeFile)}
+              />
+            ) : (
+              <Editor
+                key={activeFile ?? 'none'}
+                ref={editorRef}
+                content={content}
+                onChange={onContentChange}
+                onToggleFind={() => onSetFindReplaceOpen(true)}
+                onAIRequest={onAIRequest}
+                onSelectionContextChange={onSelectionContextChange}
+                aiMarks={activeFileMarks.map((mark) => ({ id: mark.id, text: mark.text, revert: mark.revert }))}
+                onAIMarkEdited={onMarkReviewed}
+                fontSize={appSettings.editorFontSize}
+                onImagePaste={onImagePaste}
+                language={fileTypeInfo?.language}
+                activeFile={activeFile ?? undefined}
+                isDark={isDarkTheme}
+                isLocked={activeFile ? lockedFiles.has(activeFile) : false}
+                onFormat={fileTypeInfo?.kind === 'code' ? onFormat : undefined}
+                diagnostics={tsDiagnostics}
+                onGhostComplete={onGhostComplete}
+              />
+            )}
+          </Suspense>
         </EditorErrorBoundary>
       </div>
 

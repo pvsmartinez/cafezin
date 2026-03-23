@@ -19,10 +19,10 @@ export const TASK_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'create_task',
       description:
-        'Create a tracked multi-step task for the current user request. ' +
+        'Create a tracked multi-step task for the current user request in this chat only. ' +
         'Use this when the goal requires 3 or more distinct steps that will span multiple tool calls or rounds. ' +
         'Each step should be a granular, independently completable action. ' +
-        'The task and its progress survive context summarization — it is read from disk, not from chat history. ' +
+        'The task and its progress survive context summarization, but stay scoped to this AI chat. ' +
         'Do NOT call this more than once for the same user goal; instead update the existing task\'s steps with update_task_step.',
       parameters: {
         type: 'object',
@@ -84,7 +84,7 @@ export const TASK_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'list_tasks',
       description:
-        'Return tasks for this workspace as JSON. ' +
+        'Return tasks for this chat as JSON. ' +
         'Use filter="active" to see only in-progress tasks (default). ' +
         'Use filter="all" to see everything including completed tasks.',
       parameters: {
@@ -136,7 +136,7 @@ export const executeTaskTools: DomainExecutor = async (name, args, ctx) => {
     if (!taskId) return 'Error: task_id is required.';
     if (isNaN(stepIndex)) return 'Error: step_index must be a number.';
 
-    const updated = await updateTaskStep(workspacePath, taskId, stepIndex, status, note);
+    const updated = await updateTaskStep(workspacePath, taskId, stepIndex, status, note, agentId);
     if (!updated) return `Error: task "${taskId}" not found or step index ${stepIndex} is out of range.`;
     onTaskChanged?.();
 
@@ -153,7 +153,7 @@ export const executeTaskTools: DomainExecutor = async (name, args, ctx) => {
 
   if (name === 'list_tasks') {
     const filter = (args.filter as 'active' | 'completed' | 'all' | undefined) ?? 'active';
-    const tasks = await listTasks(workspacePath, filter);
+    const tasks = await listTasks(workspacePath, filter, agentId);
     return JSON.stringify(tasks.map((t) => ({
       id: t.id,
       title: t.title,

@@ -19,6 +19,8 @@ function makeExecutor(
     onFileWritten?: (p: string) => void;
     onMarkRecorded?: (p: string, c: string) => void;
     onCanvasModified?: (ids: string[]) => void;
+    getLiveFileContent?: (path: string) => string | null;
+    isFileDirty?: (path: string) => boolean;
   } = {},
 ) {
   return buildToolExecutor({
@@ -27,6 +29,8 @@ function makeExecutor(
     onFileWritten: callbacks.onFileWritten,
     onMarkRecorded: callbacks.onMarkRecorded,
     onCanvasModified: callbacks.onCanvasModified,
+    getLiveFileContent: callbacks.getLiveFileContent,
+    isFileDirty: callbacks.isFileDirty,
   });
 }
 
@@ -117,6 +121,18 @@ describe('read_workspace_file', () => {
     const exec = makeExecutor();
     const result = await exec('read_workspace_file', { path: 'locked.md' });
     expect(result).toContain('Error');
+  });
+
+  it('prefers the live open-buffer content when available', async () => {
+    vi.mocked(tauriFs.exists).mockResolvedValue(true);
+    vi.mocked(tauriFs.readTextFile).mockResolvedValue('stale disk text');
+    const exec = makeExecutor(null, {
+      getLiveFileContent: (path) => path === 'notes.md' ? 'live editor text' : null,
+      isFileDirty: (path) => path === 'notes.md',
+    });
+    const result = await exec('read_workspace_file', { path: 'notes.md' });
+    expect(result).toContain('Live editor buffer');
+    expect(result).toContain('live editor text');
   });
 });
 
@@ -214,6 +230,22 @@ describe('search_workspace', () => {
     const exec = makeExecutor();
     const result = await exec('search_workspace', { query: '' });
     expect(result).toContain('query is required');
+  });
+
+  it('searches the live open-buffer content when the tab is dirty', async () => {
+    vi.mocked(tauriFs.readDir)
+      .mockResolvedValueOnce([
+        { name: 'readme.md', isDirectory: false, isFile: true, isSymlink: false } as DirEntry,
+      ])
+      .mockResolvedValue([]);
+    vi.mocked(tauriFs.readTextFile).mockResolvedValue('stale disk text');
+    const exec = makeExecutor(null, {
+      getLiveFileContent: (path) => path === 'readme.md' ? 'first line\nTARGET only in live buffer\nthird line' : null,
+      isFileDirty: (path) => path === 'readme.md',
+    });
+    const result = await exec('search_workspace', { query: 'TARGET' });
+    expect(result).toContain('live unsaved buffer');
+    expect(result).toContain('TARGET only in live buffer');
   });
 });
 

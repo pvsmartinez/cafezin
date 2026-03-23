@@ -36,7 +36,7 @@ import { loadWorkspaceSession, saveWorkspaceSession } from '../services/workspac
 import type { WorkspaceAgentTabSession } from '../services/workspaceSession';
 import { getGroqKey, getGroqLangPreference } from '../hooks/useVoiceInput';
 import { FALLBACK_MODELS } from '../types';
-import type { AIRecordedTextMark, AISelectionContext, CopilotModelInfo } from '../types';
+import type { AgentContextSnapshot, AIRecordedTextMark, AISelectionContext, CopilotModelInfo } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
 import type { Editor as TldrawEditor } from 'tldraw';
 import { resolveVoiceTranscriptionLanguage } from '../utils/voiceLanguage';
@@ -77,6 +77,10 @@ interface AIPanelProps {
   memoryRefreshKey?: number;
   canvasEditorRef?: React.RefObject<TldrawEditor | null>;
   onFileWritten?: (path: string) => void;
+  onPathRenamed?: (fromPath: string, toPath: string) => void;
+  getLiveFileContent?: (relPath: string) => string | null;
+  isFileDirty?: (relPath: string) => boolean;
+  getAgentContextSnapshot?: () => AgentContextSnapshot;
   onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
   onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
   activeFile?: string;
@@ -204,6 +208,10 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   memoryRefreshKey = 0,
   canvasEditorRef,
   onFileWritten,
+  onPathRenamed,
+  getLiveFileContent,
+  isFileDirty,
+  getAgentContextSnapshot,
   onMarkRecorded,
   onCanvasMarkRecorded,
   activeFile,
@@ -723,6 +731,10 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           memoryRefreshKey={memoryRefreshKey}
           canvasEditorRef={canvasEditorRef}
           onFileWritten={onFileWritten}
+          onPathRenamed={onPathRenamed}
+          getLiveFileContent={getLiveFileContent}
+          isFileDirty={isFileDirty}
+          getAgentContextSnapshot={getAgentContextSnapshot}
           onMarkRecorded={onMarkRecorded}
           onCanvasMarkRecorded={onCanvasMarkRecorded}
           activeFile={activeFile}

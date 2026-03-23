@@ -24,6 +24,39 @@ import { TEXT_EXTS, safeResolvePath } from './shared';
 
 const SPREADSHEET_EXTS = new Set(['csv', 'tsv', 'xlsx', 'xls', 'ods', 'xlsm', 'xlsb']);
 
+function getLiveTextOverride(relPath: string, ctx: Parameters<DomainExecutor>[2]): { text: string; dirty: boolean } | null {
+  if (ctx.activeFile === relPath && ctx.activeFileContent != null) {
+    return {
+      text: ctx.activeFileContent,
+      dirty: ctx.isFileDirty?.(relPath) ?? true,
+    };
+  }
+  const text = ctx.getLiveFileContent?.(relPath);
+  if (text == null) return null;
+  return { text, dirty: ctx.isFileDirty?.(relPath) ?? false };
+}
+
+async function readWorkspaceText(
+  workspacePath: string,
+  relPath: string,
+  ctx: Parameters<DomainExecutor>[2],
+): Promise<{ text: string; fromLiveBuffer: boolean; dirty: boolean }> {
+  const live = getLiveTextOverride(relPath, ctx);
+  if (live) {
+    return {
+      text: live.text,
+      fromLiveBuffer: true,
+      dirty: live.dirty,
+    };
+  }
+  const text = await readTextFile(`${workspacePath}/${relPath}`);
+  return {
+    text,
+    fromLiveBuffer: false,
+    dirty: false,
+  };
+}
+
 // ── Tool definitions ─────────────────────────────────────────────────────────
 
 export const FILE_TOOL_DEFS: ToolDefinition[] = [
@@ -639,8 +672,12 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       const cachedIndex = await loadWorkspaceIndex(workspacePath);
       if (cachedIndex && cachedIndex.entries.length > 0) {
         const outlines = cachedIndex.entries.map((e) => {
-          const kb = (e.size / 1024).toFixed(1);
-          return `📄 ${e.path}  (${kb} KB)${e.outline ? '\n' + e.outline : ''}`;
+          const live = getLiveTextOverride(e.path, ctx);
+          const outline = live?.dirty ? extractFileOutline(e.path, live.text) : e.outline;
+          const size = live?.dirty ? live.text.length : e.size;
+          const kb = (size / 1024).toFixed(1);
+          const freshness = live?.dirty ? ' [live unsaved buffer]' : '';
+          return `📄 ${e.path}  (${kb} KB)${freshness}${outline ? '\n' + outline : ''}`;
         });
         const ageMin = Math.round((Date.now() - new Date(cachedIndex.builtAt).getTime()) / 60_000);
         const freshness = ageMin < 2 ? '' : ` [index built ${ageMin} min ago]`;
@@ -663,13 +700,16 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         const results = await Promise.all(
           batch.map(async (rel) => {
             try {
-              const s = await stat(`${workspacePath}/${rel}`);
-              const kb = ((s.size ?? 0) / 1024).toFixed(1);
-              if ((s.size ?? 0) > 200_000)
+              const live = getLiveTextOverride(rel, ctx);
+              const s = live ? null : await stat(`${workspacePath}/${rel}`);
+              const size = live ? live.text.length : (s?.size ?? 0);
+              const kb = (size / 1024).toFixed(1);
+              if (size > 200_000)
                 return `📄 ${rel}  (${kb} KB — too large to outline, use read_workspace_file with pagination)`;
-              const text = await readTextFile(`${workspacePath}/${rel}`);
+              const text = live?.text ?? await readTextFile(`${workspacePath}/${rel}`);
               const outline = extractFileOutline(rel, text);
-              return `📄 ${rel}  (${kb} KB)${outline ? '\n' + outline : ''}`;
+              const freshness = live?.dirty ? ' [live unsaved buffer]' : '';
+              return `📄 ${rel}  (${kb} KB)${freshness}${outline ? '\n' + outline : ''}`;
             } catch {
               return `📄 ${rel}  (unreadable)`;
             }
@@ -692,25 +732,33 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         });
         if (ragResult && ragResult.hits.length > 0) {
           const ageMin = ragResult.builtAt
-            ? Math.round((Date.now() - Number(ragResult.builtAt)) / 60_000)
+            ? Math.round((Date.now() - new Date(ragResult.builtAt).getTime()) / 60_000)
             : 0;
           const freshness = ragResult.builtAt
             ? ageMin < 2 ? '' : ` [index built ${ageMin} min ago]`
             : '';
+          const dirtyActiveHint = ctx.activeFile && ctx.isFileDirty?.(ctx.activeFile)
+            ? `\n\nNote: ${ctx.activeFile} has unsaved editor changes, so its live buffer may be newer than the hybrid index. Use read_workspace_file or search_workspace to inspect the live text.`
+            : '';
           const lines = ragResult.hits.map((hit) => {
             const kb = (hit.size / 1024).toFixed(1);
+            const liveDirty = ctx.isFileDirty?.(hit.path) ? ' [live buffer newer than index]' : '';
             const title = hit.title ? `\n  best chunk: ${hit.title} [lines ${hit.startLine}-${hit.endLine}]` : '';
             const snippet = hit.snippet ? `\n  snippet: ${hit.snippet}` : '';
-            return `📄 ${hit.path}  (${kb} KB)\n  hybrid score: ${hit.combinedScore.toFixed(2)} · semantic ${hit.semanticScore.toFixed(2)} · lexical ${hit.lexicalScore.toFixed(2)}${hit.outline ? `\n${hit.outline}` : ''}${title}${snippet}`;
+            const outline = ctx.isFileDirty?.(hit.path)
+              ? getLiveTextOverride(hit.path, ctx)?.text
+              : null;
+            const liveOutline = outline ? extractFileOutline(hit.path, outline) : hit.outline;
+            return `📄 ${hit.path}  (${kb} KB)${liveDirty}\n  hybrid score: ${hit.combinedScore.toFixed(2)} · semantic ${hit.semanticScore.toFixed(2)} · lexical ${hit.lexicalScore.toFixed(2)}${liveOutline ? `\n${liveOutline}` : ''}${title}${snippet}`;
           });
-          return `Top ${ragResult.hits.length} files matching "${query}" via local hybrid search${freshness}:\n\n${lines.join('\n\n')}`;
+          return `Top ${ragResult.hits.length} files matching "${query}" via local hybrid search${freshness}:\n\n${lines.join('\n\n')}${dirtyActiveHint}`;
         }
       }
 
       const index = await loadWorkspaceIndex(workspacePath);
       if (!index) {
         return (
-          'Workspace index not built yet. The index is built automatically when a workspace is opened. ' +
+          'Workspace index not built yet. The hybrid index is built when the AI panel is opened or on the first search. ' +
           'Try again in a moment, or use outline_workspace for a live scan.'
         );
       }
@@ -730,14 +778,21 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       const ageMin = Math.round((Date.now() - new Date(index.builtAt).getTime()) / 60_000);
       const freshness = ageMin < 2 ? '' : ` [index built ${ageMin} min ago — may be slightly stale]`;
       const lines = ranked.map((e) => {
-        const kb = (e.size / 1024).toFixed(1);
-        return `📄 ${e.path}  (${kb} KB)${e.outline ? '\n' + e.outline : ''}`;
+        const live = getLiveTextOverride(e.path, ctx);
+        const outline = live?.dirty ? extractFileOutline(e.path, live.text) : e.outline;
+        const size = live?.dirty ? live.text.length : e.size;
+        const kb = (size / 1024).toFixed(1);
+        const liveNote = live?.dirty ? ' [live unsaved buffer]' : '';
+        return `📄 ${e.path}  (${kb} KB)${liveNote}${outline ? '\n' + outline : ''}`;
       });
 
       const header = query
         ? `Top ${ranked.length} files matching "${query}"${freshness}:`
         : `Top ${ranked.length} files${freshness}:`;
-      return `${header}\n\n${lines.join('\n\n')}`;
+      const dirtyActiveHint = ctx.activeFile && ctx.isFileDirty?.(ctx.activeFile)
+        ? `\n\nNote: ${ctx.activeFile} has unsaved editor changes, so search_workspace_index may be behind the live text. Use search_workspace or read_workspace_file for the live buffer.`
+        : '';
+      return `${header}\n\n${lines.join('\n\n')}${dirtyActiveHint}`;
     }
 
     // ── read_workspace_file ───────────────────────────────────────────────
@@ -760,16 +815,20 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       catch (e) { return String(e); }
       if (!(await exists(abs))) return `File not found: ${relPath}`;
       try {
-        const text = await readTextFile(abs);
+        const { text, fromLiveBuffer, dirty } = await readWorkspaceText(workspacePath, relPath, ctx);
         const lines = text.split('\n');
         const totalLines = lines.length;
+        const freshnessLabel = fromLiveBuffer
+          ? dirty ? `[Live editor buffer — unsaved changes in ${relPath}]`
+            : `[Live open tab buffer in ${relPath}]`
+          : '';
 
         const hasRange = typeof args.start_line === 'number' || typeof args.end_line === 'number';
         if (hasRange) {
           const startLine = typeof args.start_line === 'number' ? Math.max(1, args.start_line) : 1;
           const endLine   = typeof args.end_line   === 'number' ? Math.min(totalLines, args.end_line) : totalLines;
           const slice = lines.slice(startLine - 1, endLine).join('\n');
-          return `[Lines ${startLine}–${endLine} of ${totalLines} in ${relPath}]\n${slice}`;
+          return `${freshnessLabel ? `${freshnessLabel}\n` : ''}[Lines ${startLine}–${endLine} of ${totalLines} in ${relPath}]\n${slice}`;
         }
 
         const CAP = 80_000;
@@ -779,10 +838,10 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
           const lastFullLine = capLines.length - 1;
           const truncated = capLines.slice(0, lastFullLine).join('\n');
           const pct = Math.round((lastFullLine / totalLines) * 100);
-          return `${truncated}\n\n[… truncated — showed lines 1–${lastFullLine} of ${totalLines} (${pct}%). ` +
+          return `${freshnessLabel ? `${freshnessLabel}\n` : ''}${truncated}\n\n[… truncated — showed lines 1–${lastFullLine} of ${totalLines} (${pct}%). ` +
             `Call again with start_line=${lastFullLine + 1} to read the next chunk.]`;
         }
-        return text;
+        return freshnessLabel ? `${freshnessLabel}\n${text}` : text;
       } catch (e) {
         return `Error reading file: ${e}`;
       }
@@ -817,16 +876,20 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
           catch (e) { return `${label}\n[Error: ${e}]`; }
           if (!(await exists(abs))) return `${label}\n[File not found]`;
           try {
-            const text = await readTextFile(abs);
+            const { text, fromLiveBuffer, dirty } = await readWorkspaceText(workspacePath, relPath, ctx);
             const lines = text.split('\n');
+            const freshnessLabel = fromLiveBuffer
+              ? dirty ? '[Live editor buffer — unsaved changes]'
+                : '[Live open tab buffer]'
+              : '';
             if (text.length > CAP) {
               const capText = text.slice(0, CAP);
               const capLines = capText.split('\n');
               const lastFullLine = capLines.length - 1;
               const pct = Math.round((lastFullLine / lines.length) * 100);
-              return `${label}\n${capLines.slice(0, lastFullLine).join('\n')}\n\n[… truncated — showed ${lastFullLine}/${lines.length} lines (${pct}%). Use read_workspace_file with start_line to continue.]`;
+              return `${label}\n${freshnessLabel ? `${freshnessLabel}\n` : ''}${capLines.slice(0, lastFullLine).join('\n')}\n\n[… truncated — showed ${lastFullLine}/${lines.length} lines (${pct}%). Use read_workspace_file with start_line to continue.]`;
             }
-            return `${label}\n${text}`;
+            return `${label}\n${freshnessLabel ? `${freshnessLabel}\n` : ''}${text}`;
           } catch (e) {
             return `${label}\n[Error reading: ${e}]`;
           }
@@ -850,13 +913,9 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       try { abs = safeResolvePath(workspacePath, relPath); }
       catch (e) { return String(e); }
       if (!(await exists(abs))) return `File not found: ${relPath}`;
-      // Prefer in-memory editor content (unsaved edits) over stale disk version
       let text: string;
-      if (ctx.activeFile === relPath && ctx.activeFileContent != null) {
-        text = ctx.activeFileContent;
-      } else {
-        try { text = await readTextFile(abs); } catch (e) { return `Error reading file: ${e}`; }
-      }
+      try { ({ text } = await readWorkspaceText(workspacePath, relPath, ctx)); }
+      catch (e) { return `Error reading file: ${e}`; }
 
       const occurrence = typeof args.occurrence === 'number' ? args.occurrence : 1;
       const totalOccurrences = countOccurrences(text, search);
@@ -918,9 +977,8 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       catch (e) { return String(e); }
       const dir = abs.split('/').slice(0, -1).join('/');
       let previousText = '';
-      if (ctx.activeFile === relPath && ctx.activeFileContent != null) previousText = ctx.activeFileContent;
-      else if (await exists(abs)) {
-        try { previousText = await readTextFile(abs); } catch { previousText = ''; }
+      if (await exists(abs)) {
+        try { ({ text: previousText } = await readWorkspaceText(workspacePath, relPath, ctx)); } catch { previousText = ''; }
       }
       const lwWrite = await waitForUnlock(relPath, ctx.agentId);
       if (lwWrite.timedOut) {
@@ -990,7 +1048,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         const batchHits = await Promise.all(
           batch.map(async (rel) => {
             try {
-              const text = await readTextFile(`${workspacePath}/${rel}`);
+              const { text, fromLiveBuffer, dirty } = await readWorkspaceText(workspacePath, rel, ctx);
               const lines = text.split('\n');
               const fileHits: string[] = [];
               for (let i = 0; i < lines.length; i++) {
@@ -999,7 +1057,11 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
                 for (let c = Math.max(0, i - CONTEXT); c <= Math.min(lines.length - 1, i + CONTEXT); c++) {
                   ctxLines.push(c === i ? `> ${lines[c]}` : `  ${lines[c]}`);
                 }
-                fileHits.push(`${rel}:${i + 1}:\n${ctxLines.join('\n')}`);
+                const freshness = fromLiveBuffer
+                  ? dirty ? ' [live unsaved buffer]'
+                    : ' [live open tab buffer]'
+                  : '';
+                fileHits.push(`${rel}${freshness}:${i + 1}:\n${ctxLines.join('\n')}`);
               }
               return fileHits;
             } catch { return []; }
@@ -1175,6 +1237,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       await new Promise<void>((r) => setTimeout(r, 0));
       try {
         await rename(fromAbs, toAbs);
+        ctx.onPathRenamed?.(fromRel, toRel);
         onFileWritten?.(toRel);
         await new Promise<void>((r) => setTimeout(r, 400));
       } catch (e) {
@@ -1261,11 +1324,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         if (!fileCache.has(relPath)) {
           if (!(await exists(abs))) { patchErrors.push(`File not found: ${relPath}`); continue; }
           try {
-            // Use in-memory editor content for the active file to avoid
-            // overwriting unsaved user edits with a stale disk-based patch
-            const text = (ctx.activeFile === relPath && ctx.activeFileContent != null)
-              ? ctx.activeFileContent
-              : await readTextFile(abs);
+            const { text } = await readWorkspaceText(workspacePath, relPath, ctx);
             fileCache.set(relPath, { abs, text });
             fileOriginals.set(relPath, text);
             fileRecordedMarks.set(relPath, []);
