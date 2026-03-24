@@ -20,7 +20,12 @@ import type { Extension } from '@codemirror/state';
 // nodes stay in the DOM. Grammarly (macOS) reads the contenteditable via the
 // Accessibility tree; replace() physically removes nodes, breaking its overlay.
 // mark() + font-size:0 achieves the same visual result without DOM removal.
-const HIDE = Decoration.mark({ class: 'cm-live-preview-hide' });
+// aria-hidden removes the zero-size chars from the a11y tree so Grammarly reads
+// clean text (e.g. "hello" instead of "**hello**") and positions overlays correctly.
+const HIDE = Decoration.mark({
+  class: 'cm-live-preview-hide',
+  attributes: { 'aria-hidden': 'true' },
+});
 
 function buildDecorations(view: EditorView): DecorationSet {
   const { state } = view;

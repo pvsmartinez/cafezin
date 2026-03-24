@@ -26,7 +26,7 @@ import { powerShell } from '@codemirror/legacy-modes/mode/powershell';
 import { r } from '@codemirror/legacy-modes/mode/r';
 import { perl } from '@codemirror/legacy-modes/mode/perl';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { EditorView, keymap, ViewPlugin, WidgetType } from '@codemirror/view';
+import { EditorView, keymap, ViewPlugin, WidgetType, drawSelection } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands';
 import { StateField, RangeSetBuilder, Compartment, Prec } from '@codemirror/state';
@@ -916,12 +916,20 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       fontCompartmentRef.current.of(makeEditorTheme(fontSize, codeMode, isDark)),
       // Prose wraps; code does not
       ...(codeMode ? [] : [EditorView.lineWrapping]),
+      // Custom cursor rendering with blink disabled — the default drawSelection()
+      // uses `animation: steps(1) cm-blink 1.2s infinite` which keeps the GPU
+      // compositor and WindowServer busy even at idle. Setting cursorBlinkRate
+      // to a very high value effectively disables the blink animation.
+      drawSelection({ cursorBlinkRate: 30_000 }),
       // Set attributes directly on the .cm-content contenteditable so Grammarly
       // Desktop (macOS) sees spellcheck=true and activates. CM defaults to
       // spellcheck=false, which silently tells Grammarly to stay off.
+      // data-gramm / data-gramm_editor = canonical Grammarly detection attrs;
+      // these help Grammarly identify and register the editor immediately
+      // instead of relying on its slow periodic process scan (~1 min delay).
       EditorView.contentAttributes.of(codeMode
         ? { spellcheck: 'false' }
-        : { spellcheck: 'true', 'data-enable-grammarly': 'true' },
+        : { spellcheck: 'true', 'data-enable-grammarly': 'true', 'data-gramm': 'true', 'data-gramm_editor': 'true' },
       ),
       compartmentRef.current.of(makeAIMarkField(aiMarks ?? [])),
       aiMarkEditListener,
@@ -988,7 +996,11 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
             // Active line gutter highlight in code mode
             highlightActiveLine: codeMode,
             highlightActiveLineGutter: codeMode,
-            highlightSelectionMatches: true,
+            // Useful in code, distracting in prose
+            highlightSelectionMatches: codeMode,
+            // We provide our own drawSelection({ cursorBlinkRate: 30_000 }) in
+            // the extensions array above — disabling here avoids double-loading.
+            drawSelection: false,
             closeBracketsKeymap: true,
             // Search handled by our FindReplaceBar in prose mode;
             // in code mode we also wire in CM's own search keymap above.
