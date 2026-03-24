@@ -30,28 +30,32 @@ const HIDE = Decoration.mark({
 function buildDecorations(view: EditorView): DecorationSet {
   const { state } = view;
 
-  // Precompute cursor line range once (avoids calling lineAt() per-node in cursorOverlaps)
+  // Precompute cursor line bounds as character positions (O(1) comparisons later).
+  // lineAt() is O(log lines) — calling it per-node inside iterate() is the hot path cost.
   const selFrom = state.selection.main.from;
   const selTo   = state.selection.main.to;
-  const cursorStartLine = state.doc.lineAt(selFrom).number;
-  const cursorEndLine   = selTo > selFrom ? state.doc.lineAt(selTo).number : cursorStartLine;
+  const cursorLine     = state.doc.lineAt(selFrom);
+  const cursorLineFrom = cursorLine.from;
+  const cursorLineTo   = selTo > selFrom ? state.doc.lineAt(selTo).to : cursorLine.to;
 
-  const entries: { from: number; to: number }[] = [];
+  // Build directly inside iterate() — no intermediate array, no sort.
+  // syntaxTree().iterate() visits nodes in ascending `from` order (depth-first
+  // left-to-right), which is exactly what RangeSetBuilder requires.
+  const builder = new RangeSetBuilder<Decoration>();
 
   // Iterate the full tree (not just the viewport) to avoid a feedback loop:
   // hiding `### ` changes line layout → viewport.to shifts → heading falls outside
   // the processed range → mark reappears → layout reverts → marks hidden again → flicker.
   syntaxTree(state).iterate({
     enter(node) {
-      // Fast overlap check using precomputed cursor line range
-      const nodeLine = state.doc.lineAt(node.from).number;
-      if (nodeLine >= cursorStartLine && nodeLine <= cursorEndLine) return;
+      // Skip marks on the cursor line — compare positions, not line numbers (O(1)).
+      if (node.from >= cursorLineFrom && node.from <= cursorLineTo) return;
 
       switch (node.name) {
         case 'EmphasisMark':
         case 'CodeMark':
         case 'StrikethroughMark':
-          entries.push({ from: node.from, to: node.to });
+          builder.add(node.from, node.to, HIDE);
           break;
 
         case 'HeaderMark': {
@@ -62,20 +66,13 @@ function buildDecorations(view: EditorView): DecorationSet {
             afterMark < lineEnd && state.sliceDoc(afterMark, afterMark + 1) === ' '
               ? afterMark + 1
               : afterMark;
-          entries.push({ from: node.from, to: end });
+          builder.add(node.from, end, HIDE);
           break;
         }
       }
     },
   });
 
-  // RangeSetBuilder requires ascending `from` order.
-  entries.sort((a, b) => a.from - b.from || a.to - b.to);
-
-  const builder = new RangeSetBuilder<Decoration>();
-  for (const { from, to } of entries) {
-    builder.add(from, to, HIDE);
-  }
   return builder.finish();
 }
 

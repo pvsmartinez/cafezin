@@ -86,7 +86,7 @@ const externalSearchHighlight = ViewPlugin.fromClass(
 );
 
 
-import { makeLivePreviewExtension } from '../utils/livePreview';
+// import { makeLivePreviewExtension } from '../utils/livePreview'; // TEMP: disabled for Grammarly test
 import { Fragment, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
   TextB, TextItalic, TextStrikethrough, Code,
@@ -674,7 +674,8 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
     // Live preview: hides Markdown syntax markers on lines without the cursor.
     // Only active in prose mode — codeMode is stable per mount so empty deps is safe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    const livePreviewExtension = useMemo(() => (codeMode ? [] : makeLivePreviewExtension()), []);
+    // TEMP: disabled to test Grammarly detection — re-enable after confirming root cause
+    const livePreviewExtension = useMemo(() => [], []); // (codeMode ? [] : makeLivePreviewExtension())
 
     const emitSelectionContext = useCallback((view: EditorView | null) => {
       const callback = onSelectionContextChangeRef.current;
@@ -921,15 +922,12 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       // compositor and WindowServer busy even at idle. Setting cursorBlinkRate
       // to a very high value effectively disables the blink animation.
       drawSelection({ cursorBlinkRate: 30_000 }),
-      // Set attributes directly on the .cm-content contenteditable so Grammarly
-      // Desktop (macOS) sees spellcheck=true and activates. CM defaults to
-      // spellcheck=false, which silently tells Grammarly to stay off.
-      // data-gramm / data-gramm_editor = canonical Grammarly detection attrs;
-      // these help Grammarly identify and register the editor immediately
-      // instead of relying on its slow periodic process scan (~1 min delay).
+        // Keep native spellcheck disabled while preserving Grammarly-specific
+        // detection attributes so we can test whether spellcheck=true is the
+        // source of the current Grammarly regression.
       EditorView.contentAttributes.of(codeMode
         ? { spellcheck: 'false' }
-        : { spellcheck: 'true', 'data-enable-grammarly': 'true', 'data-gramm': 'true', 'data-gramm_editor': 'true' },
+          : { spellcheck: 'false', 'data-enable-grammarly': 'true', 'data-gramm': 'true', 'data-gramm_editor': 'true' },
       ),
       compartmentRef.current.of(makeAIMarkField(aiMarks ?? [])),
       aiMarkEditListener,
