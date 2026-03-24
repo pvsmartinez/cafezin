@@ -51,7 +51,8 @@ export async function summarizeAndCompress(
               '2. Everything accomplished so far — each tool call, file created/modified, canvas change made\n' +
               '3. Current state of the workspace / canvas\n' +
               '4. What still needs to be done to complete the user\'s goal\n' +
-              '5. Any important findings, constraints, or decisions\n\n' +
+              '5. Any important findings, constraints, or decisions\n' +
+              '6. **Schema/rules/format changes**: if any data structures, file formats, database schemas, or workspace rules were discussed or corrected during this session, state the CURRENT (corrected) version explicitly. These are the most common source of confusion in future sessions — old assumptions must be overridden.\n\n' +
               'Be precise and technical. Use bullet points. Aim for 400–700 words.',
           },
           {
@@ -93,19 +94,27 @@ export async function summarizeAndCompress(
   const systemMsgs = loop.filter((m) => m.role === 'system');
   const currentUserRequest = getCompressionAnchorUserText(loop);
 
-  const rawTail = loop
-    .slice(Math.max(0, loop.length - 8))
-    .filter(
-      (m) =>
-        !(Array.isArray(m.content) &&
-          (m.content as any[]).some((p: any) => p.type === 'image_url')),
-    );
-
-  let lastUserInTail = -1;
-  for (let i = rawTail.length - 1; i >= 0; i--) {
-    if (rawTail[i].role === 'user') { lastUserInTail = i; break; }
+  // Find the last non-summary user message in the FULL loop, then take
+  // everything from there to the end. This ensures complete tool-call/result
+  // pairs are always included — the old "last 8 after vision filter" approach
+  // could leave an assistant with unresolved tool_calls at the end of the tail.
+  let tailStart = -1;
+  for (let i = loop.length - 1; i >= 0; i--) {
+    const m = loop[i];
+    if (
+      m.role === 'user' &&
+      !(typeof m.content === 'string' && m.content.startsWith('[SESSION SUMMARY'))
+    ) {
+      tailStart = i;
+      break;
+    }
   }
-  const tail = lastUserInTail >= 0 ? rawTail.slice(lastUserInTail) : [];
+  // Strip vision-only messages; they can't be re-used after compression.
+  const tail = (tailStart >= 0 ? loop.slice(tailStart) : []).filter(
+    (m) =>
+      !(Array.isArray(m.content) &&
+        (m.content as any[]).some((p: any) => p.type === 'image_url')),
+  );
 
   const summaryMsg: ChatMessage = {
     role: 'user',

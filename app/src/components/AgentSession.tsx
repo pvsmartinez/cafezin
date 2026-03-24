@@ -3,7 +3,7 @@
  * input, tools). Multiple AgentSession components can be mounted inside
  * AIPanel at the same time; only the active one is visible.
  */
-import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, memo, useMemo } from 'react';
 import {
   X, ArrowUp, Warning, Camera, Paperclip,
   Microphone, Stop, ArrowCounterClockwise, Sparkle, FileText,
@@ -17,7 +17,7 @@ import { getActiveModel, type AIProviderType, PROVIDER_SHORT_LABELS } from '../s
 import { getLastProviderRequestDump } from '../services/ai/diagnostics';
 import { getProviderCatalog } from '../services/ai/providerModels';
 import { DEFAULT_MODEL } from '../types';
-import type { AgentContextSnapshot, AIRecordedTextMark, AISelectionContext, CopilotModel, CopilotModelInfo, MessageItem, Task } from '../types';
+import type { AgentContextSnapshot, AIRecordedTextMark, AISelectionContext, ChatMessage, CopilotModel, CopilotModelInfo, MessageItem, Task } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
 import type { Editor as TldrawEditor } from 'tldraw';
 import { getMimeType, IMAGE_EXTS } from '../utils/mime';
@@ -36,6 +36,100 @@ import { useAIScreenshot } from '../hooks/useAIScreenshot';
 import { loadHistoricalSessions, type HistoricalSession } from '../services/aiSessionHistory';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+/**
+ * MemoizedChatMessage — renders a single completed message from the history.
+ * Wrapped in React.memo so historical messages (which never change) are not
+ * re-rendered whenever the editor content changes and causes App → AIPanel →
+ * AgentSession to re-render (which happens on every keystroke).
+ */
+const MemoizedChatMessage = memo(function MemoizedChatMessage({
+  msg,
+  msgIndex,
+  agentLabel,
+  workspace,
+  workspacePath,
+  onOpenFileReference,
+}: {
+  msg: ChatMessage;
+  msgIndex: number;
+  agentLabel: string;
+  workspace: Workspace | null | undefined;
+  workspacePath: string | undefined;
+  onOpenFileReference: ((path: string, line?: number) => void | Promise<void>) | undefined;
+}) {
+  // Parse code segments once per message (not on every parent re-render).
+  const renderedContent = useMemo(() => {
+    if (msg.role === 'assistant' && msg.items && msg.items.length > 0) {
+      return (
+        <>
+          {msg.items.map((item: MessageItem, si: number) =>
+            item.type === 'text'
+              ? parseSegments(item.content).map((seg, ssi) =>
+                  seg.type === 'code'
+                    ? <CodeBlock key={`${si}-${ssi}`} lang={seg.lang} code={seg.code} workspacePath={workspacePath} />
+                    : <AIMarkdownText
+                        key={`${si}-${ssi}`}
+                        content={seg.content}
+                        workspace={workspace}
+                        onOpenFileReference={onOpenFileReference}
+                      />
+                )
+              : <ToolItem key={item.activity.callId} activity={item.activity} />
+          )}
+          <div className="ai-done-marker">❆</div>
+        </>
+      );
+    }
+    if (msg.role === 'assistant') {
+      return parseSegments(contentToString(msg.content)).map((seg, si) =>
+        seg.type === 'code'
+          ? <CodeBlock key={si} lang={seg.lang} code={seg.code} workspacePath={workspacePath} />
+          : <AIMarkdownText
+              key={si}
+              content={seg.content}
+              workspace={workspace}
+              onOpenFileReference={onOpenFileReference}
+            />
+      );
+    }
+    return <span style={{ whiteSpace: 'pre-wrap' }}>{contentToString(msg.content)}</span>;
+  // workspace and onOpenFileReference are stable between keystrokes; msg is
+  // immutable once committed to session history.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msg]);
+
+  return (
+    <div className={`ai-message ai-message--${msg.role}`}>
+      <div className="ai-message-label">
+        {msg.role === 'user' ? 'You' : <><Sparkle weight="fill" size={11} /> {agentLabel}</>}
+      </div>
+      <div className="ai-message-content">{renderedContent}</div>
+      {msg.role === 'user' && ((msg.attachedImages && msg.attachedImages.length > 0) || msg.attachedImage) && (
+        <div className="ai-message-img-grid">
+          {(msg.attachedImages ?? (msg.attachedImage ? [msg.attachedImage] : [])).map((image, imageIndex) => (
+            <img key={`${msgIndex}-${imageIndex}`} src={image} className="ai-message-img" alt="attached" />
+          ))}
+        </div>
+      )}
+      {msg.role === 'user' && msg.attachedFile && (
+        <div className="ai-message-file-pill">
+          <span className="ai-message-file-pill-icon">📄</span>
+          <span className="ai-message-file-pill-name">{msg.attachedFile}</span>
+        </div>
+      )}
+      {msg.role === 'user' && msg.attachedSelectionLabel && (
+        <div className="ai-message-file-pill ai-message-file-pill--selection">
+          <span className="ai-message-file-pill-icon">✂</span>
+          <span className="ai-message-file-pill-name">{msg.attachedSelectionLabel}</span>
+        </div>
+      )}
+      {msg.role === 'user' && msg.activeFile && (
+        <div className="ai-message-file-tag">📄 {msg.activeFile.split('/').pop()}</div>
+      )}
+    </div>
+  );
+});
 
 const MAX_PENDING_IMAGES = 4;
 
@@ -735,66 +829,17 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
           </div>
         )}
 
-        {/* Message list */}
+        {/* Message list — each entry is memoized to avoid re-rendering on editor keystrokes */}
         {session.messages.map((msg, i) => (
-          <div key={i} className={`ai-message ai-message--${msg.role}`}>
-            <div className="ai-message-label">{msg.role === 'user' ? 'You' : <><Sparkle weight="fill" size={11} /> {agentLabel}</>}</div>
-            <div className="ai-message-content">
-              {msg.role === 'assistant' && msg.items && msg.items.length > 0
-                ? <>
-                    {msg.items.map((item: MessageItem, si: number) =>
-                      item.type === 'text'
-                        ? parseSegments(item.content).map((seg, ssi) =>
-                            seg.type === 'code'
-                              ? <CodeBlock key={`${si}-${ssi}`} lang={seg.lang} code={seg.code} workspacePath={workspacePath} />
-                              : <AIMarkdownText
-                                  key={`${si}-${ssi}`}
-                                  content={seg.content}
-                                  workspace={workspace}
-                                  onOpenFileReference={onOpenFileReference}
-                                />
-                          )
-                        : <ToolItem key={item.activity.callId} activity={item.activity} />
-                    )}
-                    <div className="ai-done-marker">❆</div>
-                  </>
-                : msg.role === 'assistant'
-                ? parseSegments(contentToString(msg.content)).map((seg, si) =>
-                    seg.type === 'code'
-                      ? <CodeBlock key={si} lang={seg.lang} code={seg.code} workspacePath={workspacePath} />
-                      : <AIMarkdownText
-                          key={si}
-                          content={seg.content}
-                          workspace={workspace}
-                          onOpenFileReference={onOpenFileReference}
-                        />
-                  )
-                : <span style={{ whiteSpace: 'pre-wrap' }}>{contentToString(msg.content)}</span>
-              }
-            </div>
-            {msg.role === 'user' && ((msg.attachedImages && msg.attachedImages.length > 0) || msg.attachedImage) && (
-              <div className="ai-message-img-grid">
-                {(msg.attachedImages ?? (msg.attachedImage ? [msg.attachedImage] : [])).map((image, imageIndex) => (
-                  <img key={`${i}-${imageIndex}`} src={image} className="ai-message-img" alt="attached" />
-                ))}
-              </div>
-            )}
-            {msg.role === 'user' && msg.attachedFile && (
-              <div className="ai-message-file-pill">
-                <span className="ai-message-file-pill-icon">📄</span>
-                <span className="ai-message-file-pill-name">{msg.attachedFile}</span>
-              </div>
-            )}
-            {msg.role === 'user' && msg.attachedSelectionLabel && (
-              <div className="ai-message-file-pill ai-message-file-pill--selection">
-                <span className="ai-message-file-pill-icon">✂</span>
-                <span className="ai-message-file-pill-name">{msg.attachedSelectionLabel}</span>
-              </div>
-            )}
-            {msg.role === 'user' && msg.activeFile && (
-              <div className="ai-message-file-tag">📄 {msg.activeFile.split('/').pop()}</div>
-            )}
-          </div>
+          <MemoizedChatMessage
+            key={i}
+            msg={msg}
+            msgIndex={i}
+            agentLabel={agentLabel}
+            workspace={workspace}
+            workspacePath={workspacePath}
+            onOpenFileReference={onOpenFileReference}
+          />
         ))}
 
         {/* Live streaming row */}

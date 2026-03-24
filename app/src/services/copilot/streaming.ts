@@ -854,7 +854,7 @@ export async function runCopilotAgent(
         loop.splice(0, loop.length, ...compressed);
         console.debug('[agent] context compressed to', loop.length, 'messages (~', estimateTokens(loop), 'tokens)');
       } else {
-        const MAX_KEEP_ROUNDS = 14;
+        const MAX_KEEP_ROUNDS = 25;
         const firstAssistantIdx = loop.findIndex((m) => m.role === 'assistant');
         if (firstAssistantIdx !== -1) {
           const assistantIdxs: number[] = [];

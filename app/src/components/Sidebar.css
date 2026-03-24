@@ -214,10 +214,8 @@
 }
 
 body.theme-light .sidebar {
-  background: rgba(242, 238, 229, 0.62);
+  background: rgba(242, 238, 229, 0.94);
   border-right-color: rgba(0, 0, 0, 0.07);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
 body.theme-light .sidebar-header,
@@ -454,7 +452,7 @@ body.theme-light .sidebar-explorer-label {
 
 .sidebar-btn-sync.syncing {
   color: var(--yellow);
-  animation: sidebar-pulse 1.2s ease-in-out infinite;
+  font-weight: 600;
 }
 
 .sidebar-btn-sync.done {
@@ -483,7 +481,8 @@ body.theme-light .sidebar-explorer-label {
 
 .sidebar-btn-update.loading {
   color: var(--yellow);
-  animation: sidebar-pulse 1.2s ease-in-out infinite;
+  font-weight: 600;
+  animation: sidebar-pulse 1s ease-in-out infinite;
 }
 
 @keyframes sidebar-pulse {
@@ -1100,8 +1099,6 @@ body.theme-light .sidebar-explorer-label {
   justify-content: center;
   padding: 20px;
   background: rgba(9, 11, 17, 0.38);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
 }
 
 .sidebar-delete-dialog {
@@ -1301,12 +1298,12 @@ body.theme-light .sidebar-explorer-label {
     rgba(var(--accent-rgb), 0.18) 65%,
     transparent 100%
   );
-  background-size: 220% 100%;
-  animation: copilot-sweep 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background-size: 200% 100%;
   color: var(--accent);
   outline: 1px solid rgba(var(--accent-rgb), 0.38);
   outline-offset: -1px;
   border-radius: 2px;
+  animation: copilot-sweep 2.5s linear infinite;
 }
 
 /* ── File being dragged from sidebar ─────────────────────────────── */

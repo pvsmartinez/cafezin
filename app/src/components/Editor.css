@@ -1,7 +1,7 @@
 .editor-wrapper {
   flex: 1;
   min-height: 0; /* required: allows flex-column child to shrink so CM's scroll container gets a bounded height */
-  overflow: hidden;
+  overflow: visible; /* must NOT be hidden — Grammarly's overlay is positioned outside the bounds */
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -88,6 +88,13 @@ body.theme-light .editor-md-toolbar-sep {
   background: var(--border);
 }
 
+/* Live preview: hide markdown markers visually while keeping them in the DOM.
+ * font-size:0 collapses the glyph to zero width/height so the visual result
+ * matches Decoration.replace, but Grammarly can still read the text nodes. */
+.cm-live-preview-hide {
+  font-size: 0;
+}
+
 /* KaTeX block math in markdown preview */
 .katex-block {
   overflow-x: auto;
@@ -99,17 +106,13 @@ body.theme-light .editor-md-toolbar-sep {
   font-style: italic;
 }
 
-/* While Copilot is writing this file: visible animated border + dim */
-@keyframes editor-lock-pulse {
-  0%, 100% { border-color: rgba(var(--accent-rgb), 0.35); }
-  50%       { border-color: rgba(var(--accent-rgb), 0.85); }
-}
+/* While Copilot is writing this file: visible static border + dim */
 .editor-wrapper[data-locked] {
   pointer-events: none;
   opacity: 0.80;
-  border: 1.5px solid rgba(var(--accent-rgb), 0.35);
+  border: 1.5px solid rgba(var(--accent-rgb), 0.58);
   border-radius: 4px;
-  animation: editor-lock-pulse 1.4s ease-in-out infinite;
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.12);
 }
 
 /* @uiw/react-codemirror creates an unstyled wrapper div between .editor-wrapper

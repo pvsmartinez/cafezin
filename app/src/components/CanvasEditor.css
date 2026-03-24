@@ -95,12 +95,6 @@
   justify-content: center;
   background: rgba(var(--accent-rgb), 0.14);
   pointer-events: none;
-  animation: canvas-drop-bg-pulse 1s ease-in-out infinite alternate;
-}
-
-@keyframes canvas-drop-bg-pulse {
-  from { background: rgba(var(--accent-rgb), 0.10); }
-  to   { background: rgba(var(--accent-rgb), 0.20); }
 }
 
 .canvas-drop-hint-inner {
@@ -112,18 +106,11 @@
   border: 2px dashed var(--accent);
   border-radius: var(--radius-xl);
   padding: 24px 40px;
-  backdrop-filter: blur(6px);
 }
 
 .canvas-drop-hint-icon {
   font-size: 28px;
   color: var(--accent);
-  animation: canvas-drop-bob 0.6s ease-in-out infinite alternate;
-}
-
-@keyframes canvas-drop-bob {
-  from { transform: translateY(0);   }
-  to   { transform: translateY(5px); }
 }
 
 .canvas-drop-hint-text {
@@ -142,7 +129,6 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(2px);
   pointer-events: all;
 }
 
@@ -1662,7 +1648,6 @@
   padding: 3px 4px;
   pointer-events: all;
   user-select: none;
-  backdrop-filter: blur(6px);
   box-shadow: var(--shadow-sm);
   z-index: calc(var(--z-canvas) - 1);
 }

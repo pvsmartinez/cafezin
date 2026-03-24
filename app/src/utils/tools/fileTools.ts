@@ -10,13 +10,14 @@ import {
   exists,
   rename,
   remove,
+  copyFile,
   stat,
 } from '../../services/fs';
 import { walkFilesFlat } from '../../services/workspace';
 import { lockFile, unlockFile, waitForUnlock } from '../../services/copilotLock';
 import { parseSpreadsheetFile, serializeSheetToCSV, serializeSheetToTSV, sheetToMarkdownTable } from '../../services/spreadsheet';
+import { invoke } from '@tauri-apps/api/core';
 import { loadWorkspaceIndex, extractFileOutline, rankWorkspaceIndex } from '../../services/workspaceIndex';
-import { searchWorkspaceRag } from '../../services/rag';
 import type { SheetTab } from '../../services/spreadsheet';
 import type { AIRecordedTextMark, AISpreadsheetTarget } from '../../types';
 import type { ToolDefinition, DomainExecutor } from './shared';
@@ -95,20 +96,19 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
       name: 'search_workspace_index',
       description:
         'Search the pre-built workspace index and return ranked files with their structural outlines. ' +
-        'When a query is supplied, it also attempts local hybrid retrieval (semantic chunk search + lexical ranking) before falling back to the structural index. ' +
         'Much faster than outline_workspace (no full file reads in the common path). ' +
-        'Ideal as a first step when localising relevant files: it ranks by query relevance, recency, structure, and local semantic similarity when available. ' +
-        'After finding candidate files, read their full content with read_workspace_file. ' +
+        'Ideal as a first step when localising relevant files: it ranks by query relevance, recency, and structure. ' +
+        'After finding candidate files, read their full content with read_workspace_file, or use search_workspace for full-text grep. ' +
         '• Omit query to get the top files ranked by recency and active file. ' +
-        '• Supply a natural-language query or keywords to retrieve likely files even when wording differs. ' +
-        'Returns up to 15 results with their outline (headings, exports, word count, etc.) and may include the best matching chunk snippet.',
+        '• Supply natural-language keywords or a file name fragment to find relevant files. ' +
+        'Returns up to 15 results with their outline (headings, exports, word count, etc.).',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
             description:
-              'Natural-language query or keywords. Matched against file paths, structural outlines, and local semantic chunks when available. ' +
+              'Natural-language query or keywords. Matched against file paths and structural outlines. ' +
               'E.g. "chapter introduction", "authentication hook", or "the file that handles checkout". Omit to get top-ranked files by recency.',
           },
         },
@@ -230,10 +230,11 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'search_workspace',
       description:
-        'Search for a word or phrase across all text files in the workspace. ' +
-        'Returns up to 50 matches with 2 lines of context around each hit. ' +
-        'Supports plain text (case-insensitive) or a JavaScript regular expression when query starts and ends with /. ' +
-        'Searches: .md, .txt, .ts, .tsx, .js, .jsx, .json, .css, .html, .rs, .toml, .yaml, .yml, .sh, .py, .sql and similar text formats.',
+        'Fast grep-based full-text search across all text files in the workspace. ' +
+        'Returns up to 60 matches with file path, line number and matched line content. ' +
+        'Supports plain text (case-insensitive) or a regex when query starts and ends with /. ' +
+        'Searches: .md, .mdx, .txt, .ts, .tsx, .js, .jsx, .json, .css, .html, .rs, .toml, .yaml, .yml, .sh, .py, .sql. ' +
+        'Use this to find literal strings or patterns; use search_workspace_index first when you want ranked files by topic.',
       parameters: {
         type: 'object',
         properties: {
@@ -272,8 +273,10 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
       name: 'rename_workspace_file',
       description:
         'Rename or move a file or folder to a new path within the workspace. ' +
+        'This handles BOTH renaming (same folder, new name) AND moving (different folder). ' +
         'Creates any missing parent directories in the destination path automatically. ' +
-        'Use this when the user asks to rename, move, or reorganise files.',
+        'Examples: rename "draft.md" → "final.md"; move "draft.md" → "archive/draft.md". ' +
+        'Use this whenever the user asks to rename, move, or reorganise files or folders.',
       parameters: {
         type: 'object',
         properties: {
@@ -311,6 +314,53 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
           },
         },
         required: ['path', 'confirm'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'duplicate_file',
+      description:
+        'Copy a file to a new path within the workspace. ' +
+        'Creates any missing parent directories in the destination path automatically. ' +
+        'Use when the user asks to duplicate, copy, or clone a file. ' +
+        'For folders, use scaffold_workspace instead.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: {
+            type: 'string',
+            description: 'Relative path of the source file, e.g. "templates/template.md".',
+          },
+          to: {
+            type: 'string',
+            description: 'Relative path for the copy, e.g. "chapters/cap01.md". The destination must not already exist.',
+          },
+        },
+        required: ['from', 'to'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_folder',
+      description:
+        'Create a new folder (and any missing parent directories) in the workspace. ' +
+        'Use when the user asks to create a folder, directory, or subfolder. ' +
+        'For creating multiple files and folders at once, use scaffold_workspace instead.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description:
+              'Relative path from workspace root of the folder to create, e.g. "chapters/part2". ' +
+              'All parent directories are created automatically.',
+          },
+        },
+        required: ['path'],
       },
     },
   },
@@ -724,41 +774,11 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
     // ── search_workspace_index ────────────────────────────────────────────
     case 'search_workspace_index': {
       const query = String(args.query ?? '').trim();
-      if (query) {
-        const ragResult = await searchWorkspaceRag(workspacePath, query, {
-          limit: 12,
-          activeFile: ctx.activeFile,
-          recentFiles: ctx.workspaceConfig?.recentFiles,
-        });
-        if (ragResult && ragResult.hits.length > 0) {
-          const ageMin = ragResult.builtAt
-            ? Math.round((Date.now() - new Date(ragResult.builtAt).getTime()) / 60_000)
-            : 0;
-          const freshness = ragResult.builtAt
-            ? ageMin < 2 ? '' : ` [index built ${ageMin} min ago]`
-            : '';
-          const dirtyActiveHint = ctx.activeFile && ctx.isFileDirty?.(ctx.activeFile)
-            ? `\n\nNote: ${ctx.activeFile} has unsaved editor changes, so its live buffer may be newer than the hybrid index. Use read_workspace_file or search_workspace to inspect the live text.`
-            : '';
-          const lines = ragResult.hits.map((hit) => {
-            const kb = (hit.size / 1024).toFixed(1);
-            const liveDirty = ctx.isFileDirty?.(hit.path) ? ' [live buffer newer than index]' : '';
-            const title = hit.title ? `\n  best chunk: ${hit.title} [lines ${hit.startLine}-${hit.endLine}]` : '';
-            const snippet = hit.snippet ? `\n  snippet: ${hit.snippet}` : '';
-            const outline = ctx.isFileDirty?.(hit.path)
-              ? getLiveTextOverride(hit.path, ctx)?.text
-              : null;
-            const liveOutline = outline ? extractFileOutline(hit.path, outline) : hit.outline;
-            return `📄 ${hit.path}  (${kb} KB)${liveDirty}\n  hybrid score: ${hit.combinedScore.toFixed(2)} · semantic ${hit.semanticScore.toFixed(2)} · lexical ${hit.lexicalScore.toFixed(2)}${liveOutline ? `\n${liveOutline}` : ''}${title}${snippet}`;
-          });
-          return `Top ${ragResult.hits.length} files matching "${query}" via local hybrid search${freshness}:\n\n${lines.join('\n\n')}${dirtyActiveHint}`;
-        }
-      }
 
       const index = await loadWorkspaceIndex(workspacePath);
       if (!index) {
         return (
-          'Workspace index not built yet. The hybrid index is built when the AI panel is opened or on the first search. ' +
+          'Workspace index not built yet. It is built when the AI panel is first opened. ' +
           'Try again in a moment, or use outline_workspace for a live scan.'
         );
       }
@@ -860,7 +880,12 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       pathList = pathList.slice(0, 8); // hard cap
       if (pathList.length === 0) return 'Error: paths array is empty.';
 
-      const CAP = 80_000;
+      // Total character budget shared across all files.
+      // Sized to stay well inside the 32 KB per-tool-result cap in the streamer,
+      // leaving room for headers. Each file gets an equal slice of the budget.
+      const TOTAL_BUDGET = 24_000;
+      const perFileBudget = Math.floor(TOTAL_BUDGET / pathList.length);
+
       const results = await Promise.all(
         pathList.map(async (relPath) => {
           const label = `\n${'─'.repeat(60)}\n📄 ${relPath}\n${'─'.repeat(60)}`;
@@ -878,18 +903,20 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
           try {
             const { text, fromLiveBuffer, dirty } = await readWorkspaceText(workspacePath, relPath, ctx);
             const lines = text.split('\n');
+            const totalLines = lines.length;
             const freshnessLabel = fromLiveBuffer
               ? dirty ? '[Live editor buffer — unsaved changes]'
                 : '[Live open tab buffer]'
               : '';
-            if (text.length > CAP) {
-              const capText = text.slice(0, CAP);
+            const prefix = `${label}\n${freshnessLabel ? `${freshnessLabel}\n` : ''}`;
+            if (text.length > perFileBudget) {
+              const capText = text.slice(0, perFileBudget);
               const capLines = capText.split('\n');
               const lastFullLine = capLines.length - 1;
-              const pct = Math.round((lastFullLine / lines.length) * 100);
-              return `${label}\n${freshnessLabel ? `${freshnessLabel}\n` : ''}${capLines.slice(0, lastFullLine).join('\n')}\n\n[… truncated — showed ${lastFullLine}/${lines.length} lines (${pct}%). Use read_workspace_file with start_line to continue.]`;
+              const pct = Math.round((lastFullLine / totalLines) * 100);
+              return `${prefix}${capLines.slice(0, lastFullLine).join('\n')}\n\n[… truncated: showed ${lastFullLine}/${totalLines} lines (${pct}%). Call read_workspace_file with start_line=${lastFullLine + 1} to read the rest.]`;
             }
-            return `${label}\n${freshnessLabel ? `${freshnessLabel}\n` : ''}${text}`;
+            return `${prefix}${text}`;
           } catch (e) {
             return `${label}\n[Error reading: ${e}]`;
           }
@@ -1012,74 +1039,80 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
     }
 
     // ── search_workspace ──────────────────────────────────────────────────
+    // Uses native grep for speed; overlays live (unsaved) buffers in JS.
     case 'search_workspace': {
       const query = String(args.query ?? '').trim();
       if (!query) return 'Error: query is required.';
-      const files = await walkFilesFlat(workspacePath);
-      const textFiles = files.filter((f) => {
-        if (f.endsWith('.tldr.json')) return false;
-        const ext = f.split('.').pop()?.toLowerCase() ?? '';
-        return TEXT_EXTS.has(ext);
-      });
 
-      // Support optional JS regex: query wrapped in /.../ or /.../i
-      let matchLine: (line: string) => boolean;
+      // Parse /regex/flags syntax
       const reMatch = /^\/(.+)\/([gi]*)$/.exec(query);
+      let isRegex = false;
+      let pattern = query;
+      let jsRegex: RegExp | null = null;
       if (reMatch) {
         try {
-          const re = new RegExp(reMatch[1], reMatch[2] || 'i');
-          matchLine = (line) => re.test(line);
+          jsRegex = new RegExp(reMatch[1], reMatch[2] || 'i');
+          pattern = reMatch[1];
+          isRegex = true;
         } catch {
           return `Error: invalid regular expression: ${query}`;
         }
-      } else {
-        const needle = query.toLowerCase();
-        matchLine = (line) => line.toLowerCase().includes(needle);
       }
 
-      const hits: string[] = [];
-      const MAX_HITS = 50;
-      const CONTEXT = 2; // lines before/after each hit
-
-      // Read files in parallel batches of 10 — same behaviour, ~10× faster on large workspaces
-      const BATCH = 10;
-      for (let b = 0; b < textFiles.length && hits.length < MAX_HITS; b += BATCH) {
-        const batch = textFiles.slice(b, b + BATCH);
-        const batchHits = await Promise.all(
-          batch.map(async (rel) => {
-            try {
-              const { text, fromLiveBuffer, dirty } = await readWorkspaceText(workspacePath, rel, ctx);
-              const lines = text.split('\n');
-              const fileHits: string[] = [];
-              for (let i = 0; i < lines.length; i++) {
-                if (!matchLine(lines[i])) continue;
-                const ctxLines: string[] = [];
-                for (let c = Math.max(0, i - CONTEXT); c <= Math.min(lines.length - 1, i + CONTEXT); c++) {
-                  ctxLines.push(c === i ? `> ${lines[c]}` : `  ${lines[c]}`);
-                }
-                const freshness = fromLiveBuffer
-                  ? dirty ? ' [live unsaved buffer]'
-                    : ' [live open tab buffer]'
-                  : '';
-                fileHits.push(`${rel}${freshness}:${i + 1}:\n${ctxLines.join('\n')}`);
-              }
-              return fileHits;
-            } catch { return []; }
-          }),
-        );
-        for (const fileHits of batchHits) {
-          for (const hit of fileHits) {
-            if (hits.length >= MAX_HITS) break;
-            hits.push(hit);
-          }
-          if (hits.length >= MAX_HITS) break;
+      // ── 1. Grep all files on disk (fast, native) ─────────────────────
+      interface GrepHit { path: string; line: number; content: string }
+      let grepHits: GrepHit[] = [];
+      const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+      if (isTauri) {
+        try {
+          grepHits = await invoke<GrepHit[]>('grep_workspace', {
+            workspacePath,
+            pattern,
+            isRegex,
+          });
+        } catch (e) {
+          // Proceed with JS fallback if Tauri command fails
+          console.warn('[search_workspace] grep_workspace failed, falling back to JS:', e);
         }
       }
 
-      const scanned = Math.min(textFiles.length, Math.ceil((hits.length > 0 ? textFiles.length : textFiles.length)));
-      if (hits.length === 0) return `No matches found for "${query}" across ${scanned} file(s).`;
-      const cap = hits.length >= MAX_HITS ? ` (showing first ${MAX_HITS} — refine query for more)` : '';
-      return `Found ${hits.length} match(es) for "${query}" across ${scanned} file(s)${cap}:\n\n${hits.join('\n\n')}`;
+      // ── 2. Override with live buffer for open/dirty files ─────────────
+      // Get the set of files that have a live buffer (open tabs, possibly unsaved).
+      const liveFiles = new Set<string>();
+      if (ctx.activeFile) liveFiles.add(ctx.activeFile);
+      // Also check recently open files that may have live content
+      for (const hit of grepHits) {
+        if (ctx.getLiveFileContent?.(hit.path) != null) liveFiles.add(hit.path);
+      }
+
+      // For files with live buffers, run JS search on the live text
+      const liveHits: string[] = [];
+      const needle = query.toLowerCase();
+      const matchLine = jsRegex
+        ? (line: string) => jsRegex!.test(line)
+        : (line: string) => line.toLowerCase().includes(needle);
+
+      for (const rel of liveFiles) {
+        const live = getLiveTextOverride(rel, ctx);
+        if (!live) continue;
+        const lines = live.text.split('\n');
+        const note = live.dirty ? ' [live unsaved buffer]' : ' [live open tab]';
+        for (let i = 0; i < lines.length; i++) {
+          if (!matchLine(lines[i])) continue;
+          liveHits.push(`${rel}${note}:${i + 1}: ${lines[i].trim()}`);
+        }
+      }
+
+      // ── 3. Merge: drop grep hits for live-buffer files, add live hits ─
+      const filteredGrepHits = grepHits
+        .filter((h) => !liveFiles.has(h.path))
+        .map((h) => `${h.path}:${h.line}: ${h.content}`);
+
+      const allHits = [...filteredGrepHits, ...liveHits].slice(0, 60);
+
+      if (allHits.length === 0) return `No matches found for "${query}".`;
+      const cap = allHits.length >= 60 ? ` (showing first 60 — refine query for more)` : '';
+      return `Found ${allHits.length} match(es) for "${query}"${cap}:\n\n${allHits.join('\n')}`;
     }
 
     // ── check_file ────────────────────────────────────────────────────────
@@ -1284,6 +1317,54 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         return `Error deleting: ${e}`;
       } finally {
         unlockFile(relPath);
+      }
+    }
+
+    // ── duplicate_file ────────────────────────────────────────────────────
+    case 'duplicate_file': {
+      const fromRel = String(args.from ?? '').trim();
+      const toRel   = String(args.to   ?? '').trim();
+      if (!fromRel) return 'Error: from is required.';
+      if (!toRel)   return 'Error: to is required.';
+      if (fromRel === toRel) return 'Error: source and destination are the same path.';
+      let fromAbs: string, toAbs: string;
+      try {
+        fromAbs = safeResolvePath(workspacePath, fromRel);
+        toAbs   = safeResolvePath(workspacePath, toRel);
+      } catch (e) { return String(e); }
+      if (!(await exists(fromAbs))) return `File not found: ${fromRel}`;
+      const srcInfo = await stat(fromAbs);
+      if (srcInfo.isDirectory) return `Error: "${fromRel}" is a folder. duplicate_file only copies individual files — use scaffold_workspace to recreate a folder structure.`;
+      if (await exists(toAbs)) return `Error: destination already exists: ${toRel}. Choose a different name or delete it first.`;
+      const toDir = toAbs.split('/').slice(0, -1).join('/');
+      if (!(await exists(toDir))) await mkdir(toDir, { recursive: true });
+      try {
+        await copyFile(fromAbs, toAbs);
+        onFileWritten?.(toRel);
+        await new Promise<void>((r) => setTimeout(r, 400));
+        return `Duplicated "${fromRel}" → "${toRel}" successfully.`;
+      } catch (e) {
+        return `Error copying file: ${e}`;
+      }
+    }
+
+    // ── create_folder ─────────────────────────────────────────────────────
+    case 'create_folder': {
+      const relPath = String(args.path ?? '').trim();
+      if (!relPath) return 'Error: path is required.';
+      let abs: string;
+      try { abs = safeResolvePath(workspacePath, relPath); }
+      catch (e) { return String(e); }
+      if (await exists(abs)) {
+        const info = await stat(abs);
+        if (info.isDirectory) return `Folder "${relPath}" already exists.`;
+        return `Error: "${relPath}" already exists as a file, not a folder.`;
+      }
+      try {
+        await mkdir(abs, { recursive: true });
+        return `Created folder "${relPath}" successfully.`;
+      } catch (e) {
+        return `Error creating folder: ${e}`;
       }
     }
 

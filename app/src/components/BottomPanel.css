@@ -124,13 +124,7 @@
   border-radius: 999px;
   border: 1.5px solid color-mix(in srgb, var(--accent) 35%, transparent);
   border-top-color: var(--accent);
-  animation: bottom-panel-spin 0.9s linear infinite;
   flex-shrink: 0;
-}
-
-@keyframes bottom-panel-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 /* Last-line preview shown when the panel is collapsed */
@@ -319,11 +313,7 @@
   padding: 6px 16px;
   color: var(--text-muted);
   font-style: italic;
-  animation: blink 1s step-start infinite;
-}
-
-@keyframes blink {
-  50% { opacity: 0.4; }
+  opacity: 0.72;
 }
 
 /* ── Input row ───────────────────────────────────────────────────────────── */
@@ -389,14 +379,12 @@
 }
 
 body.theme-light .bottom-panel {
-  background: rgba(242, 238, 229, 0.72);
+  background: rgba(242, 238, 229, 0.95);
   border-top-color: rgba(0, 0, 0, 0.07);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 body.theme-light .bottom-panel-tabrow {
-  background: rgba(246, 242, 234, 0.62);
+  background: rgba(246, 242, 234, 0.98);
   border-bottom-color: rgba(0, 0, 0, 0.07);
 }
 

@@ -34,7 +34,7 @@ import {
 } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import { createFile, createCanvasFile, createFolder, refreshWorkspaceFiles, deleteFile, duplicateFile, duplicateFolder, renameFile, moveFile, updateFileReferences } from '../services/workspace';
+import { WORKSPACE_MUTATED_EVENT, createFile, createCanvasFile, createFolder, refreshWorkspaceFiles, deleteFile, duplicateFile, duplicateFolder, renameFile, moveFile, updateFileReferences } from '../services/workspace';
 import SyncModal from './SyncModal';
 import ProjectSearchPanel from './ProjectSearchPanel';
 import type { Workspace, FileTreeNode, AIEditMark, SidebarButton } from '../types';
@@ -408,7 +408,7 @@ interface PendingDeleteDialog {
   message: string;
 }
 
-export default function Sidebar({
+const SidebarInner = function Sidebar({
   workspace,
   activeFile,
   dirtyFiles,
@@ -455,6 +455,9 @@ export default function Sidebar({
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [gitChangedCount, setGitChangedCount] = useState(0);
   const [aiEditsOpen, setAiEditsOpen] = useState(false);
+  const gitRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gitRefreshInFlightRef = useRef(false);
+  const gitRefreshQueuedRef = useRef(false);
 
   // Wire the external new-file trigger ref so ⌘T/⌘N in App can open the creator
   useEffect(() => {
@@ -656,19 +659,73 @@ export default function Sidebar({
     return result;
   }
 
-  // Poll git status every 30s so the sync button reflects uncommitted changes
   const fetchGitCount = useCallback(async () => {
+    if (!workspace.hasGit) {
+      setGitChangedCount(0);
+      return;
+    }
+
+    gitRefreshInFlightRef.current = true;
     try {
       const result = await invoke<{ files: string[] }>('git_diff', { path: workspace.path });
       setGitChangedCount(result.files.length);
-    } catch { /* not a git repo — ignore */ }
-  }, [workspace.path]);
+    } catch {
+      setGitChangedCount(0);
+    } finally {
+      gitRefreshInFlightRef.current = false;
+      if (gitRefreshQueuedRef.current) {
+        gitRefreshQueuedRef.current = false;
+        void fetchGitCount();
+      }
+    }
+  }, [workspace.hasGit, workspace.path]);
+
+  const scheduleGitCountRefresh = useCallback((delayMs = 0) => {
+    if (!workspace.hasGit) {
+      setGitChangedCount(0);
+      return;
+    }
+
+    if (gitRefreshTimerRef.current) clearTimeout(gitRefreshTimerRef.current);
+    gitRefreshTimerRef.current = setTimeout(() => {
+      gitRefreshTimerRef.current = null;
+      if (gitRefreshInFlightRef.current) {
+        gitRefreshQueuedRef.current = true;
+        return;
+      }
+      void fetchGitCount();
+    }, delayMs);
+  }, [fetchGitCount, workspace.hasGit]);
 
   useEffect(() => {
-    fetchGitCount();
-    const id = setInterval(fetchGitCount, 30_000);
-    return () => clearInterval(id);
-  }, [fetchGitCount]);
+    scheduleGitCountRefresh();
+
+    const handleWorkspaceMutation = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspacePath?: string }>).detail;
+      if (detail?.workspacePath !== workspace.path) return;
+      scheduleGitCountRefresh(1200);
+    };
+
+    const handleWindowFocus = () => scheduleGitCountRefresh();
+    const handleVisibilityChange = () => {
+      if (!document.hidden) scheduleGitCountRefresh();
+    };
+
+    window.addEventListener(WORKSPACE_MUTATED_EVENT, handleWorkspaceMutation as EventListener);
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (gitRefreshTimerRef.current) {
+        clearTimeout(gitRefreshTimerRef.current);
+        gitRefreshTimerRef.current = null;
+      }
+      gitRefreshQueuedRef.current = false;
+      window.removeEventListener(WORKSPACE_MUTATED_EVENT, handleWorkspaceMutation as EventListener);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [scheduleGitCountRefresh, workspace.path]);
 
   // Derive set of files with unreviewed AI edits for tree highlighting
   const unseenAiFiles = new Set(aiMarks.filter((m) => !m.reviewed).map((m) => m.fileRelPath));
@@ -796,6 +853,7 @@ export default function Sidebar({
     try {
       await invoke('git_sync', { path: workspace.path, message });
       onSyncComplete();
+      await fetchGitCount();
       setSyncStatus('done');
     } catch (e) {
       setSyncStatus('error');
@@ -857,7 +915,10 @@ export default function Sidebar({
             onClick={() => {
               if (!onRefreshFiles || refreshingFiles) return;
               setRefreshingFiles(true);
-              void onRefreshFiles().finally(() => setRefreshingFiles(false));
+              void onRefreshFiles().finally(() => {
+                setRefreshingFiles(false);
+                scheduleGitCountRefresh();
+              });
             }}
             disabled={refreshingFiles}
           ><ArrowsClockwise weight="thin" size={13} /></button>
@@ -1068,7 +1129,7 @@ export default function Sidebar({
         </button>
         <button
           className={`sidebar-btn sidebar-btn-sync${syncStatus !== 'idle' ? ` ${syncStatus}` : ''}${syncStatus === 'idle' && gitChangedCount > 0 ? ' has-changes' : ''}${!workspace.hasGit ? ' disabled-no-git' : ''}`}
-          onClick={() => { if (workspace.hasGit) { setShowSyncModal(true); fetchGitCount(); } }}
+          onClick={() => { if (workspace.hasGit) { setShowSyncModal(true); scheduleGitCountRefresh(); } }}
           disabled={syncStatus === 'syncing' || !workspace.hasGit}
           title={workspace.hasGit ? t('sidebar.syncTitle') : t('sidebar.syncNoGitTitle')}
         >
@@ -1173,7 +1234,7 @@ export default function Sidebar({
       open={showSyncModal}
       workspacePath={workspace.path}
       onConfirm={handleSyncConfirm}
-      onClose={() => { setShowSyncModal(false); fetchGitCount(); }}
+      onClose={() => { setShowSyncModal(false); scheduleGitCountRefresh(); }}
     />
 
     {/* ── Context menu ── */}
@@ -1295,3 +1356,6 @@ export default function Sidebar({
     </>
   );
 }
+
+const Sidebar = memo(SidebarInner);
+export default Sidebar;

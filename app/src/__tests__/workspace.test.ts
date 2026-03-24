@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as tauriFs from '@tauri-apps/plugin-fs';
 import {
+  WORKSPACE_MUTATED_EVENT,
   readFile,
   writeFile,
   trackFileOpen,
@@ -55,6 +56,13 @@ describe('writeFile', () => {
     const ws = makeWorkspace();
     await writeFile(ws, 'output.md', 'some text');
     expect(tauriFs.writeTextFile).toHaveBeenCalledWith('/test/ws/output.md', 'some text', {});
+  });
+
+  it('dispatches a workspace mutation event after writing', async () => {
+    vi.mocked(tauriFs.writeTextFile).mockResolvedValue(undefined);
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    await writeFile(makeWorkspace(), 'output.md', 'some text');
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: WORKSPACE_MUTATED_EVENT }));
   });
 });
 

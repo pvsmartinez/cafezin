@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import { type ComponentProps, memo } from 'react';
 import type { Editor as TldrawEditor } from 'tldraw';
 import { ArrowCircleUp, X } from '@phosphor-icons/react';
 import UpdateModal from '../UpdateModal';
@@ -65,7 +65,7 @@ export interface AppOverlaysProps {
   onOpenUpdateReleaseModal: () => void;
 }
 
-export function AppOverlays({
+const AppOverlaysInner = function AppOverlays({
   projectRoot,
   workspace,
   showUpdateModal,
@@ -137,17 +137,19 @@ export function AppOverlays({
         onTaskDeleted={onDeleteMobilePendingTask}
       />
 
-      <SettingsModal
-        open={showSettings}
-        appSettings={appSettings}
-        workspace={workspace}
-        onAppSettingsChange={onAppSettingsChange}
-        onWorkspaceChange={onWorkspaceChange}
-        onOpenHelp={onOpenHelp}
-        onContactUs={onContactUs}
-        onClose={onCloseSettings}
-        initialTab={settingsInitialTab}
-      />
+      {showSettings && (
+        <SettingsModal
+          open={showSettings}
+          appSettings={appSettings}
+          workspace={workspace}
+          onAppSettingsChange={onAppSettingsChange}
+          onWorkspaceChange={onWorkspaceChange}
+          onOpenHelp={onOpenHelp}
+          onContactUs={onContactUs}
+          onClose={onCloseSettings}
+          initialTab={settingsInitialTab}
+        />
+      )}
 
       <DesktopOnboardingModal
         open={showDesktopOnboarding}
@@ -223,3 +225,5 @@ export function AppOverlays({
     </>
   );
 }
+
+export const AppOverlays = memo(AppOverlaysInner);

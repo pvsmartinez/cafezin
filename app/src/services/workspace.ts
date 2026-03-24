@@ -25,6 +25,25 @@ export { buildWorkspaceIndex } from './workspaceIndex';
 const RECENTS_KEY = 'cafezin-recent-workspaces';
 const CONFIG_FILE = 'config.json';
 const AGENT_FILE = 'AGENT.md';
+export const WORKSPACE_MUTATED_EVENT = 'cafezin:workspace-mutated';
+
+type WorkspaceMutationReason =
+  | 'write'
+  | 'create-file'
+  | 'create-canvas'
+  | 'delete'
+  | 'duplicate-file'
+  | 'rename'
+  | 'move'
+  | 'duplicate-folder'
+  | 'create-folder';
+
+function dispatchWorkspaceMutation(workspacePath: string, reason: WorkspaceMutationReason): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(WORKSPACE_MUTATED_EVENT, {
+    detail: { workspacePath, reason },
+  }));
+}
 
 /**
  * Recursively build a file tree starting at `dirAbsPath`.
@@ -246,6 +265,7 @@ export async function readFile(workspace: Workspace, filename: string): Promise<
 
 export async function writeFile(workspace: Workspace, filename: string, content: string): Promise<void> {
   await writeTextFile(`${workspace.path}/${filename}`, content);
+  dispatchWorkspaceMutation(workspace.path, 'write');
 }
 
 /** Record that a file was opened — updates lastOpenedFile and recentFiles in config. */
@@ -285,6 +305,7 @@ export async function createFile(workspace: Workspace, filename: string): Promis
       content = `# ${baseName}\n\n`;
     }
     await writeTextFile(absPath, content);
+    dispatchWorkspaceMutation(workspace.path, 'create-file');
   }
 }
 
@@ -299,12 +320,14 @@ export async function createCanvasFile(workspace: Workspace, filename: string): 
   if (!(await exists(absPath))) {
     // An empty string tells CanvasEditor to start with a blank canvas
     await writeTextFile(absPath, '');
+    dispatchWorkspaceMutation(workspace.path, 'create-canvas');
   }
 }
 
 /** Delete a file or directory from the workspace. */
 export async function deleteFile(workspace: Workspace, relPath: string, isDir = false): Promise<void> {
   await remove(`${workspace.path}/${relPath}`, isDir ? { recursive: true } : undefined);
+  dispatchWorkspaceMutation(workspace.path, 'delete');
 }
 
 /** Duplicate a file. Returns the relative path of the new copy. */
@@ -335,6 +358,7 @@ export async function duplicateFile(workspace: Workspace, relPath: string): Prom
     n++;
   }
   await copyFile(src, `${workspace.path}/${candidate}`);
+  dispatchWorkspaceMutation(workspace.path, 'duplicate-file');
   return candidate;
 }
 
@@ -348,6 +372,7 @@ export async function renameFile(workspace: Workspace, oldRel: string, newRel: s
   }
   // rename works atomically on both files and directories
   await rename(src, dest);
+  dispatchWorkspaceMutation(workspace.path, 'rename');
 }
 
 // ── Reference update ──────────────────────────────────────────────────────────
@@ -492,6 +517,7 @@ export async function moveFile(workspace: Workspace, srcRel: string, destDirRel:
     await mkdir(destDir, { recursive: true });
   }
   await rename(src, dest);
+  dispatchWorkspaceMutation(workspace.path, 'move');
   return newRel;
 }
 
@@ -505,6 +531,7 @@ export async function duplicateFolder(workspace: Workspace, relPath: string): Pr
     n++;
   }
   await copyDirRecursive(`${workspace.path}/${relPath}`, `${workspace.path}/${candidate}`);
+  dispatchWorkspaceMutation(workspace.path, 'duplicate-folder');
   return candidate;
 }
 
@@ -526,6 +553,7 @@ export async function createFolder(workspace: Workspace, relPath: string): Promi
   const absPath = `${workspace.path}/${relPath}`;
   if (!(await exists(absPath))) {
     await mkdir(absPath, { recursive: true });
+    dispatchWorkspaceMutation(workspace.path, 'create-folder');
   }
 }
 

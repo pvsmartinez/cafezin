@@ -59,6 +59,9 @@ export interface KeyboardShortcutOptions {
   onToggleTerminal:() => void;
   onToggleFocusMode?: () => void;
   focusMode?: boolean;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onZoomReset?: () => void;
 }
 
 export function useKeyboardShortcuts(opts: KeyboardShortcutOptions): void {
@@ -166,6 +169,24 @@ export function useKeyboardShortcuts(opts: KeyboardShortcutOptions): void {
         e.preventDefault();
         onToggleTerminal();
         return;
+      }
+      // Zoom: Cmd/Ctrl + = or + (in), - (out), 0 (reset) — standard in every editor
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          optsRef.current.onZoomIn?.();
+          return;
+        }
+        if (e.key === '-') {
+          e.preventDefault();
+          optsRef.current.onZoomOut?.();
+          return;
+        }
+        if (e.key === '0') {
+          e.preventDefault();
+          optsRef.current.onZoomReset?.();
+          return;
+        }
       }
     }
 

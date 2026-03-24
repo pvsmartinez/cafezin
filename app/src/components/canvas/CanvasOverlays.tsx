@@ -268,6 +268,7 @@ function ArrowHandles() {
   const editor = useEditor();
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ arrowId: TLShapeId } | null>(null);
+  const draggingRef = useRef(false);
 
   type HandleData = {
     shapeId: TLShapeId;
@@ -301,6 +302,12 @@ function ArrowHandles() {
   const handleData = useValue('arrowHandlePositions', computeHandleData, [editor]);
   handleDataRef.current = handleData ?? null;
 
+  function updateDragging(nextValue: boolean) {
+    if (draggingRef.current === nextValue) return;
+    draggingRef.current = nextValue;
+    setDragging(nextValue);
+  }
+
   function onHandlePointerDown(
     e: React.PointerEvent<HTMLDivElement>,
     shapeId: TLShapeId,
@@ -330,7 +337,7 @@ function ArrowHandles() {
     editor.setSelectedShapes([arrowId]);
 
     dragRef.current = { arrowId };
-    setDragging(true);
+    updateDragging(true);
 
     function handleMove(ev: PointerEvent) {
       if (!dragRef.current) return;
@@ -393,7 +400,7 @@ function ArrowHandles() {
       }
 
       dragRef.current = null;
-      setDragging(false);
+      updateDragging(false);
     }
 
     window.addEventListener('pointermove', handleMove, true);
@@ -448,6 +455,23 @@ function CornerRadiusHandle() {
   } | null>(null);
   const [liveRadius, setLiveRadius] = useState<number | null>(null);
   const [livePos, setLivePos] = useState<{ x: number; y: number } | null>(null);
+  const liveRadiusRef = useRef<number | null>(null);
+  const livePosRef = useRef<{ x: number; y: number } | null>(null);
+
+  function updateLiveRadius(nextRadius: number | null) {
+    if (liveRadiusRef.current === nextRadius) return;
+    liveRadiusRef.current = nextRadius;
+    setLiveRadius(nextRadius);
+  }
+
+  function updateLivePos(nextPos: { x: number; y: number } | null) {
+    if (
+      livePosRef.current?.x === nextPos?.x &&
+      livePosRef.current?.y === nextPos?.y
+    ) return;
+    livePosRef.current = nextPos;
+    setLivePos(nextPos);
+  }
 
   const handlePos = useValue('crHandle', () => {
     if (editor.getEditingShapeId()) return null;
@@ -487,8 +511,8 @@ function CornerRadiusHandle() {
       shapeId: handlePos.id,
       maxRadius: handlePos.maxRadius,
     };
-    setLiveRadius(handlePos.radius);
-    setLivePos({ x: e.clientX, y: e.clientY });
+    updateLiveRadius(handlePos.radius);
+    updateLivePos({ x: e.clientX, y: e.clientY });
 
     function onMove(ev: PointerEvent) {
       if (!draggingRef.current) return;
@@ -497,8 +521,8 @@ function CornerRadiusHandle() {
       const zoom = editor.getZoomLevel();
       const dx = ev.clientX - startX;
       const newRadius = Math.max(0, Math.min(maxRadius, Math.round(startRadius + dx / zoom)));
-      setLiveRadius(newRadius);
-      setLivePos({ x: ev.clientX, y: ev.clientY });
+      updateLiveRadius(newRadius);
+      updateLivePos({ x: ev.clientX, y: ev.clientY });
       const shape = editor.getShape(shapeId);
       if (!shape) return;
       const existingMeta = (shape.meta ?? {}) as Record<string, unknown>;
@@ -510,8 +534,8 @@ function CornerRadiusHandle() {
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('pointerup', onUp, true);
       draggingRef.current = null;
-      setLiveRadius(null);
-      setLivePos(null);
+      updateLiveRadius(null);
+      updateLivePos(null);
     }
 
     window.addEventListener('pointermove', onMove, true);
@@ -616,7 +640,9 @@ function ShapeEffectsStyle() {
       el.id = STYLE_ID;
       document.head.appendChild(el);
     }
-    el.textContent = cssText;
+    if (el.textContent !== cssText) {
+      el.textContent = cssText;
+    }
   }, [cssText]);
 
   useEffect(() => {

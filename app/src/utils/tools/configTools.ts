@@ -174,8 +174,9 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
         'Use scope="user" for things about the USER (communication style, pet peeves, what the AI has done wrong, how they like to work) — these are saved globally and apply to EVERY workspace. ' +
         'Use the default scope (omit it) for project-specific facts (character names, plot decisions, world-building, tech notes) — saved to this workspace only. ' +
         'Workspace memories can optionally be linked to source files so they are marked for review when those files change. ' +
-        'Call this proactively without being asked whenever you learn something worth remembering: ' +
-        'a correction the user made, a preference they stated, a mistake you should not repeat.',
+        'Call this proactively when you learn something worth persisting: a correction, a stated preference, a mistake to avoid. ' +
+        'BEFORE saving: glance at the injected memory digest — if the fact is already there (even worded differently), skip this call. Duplicates are the #1 memory problem. ' +
+        'DO NOT save: session scratchpad notes, facts already visible in workspace files, obvious/trivial info, or unconfirmed guesses.',
       parameters: {
         type: 'object',
         properties: {

@@ -40,12 +40,14 @@ export default function AIMarkOverlay({
   const [positions, setPositions] = useState<MarkPos[]>([]);
   const [hoveredMarkId, setHoveredMarkId] = useState<string | null>(null);
   const positionsRef = useRef<MarkPos[]>([]);
-  const rafRef = useRef<number>(0);
 
   const recalculate = useCallback(() => {
     if (!visible || marks.length === 0) {
-      setPositions([]);
-      positionsRef.current = [];
+      // Only update state if something actually changed
+      if (positionsRef.current.length > 0) {
+        setPositions([]);
+        positionsRef.current = [];
+      }
       return;
     }
     const container = containerRef.current;
@@ -66,29 +68,43 @@ export default function AIMarkOverlay({
         canReject: !!mark.revert,
       });
     }
+    // Skip setState if coords haven't actually changed (avoids re-renders on idle frames)
+    const current = positionsRef.current;
+    if (
+      next.length === current.length &&
+      next.every((p, i) =>
+        p.actionsTop === current[i].actionsTop &&
+        p.actionsLeft === current[i].actionsLeft &&
+        p.markId === current[i].markId
+      )
+    ) return;
     setPositions(next);
     positionsRef.current = next;
   }, [visible, marks, editorRef, containerRef]);
 
-  // RAF loop — keeps button positions in sync with scroll/resize
+  // Event-driven position sync — recalculate only on scroll or resize, not every frame.
+  // This replaces the previous 60fps RAF loop that caused continuous React re-renders.
   useEffect(() => {
     if (!visible) {
-      setPositions([]);
-      positionsRef.current = [];
+      if (positionsRef.current.length > 0) {
+        setPositions([]);
+        positionsRef.current = [];
+      }
       return;
     }
-    let active = true;
-    function loop() {
-      if (!active) return;
-      recalculate();
-      rafRef.current = requestAnimationFrame(loop);
-    }
-    rafRef.current = requestAnimationFrame(loop);
+    // Initial calculation
+    recalculate();
+    // Recalculate when the editor scrolls (marks move with content)
+    const scroller = containerRef.current?.querySelector('.cm-scroller');
+    const onScroll = () => recalculate();
+    scroller?.addEventListener('scroll', onScroll, { passive: true });
+    // Recalculate on window resize (container rect changes)
+    window.addEventListener('resize', onScroll, { passive: true });
     return () => {
-      active = false;
-      cancelAnimationFrame(rafRef.current);
+      scroller?.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
     };
-  }, [visible, recalculate]);
+  }, [visible, recalculate, containerRef]);
 
   // Mouse tracking — reveal the button for whichever mark the cursor is over
   useEffect(() => {

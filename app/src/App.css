@@ -508,7 +508,7 @@ body.theme-light .app {
   position: relative;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible; /* must NOT be hidden — Grammarly's overlay is positioned outside the bounds */
   min-width: 0;
 }
 
@@ -526,10 +526,8 @@ body.theme-light .app {
 }
 
 body.theme-light .app-header {
-  background: rgba(247, 243, 235, 0.74);
+  background: rgba(247, 243, 235, 0.96);
   border-bottom-color: rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
 }
 
 body.theme-light .app-title {
@@ -622,6 +620,7 @@ body.theme-light .editor-file-view {
   border-radius: 2px;
   /* very faint tint so the whole area feels gently highlighted */
   background: rgba(var(--accent-rgb), 0.028);
+  animation: copilot-lock-fade 2s ease-in-out infinite;
 }
 .copilot-lock-overlay::after {
   /* the sweeping beam of light */
@@ -639,7 +638,7 @@ body.theme-light .editor-file-view {
     rgba(var(--accent-rgb), 0.08) 65%,
     transparent 100%
   );
-  animation: copilot-editor-sweep 2.0s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: copilot-editor-sweep 2.5s ease-in-out infinite;
 }
 /* Small corner badge replacing the old label */
 .copilot-lock-label {
@@ -661,15 +660,12 @@ body.theme-light .editor-file-view {
   inset: 0;
   z-index: 9998;
   pointer-events: all; /* block all clicks during export */
-  backdrop-filter: blur(3px) brightness(0.82) saturate(0.9);
-  -webkit-backdrop-filter: blur(3px) brightness(0.82) saturate(0.9);
   background: rgba(14, 11, 8, 0.46);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  animation: copilot-lock-fade 2.4s ease-in-out infinite;
 }
 .export-lock-overlay::before {
   content: '⍈';
@@ -718,15 +714,12 @@ body.theme-light .editor-file-view {
   inset: 0;
   z-index: 9999;
   pointer-events: all;
-  backdrop-filter: blur(4px) brightness(0.78) saturate(0.85);
-  -webkit-backdrop-filter: blur(4px) brightness(0.78) saturate(0.85);
   background: rgba(14, 11, 8, 0.55);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  animation: copilot-lock-fade 2.4s ease-in-out infinite;
 }
 .copilot-tab-overlay::before {
   content: '∿';
@@ -738,6 +731,8 @@ body.theme-light .editor-file-view {
   content: '☕';
   font-size: 32px;
   line-height: 1;
+  display: inline-block;
+  animation: copilot-coffee-bounce 1.8s ease-in-out infinite;
 }
 
 /* ── Suppress pointer-events on embedded content during any resize drag ── */
@@ -769,7 +764,6 @@ body.is-resizing webview {
   inset: 0;
   z-index: var(--z-panel);
   background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;

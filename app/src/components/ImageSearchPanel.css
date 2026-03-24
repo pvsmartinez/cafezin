@@ -8,7 +8,6 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(3px);
 }
 
 .isp-panel {
@@ -260,14 +259,8 @@
 .isp-skeleton {
   border-radius: var(--radius-lg);
   aspect-ratio: 4/3;
-  background: linear-gradient(90deg, var(--surface-deep) 25%, var(--border2) 50%, var(--surface-deep) 75%);
-  background-size: 200% 100%;
-  animation: isp-shimmer 1.4s infinite;
-}
-
-@keyframes isp-shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  background: linear-gradient(90deg, var(--surface-deep) 0%, var(--border2) 50%, var(--surface-deep) 100%);
+  opacity: 0.72;
 }
 
 /* ── Result card ─────────────────────────────────────────────────────────────── */
@@ -352,7 +345,6 @@
   background: rgba(255,255,255,0.15);
   border: 1px solid rgba(255,255,255,0.4);
   color: #fff;
-  backdrop-filter: blur(4px);
 }
 
 .isp-card-btn--save:hover:not(:disabled) {
@@ -363,7 +355,6 @@
   background: rgba(var(--accent-rgb), 0.25);
   border: 1px solid var(--accent);
   color: var(--accent);
-  backdrop-filter: blur(4px);
 }
 
 .isp-card-btn--canvas:hover:not(:disabled) {

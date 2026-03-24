@@ -2,7 +2,7 @@
  * AIPanel — outer shell with auth, shared models, and multi-agent tab bar.
  * The per-session logic lives in AgentSession.tsx.
  */
-import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle, memo } from 'react';
 import {
   Snowflake,
   Microphone,
@@ -127,6 +127,35 @@ function createAgentTab(index: number, model?: string, id?: string, createdAt?: 
     ...(model ? { model } : {}),
     ...(createdAt ? { createdAt } : { createdAt: new Date().toISOString() }),
   };
+}
+
+function sameTab(left: AgentTab, right: AgentTab): boolean {
+  return (
+    left.id === right.id &&
+    left.label === right.label &&
+    left.status === right.status &&
+    left.unread === right.unread &&
+    left.model === right.model &&
+    left.createdAt === right.createdAt
+  );
+}
+
+function sameModelList(left: CopilotModelInfo[], right: CopilotModelInfo[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index].id !== right[index].id) return false;
+  }
+  return true;
+}
+
+function mapTabsIfChanged(tabs: AgentTab[], mapTab: (tab: AgentTab) => AgentTab): AgentTab[] {
+  let changed = false;
+  const nextTabs = tabs.map((tab) => {
+    const nextTab = mapTab(tab);
+    if (!sameTab(tab, nextTab)) changed = true;
+    return nextTab;
+  });
+  return changed ? nextTabs : tabs;
 }
 
 function restoreAgentTabs(tabs: WorkspaceAgentTabSession[] | undefined, fallbackModel?: string): AgentTab[] {
@@ -287,6 +316,18 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     return catalog[0]?.id ?? models[0]?.id ?? requestedModel;
   }
 
+  function applyResolvedModelsToTabs(
+    tabs: AgentTab[],
+    provider: AIProviderType,
+    models: CopilotModelInfo[],
+  ): AgentTab[] {
+    return mapTabsIfChanged(tabs, (tab) => {
+      const nextModel = resolveTabModelForProvider(provider, tab.model ?? initialModel, models);
+      if (!nextModel || nextModel === tab.model) return tab;
+      return { ...tab, model: nextModel };
+    });
+  }
+
   // ── Shared models (fetched once, available to all agent tabs) ─────────────
   const [availableModels, setAvailableModels] = useState<CopilotModelInfo[]>(FALLBACK_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -298,16 +339,11 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   useEffect(() => {
     if (!isOpen) return;
     const provider = getActiveProvider();
-    setActiveProviderState(provider);
+    setActiveProviderState((current) => (current === provider ? current : provider));
     if (provider !== 'copilot') {
       const nextModels = getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot'>);
-      setAvailableModels(nextModels);
-      setTabs((tabs) => tabs.map((tab) => ({
-        ...tab,
-        ...(resolveTabModelForProvider(provider, tab.model ?? initialModel, nextModels)
-          ? { model: resolveTabModelForProvider(provider, tab.model ?? initialModel, nextModels) }
-          : {}),
-      })));
+      setAvailableModels((current) => (sameModelList(current, nextModels) ? current : nextModels));
+      setTabs((tabs) => applyResolvedModelsToTabs(tabs, provider, nextModels));
       setModelsLoading(false);
       return;
     }
@@ -316,7 +352,11 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     modelsLoadedRef.current = true;
     setModelsLoading(true);
     fetchCopilotModels(copilotOAuthClientId)
-      .then((models) => { setAvailableModels(models); setModelsLoading(false); })
+      .then((models) => {
+        setAvailableModels((current) => (sameModelList(current, models) ? current : models));
+        setTabs((tabs) => applyResolvedModelsToTabs(tabs, provider, models));
+        setModelsLoading(false);
+      })
       .catch(() => setModelsLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, authStatus, copilotOAuthClientId]);
@@ -325,23 +365,22 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   useEffect(() => {
     function handleProviderChanged() {
       const provider = getActiveProvider();
-      setActiveProviderState(provider);
+      setActiveProviderState((current) => (current === provider ? current : provider));
       if (provider !== 'copilot') {
         const nextModels = getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot'>);
-        setAvailableModels(nextModels);
-        setTabs((tabs) => tabs.map((tab) => ({
-          ...tab,
-          ...(resolveTabModelForProvider(provider, tab.model ?? initialModel, nextModels)
-            ? { model: resolveTabModelForProvider(provider, tab.model ?? initialModel, nextModels) }
-            : {}),
-        })));
+        setAvailableModels((current) => (sameModelList(current, nextModels) ? current : nextModels));
+        setTabs((tabs) => applyResolvedModelsToTabs(tabs, provider, nextModels));
         setModelsLoading(false);
       } else {
         // Switch TO Copilot — fetch models immediately (panel may already be open).
         modelsLoadedRef.current = false;
         setModelsLoading(true);
         fetchCopilotModels(copilotOAuthClientIdRef.current)
-          .then((models) => { setAvailableModels(models); setModelsLoading(false); })
+          .then((models) => {
+            setAvailableModels((current) => (sameModelList(current, models) ? current : models));
+            setTabs((tabs) => applyResolvedModelsToTabs(tabs, provider, models));
+            setModelsLoading(false);
+          })
           .catch(() => setModelsLoading(false));
       }
     }
@@ -354,13 +393,9 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
       if (getActiveProvider() !== 'copilot') return;
       setAvailableModels((current) => {
         const filtered = filterChatCompletionsCompatibleModels(current);
-        setTabs((tabs) => tabs.map((tab) => ({
-          ...tab,
-          ...(resolveTabModelForProvider('copilot', tab.model ?? initialModel, filtered)
-            ? { model: resolveTabModelForProvider('copilot', tab.model ?? initialModel, filtered) }
-            : {}),
-        })));
-        return filtered;
+        const nextModels = sameModelList(current, filtered) ? current : filtered;
+        setTabs((tabs) => applyResolvedModelsToTabs(tabs, 'copilot', nextModels));
+        return nextModels;
       });
       modelsLoadedRef.current = false;
     }
@@ -370,12 +405,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
   useEffect(() => {
     if (!availableModels.length) return;
-    setTabs((tabs) => tabs.map((tab) => ({
-      ...tab,
-      ...(resolveTabModelForProvider(activeProvider, tab.model ?? initialModel, availableModels)
-        ? { model: resolveTabModelForProvider(activeProvider, tab.model ?? initialModel, availableModels) }
-        : {}),
-    })));
+    setTabs((tabs) => applyResolvedModelsToTabs(tabs, activeProvider, availableModels));
   }, [activeProvider, availableModels, initialModel]);
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
@@ -491,7 +521,10 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   }
 
   function clearUnread(id: string) {
-    setTabs((prev) => prev.map((t) => t.id === id ? { ...t, unread: false } : t));
+    setTabs((prev) => mapTabsIfChanged(prev, (tab) => {
+      if (tab.id !== id || !tab.unread) return tab;
+      return { ...tab, unread: false };
+    }));
   }
 
   function startRenaming(tab: AgentTab) {
@@ -502,9 +535,11 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   function commitRename() {
     if (!renamingTabId) return;
     const trimmed = renamingValue.trim();
-    setTabs((prev) => prev.map((tab) => {
+    setTabs((prev) => mapTabsIfChanged(prev, (tab) => {
       if (tab.id !== renamingTabId) return tab;
-      return { ...tab, label: trimmed || tab.label };
+      const nextLabel = trimmed || tab.label;
+      if (nextLabel === tab.label) return tab;
+      return { ...tab, label: nextLabel };
     }));
     setRenamingTabId(null);
     setRenamingValue('');
@@ -704,7 +739,9 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
         </div>
       )}
 
-      {/* One AgentSession per tab — all mounted, only active visible */}
+      {/* One AgentSession per tab — all mounted, only active visible.
+          Keeping all sessions mounted is critical: unmounting would abort any
+          in-progress streaming via the useAIStream cleanup effect. */}
       {tabs.map((tab) => (
         <AgentSession
           key={tab.id}
@@ -721,7 +758,10 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           initialPrompt={initialPrompt}
           initialModel={tab.model ?? initialModel}
           onModelChange={(model) => {
-            setTabs((tabs) => tabs.map((t) => t.id === tab.id ? { ...t, model } : t));
+            setTabs((tabs) => mapTabsIfChanged(tabs, (t) => {
+              if (t.id !== tab.id || t.model === model) return t;
+              return { ...t, model };
+            }));
             onModelChange?.(model);
           }}
           documentContext={documentContext}
@@ -745,7 +785,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           onStatusChange={(status) => {
             const prevStatus = prevStatusRef.current.get(tab.id) ?? 'idle';
             prevStatusRef.current.set(tab.id, status);
-            setTabs((tabs) => tabs.map((t) => {
+            setTabs((tabs) => mapTabsIfChanged(tabs, (t) => {
               if (t.id !== tab.id) return t;
               // Mark unread when a background tab finishes a response
               const justDone = status === 'idle' && prevStatus === 'thinking';
@@ -757,6 +797,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
                   .requestUserAttention(UserAttentionType.Informational)
                   .catch(() => {});
               }
+              if (t.status === status && t.unread === unread) return t;
               return { ...t, status, unread };
             }));
           }}
@@ -775,4 +816,4 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   );
 });
 
-export default AIPanel;
+export default memo(AIPanel);

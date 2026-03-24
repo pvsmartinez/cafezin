@@ -10,6 +10,31 @@ export interface TsDiagnosticResult {
 
 const EMPTY: TsDiagnosticResult = { diagnostics: [], errorCount: 0, warningCount: 0 };
 
+function sameDiagnostics(left: Diagnostic[], right: Diagnostic[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    const leftItem = left[index];
+    const rightItem = right[index];
+    if (
+      leftItem.from !== rightItem.from ||
+      leftItem.to !== rightItem.to ||
+      leftItem.severity !== rightItem.severity ||
+      leftItem.message !== rightItem.message
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function sameDiagnosticResult(left: TsDiagnosticResult, right: TsDiagnosticResult): boolean {
+  return (
+    left.errorCount === right.errorCount &&
+    left.warningCount === right.warningCount &&
+    sameDiagnostics(left.diagnostics, right.diagnostics)
+  );
+}
+
 // Augmented PATH so tsc is found inside Tauri app bundles (limited PATH env)
 const PATH_EXPORT =
   'export PATH="/opt/homebrew/bin:/opt/homebrew/opt/node@20/bin:/usr/local/bin:/usr/local/opt/node@20/bin:$PATH"';
@@ -93,6 +118,7 @@ export function useTsDiagnostics(
   dirty: boolean,
 ): TsDiagnosticResult {
   const [result, setResult] = useState<TsDiagnosticResult>(EMPTY);
+  const resultRef = useRef<TsDiagnosticResult>(EMPTY);
   const reqIdRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Keep latest content in a ref so the debounced callback reads the freshest value
@@ -101,7 +127,10 @@ export function useTsDiagnostics(
 
   useEffect(() => {
     if (!enabled || dirty || !filePath || !workspacePath) {
-      setResult(EMPTY);
+      if (!sameDiagnosticResult(resultRef.current, EMPTY)) {
+        resultRef.current = EMPTY;
+        setResult(EMPTY);
+      }
       return;
     }
 
@@ -117,9 +146,14 @@ export function useTsDiagnostics(
         // Ignore stale results if another run started since this one was queued
         if (reqId !== reqIdRef.current) return;
         const output = res.stdout + (res.stderr ? '\n' + res.stderr : '');
-        setResult(parseTscOutput(output, filePath, contentRef.current));
+        const nextResult = parseTscOutput(output, filePath, contentRef.current);
+        if (sameDiagnosticResult(resultRef.current, nextResult)) return;
+        resultRef.current = nextResult;
+        setResult(nextResult);
       } catch {
         if (reqId !== reqIdRef.current) return;
+        if (sameDiagnosticResult(resultRef.current, EMPTY)) return;
+        resultRef.current = EMPTY;
         setResult(EMPTY);
       }
     }, 900);

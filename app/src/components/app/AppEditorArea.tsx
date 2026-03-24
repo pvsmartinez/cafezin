@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentProps, type MutableRefObject, type RefObject } from 'react';
+import { lazy, memo, Suspense, type ComponentProps, type MutableRefObject, type RefObject } from 'react';
 import type { Editor as TldrawEditor } from 'tldraw';
 import Editor from '../Editor';
 import type { EditorHandle } from '../Editor';
@@ -82,10 +82,10 @@ interface AppEditorAreaProps {
   onFileSaved: () => void;
   onFormat?: ComponentProps<typeof Editor>['onFormat'];
   onImagePaste: ComponentProps<typeof Editor>['onImagePaste'];
-  onGhostComplete: ComponentProps<typeof Editor>['onGhostComplete'];
+
 }
 
-export function AppEditorArea({
+export function AppEditorAreaInner({
   workspace,
   aiMarks,
   tabs,
@@ -145,7 +145,7 @@ export function AppEditorArea({
   onFileSaved,
   onFormat,
   onImagePaste,
-  onGhostComplete,
+
 }: AppEditorAreaProps) {
   return (
     <div className="editor-area" ref={editorAreaRef}>
@@ -303,7 +303,7 @@ export function AppEditorArea({
                 isLocked={activeFile ? lockedFiles.has(activeFile) : false}
                 onFormat={fileTypeInfo?.kind === 'code' ? onFormat : undefined}
                 diagnostics={tsDiagnostics}
-                onGhostComplete={onGhostComplete}
+
               />
             )}
           </Suspense>
@@ -333,3 +333,6 @@ export function AppEditorArea({
     </div>
   );
 }
+
+export const AppEditorArea = memo(AppEditorAreaInner);
+

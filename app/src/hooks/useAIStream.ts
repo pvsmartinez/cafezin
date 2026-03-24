@@ -7,10 +7,11 @@ import {
   getModelTokenBudgets,
   modelSupportsVision,
 } from '../services/copilot';
-import { streamChat, getActiveProvider } from '../services/aiProvider';
+import { getActiveProvider } from '../services/aiProvider';
 import { runProviderAgent } from '../services/ai/runProviderAgent';
 import { appendLogEntry } from '../services/copilotLog';
 import { getWorkspaceTools, buildToolExecutor } from '../utils/workspaceTools';
+import type { ToolExecutor } from '../utils/workspaceTools';
 import { applyRiskGate } from '../utils/riskGate';
 import type { RiskLevel } from '../utils/toolRisk';
 import { canvasToDataUrl, compressDataUrl } from '../utils/canvasAI';
@@ -491,16 +492,18 @@ export function useAIStream({
     };
 
     // ── Sliding-window token budget ──────────────────────────────────────
+    // Pin only the system prompt, then fill backward from the most-recent
+    // message. This avoids anchoring on the first user turn, which caused
+    // the model to re-focus on an old intent instead of the latest prompt.
     const apiMessages = (() => {
       const CHAT_TOKEN_BUDGET = getModelTokenBudgets(model).chatBudget;
       const all = [systemPrompt, ...newMessages];
       if (estimateTokens(all) <= CHAT_TOKEN_BUDGET) return all;
-      const firstUserIdx = all.findIndex((m, i) => i > 0 && m.role === 'user');
-      const pinned = firstUserIdx >= 0 ? all.slice(0, firstUserIdx + 1) : [all[0]];
+      const pinned = [all[0]]; // system prompt only
       const pinnedTokens = estimateTokens(pinned);
       const tail: typeof all = [];
       let tailTokens = 0;
-      for (let i = all.length - 1; i > (firstUserIdx >= 0 ? firstUserIdx : 0); i--) {
+      for (let i = all.length - 1; i > 0; i--) {
         const t = estimateTokens([all[i]]);
         if (pinnedTokens + tailTokens + t > CHAT_TOKEN_BUDGET) break;
         tail.unshift(all[i]);
@@ -609,15 +612,43 @@ export function useAIStream({
         );
       }
     } else {
-      await streamChat(
-        apiMessages,
-        onChunk,
-        onDone,
-        onError,
-        model,
-        signal,
-        copilotOAuthClientId,
-      );
+      // No workspace open — run as a tool-less agent so the same
+      // compression and context-management path applies consistently.
+      const noopExecutor: ToolExecutor = async (name) =>
+        `Tool "${name}" is not available without an open workspace.`;
+      const activeProvider = getActiveProvider();
+      if (activeProvider === 'copilot') {
+        await runCopilotAgent(
+          apiMessages,
+          [],
+          noopExecutor,
+          onChunk,
+          () => {},
+          onDone,
+          onError,
+          model,
+          undefined,
+          sessionIdRef.current,
+          signal,
+          () => { if (runIdRef.current === runId) setAgentExhausted(true); },
+          copilotOAuthClientId,
+        );
+      } else {
+        await runProviderAgent(
+          apiMessages,
+          [],
+          noopExecutor,
+          onChunk,
+          () => {},
+          onDone,
+          onError,
+          model,
+          undefined,
+          sessionIdRef.current,
+          signal,
+          () => { if (runIdRef.current === runId) setAgentExhausted(true); },
+        );
+      }
     }
   }
 

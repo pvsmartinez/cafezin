@@ -77,6 +77,16 @@ function labelFromPath(path: string): string {
   return name.replace(/\.(md|mdx|txt)$/i, '');
 }
 
+function sameLinkRefs(left: LinkRef[], right: LinkRef[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index].path !== right[index].path || left[index].label !== right[index].label) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Get all markdown file paths from workspace (flat list) */
 function collectMdFiles(workspace: Workspace): string[] {
   const result: string[] = [];
@@ -108,6 +118,8 @@ export function useBacklinks(
   // Content-based key to avoid rebuilding when fileTree reference changes but
   // the actual file list is identical (e.g. workspace refresh after save).
   const buildKeyRef = useRef('');
+  const backlinksRef = useRef<LinkRef[]>([]);
+  const outlinksRef = useRef<LinkRef[]>([]);
 
   // ── Effect 1: rebuild link map when the workspace file list actually changes ─
   // Does NOT depend on activeFile — tab switches no longer trigger file I/O.
@@ -116,8 +128,14 @@ export function useBacklinks(
       buildKeyRef.current = '';
       setLinkMap(null);
       setLoading(false);
-      setBacklinks([]);
-      setOutlinks([]);
+      if (backlinksRef.current.length > 0) {
+        backlinksRef.current = [];
+        setBacklinks([]);
+      }
+      if (outlinksRef.current.length > 0) {
+        outlinksRef.current = [];
+        setOutlinks([]);
+      }
       return;
     }
 
@@ -172,15 +190,27 @@ export function useBacklinks(
   useEffect(() => {
     if (!activeFile || !enabled || !linkMap) {
       if (!activeFile || !enabled) {
-        setBacklinks([]);
-        setOutlinks([]);
+        if (backlinksRef.current.length > 0) {
+          backlinksRef.current = [];
+          setBacklinks([]);
+        }
+        if (outlinksRef.current.length > 0) {
+          outlinksRef.current = [];
+          setOutlinks([]);
+        }
       }
       return;
     }
 
     if (!/\.(md|mdx|txt)$/i.test(activeFile)) {
-      setBacklinks([]);
-      setOutlinks([]);
+      if (backlinksRef.current.length > 0) {
+        backlinksRef.current = [];
+        setBacklinks([]);
+      }
+      if (outlinksRef.current.length > 0) {
+        outlinksRef.current = [];
+        setOutlinks([]);
+      }
       return;
     }
 
@@ -199,8 +229,14 @@ export function useBacklinks(
       }
     }
 
-    setBacklinks(foundBacklinks);
-    setOutlinks(foundOutlinks);
+    if (!sameLinkRefs(backlinksRef.current, foundBacklinks)) {
+      backlinksRef.current = foundBacklinks;
+      setBacklinks(foundBacklinks);
+    }
+    if (!sameLinkRefs(outlinksRef.current, foundOutlinks)) {
+      outlinksRef.current = foundOutlinks;
+      setOutlinks(foundOutlinks);
+    }
   }, [activeFile, linkMap, enabled]);
 
   return { backlinks, outlinks, loading };

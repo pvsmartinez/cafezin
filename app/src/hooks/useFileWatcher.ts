@@ -13,6 +13,25 @@ import { readFile, refreshWorkspaceFiles } from '../services/workspace';
 import { getFileTypeInfo } from '../utils/fileType';
 
 const RELOAD_SKIP_KINDS = new Set(['pdf', 'video', 'audio', 'image', 'canvas']);
+const LEGACY_INTERNAL_PATHS = new Set([
+  'cafezin/ai-marks.json',
+  'cafezin/config.json',
+  'cafezin/copilot-log.jsonl',
+]);
+
+export function isInternalWatchPath(absPath: string, workspacePath: string): boolean {
+  const normalizedWorkspace = workspacePath.replace(/\/+$/, '');
+  const normalizedPath = absPath.replace(/\/+$/, '');
+
+  if (normalizedPath === `${normalizedWorkspace}/.cafezin`) return true;
+  if (normalizedPath.startsWith(`${normalizedWorkspace}/.cafezin/`)) return true;
+  if (normalizedPath === `${normalizedWorkspace}/.git`) return true;
+  if (normalizedPath.startsWith(`${normalizedWorkspace}/.git/`)) return true;
+
+  if (!normalizedPath.startsWith(`${normalizedWorkspace}/`)) return false;
+  const relPath = normalizedPath.slice(normalizedWorkspace.length + 1);
+  return LEGACY_INTERNAL_PATHS.has(relPath);
+}
 
 export interface UseFileWatcherOptions {
   watchPath: string | null | undefined;
@@ -50,27 +69,28 @@ export function useFileWatcher({
     let cancelled = false;
 
     const reloadOpenTabs = async () => {
+      const ws = workspaceRef.current;
+      if (!ws) return;
+
       const currentTabs = tabsRef.current;
       const currentDirty = dirtyFilesRef.current;
+      const reloadableTabs = currentTabs.filter((tabPath) => {
+        if (currentDirty.has(tabPath)) return false;
+        return !RELOAD_SKIP_KINDS.has(getFileTypeInfo(tabPath).kind);
+      });
 
-      for (const tabPath of currentTabs) {
-        if (currentDirty.has(tabPath)) continue;
-        const tabKind = getFileTypeInfo(tabPath).kind;
-        if (RELOAD_SKIP_KINDS.has(tabKind)) continue;
-
+      await Promise.all(reloadableTabs.map(async (tabPath) => {
         try {
-          const ws = workspaceRef.current;
-          if (!ws) break;
           const freshText = await readFile(ws, tabPath);
           const savedText = savedContentRef.current.get(tabPath);
-          if (freshText === savedText) continue;
+          if (freshText === savedText) return;
           savedContentRef.current.set(tabPath, freshText);
           tabContentsRef.current.set(tabPath, freshText);
           if (tabPath === activeTabIdRef.current) setContent(freshText);
         } catch {
           // File may have been removed externally; the workspace refresh already handles that.
         }
-      }
+      }));
     };
 
     const runRefresh = async () => {

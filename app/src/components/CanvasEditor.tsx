@@ -147,6 +147,9 @@ export default function CanvasEditor({
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountCleanupRef = useRef<(() => void) | null>(null);
+  const lastToolIdRef = useRef<string | null>(null);
+  const lastSelectionSignatureRef = useRef<string>('');
+  const lastViewportSignatureRef = useRef<string>('');
   // Stable ref so store listeners always call the latest onChange.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -381,12 +384,23 @@ export default function CanvasEditor({
 
     // Keep frameToolActive in sync with tldraw's active tool.
     cleanups.push(editor.store.listen(
-      () => { setFrameToolActive(editor.getCurrentToolId() === 'frame'); },
+      () => {
+        const nextToolId = editor.getCurrentToolId();
+        if (nextToolId === lastToolIdRef.current) return;
+        lastToolIdRef.current = nextToolId;
+        setFrameToolActive(nextToolId === 'frame');
+      },
       { scope: 'session' },
     ));
 
     cleanups.push(editor.store.listen(
       () => {
+        const selectedIds = editor.getSelectedShapeIds();
+        const editingShapeId = editor.getEditingShapeId() ?? '';
+        const signature = `${editingShapeId}|${selectedIds.join(',')}`;
+        if (signature === lastSelectionSignatureRef.current) return;
+        lastSelectionSignatureRef.current = signature;
+
         const summary = summarizeCanvasSelection(editor);
         if (!summary) {
           onSelectionContextChange?.(null);
@@ -424,6 +438,10 @@ export default function CanvasEditor({
     let viewportRaf: number | null = null;
     const updateViewportFrame = () => {
       const vp = editor.getViewportPageBounds();
+      const viewportSignature = `${Math.round(vp.x)}:${Math.round(vp.y)}:${Math.round(vp.w)}:${Math.round(vp.h)}`;
+      if (viewportSignature === lastViewportSignatureRef.current) return;
+      lastViewportSignatureRef.current = viewportSignature;
+
       const vpCx = vp.x + vp.w / 2;
       const sortedF = editor.getCurrentPageShapesSorted()
         .filter((s) => s.type === 'frame')
@@ -570,6 +588,10 @@ export default function CanvasEditor({
     };
 
     const initialSelection = summarizeCanvasSelection(editor);
+    lastToolIdRef.current = editor.getCurrentToolId();
+    lastSelectionSignatureRef.current = `${editor.getEditingShapeId() ?? ''}|${editor.getSelectedShapeIds().join(',')}`;
+    const initialViewport = editor.getViewportPageBounds();
+    lastViewportSignatureRef.current = `${Math.round(initialViewport.x)}:${Math.round(initialViewport.y)}:${Math.round(initialViewport.w)}:${Math.round(initialViewport.h)}`;
     if (!initialSelection) {
       onSelectionContextChange?.(null);
     } else {

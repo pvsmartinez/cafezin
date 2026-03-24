@@ -85,9 +85,9 @@ const externalSearchHighlight = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 );
 
-import { makeGhostTextExtension, type GhostCompleteFn } from '../utils/ghostText';
+
 import { makeLivePreviewExtension } from '../utils/livePreview';
-import { Fragment, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { Fragment, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
   TextB, TextItalic, TextStrikethrough, Code,
   Minus, Quotes, ListBullets, ListNumbers,
@@ -160,7 +160,7 @@ interface EditorProps {
    * Async function that returns a ghost-text completion for the current cursor context.
    * When provided, ghost text (Tab to accept, Escape to dismiss) is active in all modes.
    */
-  onGhostComplete?: GhostCompleteFn;
+
   activeFile?: string;
   onSelectionContextChange?: (context: AISelectionContext | null) => void;
 }
@@ -245,9 +245,12 @@ function buildAIDecorations(docText: string, marks: Array<{ text: string; revert
 function makeAIMarkField(marks: Array<{ text: string; revert?: AITextRevert }>) {
   return StateField.define<DecorationSet>({
     create(state) {
+      // Bail out before the O(n) doc.toString() when there are no marks to show.
+      if (marks.length === 0) return Decoration.none;
       return buildAIDecorations(state.doc.toString(), marks);
     },
     update(decs, tr) {
+      if (marks.length === 0) return Decoration.none;
       return tr.docChanged
         ? buildAIDecorations(tr.newDoc.toString(), marks)
         : decs;
@@ -649,7 +652,7 @@ function applyMdToolbar(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 const Editor = forwardRef<EditorHandle, EditorProps>(
-  ({ content, onChange, onToggleFind, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics, onGhostComplete, activeFile, onSelectionContextChange }, ref) => {
+  ({ content, onChange, onToggleFind, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics, activeFile, onSelectionContextChange }, ref) => {
     const codeMode = !!language && language !== 'markdown';
     const viewRef = useRef<EditorView | null>(null);
     const compartmentRef = useRef(new Compartment());
@@ -662,19 +665,11 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
     const aiMarksRef = useRef<{ id: string; text: string; revert?: AITextRevert }[]>([]);
     const onAIMarkEditedRef = useRef<((id: string) => void) | undefined>(undefined);
     const onSelectionContextChangeRef = useRef<typeof onSelectionContextChange>(undefined);
+    const onToggleFindRef = useRef(onToggleFind);
     aiMarksRef.current = aiMarks ?? [];
     onAIMarkEditedRef.current = onAIMarkEdited;
     onSelectionContextChangeRef.current = onSelectionContextChange;
-
-    // Ghost text completion fn ref — stable getter to avoid recreating the extension
-    const ghostCompleteFnRef = useRef<GhostCompleteFn | null>(null);
-    ghostCompleteFnRef.current = onGhostComplete ?? null;
-    // Ghost text extension is created once per Editor mount (keyed on language)
-    const ghostTextExtension = useMemo(
-      () => makeGhostTextExtension(() => ghostCompleteFnRef.current, language ?? 'markdown'),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [], // intentionally stable — language is fixed per Editor mount (key=activeFile)
-    );
+    onToggleFindRef.current = onToggleFind;
 
     // Live preview: hides Markdown syntax markers on lines without the cursor.
     // Only active in prose mode — codeMode is stable per mount so empty deps is safe.
@@ -859,7 +854,31 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       [onImagePaste],
     );
 
-    const extensions = [
+    // ── Uncontrolled CodeMirror value — eliminates O(n) doc.toString() per keystroke ─
+    // @uiw/react-codemirror's internal `[value, view]` useEffect calls
+    // `view.state.doc.toString()` on every render where `value` changed.
+    // By keeping `cmValue` stable during typing and only changing it for
+    // external updates (AI writes, file loads, format), we skip that effect
+    // entirely during normal editing. suppressEchoRef prevents the external-
+    // update effect from firing on content changes that originated from CM.
+    const [cmValue, setCmValue] = useState(content);
+    const suppressEchoRef = useRef(false);
+    useEffect(() => {
+      if (suppressEchoRef.current) { suppressEchoRef.current = false; return; }
+      setCmValue(content);
+    }, [content]);
+    const handleCodeMirrorChange = useCallback((value: string) => {
+      suppressEchoRef.current = true;
+      onChange(value);
+    }, [onChange]);
+
+    // Memoised so @uiw/react-codemirror does NOT call StateEffect.reconfigure
+    // (the most expensive CodeMirror operation) on every re-render / keystroke.
+    // Deps: only the things that fundamentally change the editor mode.
+    // Runtime changes (aiMarks, fontSize, isDark, isLocked, diagnostics) are
+    // handled by their own compartment useEffect()s below without touching this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const extensions = useMemo(() => [
       // Language: use markdown (+ embedded code blocks) for prose, or the
       // file-specific grammar for code files.
       codeMode
@@ -878,7 +897,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
             key: 'Mod-f',
             preventDefault: true,
             run: () => {
-              onToggleFind?.();
+              // Use ref so we always call the latest onToggleFind without
+              // needing it in the useMemo deps (which would recreate extensions).
+              onToggleFindRef.current?.();
               return true;
             },
           },
@@ -895,22 +916,22 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       fontCompartmentRef.current.of(makeEditorTheme(fontSize, codeMode, isDark)),
       // Prose wraps; code does not
       ...(codeMode ? [] : [EditorView.lineWrapping]),
-      // Allow native spell-check (and Grammarly) in prose mode.
-      // CodeMirror defaults to spellcheck=false on its contenteditable element;
-      // Grammarly fights to re-enable it via macOS accessibility APIs, causing
-      // a MutationObserver loop. Setting it here lets CM and Grammarly agree.
-      EditorView.contentAttributes.of({
-        spellcheck: codeMode ? 'false' : 'true',
-      }),
+      // Set attributes directly on the .cm-content contenteditable so Grammarly
+      // Desktop (macOS) sees spellcheck=true and activates. CM defaults to
+      // spellcheck=false, which silently tells Grammarly to stay off.
+      EditorView.contentAttributes.of(codeMode
+        ? { spellcheck: 'false' }
+        : { spellcheck: 'true', 'data-enable-grammarly': 'true' },
+      ),
       compartmentRef.current.of(makeAIMarkField(aiMarks ?? [])),
       aiMarkEditListener,
       // Lint state field — active in code mode; provides squiggles for TS/JS errors
       lintCompartmentRef.current.of(codeMode ? linter(() => []) : []),
-      // Ghost text inline completions (all modes)
-      ghostTextExtension,
       // Live preview: hide syntax markers on non-cursor lines (prose only)
       livePreviewExtension,
-    ];
+    // codeMode and language are the only props that require a full editor
+    // reconfiguration. Everything else uses compartments or stable refs.
+    ], [codeMode, language]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
       <div className="editor-wrapper" onKeyDown={handleKeyDown} onPaste={handlePaste} data-locked={isLocked ? 'true' : undefined}>
@@ -944,8 +965,8 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
         )}
         {/* Format button lives in the app header (⌥F) — no in-editor toolbar */}
         <CodeMirror
-          value={content}
-          onChange={onChange}
+          value={cmValue}
+          onChange={handleCodeMirrorChange}
           extensions={extensions}
           theme={isDark ? oneDark : creamTheme}
           height="100%"

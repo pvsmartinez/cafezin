@@ -6,6 +6,7 @@
  *   utils/tools/canvasTools.ts  - list_canvas_shapes, canvas_op, canvas_screenshot, add_canvas_image, screenshot_preview
  *   utils/tools/webTools.ts     - web_search, search_images, fetch_url, run_command, publish_vercel
  *   utils/tools/configTools.ts  - export_workspace, configure_export_targets, configure_workspace, remember, ask_user
+ *   utils/tools/skillTools.ts   - read_skill (on-demand protocol and best-practice guides)
  *
  * Public API is unchanged: WORKSPACE_TOOLS, getWorkspaceTools, buildToolExecutor, ToolDefinition, ToolExecutor, AgentToolContext.
  */
@@ -15,6 +16,7 @@ import { CANVAS_TOOL_DEFS, executeCanvasTools } from './tools/canvasTools';
 import { WEB_TOOL_DEFS, executeWebTools } from './tools/webTools';
 import { CONFIG_TOOL_DEFS, executeConfigTools } from './tools/configTools';
 import { TASK_TOOL_DEFS, executeTaskTools } from './tools/taskTools';
+import { SKILL_TOOL_DEFS, executeSkillTools } from './tools/skillTools';
 import type { Workspace, WorkspaceExportConfig } from '../types';
 import { isToolEnabledByWorkspace } from './agentCapabilities';
 
@@ -34,6 +36,7 @@ export const WORKSPACE_TOOLS = [
   ...WEB_TOOL_DEFS,
   ...CONFIG_TOOL_DEFS,
   ...TASK_TOOL_DEFS,
+  ...SKILL_TOOL_DEFS,
 ];
 
 export function getWorkspaceTools(
@@ -64,7 +67,7 @@ export function getWorkspaceTools(
  * });
  */
 export function buildToolExecutor(ctx: import('./tools/shared').ToolContext) {
-  const domains = [executeFileTools, executeCanvasTools, executeWebTools, executeConfigTools, executeTaskTools];
+  const domains = [executeFileTools, executeCanvasTools, executeWebTools, executeConfigTools, executeTaskTools, executeSkillTools];
 
   return async (name: string, args: Record<string, unknown>): Promise<string> => {
     for (const domain of domains) {

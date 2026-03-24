@@ -79,7 +79,7 @@
   flex-shrink: 0;
   display: inline-block;
   margin-right: 1px;
-  animation: tab-dot-breathe 3s ease-in-out infinite;
+  animation: tab-dot-breathe 2.5s ease-in-out infinite;
 }
 @keyframes tab-dot-breathe {
   0%, 65%, 100% { opacity: 0.75; transform: scale(1); }
@@ -175,11 +175,11 @@
     rgba(var(--accent-rgb), 0.12) 70%,
     transparent 100%
   );
-  background-size: 280% 100%;
-  animation: tab-copilot-sweep 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background-size: 200% 100%;
   color: var(--text);
   outline: 1px solid rgba(var(--accent-rgb), 0.28);
   outline-offset: -1px;
+  animation: tab-copilot-sweep 2.5s linear infinite;
 }
 
 /* ── Tab overflow dropdown ────────────────────────────── */
@@ -261,10 +261,8 @@
 }
 
 body.theme-light .tab-bar {
-  background: rgba(243, 239, 231, 0.62);
+  background: rgba(243, 239, 231, 0.95);
   border-bottom-color: rgba(0, 0, 0, 0.07);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 body.theme-light .tab-item {

@@ -25,8 +25,9 @@ import { useTabManager } from './hooks/useTabManager';
 import { useAutosave } from './hooks/useAutosave';
 import { useFileWatcher } from './hooks/useFileWatcher';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import type { TLShapeId } from 'tldraw';
-import { canvasAIContext } from './utils/canvasAI';
+import type { TLShapeId, Editor as TldrawEditor } from 'tldraw';
+// canvasAIContext is loaded lazily (see useEffect below) to keep tldraw
+// out of the main bundle — it's only needed when a canvas file is open.
 import { registerCanvasTabControls, getCanvasEditor } from './utils/canvasRegistry';
 import { exportMarkdownToPDF } from './utils/exportPDF';
 import {
@@ -42,7 +43,6 @@ import {
 } from './services/workspace';
 import { useAuthSession } from './hooks/useAuthSession';
 import { onLockedFilesChange, getLockedFiles } from './services/copilotLock';
-import { fetchProviderGhostCompletion } from './services/aiProvider';
 import { loadWorkspaceSession, saveWorkspaceSession } from './services/workspaceSession';
 import { getFileTypeInfo } from './utils/fileType';
 import { normalizeWorkspaceExportConfig, type AgentContextSnapshot, type AISelectionContext, type Workspace, type WorkspaceChangeNotice, type AppSettings, type WorkspaceExportConfig, type WorkspaceConfig } from './types';
@@ -97,6 +97,39 @@ function collectWorkspaceFilePaths(nodes: Workspace['fileTree']): Set<string> {
   return paths;
 }
 
+function sameStringArray(a: string[], b: string[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function sameFileTree(a: Workspace['fileTree'], b: Workspace['fileTree']): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i];
+    const right = b[i];
+
+    if (
+      left.name !== right.name ||
+      left.path !== right.path ||
+      left.isDirectory !== right.isDirectory
+    ) {
+      return false;
+    }
+
+    if (left.isDirectory) {
+      if (!sameFileTree(left.children ?? [], right.children ?? [])) return false;
+    }
+  }
+
+  return true;
+}
+
 function remapPathSet(paths: Set<string>, fromPath: string, toPath: string): Set<string> {
   const next = new Set<string>();
   for (const path of paths) {
@@ -106,6 +139,10 @@ function remapPathSet(paths: Set<string>, fromPath: string, toPath: string): Set
   }
   return next;
 }
+
+const EDITOR_FONT_SIZE_MIN = 10;
+const EDITOR_FONT_SIZE_MAX = 28;
+const DEFAULT_EDITOR_FONT_SIZE = 14;
 
 function diffWorkspacePaths(
   previousTree: Workspace['fileTree'] | undefined,
@@ -549,9 +586,16 @@ export default function App() {
   // Drag-drop from Finder
   const [dragOver, setDragOver] = useState(false);
   const [dragFiles, setDragFiles] = useState<string[]>([]);
+  const dragOverRef = useRef(false);
+  const dragFilesRef = useRef<string[]>([]);
 
   // Derived from active file
-  const fileTypeInfo = activeFile ? getFileTypeInfo(activeFile) : null;
+  // Memoised so neither fileTypeInfo's object identity nor its dependent
+  // effects (useEffect deps on fileTypeInfo?.kind) change between renders
+  // when activeFile hasn't changed, preventing unnecessary re-renders of
+  // AppEditorArea and Editor which cascade down to CodeMirror.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fileTypeInfo = useMemo(() => activeFile ? getFileTypeInfo(activeFile) : null, [activeFile]);
   // Backlinks — scan only markdown files; disable during focus mode for perf
   const { backlinks, outlinks, loading: backlinksLoading } = useBacklinks(
     activeFile,
@@ -685,19 +729,36 @@ export default function App() {
   useEffect(() => {
     if (!isTauri) return;
     let unlisten: (() => void) | undefined;
+
+    const samePaths = (left: string[], right: string[]) => (
+      left.length === right.length && left.every((path, index) => path === right[index])
+    );
+
+    const updateDragFiles = (nextPaths: string[]) => {
+      if (samePaths(dragFilesRef.current, nextPaths)) return;
+      dragFilesRef.current = nextPaths;
+      setDragFiles(nextPaths);
+    };
+
+    const updateDragOver = (nextValue: boolean) => {
+      if (dragOverRef.current === nextValue) return;
+      dragOverRef.current = nextValue;
+      setDragOver(nextValue);
+    };
+
     getCurrentWindow().onDragDropEvent((event) => {
       const type = event.payload.type;
       if (type === 'enter' || type === 'over') {
         const paths: string[] = (event.payload as { paths?: string[] }).paths ?? [];
         // Ignore internal DOM drags (e.g. slide strip reorder) — they have no paths
         if (paths.length === 0) return;
-        setDragFiles(paths);
+        updateDragFiles(paths);
         // Don't show full-screen overlay when hovering over the AI panel
         const pos = (event.payload as { position?: { x: number; y: number } }).position;
         const hitEl = pos ? document.elementFromPoint(pos.x, pos.y) : null;
-        setDragOver(!hitEl?.closest('[data-panel="ai"]'));
+        updateDragOver(!hitEl?.closest('[data-panel="ai"]'));
       } else if (type === 'drop') {
-        setDragOver(false);
+        updateDragOver(false);
         const paths: string[] = (event.payload as { paths?: string[] }).paths ?? [];
         // Use workspaceRef so this callback doesn't re-register on every file open
         if (paths.length > 0 && workspaceRef.current) {
@@ -712,8 +773,8 @@ export default function App() {
           }
         }
       } else {
-        setDragOver(false);
-        setDragFiles([]);
+        updateDragOver(false);
+        updateDragFiles([]);
       }
     }).then((fn) => { unlisten = fn; });
     return () => { unlisten?.(); };
@@ -836,6 +897,9 @@ export default function App() {
         return !v;
       });
     },
+    onZoomIn:    () => zoomEditor(1),
+    onZoomOut:   () => zoomEditor(-1),
+    onZoomReset: resetEditorZoom,
   });
 
   // ── Jump to text/line after project-search navigation ───────────────────────
@@ -850,11 +914,15 @@ export default function App() {
   }, [content, pendingJumpText, pendingJumpLine, activeFile]);
 
   // ── Project search result open handler ──────────────────────────────────────
+  // Use a ref so handleSearchFileOpen stays stable (empty deps, used by React.memo children)
+  // while always calling the latest handleOpenFile (which closes over the current workspace).
+  const handleOpenFileRef = useRef(handleOpenFile);
+  useEffect(() => { handleOpenFileRef.current = handleOpenFile; });
+
   const handleSearchFileOpen = useCallback(async (relPath: string, lineNo?: number, matchText?: string) => {
-    await handleOpenFile(relPath);
+    await handleOpenFileRef.current(relPath);
     if (lineNo != null) setPendingJumpLine(lineNo);
     else if (matchText) setPendingJumpText(matchText);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Format via Prettier standalone ─────────────────────────────────────────
@@ -916,8 +984,21 @@ export default function App() {
     const fileTree = nextState?.fileTree ?? await refreshFileTree(ws);
     const files = nextState?.files ?? flatMdFiles(fileTree);
     const previousTree = workspaceRef.current?.path === ws.path ? workspaceRef.current.fileTree : undefined;
-    recordWorkspaceStructureDiff(previousTree, fileTree);
-    setWorkspace((prev) => prev ? { ...prev, files, fileTree } : prev);
+    const previousFiles = workspaceRef.current?.path === ws.path ? workspaceRef.current.files : undefined;
+    const treeChanged = previousTree ? !sameFileTree(previousTree, fileTree) : true;
+    const filesChanged = previousFiles ? !sameStringArray(previousFiles, files) : true;
+
+    if (treeChanged) {
+      recordWorkspaceStructureDiff(previousTree, fileTree);
+    }
+
+    if (treeChanged || filesChanged) {
+      setWorkspace((prev) => {
+        if (!prev || prev.path !== ws.path) return prev;
+        return { ...prev, files, fileTree };
+      });
+    }
+
     void markWorkspaceMemoryForChangedPaths(ws.path, changedPaths);
   }, [markWorkspaceMemoryForChangedPaths, recordWorkspaceStructureDiff]);
 
@@ -1246,6 +1327,48 @@ export default function App() {
     localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(settings));
   }
 
+  // ── Editor zoom ──────────────────────────────────────────────
+  function zoomEditor(delta: number) {
+    setAppSettings((prev) => {
+      const next = Math.max(EDITOR_FONT_SIZE_MIN, Math.min(EDITOR_FONT_SIZE_MAX, prev.editorFontSize + delta));
+      if (next === prev.editorFontSize) return prev;
+      const updated = { ...prev, editorFontSize: next };
+      localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }
+
+  function resetEditorZoom() {
+    setAppSettings((prev) => {
+      if (prev.editorFontSize === DEFAULT_EDITOR_FONT_SIZE) return prev;
+      const updated = { ...prev, editorFontSize: DEFAULT_EDITOR_FONT_SIZE };
+      localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }
+
+  // Ctrl/Cmd + scroll to zoom the editor
+  useEffect(() => {
+    const el = editorAreaRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (!e.metaKey && !e.ctrlKey) return;
+      e.preventDefault();
+      const step = e.deltaY < 0 ? 1 : -1;
+      setAppSettings((prev) => {
+        const next = Math.max(EDITOR_FONT_SIZE_MIN, Math.min(EDITOR_FONT_SIZE_MAX, prev.editorFontSize + step));
+        if (next === prev.editorFontSize) return prev;
+        const updated = { ...prev, editorFontSize: next };
+        localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(updated));
+        return updated;
+      });
+    }
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  // editorAreaRef.current is stable (assigned on first render)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Scan workspace for voice memos without transcripts (desktop only) ──────
   async function scanVoiceMemos(wsPath: string) {
     function parseStemDate(stem: string): Date {
@@ -1410,30 +1533,48 @@ export default function App() {
     }
   }, [workspace, refreshWorkspace, refreshMemoryPrompt]);
 
-  // AI document context: for canvas, send live shape summary + command protocol
+  // AI document context: for canvas, send live shape summary + command protocol.
   // canvasEditorRef is a ref — intentionally not in deps (changes don't trigger re-render).
+  //
+  // We capture a SNAPSHOT only when the active file or its type changes (tab switch,
+  // new file, canvas ↔ markdown). We do NOT re-render on every keystroke: content
+  // freshness at send-time is provided by getAgentContextSnapshot() which reads
+  // tabContentsRef directly. Avoiding keystroke-driven renders keeps:
+  //   • CodeMirror from reconfiguring (live preview stays alive)
+  //   • spell-check attributes stable (no Grammarly fight)
+  //   • AgentSession from DOM-reconciling (text selection in AI panel stays stable)
+  // Canvas editor is never ready at component init, so the initializer always
+  // falls through to the fallback. Actual value is set by the effect below.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const aiDocumentContextLive = useMemo(() => {
-    if (fileTypeInfo?.kind === 'canvas') {
-      return canvasEditorRef.current
-        ? canvasAIContext(canvasEditorRef.current, activeFile ?? '')
-        : `Canvas file: ${activeFile ?? ''} (loading…)`;
-    }
-    return content;
+  const [aiDocumentContext, setAiDocumentContext] = useState(() =>
+    fileTypeInfo?.kind === 'canvas'
+      ? `Canvas file: ${activeFile ?? ''} (loading…)`
+      : content
+  );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileTypeInfo?.kind, activeFile, content]);
-
-  // Debounce: propagate to AIPanel at most once per 2s so AgentSession doesn't
-  // re-render on every keystroke. Freshness is still handled at send-time via
-  // getAgentContextSnapshot(). File/canvas switches update immediately via the
-  // second effect so the AI always sees the right document on tab change.
-  const [aiDocumentContext, setAiDocumentContext] = useState(aiDocumentContextLive);
   useEffect(() => {
-    const t = setTimeout(() => setAiDocumentContext(aiDocumentContextLive), 2000);
-    return () => clearTimeout(t);
-  }, [aiDocumentContextLive]);
+    if (fileTypeInfo?.kind === 'canvas') {
+      if (!canvasEditorRef.current) {
+        setAiDocumentContext(`Canvas file: ${activeFile ?? ''} (loading…)`);
+        return;
+      }
+      const editor = canvasEditorRef.current;
+      const file   = activeFile ?? '';
+      // Dynamic import keeps tldraw out of the main bundle.
+      // By the time this effect fires, CanvasEditor (which statically imports
+      // tldraw) is already mounted, so the import resolves from cache instantly.
+      import('./utils/canvasAISummary').then(({ canvasAIContext }) => {
+        if (canvasEditorRef.current === editor) {
+          setAiDocumentContext(canvasAIContext(editor, file));
+        }
+      });
+    } else {
+      setAiDocumentContext(content);
+    }
+  // Only snapshot when file identity changes. Content freshness at send-time
+  // is handled by getAgentContextSnapshot() reading tabContentsRef directly.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setAiDocumentContext(aiDocumentContextLive); }, [activeFile, fileTypeInfo?.kind]);
+  }, [activeFile, fileTypeInfo?.kind]);
   // ── File deleted ────────────────────────────────────────
   function handleFileDeleted(relPath: string) {
     if (tabs.includes(relPath)) {
@@ -1550,7 +1691,7 @@ export default function App() {
 
   const title = useMemo(
     () => activeFile
-      ? (content.match(/^#\s+(.+)$/m)?.[1] ?? activeFile)
+      ? (content.slice(0, 500).match(/^#\s+(.+)$/m)?.[1] ?? activeFile)
       : workspace?.name ?? 'Untitled',
     [activeFile, content, workspace?.name],
   );
@@ -1582,6 +1723,116 @@ export default function App() {
     }
     setCanvasResetKey((value) => value + 1);
   }, [activeFile, bumpFileRevision, savedContentRef, setContent, tabContentsRef, workspace]);
+
+  // ── Stable callbacks for memoised children (Sidebar, AIPanel, AppOverlays) ─
+  // These are defined with useCallback so that React.memo on those components
+  // actually prevents re-renders on every keystroke (content change in App).
+
+  // Sidebar callbacks
+  // Keep a ref to activeFileMarks so onOpenAIReview doesn't need it in deps.
+  const activeFileMarksRef = useRef(activeFileMarks);
+  activeFileMarksRef.current = activeFileMarks;
+
+  const handleSidebarOpenAIReview = useCallback(() => {
+    setAiHighlight(true);
+    setAiNavIndex(0);
+    const marks = activeFileMarksRef.current;
+    if (marks.length > 0) {
+      const m = marks[0];
+      if (m.canvasShapeIds?.length && canvasEditorRef.current) {
+        const bounds = canvasEditorRef.current.getShapePageBounds(m.canvasShapeIds[0] as TLShapeId);
+        if (bounds) canvasEditorRef.current.zoomToBounds(bounds, { animation: { duration: 300 }, inset: 60 });
+      } else {
+        setTimeout(() => editorRef.current?.jumpToText({ text: m.text, revert: m.revert }), 120);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // refs handle mutable values — no deps needed
+
+  const handleOpenTerminalAt = useCallback((relDir: string) => {
+    const absDir = relDir ? `${workspace?.path}/${relDir}` : workspace?.path ?? '';
+    setTerminalOpen(true);
+    setTerminalRequestCd(absDir + '|' + Date.now());
+  }, [workspace?.path]);
+
+  const handleRunButtonCommand = useCallback((command: string) => {
+    setTerminalOpen(true);
+    setTerminalRequestRun(command + '|' + Date.now());
+  }, []);
+
+  const handleExpandSidebar = useCallback(() => {
+    if (sidebarWidthRef.current < 80) setSidebarWidth(220);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // sidebarWidthRef is a ref — stable
+
+  const handleExportOpen = useCallback(() => setExportModalOpen(true), []);
+
+  // AIPanel callbacks
+  const handleVoiceMemoHandled = useCallback((stem: string) => {
+    setPendingVoiceMemos((prev) => prev.filter((m) => m.stem !== stem));
+  }, []);
+
+  // getActiveHtml reads content via tabContentsRef at call time — no content dep.
+  const getActiveHtml = useCallback((): { html: string; absPath: string } | null => {
+    if (!activeFile || !fileTypeInfo || fileTypeInfo.kind !== 'code' || !fileTypeInfo.supportsPreview) return null;
+    const html = tabContentsRef.current.get(activeFile) ?? '';
+    return { html, absPath: `${workspace?.path}/${activeFile}` };
+  }, [activeFile, fileTypeInfo, workspace?.path]); // tabContentsRef is a ref — stable
+
+  // AppOverlays callbacks
+  const handleCloseUpdateModal = useCallback(() => setShowUpdateModal(false), []);
+  const handleCloseUpdateReleaseModal = useCallback(() => setShowUpdateReleaseModal(false), []);
+  const handleOpenUpdateReleaseModal = useCallback(() => setShowUpdateReleaseModal(true), []);
+  const handleCloseMobilePending = useCallback(() => setShowMobilePending(false), []);
+  const handleDeleteMobilePendingTask = useCallback((id: string) =>
+    setMobilePendingTasks((prev) => prev.filter((task) => task.id !== id)), []);
+  const handleCloseSettings = useCallback(() => setShowSettings(false), []);
+  const handleCloseExportModal = useCallback(() => setExportModalOpen(false), []);
+  const handleOpenAIFromExport = useCallback((prompt: string) => {
+    setExportModalOpen(false);
+    setAiInitialPrompt(prompt);
+    setAiOpen(true);
+  }, []);
+  const handleCloseImageSearch = useCallback(() => setImgSearchOpen(false), []);
+  const handleAskNudge = useCallback((prompt: string) => {
+    dismissNudge();
+    setAiInitialPrompt(prompt);
+    setAiOpen(true);
+  }, [dismissNudge]);
+
+  // AppHeader callbacks
+  const handleToggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
+  const handleGoHome = useCallback(() => switchToTab(null), [switchToTab]);
+  const handleClearDemoHubToast = useCallback(() => setDemoHubToast(null), []);
+  const handleClearPandocError = useCallback(() => setPandocError(null), []);
+  const handleToggleAi = useCallback(() => setAiOpen((v) => !v), []);
+  const handleCloseAi   = useCallback(() => setAiOpen(false), []);
+
+  // ── AppEditorArea stable callbacks (broken out of JSX to enable React.memo) ─
+  const handleEditorAreaOpenAIReview = useCallback(() => {
+    setAiHighlight(true);
+    setAiNavIndex(0);
+  }, []);
+  const handleActivateSync = useCallback(() => openSettings('sync'), [openSettings]);
+  const handleCanvasEditorReady = useCallback((editor: TldrawEditor | null) => {
+    canvasEditorRef.current = editor;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // canvasEditorRef is a ref — stable
+
+  // activeFile captured via ref so this callback is stable across file switches.
+  const activeFileRef2 = useRef(activeFile);
+  activeFileRef2.current = activeFile;
+  const handleEditorFileSaved = useCallback(() => {
+    handleFileWritten(activeFileRef2.current ?? '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // handleFileWritten is stable (useCallback with stable deps)
+
+  // AIPanel style — memoised so React.memo on AIPanel isn't defeated by
+  // a new style object on every parent render.
+  const aiPanelStyle = useMemo(
+    () => (aiOpen ? { width: aiPanelWidth } : undefined),
+    [aiOpen, aiPanelWidth],
+  );
 
   // ── No workspace yet — show picker ──────────────────────────
   if (!workspace) {
@@ -1633,11 +1884,11 @@ export default function App() {
       <AppHeader
         sidebarOpen={sidebarOpen}
         sidebarShortcutLabel={sidebarShortcutLabel}
-        onToggleSidebar={() => setSidebarOpen((value) => !value)}
+        onToggleSidebar={handleToggleSidebar}
         activeFile={activeFile}
         title={title}
         workspace={workspace}
-        onGoHome={() => switchToTab(null)}
+        onGoHome={handleGoHome}
         fileTypeInfo={fileTypeInfo}
         viewMode={viewMode}
         onSetViewMode={handleViewModeChange}
@@ -1650,12 +1901,12 @@ export default function App() {
         dirtyFiles={dirtyFiles}
         savedToast={savedToast}
         demoHubToast={demoHubToast}
-        onClearDemoHubToast={() => setDemoHubToast(null)}
+        onClearDemoHubToast={handleClearDemoHubToast}
         pandocError={pandocError}
-        onClearPandocError={() => setPandocError(null)}
+        onClearPandocError={handleClearPandocError}
         isDev={import.meta.env.DEV}
         aiOpen={aiOpen}
-        onToggleAi={() => setAiOpen((value) => !value)}
+        onToggleAi={handleToggleAi}
         previewShortcutLabel={previewShortcutLabel}
       />
 
@@ -1680,19 +1931,7 @@ export default function App() {
               sidebarMode={sidebarMode}
               onSidebarModeChange={setSidebarMode}
               onReviewAllMarks={handleReviewAllMarks}
-              onOpenAIReview={() => {
-                setAiHighlight(true);
-                setAiNavIndex(0);
-                if (activeFileMarks.length > 0) {
-                  const m = activeFileMarks[0];
-                  if (m.canvasShapeIds?.length && canvasEditorRef.current) {
-                    const bounds = canvasEditorRef.current.getShapePageBounds(m.canvasShapeIds[0] as TLShapeId);
-                  if (bounds) canvasEditorRef.current.zoomToBounds(bounds, { animation: { duration: 300 }, inset: 60 });
-                  } else {
-                    setTimeout(() => editorRef.current?.jumpToText({ text: m.text, revert: m.revert }), 120);
-                  }
-                }
-              }}
+              onOpenAIReview={handleSidebarOpenAIReview}
               onAIPrev={handleAINavPrev}
               onAINext={handleAINavNext}
               onFileDeleted={handleFileDeleted}
@@ -1701,18 +1940,11 @@ export default function App() {
               onRefreshFiles={handleRefreshWorkspaceFiles}
               lockedFiles={lockedFiles}
               newFileRef={newFileRef}
-              onOpenTerminalAt={(relDir) => {
-                const absDir = relDir ? `${workspace.path}/${relDir}` : workspace.path;
-                setTerminalOpen(true);
-                setTerminalRequestCd(absDir + '|' + Date.now());
-              }}
-              onRunButtonCommand={(command) => {
-                setTerminalOpen(true);
-                setTerminalRequestRun(command + '|' + Date.now());
-              }}
+              onOpenTerminalAt={handleOpenTerminalAt}
+              onRunButtonCommand={handleRunButtonCommand}
               onPublishDemoHub={handlePublishDemoHub}
-              onExportOpen={() => setExportModalOpen(true)}
-              onExpandSidebar={() => { if (sidebarWidthRef.current < 80) setSidebarWidth(220); }}
+              onExportOpen={handleExportOpen}
+              onExpandSidebar={handleExpandSidebar}
             />
             {/* Sidebar resize handle */}
             <div className="resize-divider" onMouseDown={startSidebarDrag} />
@@ -1768,21 +2000,18 @@ export default function App() {
           onMarkUserEdited={handleMarkUserEdited}
           onOpenFile={handleOpenFile}
           onCreateFirstWorkspaceFile={handleCreateFirstWorkspaceFile}
-          onOpenAIReview={() => {
-            setAiHighlight(true);
-            setAiNavIndex(0);
-          }}
+          onOpenAIReview={handleEditorAreaOpenAIReview}
           onSwitchWorkspace={handleSwitchWorkspace}
-          onActivateSync={() => openSettings('sync')}
+          onActivateSync={handleActivateSync}
           onSetHomeVisible={setHomeVisible}
           onSetFileStat={setFileStat}
           onRecoverCanvas={handleRecoverCanvas}
-          onCanvasEditorReady={(editor) => { canvasEditorRef.current = editor; }}
+          onCanvasEditorReady={handleCanvasEditorReady}
           onCanvasPresentModeChange={handleCanvasPresentModeChange}
-          onFileSaved={() => handleFileWritten(activeFile ?? '')}
+          onFileSaved={handleEditorFileSaved}
           onFormat={handleFormat}
           onImagePaste={handleEditorImagePaste}
-          onGhostComplete={appSettings.inlineCompletions !== false ? fetchProviderGhostCompletion : undefined}
+
         />
 
 
@@ -1794,7 +2023,7 @@ export default function App() {
             <AIPanel
               ref={aiPanelRef}
               isOpen={aiOpen}
-              onClose={() => setAiOpen(false)}
+              onClose={handleCloseAi}
               collapsed={aiPanelCollapsed}
               onCollapse={collapseAiPanel}
               onExpand={expandAiPanel}
@@ -1817,14 +2046,10 @@ export default function App() {
               activeFile={activeFile ?? undefined}
               rescanFramesRef={rescanFramesRef}
               onStreamingChange={setIsAIStreaming}
-              style={aiOpen ? { width: aiPanelWidth } : undefined}
+              style={aiPanelStyle}
               screenshotTargetRef={editorAreaRef}
               webPreviewRef={webPreviewRef}
-              getActiveHtml={
-                fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview && activeFile
-                  ? () => ({ html: content, absPath: `${workspace.path}/${activeFile}` })
-                  : undefined
-              }
+              getActiveHtml={getActiveHtml}
               workspaceExportConfig={workspace.config.exportConfig}
               onExportConfigChange={handleExportConfigChange}
               workspaceConfig={workspace.config}
@@ -1833,9 +2058,7 @@ export default function App() {
               onOpenFileReference={handleSearchFileOpen}
               selectionContext={aiSelectionContext}
               pendingVoiceMemos={pendingVoiceMemos}
-              onVoiceMemoHandled={(stem) =>
-                setPendingVoiceMemos((prev) => prev.filter((m) => m.stem !== stem))
-              }
+              onVoiceMemoHandled={handleVoiceMemoHandled}
             />
           </Suspense>
         )}
@@ -1874,9 +2097,9 @@ export default function App() {
         projectRoot={__PROJECT_ROOT__}
         workspace={workspace}
         showUpdateModal={showUpdateModal}
-        onCloseUpdateModal={() => setShowUpdateModal(false)}
+        onCloseUpdateModal={handleCloseUpdateModal}
         showUpdateReleaseModal={showUpdateReleaseModal}
-        onCloseUpdateReleaseModal={() => setShowUpdateReleaseModal(false)}
+        onCloseUpdateReleaseModal={handleCloseUpdateReleaseModal}
         forceUpdateOpen={forceUpdateOpen}
         forceUpdateRequired={forceUpdateRequired}
         forceUpdateChannel={forceUpdateChannel}
@@ -1884,15 +2107,15 @@ export default function App() {
         showMobilePending={showMobilePending}
         mobilePendingTasks={mobilePendingTasks}
         onExecutePendingTask={handleExecutePendingTask}
-        onCloseMobilePending={() => setShowMobilePending(false)}
-        onDeleteMobilePendingTask={(id) => setMobilePendingTasks((prev) => prev.filter((task) => task.id !== id))}
+        onCloseMobilePending={handleCloseMobilePending}
+        onDeleteMobilePendingTask={handleDeleteMobilePendingTask}
         showSettings={showSettings}
         appSettings={appSettings}
         onAppSettingsChange={handleAppSettingsChange}
         onWorkspaceChange={setWorkspace}
         onOpenHelp={handleOpenDesktopHelp}
         onContactUs={handleContactUs}
-        onCloseSettings={() => setShowSettings(false)}
+        onCloseSettings={handleCloseSettings}
         settingsInitialTab={settingsInitialTab}
         showDesktopOnboarding={showDesktopOnboarding}
         desktopOnboardingSeen={desktopOnboardingSeen}
@@ -1902,26 +2125,18 @@ export default function App() {
         activeFile={activeFile}
         onOpenFileForExport={handleOpenFileForExport}
         onRestoreAfterExport={handleRestoreAfterExport}
-        onCloseExportModal={() => setExportModalOpen(false)}
-        onOpenAIFromExport={(prompt) => {
-          setExportModalOpen(false);
-          setAiInitialPrompt(prompt);
-          setAiOpen(true);
-        }}
+        onCloseExportModal={handleCloseExportModal}
+        onOpenAIFromExport={handleOpenAIFromExport}
         onExportLockStateChange={setExportLockState}
         imgSearchOpen={imgSearchOpen}
-        onCloseImageSearch={() => setImgSearchOpen(false)}
+        onCloseImageSearch={handleCloseImageSearch}
         copilotOverlayActive={copilotOverlayActive}
         activeNudge={activeNudge}
-        onAskNudge={(prompt) => {
-          dismissNudge();
-          setAiInitialPrompt(prompt);
-          setAiOpen(true);
-        }}
+        onAskNudge={handleAskNudge}
         onDismissNudge={dismissNudge}
         updateToastVersion={updateToastVersion}
         setUpdateToastVersion={setUpdateToastVersion}
-        onOpenUpdateReleaseModal={() => setShowUpdateReleaseModal(true)}
+        onOpenUpdateReleaseModal={handleOpenUpdateReleaseModal}
       />
 
     </div>

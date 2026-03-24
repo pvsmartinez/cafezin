@@ -14,7 +14,7 @@
  * compression that are tightly coupled to the GitHub auth flow.
  */
 
-import { streamText, stepCountIs } from 'ai';
+import { streamText, generateText, stepCountIs } from 'ai';
 import type { ModelMessage } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -27,6 +27,7 @@ import { buildProviderRequestDump, formatProviderError, setLastProviderRequestDu
 import { chatToModelMessages } from './messageConverter';
 import { toVercelToolSet } from './tools-adapter';
 import { providerModelSupportsVision } from './providerModels';
+import { getModelTokenBudgets } from '../copilot/tokenBudget';
 
 // Sentinels emitted by canvasTools.ts — must match exactly.
 const SENTINEL_CANVAS  = '__CANVAS_PNG__:';
@@ -193,19 +194,103 @@ export async function runProviderAgent(
       maxOutputTokens: 16000,
       temperature: 0.3,
 
-      // Inject vision message (screenshot) before the next LLM call when available.
-      prepareStep: ({ messages: currentMessages }) => {
-        if (!pendingVisionInject) return;
-        const { url, label } = pendingVisionInject;
-        pendingVisionInject = null;
-        const visionMessage: ModelMessage = {
-          role: 'user',
-          content: [
-            { type: 'text', text: label },
-            { type: 'image', image: url },
-          ],
-        } as any;
-        return { messages: [...currentMessages, visionMessage] };
+      // Inject vision message and/or compress context before each LLM step.
+      // Mirrors the context-management strategy used by the Copilot agent loop.
+      prepareStep: async ({ messages: currentMessages }) => {
+        let msgs: ModelMessage[] = currentMessages as ModelMessage[];
+
+        // 1. Vision injection
+        if (pendingVisionInject) {
+          const { url, label } = pendingVisionInject;
+          pendingVisionInject = null;
+          msgs = [...msgs, {
+            role: 'user',
+            content: [{ type: 'text', text: label }, { type: 'image', image: url }],
+          } as any as ModelMessage];
+        }
+
+        // 2. Compression: same budget rule as the Copilot agent loop.
+        const estimatedTok = Math.ceil(JSON.stringify(msgs).length / 4);
+        const budgets = getModelTokenBudgets(resolvedModel as any);
+        if (estimatedTok > budgets.compressBudget) {
+          onChunk('\n\n_[Context approaching limit — summarizing prior session and continuing...]_\n\n');
+          // Strip vision messages before sending to summariser.
+          const msgsForSummary = msgs.filter(
+            (m) =>
+              !(m.role === 'user' && Array.isArray(m.content) &&
+                (m.content as any[]).some((p: any) => p.type === 'image')),
+          );
+          let summaryText = '[Summary unavailable — model did not respond]';
+          try {
+            const summaryResult = await generateText({
+              model: langModel,
+              messages: [
+                {
+                  role: 'system',
+                  content:
+                    'You are a technical session summarizer. The agent context window is full and needs to be compressed. ' +
+                    'Summarize the conversation below into a dense technical briefing covering:\n' +
+                    "1. The user's original goal\n" +
+                    '2. Everything accomplished so far — each tool call, file created/modified\n' +
+                    '3. Current state of the workspace\n' +
+                    "4. What still needs to be done to complete the user's goal\n" +
+                    '5. Any important findings, constraints, or decisions\n' +
+                    '6. **Schema/rules/format changes**: if any data structures, file formats, database schemas, or workspace rules were discussed or corrected during this session, state the CURRENT (corrected) version explicitly. These are the most common source of confusion in future sessions — old assumptions must be overridden.\n\n' +
+                    'Be precise and technical. Use bullet points. Aim for 400\u2013700 words.',
+                },
+                {
+                  role: 'user',
+                  content: `Conversation to summarize (${msgsForSummary.length} messages):\n\n${
+                    JSON.stringify(msgsForSummary, null, 2).slice(0, 50_000)
+                  }`,
+                },
+              ],
+              maxOutputTokens: 1800,
+              temperature: 0.2,
+              abortSignal: signal,
+            });
+            summaryText = summaryResult.text;
+          } catch (e) {
+            console.warn('[runProviderAgent] summary generation failed:', e);
+          }
+
+          // Find last non-summary user message; keep everything from there onwards
+          // (guarantees complete tool-call/result pairs in tail).
+          const systemMsgs = msgs.filter((m) => m.role === 'system');
+          let tailStart = -1;
+          for (let i = msgs.length - 1; i >= 0; i--) {
+            const m = msgs[i];
+            if (m.role !== 'user') continue;
+            const textContent = Array.isArray(m.content)
+              ? (m.content as any[]).filter((p: any) => p.type === 'text').map((p: any) => p.text).join('')
+              : (m.content as string ?? '');
+            if (!textContent.startsWith('[SESSION SUMMARY')) { tailStart = i; break; }
+          }
+          const tail = (tailStart >= 0 ? msgs.slice(tailStart) : []).filter(
+            (m) =>
+              !(m.role === 'user' && Array.isArray(m.content) &&
+                (m.content as any[]).some((p: any) => p.type === 'image')),
+          );
+
+          const compressed: ModelMessage[] = [
+            ...systemMsgs,
+            {
+              role: 'user',
+              content:
+                `[SESSION SUMMARY]\n\nProgress summary:\n${summaryText}\n\n` +
+                'Priority rule: follow the current user request if any older goal in the summary conflicts with it.\n\n---\nContinuing from here:',
+            } as any as ModelMessage,
+            {
+              role: 'assistant',
+              content: "Understood \u2014 resuming from the session summary above. I'll continue towards the original goal.",
+            } as any as ModelMessage,
+            ...tail.filter((m) => m.role !== 'system'),
+          ];
+          return { messages: compressed };
+        }
+
+        if (msgs !== currentMessages) return { messages: msgs };
+        return undefined;
       },
 
       onChunk: ({ chunk }) => {

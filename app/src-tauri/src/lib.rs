@@ -20,8 +20,6 @@ use tauri_plugin_deep_link::DeepLinkExt;
 #[cfg(not(target_os = "ios"))]
 use tokio::io::AsyncBufReadExt;
 
-mod rag;
-
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 #[derive(Default)]
 struct ShellProcessRegistry {
@@ -1009,37 +1007,65 @@ fn ensure_config_dir(workspace_path: String) -> Result<(), String> {
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-async fn rag_rebuild_index(workspace_path: String) -> Result<rag::RagBuildSummary, String> {
-    tokio::task::spawn_blocking(move || rag::rebuild_index(&workspace_path))
-        .await
-        .map_err(|e| e.to_string())?
+// ── Grep workspace ──────────────────────────────────────────────────────────
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GrepHit {
+    path: String,
+    line: usize,
+    content: String,
 }
 
+/// Fast native grep across workspace text files.
+/// Returns up to 60 hits as structured { path, line, content }.
+/// pattern is used as a fixed string unless is_regex=true.
+/// Respects case-insensitivity (always -i).
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
 #[tauri::command]
-async fn rag_search(
+fn grep_workspace(
     workspace_path: String,
-    query: String,
-    limit: Option<usize>,
-    active_file: Option<String>,
-    recent_files: Option<Vec<String>>,
-) -> Result<rag::RagSearchResult, String> {
-    tokio::task::spawn_blocking(move || {
-        rag::search_workspace(
-            &workspace_path,
-            &query,
-            limit.unwrap_or(10),
-            active_file.as_deref(),
-            recent_files.as_deref().unwrap_or(&[]),
-        )
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
+    pattern: String,
+    is_regex: bool,
+) -> Result<Vec<GrepHit>, String> {
+    let mut cmd = std::process::Command::new("grep");
+    cmd.args(["-rn", "-I", "-i"]);
+    cmd.args(["--exclude=*.tldr.json", "--exclude-dir=.git",
+               "--exclude-dir=.cafezin", "--exclude-dir=node_modules"]);
+    if !is_regex {
+        cmd.arg("--fixed-strings");
+    }
+    for ext in &["md", "mdx", "txt", "ts", "tsx", "js", "jsx",
+                  "py", "sql", "sh", "json", "toml", "yaml", "yml",
+                  "css", "html", "rs"] {
+        cmd.arg(format!("--include=*.{ext}"));
+    }
+    cmd.arg(&pattern);
+    cmd.arg(".");
+    cmd.current_dir(&workspace_path);
 
-#[tauri::command]
-fn rag_release_resources() -> Result<(), String> {
-    rag::release_resources()
+    let output = cmd.output().map_err(|e| format!("grep failed to start: {e}"))?;
+    // exit 1 = no matches (not an error); exit 2+ = real grep error
+    if let Some(code) = output.status.code() {
+        if code >= 2 {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("grep error: {stderr}"));
+        }
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut hits: Vec<GrepHit> = Vec::new();
+    for raw_line in stdout.lines() {
+        if hits.len() >= 60 { break; }
+        // Format: ./path/to/file.ts:42:matched content
+        let parts: Vec<&str> = raw_line.splitn(3, ':').collect();
+        if parts.len() < 3 { continue; }
+        let Ok(line) = parts[1].parse::<usize>() else { continue };
+        let path = parts[0].trim_start_matches("./").to_string();
+        let content = parts[2].trim().to_string();
+        hits.push(GrepHit { path, line, content });
+    }
+    Ok(hits)
 }
 
 // ── Tauri command dispatchers (one per git command, no duplication) ───────────────
@@ -1582,7 +1608,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, rag_rebuild_index, rag_search, rag_release_resources, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo])
+        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

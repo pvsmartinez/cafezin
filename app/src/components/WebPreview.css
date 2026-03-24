@@ -48,7 +48,6 @@
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(3px);
   z-index: 10;
   pointer-events: all;
 }
@@ -59,12 +58,7 @@
   color: var(--accent);
   letter-spacing: 0.03em;
   white-space: nowrap;
-  animation: web-preview-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes web-preview-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+  opacity: 0.82;
 }
 
 .web-preview-reload-btn {

@@ -22,11 +22,15 @@ import { FREE_ACCOUNT_STATE } from '../types';
 const CACHE_KEY       = 'cafezin-account-state-v1';
 const FREE_TTL_MS     = 30 * 60 * 1000;               // 30 minutes
 const PREMIUM_GRACE_MS = 5 * 24 * 60 * 60 * 1000;     // 5 days
+const ACTIVE_SESSION_REFRESH_COOLDOWN_MS = 60 * 1000;
 
 interface CacheEntry {
   state: AccountState;
   cachedAt: number;
 }
+
+let inFlightAccountStatePromise: Promise<AccountState> | null = null;
+let lastSuccessfulFetchAt = 0;
 
 // ── Internal helpers ───────────────────────────────────────────────────────────
 
@@ -79,38 +83,60 @@ export function clearAccountCache(): void {
  *   • Network / RPC error → returns cached state (even if premium grace applies)
  *   • No cache + error → returns FREE_ACCOUNT_STATE with authenticated=true
  */
-export async function fetchAccountState(): Promise<AccountState> {
+export async function fetchAccountState(options?: { force?: boolean }): Promise<AccountState> {
+  const force = options?.force ?? false;
+  const cached = readCache();
+
+  if (!force && cached && Date.now() - lastSuccessfulFetchAt < ACTIVE_SESSION_REFRESH_COOLDOWN_MS) {
+    return cached;
+  }
+
+  if (!force && inFlightAccountStatePromise) {
+    return inFlightAccountStatePromise;
+  }
+
+  const request = (async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        clearAccountCache();
+        lastSuccessfulFetchAt = Date.now();
+        return FREE_ACCOUNT_STATE;
+      }
+
+      const { data, error } = await supabase.rpc('get_my_account_state');
+
+      if (error || !data) {
+        console.error('[accountService] get_my_account_state RPC failed:', error);
+        return cached ?? readCache() ?? { ...FREE_ACCOUNT_STATE, authenticated: true };
+      }
+
+      const state: AccountState = {
+        authenticated:     true,
+        plan:              (data.plan   as AccountState['plan'])   ?? 'free',
+        status:            (data.status as AccountState['status']) ?? 'inactive',
+        isPremium:         data.isPremium         ?? false,
+        canUseAI:          data.canUseAI          ?? false,
+        currentPeriodEnd:  data.currentPeriodEnd  ?? null,
+        cancelAtPeriodEnd: data.cancelAtPeriodEnd ?? false,
+        trialEnd:          data.trialEnd          ?? null,
+      };
+
+      writeCache(state);
+      lastSuccessfulFetchAt = Date.now();
+      return state;
+    } catch {
+      return cached ?? readCache() ?? FREE_ACCOUNT_STATE;
+    }
+  })();
+
+  inFlightAccountStatePromise = request;
+
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session) {
-      clearAccountCache();
-      return FREE_ACCOUNT_STATE;
-    }
-
-    const { data, error } = await supabase.rpc('get_my_account_state');
-
-    if (error || !data) {
-      console.error('[accountService] get_my_account_state RPC failed:', error);
-      // Prefer cached state on error (covers offline + network blips)
-      return readCache() ?? { ...FREE_ACCOUNT_STATE, authenticated: true };
-    }
-
-    const state: AccountState = {
-      authenticated:     true,
-      plan:              (data.plan   as AccountState['plan'])   ?? 'free',
-      status:            (data.status as AccountState['status']) ?? 'inactive',
-      isPremium:         data.isPremium         ?? false,
-      canUseAI:          data.canUseAI          ?? false,
-      currentPeriodEnd:  data.currentPeriodEnd  ?? null,
-      cancelAtPeriodEnd: data.cancelAtPeriodEnd ?? false,
-      trialEnd:          data.trialEnd          ?? null,
-    };
-
-    writeCache(state);
-    return state;
-  } catch {
-    return readCache() ?? FREE_ACCOUNT_STATE;
+    return await request;
+  } finally {
+    if (inFlightAccountStatePromise === request) inFlightAccountStatePromise = null;
   }
 }
 

@@ -93,6 +93,17 @@ function scoreSection(section: MarkdownSection): number {
     'writing',
     'canvas',
     'spreadsheet',
+    // Schema / data model sections — these change over time and are critical anchor points
+    'schema',
+    'data model',
+    'data structure',
+    'breaking change',
+    'migration',
+    'current state',
+    'current rules',
+    'changed',
+    'format',
+    'structure',
   ];
   const softKeep = [
     'project',
