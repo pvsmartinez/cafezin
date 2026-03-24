@@ -86,7 +86,7 @@ const externalSearchHighlight = ViewPlugin.fromClass(
 );
 
 
-// import { makeLivePreviewExtension } from '../utils/livePreview'; // TEMP: disabled for Grammarly test
+import { makeLivePreviewExtension } from '../utils/livePreview';
 import { Fragment, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
   TextB, TextItalic, TextStrikethrough, Code,
@@ -675,7 +675,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
     // Only active in prose mode — codeMode is stable per mount so empty deps is safe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // TEMP: disabled to test Grammarly detection — re-enable after confirming root cause
-    const livePreviewExtension = useMemo(() => [], []); // (codeMode ? [] : makeLivePreviewExtension())
+    const livePreviewExtension = useMemo(() => (codeMode ? [] : makeLivePreviewExtension()), [codeMode]);
 
     const emitSelectionContext = useCallback((view: EditorView | null) => {
       const callback = onSelectionContextChangeRef.current;

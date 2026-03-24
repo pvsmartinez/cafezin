@@ -978,7 +978,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         return `Error writing file: ${e}`;
       }
       try {
-        onFileWritten?.(relPath);
+        onFileWritten?.(relPath, newText);
         onMarkRecorded?.(relPath, newText, recordedMarks.length > 0 ? recordedMarks : buildRecordedMarksFromSingleRewrite(text, newText));
         await new Promise<void>((r) => setTimeout(r, 400));
       } finally {
@@ -1029,7 +1029,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         return `Error writing file: ${e}`;
       }
       try {
-        onFileWritten?.(relPath);
+        onFileWritten?.(relPath, content);
         onMarkRecorded?.(relPath, content, buildRecordedMarksFromSingleRewrite(previousText, content));
         await new Promise<void>((r) => setTimeout(r, 400));
       } finally {
@@ -1469,7 +1469,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         for (const [relPath, { abs, text }] of fileCache) {
           try {
             await writeTextFile(abs, text);
-            onFileWritten?.(relPath);
+            onFileWritten?.(relPath, text);
             const recordedMarks = fileRecordedMarks.get(relPath) ?? buildRecordedMarksFromSingleRewrite(fileOriginals.get(relPath) ?? '', text);
             onMarkRecorded?.(relPath, text, recordedMarks);
           } catch (e) {
@@ -1606,7 +1606,7 @@ draft: true
             const isCanvas = entryPath.endsWith('.tldr.json');
             const stubContent = isCanvas ? '' : (typeof entry.content === 'string' ? entry.content : '');
             await writeTextFile(abs, stubContent);
-            onFileWritten?.(entryPath);
+            onFileWritten?.(entryPath, stubContent);
             created.push(isCanvas ? `${entryPath} (canvas — created empty, use canvas_op to populate)` : entryPath);
           }
         } catch (e) {

@@ -53,7 +53,14 @@ export interface ToolContext {
   workspaceExportConfig?: WorkspaceExportConfig;
   workspaceConfig?: WorkspaceConfig;
   webPreviewRef?: { current: { getScreenshot: () => Promise<string | null> } | null };
-  onFileWritten?: (path: string) => void;
+  /**
+   * Called after an agent tool writes a file to disk.
+   * `newContent` is the text that was written — callers should use it to
+   * update the live in-memory buffer (tabContentsRef / savedContentRef) so
+   * subsequent reads within the same agent turn see the fresh content and
+   * do not overwrite earlier edits.
+   */
+  onFileWritten?: (path: string, newContent?: string) => void;
   onPathRenamed?: (fromPath: string, toPath: string) => void;
   onMarkRecorded?: (relPath: string, content: string, recordedMarks?: AIRecordedTextMark[]) => void;
   onCanvasModified?: (shapeIds: string[]) => void;
