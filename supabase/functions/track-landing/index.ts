@@ -14,7 +14,6 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const ALLOWED_EVENTS = new Set([
-  'page_view',
   'download_click',
   'premium_checkout_start',
   'premium_checkout_success',

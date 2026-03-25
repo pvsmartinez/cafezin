@@ -61,7 +61,7 @@ export default function AIMarkOverlay({
       next.push({
         actionsTop: coords.top - containerRect.top,
         actionsLeft: coords.right - containerRect.left,
-        hoverTop: coords.top - containerRect.top - 3,
+        hoverTop: coords.top - containerRect.top - 18,
         hoverBottom: coords.bottom - containerRect.top + 3,
         hoverLeft: coords.left - containerRect.left - 6,
         markId: mark.id,

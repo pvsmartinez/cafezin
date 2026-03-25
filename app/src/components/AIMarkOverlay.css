@@ -4,7 +4,7 @@
   inset: 0;
   pointer-events: none;
   z-index: var(--z-editor-overlay);
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* ── Per-mark accept button ─────────────────────────────────────────────── */
