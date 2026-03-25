@@ -171,7 +171,14 @@ export function useAIMarks({
         revert: entry.revert,
         spreadsheetTarget: entry.spreadsheetTarget,
       }));
-      addMarksBulk(workspace, newMarks).then(setAiMarks).catch(() => {});
+      // Optimistic update: add marks to React state immediately so the editor
+      // highlights appear without waiting for the disk I/O queue to drain.
+      // This is correct even when multiple patches arrive in the same agent turn —
+      // each call appends its own newMarks to whatever the current state is.
+      setAiMarks((prev) => [...prev, ...newMarks]);
+      // Persist to disk in the background. enqueueWrite serialises concurrent
+      // calls, so the JSON file always ends up with the full merged set.
+      addMarksBulk(workspace, newMarks).catch(() => {});
 
       // Update editor content if the file is currently open
       const currentActiveFile = activeTabIdRef.current;

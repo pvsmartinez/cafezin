@@ -12,11 +12,17 @@ export const SPREADSHEET_AGENT_TOOL_NAMES = new Set([
   'write_spreadsheet',
 ]);
 
+// run_command is desktop-only (filtered separately in useAIStream for mobile)
+// but is NOT gated behind the web capability — it's always available on desktop
+// regardless of whether the workspace contains HTML files.
+export const DESKTOP_SHELL_TOOL_NAMES = new Set([
+  'run_command',
+]);
+
 export const WEB_AGENT_TOOL_NAMES = new Set([
   'web_search',
   'search_images',
   'fetch_url',
-  'run_command',
   'screenshot_preview',
   'publish_vercel',
 ]);
@@ -136,5 +142,7 @@ export function isToolEnabledByWorkspace(toolName: string, source?: AgentCapabil
   if (CANVAS_AGENT_TOOL_NAMES.has(toolName)) return caps.canvas;
   if (SPREADSHEET_AGENT_TOOL_NAMES.has(toolName)) return caps.spreadsheet;
   if (WEB_AGENT_TOOL_NAMES.has(toolName)) return caps.web;
+  // DESKTOP_SHELL_TOOL_NAMES (run_command) are always enabled on desktop;
+  // mobile filtering happens separately in useAIStream.
   return true;
 }

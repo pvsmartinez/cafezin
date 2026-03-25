@@ -1466,6 +1466,7 @@ export default function App() {
               appLocale={appSettings.locale}
               onWorkspaceConfigChange={handleWorkspaceConfigChange}
               onOpenFileReference={handleSearchFileOpen}
+              onOpenSettings={(tab) => openSettings(tab as Parameters<typeof openSettings>[0])}
               selectionContext={aiSelectionContext}
               pendingVoiceMemos={pendingVoiceMemos}
               onVoiceMemoHandled={handleVoiceMemoHandled}

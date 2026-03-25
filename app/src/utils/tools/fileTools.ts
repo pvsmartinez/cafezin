@@ -5,6 +5,7 @@
 
 import {
   readTextFile,
+  readFile,
   writeTextFile,
   mkdir,
   exists,
@@ -18,6 +19,7 @@ import { lockFile, unlockFile, waitForUnlock } from '../../services/copilotLock'
 import { parseSpreadsheetFile, serializeSheetToCSV, serializeSheetToTSV, sheetToMarkdownTable } from '../../services/spreadsheet';
 import { invoke } from '@tauri-apps/api/core';
 import { loadWorkspaceIndex, extractFileOutline, rankWorkspaceIndex } from '../../services/workspaceIndex';
+import { extractPdfText } from '../readPdfText';
 import type { SheetTab } from '../../services/spreadsheet';
 import type { AIRecordedTextMark, AISpreadsheetTarget } from '../../types';
 import type { ToolDefinition, DomainExecutor } from './shared';
@@ -26,15 +28,22 @@ import { TEXT_EXTS, safeResolvePath } from './shared';
 const SPREADSHEET_EXTS = new Set(['csv', 'tsv', 'xlsx', 'xls', 'ods', 'xlsm', 'xlsb']);
 
 function getLiveTextOverride(relPath: string, ctx: Parameters<DomainExecutor>[2]): { text: string; dirty: boolean } | null {
+  // Prefer getLiveFileContent — it reads from tabContentsRef which is updated on every
+  // keystroke. This ensures that manual edits made between AI turns are always visible
+  // to subsequent reads, regardless of when the AI session was opened.
+  const text = ctx.getLiveFileContent?.(relPath);
+  if (text != null) {
+    return { text, dirty: ctx.isFileDirty?.(relPath) ?? false };
+  }
+  // Fallback: snapshot captured at session start. Covers the edge case where the file
+  // is the active file but hasn't been registered in tabContentsRef yet.
   if (ctx.activeFile === relPath && ctx.activeFileContent != null) {
     return {
       text: ctx.activeFileContent,
       dirty: ctx.isFileDirty?.(relPath) ?? true,
     };
   }
-  const text = ctx.getLiveFileContent?.(relPath);
-  if (text == null) return null;
-  return { text, dirty: ctx.isFileDirty?.(relPath) ?? false };
+  return null;
 }
 
 async function readWorkspaceText(
@@ -124,6 +133,7 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         'Read the content of a single file. Returns the full text or a specific line range. ' +
         'Files up to 80 KB are returned in full; larger files are truncated — call again with start_line/end_line to page through the rest. ' +
         'To read several files at once use read_multiple_files. ' +
+        'PDF files (.pdf) are supported — text is extracted automatically from each page. ' +
         'NOTE: .tldr.json canvas files are BLOCKED — they contain base64 images that overflow the context. Use list_canvas_shapes instead. ' +
         'Spreadsheet files are also BLOCKED here — use read_spreadsheet instead.',
       parameters: {
@@ -154,6 +164,7 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         'Read up to 8 files in parallel in a single call. ' +
         'Use this whenever you need to read more than one file — it is far faster than calling read_workspace_file repeatedly. ' +
         'Each file is returned with a clear header and its content (up to 80 KB each). ' +
+        'PDF files (.pdf) are supported — text is extracted automatically. ' +
         'NOTE: .tldr.json canvas files are BLOCKED — use list_canvas_shapes for those. ' +
         'Spreadsheet files are also BLOCKED here — use read_spreadsheet for those.',
       parameters: {
@@ -834,6 +845,16 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       try { abs = safeResolvePath(workspacePath, relPath); }
       catch (e) { return String(e); }
       if (!(await exists(abs))) return `File not found: ${relPath}`;
+      // PDF: extract text with pdfjs-dist (binary, cannot use readTextFile)
+      if (ext === 'pdf') {
+        try {
+          const bytes = await readFile(abs);
+          const text = await extractPdfText(bytes);
+          return `[PDF text extracted from ${relPath}]\n\n${text}`;
+        } catch (e) {
+          return `Error extracting PDF text from ${relPath}: ${e}`;
+        }
+      }
       try {
         const { text, fromLiveBuffer, dirty } = await readWorkspaceText(workspacePath, relPath, ctx);
         const lines = text.split('\n');
@@ -900,6 +921,19 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
           try { abs = safeResolvePath(workspacePath, relPath); }
           catch (e) { return `${label}\n[Error: ${e}]`; }
           if (!(await exists(abs))) return `${label}\n[File not found]`;
+          // PDF: extract text with pdfjs-dist
+          if (ext === 'pdf') {
+            try {
+              const bytes = await readFile(abs);
+              const text = await extractPdfText(bytes);
+              const truncated = text.length > perFileBudget
+                ? `${text.slice(0, perFileBudget)}\n[… truncated]`
+                : text;
+              return `${label}\n[PDF text extracted]\n${truncated}`;
+            } catch (e) {
+              return `${label}\n[Error extracting PDF: ${e}]`;
+            }
+          }
           try {
             const { text, fromLiveBuffer, dirty } = await readWorkspaceText(workspacePath, relPath, ctx);
             const lines = text.split('\n');

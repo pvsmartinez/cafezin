@@ -71,6 +71,7 @@
     "katex": "^0.16.33",
     "marked": "^17.0.3",
     "mermaid": "^11.13.0",
+    "pdfjs-dist": "^5.5.207",
     "prettier": "^3.8.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

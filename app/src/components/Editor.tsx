@@ -372,16 +372,25 @@ function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
     '.cm-scroller': {
       overflow: 'auto',
       overscrollBehavior: 'contain',
-      padding: '0 0 120px 0',
+      // No padding here — extra bottom space lives in .cm-content so CodeMirror's
+      // internal height map includes it and click→position mapping stays accurate
+      // even when scrolled near the end of the document.
     },
     '.cm-content': {
       // Prose mode: centred 720px column.  Code mode: full width, tighter padding.
       maxWidth: codeMode ? 'none' : '720px',
       margin: codeMode ? '0' : '0 auto',
-      padding: codeMode ? '24px 16px' : '48px 24px',
+      // Bottom 120px of space moved here from .cm-scroller so CM counts it in
+      // its height map and posAtCoords stays accurate near the document end.
+      padding: codeMode ? '24px 16px 144px 16px' : '48px 24px 168px 24px',
       caretColor: cursorColor,
       lineHeight: codeMode ? '1.55' : '1.75',
     },
+    // Heading font sizes defined inside the CM theme so the height tracker
+    // knows larger-than-normal lines exist without waiting for a DOM re-measure.
+    '.cm-header-1': codeMode ? {} : { fontSize: '1.6em',  fontWeight: '700' },
+    '.cm-header-2': codeMode ? {} : { fontSize: '1.35em', fontWeight: '700' },
+    '.cm-header-3': codeMode ? {} : { fontSize: '1.15em', fontWeight: '600' },
     '.cm-line': {
       padding: '0',
     },

@@ -96,6 +96,7 @@ interface AIPanelProps {
   appLocale?: 'en' | 'pt-BR';
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
   onOpenFileReference?: (relPath: string, lineNo?: number) => void | Promise<void>;
+  onOpenSettings?: (tab?: string) => void;
   selectionContext?: AISelectionContext | null;
   /** Voice memos from mobile that have audio but no transcript yet */
   pendingVoiceMemos?: PendingVoiceMemo[];
@@ -259,6 +260,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   pendingVoiceMemos,
   onVoiceMemoHandled,
   onOpenFileReference,
+  onOpenSettings,
 }, ref) {
   const copilotOAuthClientId = workspaceConfig?.githubOAuth?.clientId?.trim() || undefined;
 
@@ -809,6 +811,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           appLocale={appLocale}
           onWorkspaceConfigChange={onWorkspaceConfigChange}
           onOpenFileReference={onOpenFileReference}
+          onOpenSettings={onOpenSettings}
           selectionContext={selectionContext}
         />
       ))}

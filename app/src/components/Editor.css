@@ -151,10 +151,8 @@ body.theme-light .editor-wrapper .cm-editor .cm-activeLineGutter {
   background: var(--editor-active-ln);
 }
 
-/* Markdown heading styles inside CodeMirror */
-.editor-wrapper .cm-header-1 { font-size: 1.6em; font-weight: 700; }
-.editor-wrapper .cm-header-2 { font-size: 1.35em; font-weight: 700; }
-.editor-wrapper .cm-header-3 { font-size: 1.15em; font-weight: 600; }
+/* Markdown heading font-sizes are set inside makeEditorTheme() in Editor.tsx
+   so CodeMirror's height tracker includes them from the first paint. */
 
 /* ── Ghost text (inline AI completions) ─────────────────────────────────────── */
 .cm-ghost-text {

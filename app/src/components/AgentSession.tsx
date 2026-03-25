@@ -50,6 +50,7 @@ const MemoizedChatMessage = memo(function MemoizedChatMessage({
   workspace,
   workspacePath,
   onOpenFileReference,
+  onOpenSettings,
 }: {
   msg: ChatMessage;
   msgIndex: number;
@@ -57,6 +58,7 @@ const MemoizedChatMessage = memo(function MemoizedChatMessage({
   workspace: Workspace | null | undefined;
   workspacePath: string | undefined;
   onOpenFileReference: ((path: string, line?: number) => void | Promise<void>) | undefined;
+  onOpenSettings: ((tab?: string) => void) | undefined;
 }) {
   // Parse code segments once per message (not on every parent re-render).
   const renderedContent = useMemo(() => {
@@ -73,6 +75,7 @@ const MemoizedChatMessage = memo(function MemoizedChatMessage({
                         content={seg.content}
                         workspace={workspace}
                         onOpenFileReference={onOpenFileReference}
+                        onOpenSettings={onOpenSettings}
                       />
                 )
               : <ToolItem key={item.activity.callId} activity={item.activity} />
@@ -90,6 +93,7 @@ const MemoizedChatMessage = memo(function MemoizedChatMessage({
               content={seg.content}
               workspace={workspace}
               onOpenFileReference={onOpenFileReference}
+              onOpenSettings={onOpenSettings}
             />
       );
     }
@@ -185,6 +189,7 @@ export interface AgentSessionProps {
   appLocale?: 'en' | 'pt-BR';
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
   onOpenFileReference?: (relPath: string, lineNo?: number) => void | Promise<void>;
+  onOpenSettings?: (tab?: string) => void;
   selectionContext?: AISelectionContext | null;
 }
 
@@ -236,6 +241,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   webPreviewRef,
   getActiveHtml,
   onOpenFileReference,
+  onOpenSettings,
   selectionContext,
 }, ref) {
 
@@ -839,6 +845,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             workspace={workspace}
             workspacePath={workspacePath}
             onOpenFileReference={onOpenFileReference}
+            onOpenSettings={onOpenSettings}
           />
         ))}
 
@@ -856,6 +863,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                             content={item.content}
                             workspace={workspace}
                             onOpenFileReference={onOpenFileReference}
+                            onOpenSettings={onOpenSettings}
                           />
                         : <ToolItem key={item.activity.callId} activity={item.activity} />
                     )}

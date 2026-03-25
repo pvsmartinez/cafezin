@@ -71,7 +71,7 @@ Identity and work style:
 function buildFileTypeSummary(): string {
   return `Primary file types:
 • Markdown (.md): main writing format, previewed live.
-• PDF (.pdf): embedded read-only reference viewer.
+• PDF (.pdf): use read_workspace_file to extract and read text from any page. Read-only (cannot write back to PDF).
 • Canvas (.tldr.json): tldraw whiteboards for slides, diagrams, and visual work. Use canvas_op only — never write raw JSON.
 • Spreadsheet (.csv, .tsv, .xlsx): tabular data. Use read_spreadsheet / write_spreadsheet.
 • Code (.ts, .tsx, .js, .py, .sh): edited with the code pane.
@@ -333,11 +333,11 @@ export function useSystemPrompt({
             ...(workspaceProfile.codeWorkspace ? [buildVerifyProtocol()] : []),
             ...(workspaceProfile.longFormWriting ? [buildBookProtocol()] : []),
             buildTaskProtocol(),
-            `Workspace capability switches:
-• Canvas tools: ${capabilityState.canvas ? 'enabled' : 'disabled'}
-• Spreadsheet tools: ${capabilityState.spreadsheet ? 'enabled' : 'disabled'}
-• Web/browser tools: ${capabilityState.web ? 'enabled' : 'disabled'}
-• Never mention, suggest, or attempt disabled tool groups.`,
+            `Workspace capability switches (configured in Agent Settings):
+• Canvas tools: ${capabilityState.canvas ? 'enabled' : 'disabled — to enable, open [Agent Settings](cafezin://settings?tab=agent)'}
+• Spreadsheet tools: ${capabilityState.spreadsheet ? 'enabled' : 'disabled — to enable, open [Agent Settings](cafezin://settings?tab=agent)'}
+• Web/browser tools: ${capabilityState.web ? 'enabled' : 'disabled — to enable, open [Agent Settings](cafezin://settings?tab=agent)'}
+• If a user asks you to do something that requires a disabled tool group, tell them the capability is disabled and suggest they open [Agent Settings](cafezin://settings?tab=agent) to enable it. Never attempt to use disabled tool groups.`,
           ].join('\n\n')
         : 'No workspace is currently open, so file tools are unavailable.',
 

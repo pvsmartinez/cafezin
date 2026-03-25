@@ -646,9 +646,17 @@ export async function runCopilotAgent(
                     const lastTick = streamBuffer.lastIndexOf('`');
                     const holdIdx = Math.max(lastLess, lastTick);
                     if (holdIdx !== -1) {
-                      const textToFlush = streamBuffer.slice(0, holdIdx);
+                      // Cap the holdback window to avoid blocking visible text indefinitely.
+                      // We only need to hold back enough chars to detect any tool-call prefix
+                      // (<invoke=7, <tool_call=10, ```json\n=8) → 12 chars is ample.
+                      // Without this cap, a literal '<' early in the buffer (e.g. "x < y")
+                      // causes everything after it to be withheld until the stream ends,
+                      // making the UI appear frozen mid-response.
+                      const MAX_HOLDBACK = 12;
+                      const safeHoldIdx = Math.max(holdIdx, streamBuffer.length - MAX_HOLDBACK);
+                      const textToFlush = streamBuffer.slice(0, safeHoldIdx);
                       if (textToFlush) onChunk(textToFlush);
-                      streamBuffer = streamBuffer.slice(holdIdx);
+                      streamBuffer = streamBuffer.slice(safeHoldIdx);
                     } else {
                       if (streamBuffer) onChunk(streamBuffer);
                       streamBuffer = '';

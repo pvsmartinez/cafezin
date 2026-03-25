@@ -10,12 +10,14 @@ interface AIMarkdownTextProps {
   content: string;
   workspace?: Pick<Workspace, 'path' | 'fileTree'> | null;
   onOpenFileReference?: (relPath: string, lineNo?: number) => void | Promise<void>;
+  onOpenSettings?: (tab?: string) => void;
 }
 
 export function AIMarkdownText({
   content,
   workspace,
   onOpenFileReference,
+  onOpenSettings,
 }: AIMarkdownTextProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +54,13 @@ export function AIMarkdownText({
     const href = link.getAttribute('href');
     if (!href) return;
     e.preventDefault();
+    // cafezin://settings?tab=<tab> — opens the Settings modal at the right tab
+    if (href.startsWith('cafezin://settings')) {
+      const url = new URL(href);
+      const tab = url.searchParams.get('tab') ?? undefined;
+      onOpenSettings?.(tab);
+      return;
+    }
     if (href.startsWith('http://') || href.startsWith('https://')) {
       void Promise.resolve(openUrl(href)).catch(() => {
         window.open(href, '_blank', 'noopener,noreferrer');

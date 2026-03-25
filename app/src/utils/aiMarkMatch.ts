@@ -34,17 +34,54 @@ function findRevertRange(text: string, revert?: AITextRevert): AITextMarkRange |
 
   const contextBefore = revert.contextBefore ?? '';
   const contextAfter = revert.contextAfter ?? '';
+
   if (contextBefore || contextAfter) {
+    // Try exact context match first (most precise).
     const exactNeedle = `${contextBefore}${revert.afterText}${contextAfter}`;
-    const exactRange = findUniqueRange(text, exactNeedle);
-    if (exactRange) {
+    const exactIdx = text.indexOf(exactNeedle);
+    if (exactIdx !== -1) {
       return {
-        from: exactRange.from + contextBefore.length,
-        to: exactRange.from + contextBefore.length + revert.afterText.length,
+        from: exactIdx + contextBefore.length,
+        to: exactIdx + contextBefore.length + revert.afterText.length,
       };
+    }
+
+    // Context may have been shifted by a nearby patch in the same agent turn.
+    // Fall back to afterText-only with context used as a tiebreaker when there
+    // are multiple candidates.
+    const occurrences: number[] = [];
+    let cursor = 0;
+    let idx: number;
+    while ((idx = text.indexOf(revert.afterText, cursor)) !== -1) {
+      occurrences.push(idx);
+      cursor = idx + revert.afterText.length;
+    }
+    if (occurrences.length === 1) {
+      return { from: occurrences[0], to: occurrences[0] + revert.afterText.length };
+    }
+    if (occurrences.length > 1) {
+      // Pick the candidate whose surrounding text best matches the stored context.
+      // Use contextBefore as the primary signal (more stable than contextAfter).
+      let best = occurrences[0];
+      let bestScore = 0;
+      for (const pos of occurrences) {
+        const surrounding = text.slice(Math.max(0, pos - contextBefore.length), pos);
+        // Count matching characters from the right edge of contextBefore.
+        let score = 0;
+        for (let i = 0; i < surrounding.length && i < contextBefore.length; i++) {
+          if (surrounding[surrounding.length - 1 - i] === contextBefore[contextBefore.length - 1 - i]) {
+            score++;
+          } else {
+            break;
+          }
+        }
+        if (score > bestScore) { bestScore = score; best = pos; }
+      }
+      return { from: best, to: best + revert.afterText.length };
     }
   }
 
+  // No context, or afterText not found above — require uniqueness to avoid false positives.
   return findUniqueRange(text, revert.afterText);
 }
 
