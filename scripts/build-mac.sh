@@ -86,6 +86,52 @@ if [[ "$DO_RELEASE" == "true" ]]; then
   fi
 fi
 
+# ── Create a professional DMG using create-dmg ──────────────────────────────
+make_custom_dmg() {
+  local app_path="$1"
+  local output_dmg="$2"
+
+  if ! command -v create-dmg &>/dev/null; then
+    echo "▸ Installing create-dmg..."
+    brew install create-dmg
+  fi
+
+  local bg="/tmp/cafezin-dmg-bg.png"
+  # Generate a solid #1c1610 PNG (1080×760 retina, no external deps)
+  python3 - "$bg" <<'PY'
+import struct, zlib, sys
+def png_solid(path, w, h, r, g, b):
+    def chunk(tag, data):
+        return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', zlib.crc32(tag + data) & 0xffffffff)
+    row = bytes([0] + [r, g, b] * w)
+    with open(path, 'wb') as f:
+        f.write(b'\x89PNG\r\n\x1a\n')
+        f.write(chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)))
+        f.write(chunk(b'IDAT', zlib.compress(row * h, 9)))
+        f.write(chunk(b'IEND', b''))
+png_solid(sys.argv[1], 1080, 760, 28, 22, 16)
+PY
+
+  local app_name
+  app_name="$(basename "$app_path" .app)"
+  rm -f "$output_dmg"
+
+  create-dmg \
+    --volname "Cafezin" \
+    --background "$bg" \
+    --window-pos 200 120 \
+    --window-size 540 380 \
+    --icon-size 128 \
+    --icon "${app_name}.app" 140 190 \
+    --hide-extension "${app_name}.app" \
+    --app-drop-link 400 190 \
+    --no-internet-enable \
+    "$output_dmg" \
+    "$app_path" \
+  && echo "✓  DMG criado: $output_dmg" \
+  || { echo "⚠  create-dmg falhou — usando DMG do Tauri como fallback."; return 1; }
+}
+
 # ── Move into the app directory ──────────────────────────────────────────────
 cd "$APP_DIR"
 
@@ -98,8 +144,8 @@ echo "▸ Installing npm dependencies…"
 npm install --legacy-peer-deps
 
 echo ""
+# Always build the .app; create-dmg wraps it into a prettier DMG
 BUNDLES="app"
-[[ "$BUILD_DMG" == "true" ]] && BUNDLES="dmg"
 
 if [[ "$DO_RELEASE" == "true" ]]; then
   if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
@@ -121,9 +167,6 @@ if [[ "$DO_RELEASE" == "true" ]]; then
 
   echo "▸ Running Tauri production build (bundles: app) for fresh updater artifacts..."
   npm run tauri build -- --bundles app
-
-  echo "▸ Running Tauri production build (bundles: dmg) for installer..."
-  npm run tauri build -- --bundles dmg
 else
   echo "▸ Running Tauri production build (bundles: $BUNDLES)..."
   configure_macos_linker_workaround
@@ -168,6 +211,11 @@ if [[ "$DO_INSTALL" == "true" && -n "$APP_PATH" ]]; then
   echo "✓  Installed to $DEST"
 fi
 
+# ── Build custom DMG for --dmg flag (non-release) ────────────────────────────
+if [[ "$BUILD_DMG" == "true" && "$DO_RELEASE" != "true" && -n "$APP_PATH" ]]; then
+  make_custom_dmg "$APP_PATH" "$ROOT_DIR/Cafezin.dmg" || true
+fi
+
 # ── Optionally upload DMG + updater bundle to GitHub Releases ────────────────
 if [[ "$DO_RELEASE" == "true" && -n "$DMG_PATH" ]]; then
   if ! command -v gh &>/dev/null; then
@@ -193,8 +241,17 @@ if [[ "$DO_RELEASE" == "true" && -n "$DMG_PATH" ]]; then
       SIG_DEST="Cafezin_${VERSION}_x64.app.tar.gz.sig"
     fi
 
-    cp "$DMG_PATH" "$ROOT_DIR/$DMG_DEST"
-    FILES="$ROOT_DIR/$DMG_DEST"
+    # Build professional DMG; fall back to Tauri's DMG if create-dmg fails
+    if make_custom_dmg "$APP_PATH" "$ROOT_DIR/$DMG_DEST"; then
+      cp "$ROOT_DIR/$DMG_DEST" "$ROOT_DIR/Cafezin.dmg"
+    else
+      # Tauri DMG fallback (build it now since we skipped --bundles dmg above)
+      npm run tauri build -- --bundles dmg
+      DMG_PATH="$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name '*.dmg' 2>/dev/null | head -1)"
+      cp "$DMG_PATH" "$ROOT_DIR/$DMG_DEST"
+      cp "$DMG_PATH" "$ROOT_DIR/Cafezin.dmg"
+    fi
+    FILES="$ROOT_DIR/$DMG_DEST $ROOT_DIR/Cafezin.dmg"
 
     # ── Fallback: if tauri build didn't produce .sig, sign the .tar.gz manually ──
     # With createUpdaterArtifacts:true, tauri build should handle this automatically.

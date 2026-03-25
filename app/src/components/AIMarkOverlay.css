@@ -7,18 +7,18 @@
   overflow: visible;
 }
 
-/* ── Per-mark accept button ─────────────────────────────────────────────── */
+/* ── Per-mark action buttons — always visible, right of the highlighted text ── */
 .aimo-actions {
   position: absolute;
   transform: translate(4px, -50%);
   display: inline-flex;
   gap: 4px;
-  opacity: 0;
+  opacity: 0.75;
   transition: opacity var(--transition-fast);
   z-index: calc(var(--z-editor-overlay) + 1);
 }
 
-.aimo-actions--visible {
+.aimo-actions:hover {
   opacity: 1;
 }
 

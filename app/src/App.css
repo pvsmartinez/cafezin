@@ -42,7 +42,7 @@ body.theme-light {
   scrollbar-width: thin;
   scrollbar-color: var(--border2) transparent;
 }
-::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar       { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--border2);

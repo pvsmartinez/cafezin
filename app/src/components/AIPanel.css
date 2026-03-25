@@ -9,8 +9,8 @@
   min-width: 260px;
   height: 100%;
   background: var(--surface2);
-  border-left: 2px solid var(--accent-border);
-  box-shadow: -2px 0 14px var(--shadow);
+  border-left: 1px solid var(--border2);
+  box-shadow: -4px 0 32px var(--shadow), var(--shadow-glow);
   flex-shrink: 0;
   position: relative;
   animation: ai-panel-in 0.17s cubic-bezier(0.22, 1, 0.36, 1);

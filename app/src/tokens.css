@@ -22,16 +22,17 @@
   --font-size-md:   14px;
   --font-size-lg:   16px;
   --font-size-xl:   18px;
+  --font-size-2xl:  22px;  /* títulos de seção, cabeçalhos de modal */
 
   --line-height-tight:  1.3;
-  --line-height-base:   1.5;
-  --line-height-loose:  1.7;
+  --line-height-base:   1.55;
+  --line-height-loose:  1.75;  /* mais espaço para leitura longa */
 
   /* ── Border radius ── */
   --radius-sm:   4px;   /* tags, chips, small badges        */
   --radius-md:   6px;   /* buttons, inputs, small cards     */
-  --radius-lg:   8px;   /* panels, dropdowns, tool items    */
-  --radius-xl:   12px;  /* modals, large overlays           */
+  --radius-lg:   10px;  /* panels, dropdowns, tool items    */
+  --radius-xl:   14px;  /* modals, large overlays           */
   --radius-pill: 999px; /* pill badges, toggle buttons      */
 
   /* ── Spacing scale ── */
@@ -43,10 +44,13 @@
   --space-6:  16px;
   --space-7:  20px;
   --space-8:  24px;
+  --space-9:  32px;   /* seções maiores, padding de modal                */
+  --space-10: 48px;  /* seções temáticas, "breathing room" editorial    */
 
   /* ── Motion ── */
   --transition-fast: 0.12s ease;
   --transition-base: 0.18s ease;
+  --transition-slow: 0.28s ease;  /* modais, overlays grandes */
 
   /* ── Z-index scale ── */
   --z-base:           1;     /* minor relative elevation (card badges)   */
@@ -61,9 +65,11 @@
   --z-top:          100000;  /* must-win overlays: UpdateModal, critical  */
 
   /* ── Shadow scale (depend on --shadow set per theme below) ── */
-  --shadow-sm: 0 1px 3px var(--shadow);    /* subtle inline elevation    */
-  --shadow-md: 0 4px 16px var(--shadow);   /* floating panels, popovers  */
-  --shadow-lg: 0 24px 64px var(--shadow);  /* modals, full dialogs       */
+  --shadow-sm:    0 1px 4px var(--shadow);
+  --shadow-md:    0 4px 20px var(--shadow), 0 1px 6px var(--shadow);
+  --shadow-lg:    0 8px 40px var(--shadow), 0 2px 10px var(--shadow);
+  --shadow-xl:    0 24px 80px var(--shadow), 0 6px 24px var(--shadow);  /* modals              */
+  --shadow-glow:  0 0 14px 2px rgba(var(--accent-rgb), 0.15);           /* AI state, focus     */
 }
 
 /* ╔══════════════════════════════════════════════════════════════════╗
@@ -73,21 +79,21 @@
    ║  Semantic tokens are auto-derived — do not edit them directly.   ║
    ╚══════════════════════════════════════════════════════════════════╝ */
 
-/* ── ☕ Espresso palette — edit these ~13 values to re-theme dark mode ─── */
+/* ── 🕯 Charcoal & Candle palette — edit these ~13 values to re-theme dark mode ─── */
 :root {
-  --pal-dark:       #0f0b07;   /* darkest point — page & canvas bg     */
-  --pal-card:       #161009;   /* panels, cards                        */
-  --pal-inset:      #1e180f;   /* inset areas, hover bg, subtle border */
-  --pal-deep:       #0b0806;   /* deep inputs, dropdowns               */
-  --pal-code-bg:    #13181d;   /* code blocks (intentionally cool-hue) */
-  --pal-line:       #2e2418;   /* visible borders                      */
-  --pal-code-line:  #1f252d;   /* code area borders                    */
-  --pal-hi:         #eeddbf;   /* headings / brightest text            */
-  --pal-text:       #e0c9a4;   /* body text                            */
-  --pal-muted:      #9e8060;   /* secondary / subdued text             */
-  --pal-ghost:      #6a5742;   /* placeholders / disabled              */
-  --pal-accent:     #41b8a3;   /* brand / interactive colour (teal)    */
-  --pal-accent-rgb: 65, 184, 163;
+  --pal-dark:       #111110;   /* darkest point — page & canvas bg     */
+  --pal-card:       #1A1916;   /* panels, cards                        */
+  --pal-inset:      #252320;   /* inset areas, hover bg, subtle border */
+  --pal-deep:       #0E0D0C;   /* deep inputs, dropdowns               */
+  --pal-code-bg:    #13120F;   /* code blocks (warm-dark)              */
+  --pal-line:       #2E2C28;   /* visible borders                      */
+  --pal-code-line:  #3A3630;   /* code area borders                    */
+  --pal-hi:         #F0E8D8;   /* headings / brightest text            */
+  --pal-text:       #E8E4DC;   /* body text — warm cream               */
+  --pal-muted:      #9E9589;   /* secondary / subdued text             */
+  --pal-ghost:      #5C5750;   /* placeholders / disabled              */
+  --pal-accent:     #D4A853;   /* brand / interactive colour (amber)   */
+  --pal-accent-rgb: 212, 168, 83;
 }
 
 /* ── Semantic tokens — derived from palette, do not edit here ─────────── */
@@ -115,7 +121,7 @@
   --accent-rgb:    var(--pal-accent-rgb);
   --accent-bg:     rgba(var(--accent-rgb), 0.12);
   --accent-border: rgba(var(--accent-rgb), 0.38);
-  --text-on-emphasis: #0f0b07;
+  --text-on-emphasis: #111110;   /* texto sobre accent âmbar */
 
   /* Semantic colours — fixed across palettes */
   --green:         #82cfa5;
@@ -154,11 +160,11 @@
   --hud-text-hi:   #e8eaf0;
 
   /* Editor */
-  --editor-selection:  #2e2318;
-  --editor-active-ln:  rgba(255,255,255,0.03);
+  --editor-selection:  rgba(212, 168, 83, 0.16);   /* âmbar suave na seleção */
+  --editor-active-ln:  rgba(255,255,255,0.025);
 
   /* Shadow */
-  --shadow:        rgba(0, 0, 0, 0.28);
+  --shadow:        rgba(0, 0, 0, 0.45);   /* mais dramático, deep shadows */
 
   /* ── Surface overlays (used as fallback in AIPanel, etc.) ── */
   --bg2:           rgba(255, 255, 255, 0.04);   /* subtle elevated surface  */

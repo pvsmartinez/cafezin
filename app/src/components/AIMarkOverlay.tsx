@@ -1,9 +1,9 @@
 /**
- * AIMarkOverlay — hover-only ✓ buttons anchored to each AI-marked region.
+ * AIMarkOverlay — always-visible ✓/× buttons anchored to each AI-marked region.
  *
- * Each mark gets one small checkmark button at the right edge of its highlight.
- * The button is invisible by default and only appears on hover so it never
- * obscures the marked text.
+ * Each mark gets accept/reject buttons pinned to the right gutter of the editor,
+ * vertically centred on the highlighted text. Always visible so they work
+ * reliably regardless of live-preview panels or pointer position issues.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { AIEditMark } from '../types';
@@ -22,9 +22,6 @@ interface AIMarkOverlayProps {
 interface MarkPos {
   actionsTop: number;
   actionsLeft: number;
-  hoverTop: number;
-  hoverBottom: number;
-  hoverLeft: number;
   markId: string;
   canReject: boolean;
 }
@@ -38,7 +35,6 @@ export default function AIMarkOverlay({
   onReject,
 }: AIMarkOverlayProps) {
   const [positions, setPositions] = useState<MarkPos[]>([]);
-  const [hoveredMarkId, setHoveredMarkId] = useState<string | null>(null);
   const positionsRef = useRef<MarkPos[]>([]);
 
   const recalculate = useCallback(() => {
@@ -59,11 +55,8 @@ export default function AIMarkOverlay({
       const coords = editorRef.current?.getMarkCoords({ text: mark.text, revert: mark.revert });
       if (!coords) continue;
       next.push({
-        actionsTop: coords.top - containerRect.top,
+        actionsTop: (coords.top + coords.bottom) / 2 - containerRect.top,
         actionsLeft: coords.right - containerRect.left,
-        hoverTop: coords.top - containerRect.top - 18,
-        hoverBottom: coords.bottom - containerRect.top + 3,
-        hoverLeft: coords.left - containerRect.left - 6,
         markId: mark.id,
         canReject: !!mark.revert,
       });
@@ -92,8 +85,10 @@ export default function AIMarkOverlay({
       }
       return;
     }
-    // Initial calculation
+    // Initial calculation — CodeMirror may not have committed its DOM layout yet
+    // (it schedules measure passes asynchronously), so we retry after a frame.
     recalculate();
+    const raf = requestAnimationFrame(() => recalculate());
     // Recalculate when the editor scrolls (marks move with content)
     const scroller = containerRef.current?.querySelector('.cm-scroller');
     const onScroll = () => recalculate();
@@ -101,40 +96,11 @@ export default function AIMarkOverlay({
     // Recalculate on window resize (container rect changes)
     window.addEventListener('resize', onScroll, { passive: true });
     return () => {
+      cancelAnimationFrame(raf);
       scroller?.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
     };
   }, [visible, recalculate, containerRef]);
-
-  // Mouse tracking — reveal the button for whichever mark the cursor is over
-  useEffect(() => {
-    if (!visible) { setHoveredMarkId(null); return; }
-    const container = containerRef.current;
-    if (!container) return;
-
-    function onMouseMove(e: MouseEvent) {
-      const rect = (containerRef.current as HTMLDivElement | null)?.getBoundingClientRect();
-      if (!rect) return;
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      for (const p of positionsRef.current) {
-        // Cover from mark start to ~500px right (generous width for any line length)
-        if (
-          mx >= p.hoverLeft &&
-          mx <= p.hoverLeft + 500 &&
-          my >= p.hoverTop &&
-          my <= p.hoverBottom
-        ) {
-          setHoveredMarkId(p.markId);
-          return;
-        }
-      }
-      setHoveredMarkId(null);
-    }
-
-    container.addEventListener('mousemove', onMouseMove);
-    return () => container.removeEventListener('mousemove', onMouseMove);
-  }, [visible, containerRef]);
 
   if (!visible || marks.length === 0) return null;
 
@@ -143,7 +109,7 @@ export default function AIMarkOverlay({
       {positions.map(({ actionsTop, actionsLeft, markId, canReject }) => (
         <div
           key={markId}
-          className={`aimo-actions${hoveredMarkId === markId ? ' aimo-actions--visible' : ''}`}
+          className="aimo-actions"
           style={{ top: actionsTop, left: actionsLeft }}
         >
           <button
