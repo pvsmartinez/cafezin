@@ -136,6 +136,26 @@
     swap("js-hero-alt", MAC_URL, "mac");
     swap("js-cta-primary", WIN_URL, "windows");
     swap("js-cta-alt", MAC_URL, "mac");
+
+    // Compare/persona pages: se não há botão Windows explícito, troca qualquer
+    // .btn-download apontando para .dmg → .exe (ex: CTA sections das compare pages).
+    var hasExplicitWin = !!document.querySelector(
+      'a[href*="Cafezin_setup.exe"]',
+    );
+    if (!hasExplicitWin) {
+      document
+        .querySelectorAll("a.btn-download[href]")
+        .forEach(function (node) {
+          if (/Cafezin\.dmg/i.test(node.getAttribute("href"))) {
+            node.href = WIN_URL;
+            node.setAttribute("data-platform", "windows");
+            var mainSpan = node.querySelector(".btn-main");
+            var subSpan = node.querySelector(".btn-sub");
+            if (mainSpan) mainSpan.textContent = "Windows";
+            if (subSpan) subSpan.textContent = "Download for";
+          }
+        });
+    }
   }
 
   bindDownloadClicks();
