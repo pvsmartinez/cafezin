@@ -253,7 +253,46 @@ unzip -q app.ipa
 A_FILES="$(find . -name "*.a" 2>/dev/null)"
 if [[ -n "$A_FILES" ]]; then
   echo "$A_FILES" | while read -r f; do echo "  removing: $f"; done
+
+  # Find the app bundle and extract entitlements BEFORE modifying its contents
+  # (removal of .a files inside the bundle would otherwise invalidate the signature)
+  APP_BUNDLE="$(find . -path "*/Payload/*.app" -maxdepth 2 -type d | head -1)"
+  ENTITLEMENTS_FILE=""
+  if [[ -n "$APP_BUNDLE" ]]; then
+    ENTITLEMENTS_FILE="$WORK_DIR/entitlements.plist"
+    codesign -d --entitlements :- "$APP_BUNDLE" 2>/dev/null > "$ENTITLEMENTS_FILE" || true
+    [[ -s "$ENTITLEMENTS_FILE" ]] || ENTITLEMENTS_FILE=""
+  fi
+
   find . -name "*.a" -delete
+
+  # Re-sign the app bundle after modifying its contents — the zip/unzip + file
+  # removal invalidates the Xcode-generated signature, so we must re-codesign
+  # with the Apple Distribution cert before repackaging.
+  if [[ -n "$APP_BUNDLE" ]]; then
+    DIST_CERT="$(security find-identity -v -p codesigning \
+      | grep "Apple Distribution.*${APPLE_DEVELOPMENT_TEAM}" \
+      | awk '{print $2}' | head -1)"
+    if [[ -z "$DIST_CERT" ]]; then
+      echo "  ⚠ No Apple Distribution cert found for team $APPLE_DEVELOPMENT_TEAM — skipping re-sign"
+    else
+      # Sign nested frameworks/extensions first (inside-out)
+      find "$APP_BUNDLE" -type d \( -name "*.framework" -o -name "*.appex" \) \
+        | sort -r \
+        | while read -r inner; do
+            codesign --force --sign "$DIST_CERT" --timestamp "$inner" 2>/dev/null || true
+          done
+      # Sign the main app bundle, preserving entitlements
+      if [[ -n "$ENTITLEMENTS_FILE" ]]; then
+        codesign --force --sign "$DIST_CERT" --timestamp \
+          --entitlements "$ENTITLEMENTS_FILE" "$APP_BUNDLE"
+      else
+        codesign --force --sign "$DIST_CERT" --timestamp "$APP_BUNDLE"
+      fi
+      echo "✓ Re-signed app bundle with Apple Distribution cert ($DIST_CERT)"
+    fi
+  fi
+
   zip -qr cleaned.ipa Payload/
   IPA_PATH="$WORK_DIR/cleaned.ipa"
   echo "✓ Cleaned IPA"
