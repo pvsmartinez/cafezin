@@ -1008,7 +1008,6 @@ fn ensure_config_dir(workspace_path: String) -> Result<(), String> {
 }
 
 // ── Grep workspace ──────────────────────────────────────────────────────────
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GrepHit {
@@ -1066,6 +1065,17 @@ fn grep_workspace(
         hits.push(GrepHit { path, line, content });
     }
     Ok(hits)
+}
+
+/// Stub for iOS/MAS: grep is not available on those targets.
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn grep_workspace(
+    _workspace_path: String,
+    _pattern: String,
+    _is_regex: bool,
+) -> Result<Vec<GrepHit>, String> {
+    Err("grep_workspace is not supported on this platform".to_string())
 }
 
 // ── Tauri command dispatchers (one per git command, no duplication) ───────────────
