@@ -267,7 +267,10 @@ if [[ -n "$IPA_INFO_PLIST" ]]; then
   IPA_CF_BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$IPA_INFO_PLIST" 2>/dev/null || true)"
   IPA_CF_SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$IPA_INFO_PLIST" 2>/dev/null || true)"
   echo "✓ IPA metadata: version $IPA_CF_SHORT_VERSION ($IPA_CF_BUNDLE_VERSION)"
-  if [[ "$IPA_CF_BUNDLE_VERSION" != "$BUILD_NUM" ]]; then
+  # Tauri ios build --build-number N may produce "MARKETING_VER.N" (e.g. 0.1.5.50)
+  # instead of a bare "N". Accept both formats.
+  EXPECTED_LONG="${MARKETING_VER}.${BUILD_NUM}"
+  if [[ "$IPA_CF_BUNDLE_VERSION" != "$BUILD_NUM" && "$IPA_CF_BUNDLE_VERSION" != "$EXPECTED_LONG" ]]; then
     echo ""
     echo "  ERROR: IPA bundle version mismatch."
     echo "  Expected CFBundleVersion: $BUILD_NUM"

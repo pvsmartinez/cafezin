@@ -1,0 +1,24 @@
+# Cargo configuration for Cafezin app
+#
+# Xcode 16+ ships clang 21, but rustc was built against clang 17 and hardcodes
+# that version in the iOS linker search path. We override RUSTFLAGS to point at
+# the real location so `ld: library 'clang_rt.ios' not found` is resolved.
+# Update the version number here if a future Xcode major changes it again.
+
+[target.aarch64-apple-ios]
+rustflags = [
+  "-L",
+  "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/21/lib/darwin",
+]
+
+[target.aarch64-apple-ios-sim]
+rustflags = [
+  "-L",
+  "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/21/lib/darwin",
+]
+
+[target.x86_64-apple-ios]
+rustflags = [
+  "-L",
+  "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/21/lib/darwin",
+]
