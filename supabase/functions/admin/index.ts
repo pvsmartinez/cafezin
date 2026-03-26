@@ -165,10 +165,12 @@ async function listAnalytics(): Promise<{
   since_7d: string
   since_30d: string
   download_clicks_7d: number
+  app_sessions_7d: number
   premium_checkout_starts_7d: number
   premium_checkout_successes_30d: number
   contact_submits_30d: number
   downloads_by_platform_30d: Record<string, number>
+  app_sessions_by_platform_30d: Record<string, number>
 }> {
   const now = Date.now()
   const since7d = new Date(now - 7 * 24 * 60 * 60 * 1000)
@@ -186,8 +188,10 @@ async function listAnalytics(): Promise<{
 
   const rows = (data ?? []) as LandingEventRow[]
   const downloadsByPlatform = { mac: 0, windows: 0, ios: 0, android: 0, other: 0 }
+  const sessionsByPlatform  = { mac: 0, windows: 0, ios: 0, android: 0, other: 0 }
 
   let downloads7d = 0
+  let sessions7d = 0
   let checkoutStarts7d = 0
   let checkoutSuccess30d = 0
   let contactSubmits30d = 0
@@ -203,6 +207,13 @@ async function listAnalytics(): Promise<{
       else downloadsByPlatform.other += 1
     }
 
+    if (row.event_name === 'app_session') {
+      if (in7d) sessions7d += 1
+      const platform = (row.platform ?? 'other') as keyof typeof sessionsByPlatform
+      if (platform in sessionsByPlatform) sessionsByPlatform[platform] += 1
+      else sessionsByPlatform.other += 1
+    }
+
     if (row.event_name === 'premium_checkout_start' && in7d) checkoutStarts7d += 1
     if (row.event_name === 'premium_checkout_success') checkoutSuccess30d += 1
     if (row.event_name === 'contact_submit') contactSubmits30d += 1
@@ -212,10 +223,12 @@ async function listAnalytics(): Promise<{
     since_7d: since7d.toISOString(),
     since_30d: since30d.toISOString(),
     download_clicks_7d: downloads7d,
+    app_sessions_7d: sessions7d,
     premium_checkout_starts_7d: checkoutStarts7d,
     premium_checkout_successes_30d: checkoutSuccess30d,
     contact_submits_30d: contactSubmits30d,
     downloads_by_platform_30d: downloadsByPlatform,
+    app_sessions_by_platform_30d: sessionsByPlatform,
   }
 }
 

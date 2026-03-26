@@ -18,6 +18,7 @@ const ALLOWED_EVENTS = new Set([
   'premium_checkout_start',
   'premium_checkout_success',
   'contact_submit',
+  'app_session',
 ])
 
 function allowedOrigin(origin: string | null): string {
@@ -97,6 +98,12 @@ Deno.serve(async (req: Request) => {
   const platform = sanitizeText(body.platform, 32)
   const referrer = sanitizeText(body.referrer, 200)
   const metadata = sanitizeMetadata(body.metadata)
+
+  // App-session extra fields — store in metadata so no schema change needed
+  const deviceId = sanitizeText(body.device_id, 64)
+  const userId = sanitizeText(body.user_id, 64)
+  if (deviceId) metadata.device_id = deviceId
+  if (userId) metadata.user_id = userId
 
   if (!eventName || !pagePath || !ALLOWED_EVENTS.has(eventName)) {
     return json({ error: 'Invalid event payload' }, 400, origin)

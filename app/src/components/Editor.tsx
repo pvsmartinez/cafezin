@@ -259,41 +259,60 @@ function makeAIMarkField(marks: Array<{ text: string; revert?: AITextRevert }>) 
   });
 }
 
+// ── Light mode syntax palette ─────────────────────────────────────────────────
+// Edit here to retheme light syntax highlighting.
+// Vars that match tokens.css exactly are noted; the rest are warm-paper values.
+const CL = {
+  keyword:    'var(--blue)',         // #275b99 light — exact token match
+  control:    '#6b4aa5',             // purple (≈ --purple light #6936b8)
+  string:     '#2b6a4a',             // green  (≈ --green light #266f46)
+  regexp:     '#a34a44',             // red    (≈ --red light #b23535)
+  comment:    '#756b60',             // warm muted brown
+  number:     '#8b6527',             // amber  (≈ --yellow light #8b641b)
+  definition: 'var(--accent)',       // #176b60 light — exact token match (teal)
+  operator:   '#5d5750',             // dim
+  punct:      '#877d72',             // subtle
+  propName:   '#40362b',             // dark brown
+  heading:    'var(--text-bright)',  // #221c16 light — exact token match
+  emphasis:   '#64594b',             // warm italic
+  strong:     '#31281f',             // darkest body text
+} as const;
+
 // ── Paper light syntax highlight style ───────────────────────────────────────
 const creamHighlightStyle = HighlightStyle.define([
-  { tag: tags.keyword,                        color: '#275b99', fontWeight: '500' },
-  { tag: tags.controlKeyword,                 color: '#6b4aa5' },
-  { tag: [tags.string, tags.special(tags.string)], color: '#2b6a4a' },
-  { tag: tags.regexp,                         color: '#a34a44' },
-  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: '#756b60', fontStyle: 'italic' },
-  { tag: [tags.number, tags.integer, tags.float], color: '#8b6527' },
-  { tag: tags.bool,                           color: '#8b6527', fontWeight: '500' },
-  { tag: tags.null,                           color: '#8b6527' },
-  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#6b4aa5' },
-  { tag: [tags.typeName, tags.namespace], color: '#8b6527' },
-  { tag: tags.className,                      color: '#8b6527', fontWeight: '600' },
-  { tag: tags.definition(tags.variableName),  color: '#176b60' },
-  { tag: tags.definition(tags.propertyName),  color: '#176b60' },
-  { tag: tags.operator,                       color: '#5d5750' },
-  { tag: tags.punctuation,                    color: '#877d72' },
-  { tag: tags.propertyName,                   color: '#40362b' },
-  { tag: tags.attributeName,                  color: '#275b99' },
-  { tag: tags.attributeValue,                 color: '#2b6a4a' },
-  { tag: [tags.url, tags.link],               color: '#176b60', textDecoration: 'underline' },
-  { tag: tags.tagName,                        color: '#a34a44', fontWeight: '500' },
-  { tag: tags.angleBracket,                   color: '#877d72' },
-  { tag: tags.heading,                        color: '#221c16', fontWeight: 'bold' },
-  { tag: tags.emphasis,                       fontStyle: 'italic', color: '#64594b' },
-  { tag: tags.strong,                         fontWeight: '700', color: '#31281f' },
-  { tag: tags.strikethrough,                  textDecoration: 'line-through', color: '#756b60' },
-  { tag: tags.meta,                           color: '#756b60' },
-  { tag: tags.invalid,                        color: '#a34a44', textDecoration: 'underline wavy' },
-  { tag: tags.deleted,                        color: '#a34a44', textDecoration: 'line-through' },
-  { tag: tags.inserted,                       color: '#2b6a4a' },
-  { tag: tags.changed,                        color: '#8b6527' },
-  { tag: tags.self,                           color: '#275b99', fontStyle: 'italic' },
-  { tag: tags.atom,                           color: '#8b6527' },
-  { tag: tags.annotation,                     color: '#6b4aa5' },
+  { tag: tags.keyword,                                           color: CL.keyword, fontWeight: '500' },
+  { tag: tags.controlKeyword,                                    color: CL.control },
+  { tag: [tags.string, tags.special(tags.string)],               color: CL.string },
+  { tag: tags.regexp,                                            color: CL.regexp },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment],    color: CL.comment, fontStyle: 'italic' },
+  { tag: [tags.number, tags.integer, tags.float],                color: CL.number },
+  { tag: tags.bool,                                              color: CL.number, fontWeight: '500' },
+  { tag: tags.null,                                              color: CL.number },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: CL.control },
+  { tag: [tags.typeName, tags.namespace],                        color: CL.number },
+  { tag: tags.className,                                         color: CL.number, fontWeight: '600' },
+  { tag: tags.definition(tags.variableName),                     color: CL.definition },
+  { tag: tags.definition(tags.propertyName),                     color: CL.definition },
+  { tag: tags.operator,                                          color: CL.operator },
+  { tag: tags.punctuation,                                       color: CL.punct },
+  { tag: tags.propertyName,                                      color: CL.propName },
+  { tag: tags.attributeName,                                     color: CL.keyword },
+  { tag: tags.attributeValue,                                    color: CL.string },
+  { tag: [tags.url, tags.link],                                  color: CL.definition, textDecoration: 'underline' },
+  { tag: tags.tagName,                                           color: CL.regexp, fontWeight: '500' },
+  { tag: tags.angleBracket,                                      color: CL.punct },
+  { tag: tags.heading,                                           color: CL.heading, fontWeight: 'bold' },
+  { tag: tags.emphasis,                                          fontStyle: 'italic', color: CL.emphasis },
+  { tag: tags.strong,                                            fontWeight: '700', color: CL.strong },
+  { tag: tags.strikethrough,                                     textDecoration: 'line-through', color: CL.comment },
+  { tag: tags.meta,                                              color: CL.comment },
+  { tag: tags.invalid,                                           color: CL.regexp, textDecoration: 'underline wavy' },
+  { tag: tags.deleted,                                           color: CL.regexp, textDecoration: 'line-through' },
+  { tag: tags.inserted,                                          color: CL.string },
+  { tag: tags.changed,                                           color: CL.number },
+  { tag: tags.self,                                              color: CL.keyword, fontStyle: 'italic' },
+  { tag: tags.atom,                                              color: CL.number },
+  { tag: tags.annotation,                                        color: CL.control },
 ]);
 
 // ── Cream editor UI theme (backgrounds, gutters, panels) ──────────────────────
@@ -311,17 +330,17 @@ const creamEditorTheme = EditorView.theme({
     background: 'var(--surface-deep)',
   },
   '.cm-activeLine': {
-    background: 'rgba(0, 0, 0, 0.028)',
+    background: 'var(--editor-active-ln)',
   },
   '.cm-searchMatch': {
-    background: 'rgba(143, 90, 18, 0.16)',
-    outline: '1px solid rgba(143, 90, 18, 0.32)',
+    background: 'rgba(var(--orange-rgb), 0.16)',
+    outline: '1px solid rgba(var(--orange-rgb), 0.32)',
   },
   '.cm-searchMatch.cm-searchMatch-selected': {
-    background: 'rgba(23, 107, 96, 0.18)',
+    background: 'rgba(var(--accent-rgb), 0.18)',
   },
   '.cm-selectionMatch': {
-    background: 'rgba(23, 107, 96, 0.08)',
+    background: 'rgba(var(--accent-rgb), 0.08)',
   },
   '.cm-panels': {
     background: 'var(--surface2)',
@@ -356,18 +375,14 @@ const creamEditorTheme = EditorView.theme({
 const creamTheme = [creamEditorTheme, syntaxHighlighting(creamHighlightStyle, { fallback: true })];
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
+// All colour values use CSS custom properties from tokens.css so a single
+// palette edit propagates to the editor automatically.
 function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
-  const cursorColor    = isDark ? '#4ec9b0' : '#1a7a6d';
-  const selectionBg    = isDark ? '#3b3026' : 'rgba(23, 107, 96, 0.13)';
-  const aiMarkBg       = isDark ? 'rgba(212, 169, 106, 0.15)'  : 'rgba(143, 90, 18, 0.09)';
-  const aiMarkBorderB  = isDark ? 'rgba(212, 169, 106, 0.7)'   : 'rgba(143, 90, 18, 0.42)';
-  const aiMarkBorderS  = isDark ? 'rgba(212, 169, 106, 0.3)'   : 'rgba(143, 90, 18, 0.18)';
-  const aiMarkShadow   = isDark ? 'rgba(212, 169, 106, 0.1)'   : 'rgba(143, 90, 18, 0.05)';
   return EditorView.theme({
     '&': {
       height: '100%',
       fontSize: `${fontSize}px`,
-      fontFamily: '"Maple Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace',
+      fontFamily: 'var(--font-mono)',
     },
     '.cm-scroller': {
       overflow: 'auto',
@@ -383,7 +398,7 @@ function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
       // Bottom 120px of space moved here from .cm-scroller so CM counts it in
       // its height map and posAtCoords stays accurate near the document end.
       padding: codeMode ? '24px 16px 144px 16px' : '48px 24px 168px 24px',
-      caretColor: cursorColor,
+      caretColor: 'var(--editor-cursor)',
       lineHeight: codeMode ? '1.55' : '1.75',
     },
     // Heading font sizes defined inside the CM theme so the height tracker
@@ -398,20 +413,20 @@ function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
       outline: 'none',
     },
     '.cm-cursor': {
-      borderLeftColor: cursorColor,
+      borderLeftColor: 'var(--editor-cursor)',
       borderLeftWidth: '2px',
     },
     '.cm-selectionBackground': {
-      background: `${selectionBg} !important`,
+      background: 'var(--editor-selection) !important',
     },
     '.cm-ai-mark': {
-      backgroundColor: aiMarkBg,
-      borderBottom: `2px solid ${aiMarkBorderB}`,
-      borderTop:    `1px solid ${aiMarkBorderS}`,
-      borderLeft:   `1px solid ${aiMarkBorderS}`,
-      borderRight:  `1px solid ${aiMarkBorderS}`,
+      backgroundColor: 'rgba(var(--editor-ai-mark-rgb), 0.15)',
+      borderBottom: '2px solid rgba(var(--editor-ai-mark-rgb), 0.7)',
+      borderTop:    '1px solid rgba(var(--editor-ai-mark-rgb), 0.3)',
+      borderLeft:   '1px solid rgba(var(--editor-ai-mark-rgb), 0.3)',
+      borderRight:  '1px solid rgba(var(--editor-ai-mark-rgb), 0.3)',
       borderRadius: '2px',
-      boxShadow: `0 0 0 1px ${aiMarkShadow}`,
+      boxShadow: '0 0 0 1px rgba(var(--editor-ai-mark-rgb), 0.1)',
     },
     '.cm-ai-removed-block': {
       display: 'block',
@@ -419,9 +434,9 @@ function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
       padding: '4px 8px',
       whiteSpace: 'pre-wrap',
       borderRadius: '6px',
-      borderLeft: `3px solid ${isDark ? 'rgba(216, 120, 120, 0.7)' : 'rgba(179, 72, 72, 0.7)'}`,
-      backgroundColor: isDark ? 'rgba(120, 42, 42, 0.14)' : 'rgba(214, 107, 107, 0.1)',
-      color: isDark ? '#f0b3b3' : '#9e3b3b',
+      borderLeft: '3px solid rgba(var(--red-rgb), 0.7)',
+      backgroundColor: 'rgba(var(--red-rgb), 0.08)',
+      color: 'var(--red)',
       boxSizing: 'border-box',
     },
     '.cm-ai-removed-prefix': {

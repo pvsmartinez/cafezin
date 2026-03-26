@@ -96,9 +96,9 @@
     }
 
     swap("js-hero-primary", WIN_URL, "windows");
-    swap("js-hero-alt",     MAC_URL, "mac");
-    swap("js-cta-primary",  WIN_URL, "windows");
-    swap("js-cta-alt",      MAC_URL, "mac");
+    swap("js-hero-alt", MAC_URL, "mac");
+    swap("js-cta-primary", WIN_URL, "windows");
+    swap("js-cta-alt", MAC_URL, "mac");
   }
 
   bindDownloadClicks();

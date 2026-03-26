@@ -2,37 +2,37 @@ import { describe, expect, it } from 'vitest';
 import { isInternalWatchPath } from '../hooks/useFileWatcher';
 
 describe('isInternalWatchPath', () => {
-  const workspacePath = '/Users/pedromartinez/Dev/pmatz';
+  const workspacePath = '/home/user/my-workspace';
 
   it('treats .cafezin files as internal', () => {
     expect(isInternalWatchPath(
-      '/Users/pedromartinez/Dev/pmatz/.cafezin/ai-marks.json',
+      '/home/user/my-workspace/.cafezin/ai-marks.json',
       workspacePath,
     )).toBe(true);
   });
 
   it('treats .git files as internal', () => {
     expect(isInternalWatchPath(
-      '/Users/pedromartinez/Dev/pmatz/.git/index.lock',
+      '/home/user/my-workspace/.git/index.lock',
       workspacePath,
     )).toBe(true);
   });
 
-  it('does not treat a real cafezin project folder as internal', () => {
+  it('does not treat a real project folder as internal', () => {
     expect(isInternalWatchPath(
-      '/Users/pedromartinez/Dev/pmatz/cafezin/app/src/App.tsx',
+      '/home/user/my-workspace/docs/App.tsx',
       workspacePath,
     )).toBe(false);
   });
 
   it('still ignores known legacy internal files only', () => {
     expect(isInternalWatchPath(
-      '/Users/pedromartinez/Dev/pmatz/cafezin/copilot-log.jsonl',
+      '/home/user/my-workspace/copilot-log.jsonl',
       workspacePath,
     )).toBe(true);
 
     expect(isInternalWatchPath(
-      '/Users/pedromartinez/Dev/pmatz/cafezin/docs/brainstorm.md',
+      '/home/user/my-workspace/docs/brainstorm.md',
       workspacePath,
     )).toBe(false);
   });

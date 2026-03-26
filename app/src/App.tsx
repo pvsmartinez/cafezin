@@ -68,6 +68,7 @@ import { useEditorZoom } from './hooks/useEditorZoom';
 import { useAIDocumentContext } from './hooks/useAIDocumentContext';
 import { useWorkspaceSession } from './hooks/useWorkspaceSession';
 import { formatContent } from './utils/formatUtils';
+import { useAppSession } from './hooks/useAppSession';
 import {
   compareVersions,
   FALLBACK_CONTENT,
@@ -538,6 +539,9 @@ export default function App() {
       window.dispatchEvent(new CustomEvent('cafezin:auth-updated'));
     },
   });
+
+  // Log one app_session event per day (anonymous device_id, + user_id if logged in).
+  useAppSession();
 
   // On startup, silently pull any secrets already saved to Supabase.
   // No-ops when not logged in or offline.

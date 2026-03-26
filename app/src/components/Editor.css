@@ -14,8 +14,8 @@
   flex-wrap: wrap;
   gap: 1px;
   padding: 4px 10px;
-  background: var(--bg-secondary, #1e1e1e);
-  border-bottom: 1px solid var(--border, #333);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border2);
   flex-shrink: 0;
 }
 
@@ -28,8 +28,8 @@
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text-dim, #888);
-  font-size: 11px;
+  color: var(--text-dim);
+  font-size: var(--font-size-xs);
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -51,12 +51,12 @@
 }
 
 .editor-md-toolbar-btn:hover {
-  background: var(--bg-hover, #2a2a2a);
-  color: var(--text, #ccc);
-  border-color: var(--border, #3a3a3a);
+  background: var(--surface2);
+  color: var(--text);
+  border-color: var(--border2);
 }
 .editor-md-toolbar-btn:active {
-  background: var(--bg-active, #333);
+  background: var(--border2);
   transform: scale(0.94);
 }
 
@@ -156,7 +156,7 @@ body.theme-light .editor-wrapper .cm-editor .cm-activeLineGutter {
 
 /* ── Ghost text (inline AI completions) ─────────────────────────────────────── */
 .cm-ghost-text {
-  color: var(--text-dim, #6b7280);
+  color: var(--text-dim);
   opacity: 0.55;
   font-style: italic;
   pointer-events: none;

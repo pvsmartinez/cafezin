@@ -4,7 +4,7 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { supabase } from '../services/supabase';
 import './ContactDialog.css';
 
-const CONTACT_URL = 'https://dxxwlnvemqgpdrnkzrcr.supabase.co/functions/v1/contact';
+const CONTACT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/contact`;
 
 type Kind = 'feedback' | 'bug' | 'feature';
 

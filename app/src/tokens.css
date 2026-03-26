@@ -160,8 +160,10 @@
   --hud-text-hi:   #e8eaf0;
 
   /* Editor */
-  --editor-selection:  rgba(212, 168, 83, 0.16);   /* âmbar suave na seleção */
-  --editor-active-ln:  rgba(255,255,255,0.025);
+  --editor-selection:    rgba(212, 168, 83, 0.16);   /* âmbar suave na seleção */
+  --editor-active-ln:    rgba(255,255,255,0.025);
+  --editor-cursor:       #82cfa5;               /* cursor — verde menta, contrasta com AI marks âmbar */
+  --editor-ai-mark-rgb:  212, 168, 83;           /* AI mark colour dark (= accent-rgb) */
 
   /* Shadow */
   --shadow:        rgba(0, 0, 0, 0.45);   /* mais dramático, deep shadows */
@@ -255,8 +257,10 @@ body.theme-light {
   --hud-text-hi:   #221c16;
 
   /* Editor */
-  --editor-selection:  rgba(23, 107, 96, 0.12);
-  --editor-active-ln:  rgba(0,0,0,0.04);
+  --editor-selection:    rgba(23, 107, 96, 0.12);
+  --editor-active-ln:    rgba(0,0,0,0.04);
+  --editor-cursor:       #176b60;               /* cursor — teal accent light */
+  --editor-ai-mark-rgb:  143, 90, 18;           /* AI mark colour light (= orange-rgb) */
 
   /* Shadow */
   --shadow:        rgba(41, 33, 20, 0.10);
