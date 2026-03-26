@@ -771,8 +771,10 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
               const outline = extractFileOutline(rel, text);
               const freshness = live?.dirty ? ' [live unsaved buffer]' : '';
               return `📄 ${rel}  (${kb} KB)${freshness}${outline ? '\n' + outline : ''}`;
-            } catch {
-              return `📄 ${rel}  (unreadable)`;
+            } catch (err) {
+              const reason = err instanceof Error ? err.message : String(err);
+              console.error(`[outline_workspace] Could not read ${rel}:`, err);
+              return `📄 ${rel}  (unreadable — ${reason})`;
             }
           }),
         );

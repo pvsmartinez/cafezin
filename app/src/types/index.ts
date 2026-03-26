@@ -452,6 +452,11 @@ export interface WorkspaceConfig {
    * When set, the risk gate skips the user-confirmation prompt for that level.
    */
   riskPermissions?: Record<string, 'forever'>;
+  /**
+   * User-chosen workspace type (book, classes, notes, project, research).
+   * Shown on WorkspaceHome to guide the AI and surface relevant document types.
+   */
+  workspaceType?: string;
 }
 
 /** A span of text inserted by the AI and not yet reviewed by the human. */

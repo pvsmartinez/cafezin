@@ -4,7 +4,7 @@
     "goodAfternoon": "Boa tarde",
     "goodEvening": "Boa noite",
     "localBannerTitle": "Workspace local",
-    "localBannerDesc": " — sem git remoto. Arquivos não estão protegidos por controle de versão e não são sincronizados com a nuvem.",
+    "localBannerDesc": " — arquivos salvos somente nesta máquina. Ative o sync para backup automático e acesso de qualquer dispositivo.",
     "lastEdited": "Última edição",
     "syncStatus": "Status do sync",
     "files": "Arquivos",
@@ -17,10 +17,28 @@
     "emptyTitle": "Crie seu primeiro arquivo para começar",
     "emptyDesc": "Este workspace ainda está vazio. Crie um documento inicial e o Copilot já entra no fluxo com você.",
     "createFirstFile": "+ Novo arquivo",
+    "conceptFolder": "Pasta de projetos",
+    "conceptAgent": "Contexto real para o agente de IA",
+    "conceptSync": "Sync automático na nuvem com git",
     "activateSync": "☁ Ativar sync",
     "recentFiles": "Arquivos recentes",
     "agentContextLoaded": "AGENT.md carregado como contexto da IA",
-    "aiEditsPending": "Edições da IA aguardando revisão"
+    "aiEditsPending": "Edições da IA aguardando revisão",
+    "workspaceType": "Tipo de workspace",
+    "activeSkills": "Habilidades ativas:",
+    "switchWorkspace": "Trocar workspace"
+  },
+  "wt": {
+    "book": "Livro",
+    "bookSkills": "redação longa, revisão de capítulos, exportação PDF",
+    "classes": "Aulas",
+    "classesSkills": "planos de aula, slides, material didático",
+    "notes": "Notas",
+    "notesSkills": "captura rápida, links entre notas, revisão por tópico",
+    "project": "Projeto",
+    "projectSkills": "documentação técnica, tarefas, rastreamento de decisões",
+    "research": "Pesquisa",
+    "researchSkills": "síntese de fontes, anotações, estruturação de argumentos"
   },
   "sidebar": {
     "explorerLabel": "EXPLORADOR",

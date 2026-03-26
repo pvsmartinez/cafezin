@@ -443,8 +443,9 @@ export function listGitAccountLabels(): string[] {
 export async function startGitAccountFlow(
   label: string,
   onState: (state: SyncDeviceFlowState) => void,
+  cancelToken?: { cancelled: boolean },
 ): Promise<string> {
-  const token = await runDeviceFlow('repo', onState)
+  const token = await runDeviceFlow('repo', onState, cancelToken)
   storeGitAccountToken(label, token)
   return token
 }
@@ -474,6 +475,7 @@ function waitOrResume(ms: number): Promise<void> {
 async function runDeviceFlow(
   scope: string,
   onState: (state: SyncDeviceFlowState) => void,
+  cancelToken?: { cancelled: boolean },
 ): Promise<string> {
   // Step 1: init — credentials stay in Rust
   const d = await invoke<{
@@ -488,9 +490,11 @@ async function runDeviceFlow(
   const expiresAt = Date.now() + d.expires_in * 1000
   onState({ userCode: d.user_code, verificationUri: d.verification_uri, expiresIn: d.expires_in })
 
-  // Step 2: poll until authorized or timed out
+  // Step 2: poll until authorized, cancelled, or timed out
   while (Date.now() < expiresAt) {
+    if (cancelToken?.cancelled) throw new Error('cancelled')
     await waitOrResume(intervalMs)
+    if (cancelToken?.cancelled) throw new Error('cancelled')
     const poll = await invoke<{
       access_token?: string
       error?: string

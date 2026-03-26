@@ -5,6 +5,7 @@ import type { SyncDeviceFlowState, SyncedWorkspace } from '../../services/syncCo
 type SyncStatus = 'idle' | 'checking' | 'not_connected' | 'connected';
 
 export interface SyncTabProps {
+  onCancelDeviceFlow: () => void;
   workspace: Workspace | null;
   syncStatus: SyncStatus;
   syncUser: string;
@@ -42,6 +43,7 @@ export interface SyncTabProps {
   onNavigateToAccount: () => void;
 }
 
+
 export function SyncTab({
   workspace,
   syncStatus,
@@ -78,6 +80,7 @@ export function SyncTab({
   onUnregister,
   syncError,
   onNavigateToAccount,
+  onCancelDeviceFlow,
 }: SyncTabProps) {
   return (
     <div className="sm-section-list">
@@ -235,26 +238,47 @@ export function SyncTab({
                 </div>
               )}
 
+              {gitAccounts.length === 0 && !activateSyncFlowState && !gitFlowBusy && (
+                <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 4px' }}>
+                  Primeira vez neste dispositivo — autorização única do GitHub, válida para todos os workspaces.
+                </p>
+              )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(gitFlowBusy || activateSyncBusy) ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="sm-save-btn"
+                      disabled
+                      style={{ flex: 1 }}
+                    >
+                      {gitFlowBusy ? 'Aguardando GitHub…' : 'Ativando sync…'}
+                    </button>
+                    <button
+                      className="sm-secondary-btn"
+                      onClick={onCancelDeviceFlow}
+                      style={{ flexShrink: 0 }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
                 <button
                   className="sm-save-btn"
                   onClick={() => void onActivateSync()}
                   disabled={activateSyncBusy || gitFlowBusy}
                   style={{ width: '100%' }}
                 >
-                  {
-                    gitFlowBusy ? 'Aguardando GitHub…'
-                    : activateSyncBusy ? 'Ativando sync…'
-                    : '☁ Ativar sync'
-                  }
+                  ☁ Ativar sync
                 </button>
+                )}
 
                 <button
                   className="sm-secondary-btn"
                   onClick={() => setShowSyncAdvanced((v) => !v)}
                   style={{ fontSize: 12, alignSelf: 'flex-start' }}
                 >
-                  {showSyncAdvanced ? '▲ Ocultar opções' : '▼ Opções avançadas'}
+                    {showSyncAdvanced ? '▲ Ocultar opções' : '▼ Opções avançadas'}
                 </button>
 
                 {showSyncAdvanced && (

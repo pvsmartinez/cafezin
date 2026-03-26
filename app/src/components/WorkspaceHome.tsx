@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { Play, CloudSlash, Plus } from '@phosphor-icons/react';
+import { Play, CloudSlash, Plus, FolderSimple, Sparkle, Cloud } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import type { Workspace, AIEditMark, FileTreeNode } from '../types';
 import './WorkspaceHome.css';
 import { timeAgo } from '../utils/timeAgo';
+import { WORKSPACE_TYPES, type WorkspaceType } from '../utils/workspaceTypes';
 
 interface WorkspaceHomeProps {
   workspace: Workspace;
   onOpenFile: (filename: string) => void;
   onCreateFirstFile?: () => void;
   onActivateSync?: () => void;
+  onWorkspaceTypeChange?: (type: WorkspaceType) => void;
   aiMarks?: AIEditMark[];
   onOpenAIReview?: () => void;
   onSwitchWorkspace?: () => void;
@@ -45,7 +47,7 @@ function fileIcon(name: string): React.ReactNode {
   return '·';
 }
 
-export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile, onActivateSync, aiMarks = [], onSwitchWorkspace, onClose }: WorkspaceHomeProps) {
+export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile, onActivateSync, onWorkspaceTypeChange, aiMarks = [], onSwitchWorkspace, onClose }: WorkspaceHomeProps) {
   const { t } = useTranslation();
   const [sync, setSync] = useState<SyncState>({ loading: true, changedCount: 0, error: false });
 
@@ -68,6 +70,9 @@ export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile
     hour < 17 ? t('wh.goodAfternoon') :
     t('wh.goodEvening');
 
+  const currentType = workspace.config.workspaceType as WorkspaceType | undefined;
+  const currentTypeInfo = WORKSPACE_TYPES.find((wt) => wt.id === currentType);
+
   return (
     <div className="wh-root">
       {onClose && (
@@ -84,6 +89,47 @@ export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile
             ⊘ {t('wh.switchWorkspace')}
           </button>
         )}
+
+        {/* Workspace type selector */}
+        <div className="wh-type-section">
+          <div className="wh-section-label">{t('wh.workspaceType')}</div>
+          <div className="wh-type-pills">
+            {WORKSPACE_TYPES.map((wt) => (
+              <button
+                key={wt.id}
+                className={`wh-type-pill${currentType === wt.id ? ' wh-type-pill--active' : ''}`}
+                onClick={() => onWorkspaceTypeChange?.(wt.id)}
+                title={t(wt.labelKey)}
+              >
+                <span className="wh-type-pill-icon">{wt.icon}</span>
+                <span className="wh-type-pill-label">{t(wt.labelKey)}</span>
+              </button>
+            ))}
+          </div>
+          {currentTypeInfo && (
+            <div className="wh-type-skills">
+              {t('wh.activeSkills')} {t(currentTypeInfo.skillsKey)}
+            </div>
+          )}
+        </div>
+
+        {/* What is a workspace */}
+        <div className="wh-concept">
+          <span className="wh-concept-item">
+            <FolderSimple weight="thin" size={13} />
+            {t('wh.conceptFolder')}
+          </span>
+          <span className="wh-concept-sep">·</span>
+          <span className="wh-concept-item">
+            <Sparkle weight="thin" size={13} />
+            {t('wh.conceptAgent')}
+          </span>
+          <span className="wh-concept-sep">·</span>
+          <span className="wh-concept-item">
+            <Cloud weight="thin" size={13} />
+            {t('wh.conceptSync')}
+          </span>
+        </div>
 
         {totalFiles === 0 && onCreateFirstFile && (
           <div className="wh-empty-hero">

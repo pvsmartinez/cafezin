@@ -34,7 +34,6 @@ import {
   writeFile,
   saveWorkspaceConfig,
   trackFileOpen,
-  createFile,
   flatMdFiles,
   refreshFileTree,
 } from './services/workspace';
@@ -899,6 +898,10 @@ export default function App() {
     try { await saveWorkspaceConfig(updated); } catch (e) { console.error('Failed to save workspace config:', e); }
   }
 
+  async function handleWorkspaceTypeChange(type: string): Promise<void> {
+    await handleWorkspaceConfigChange({ workspaceType: type });
+  }
+
   // ── File open ────────────────────────────────────────────────────────────────
   async function handleOpenFile(filename: string) {
     if (!workspace) return;
@@ -951,23 +954,11 @@ export default function App() {
     }
   }
 
-  async function handleCreateFirstWorkspaceFile() {
-    if (!workspace) return;
-
-    let filename = 'untitled.md';
-    let suffix = 2;
-    while (await exists(`${workspace.path}/${filename}`)) {
-      filename = `untitled-${suffix}.md`;
-      suffix += 1;
-    }
-
-    try {
-      await createFile(workspace, filename);
-      await refreshWorkspace(workspace);
-      await handleOpenFile(filename);
-    } catch (err) {
-      setSaveError(`Could not create "${filename}": ${(err as Error)?.message ?? String(err)}`);
-    }
+  function handleCreateFirstWorkspaceFile() {
+    // Open the Sidebar creator (format picker + name input) instead of
+    // silently creating an untitled.md — gives the user control over name and type.
+    setSidebarOpen(true);
+    setTimeout(() => newFileRef.current?.(), 80);
   }
 
   // scheduleAutosave is provided by useAutosave (declared near useDragResize)
@@ -1414,6 +1405,7 @@ export default function App() {
           onMarkUserEdited={handleMarkUserEdited}
           onOpenFile={handleOpenFile}
           onCreateFirstWorkspaceFile={handleCreateFirstWorkspaceFile}
+          onWorkspaceTypeChange={handleWorkspaceTypeChange}
           onOpenAIReview={handleEditorAreaOpenAIReview}
           onSwitchWorkspace={handleSwitchWorkspace}
           onActivateSync={handleActivateSync}

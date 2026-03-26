@@ -25,7 +25,7 @@ import { diff } from '@codemirror/legacy-modes/mode/diff';
 import { powerShell } from '@codemirror/legacy-modes/mode/powershell';
 import { r } from '@codemirror/legacy-modes/mode/r';
 import { perl } from '@codemirror/legacy-modes/mode/perl';
-import { oneDark } from '@codemirror/theme-one-dark';
+
 import { EditorView, keymap, ViewPlugin, WidgetType, drawSelection } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands';
@@ -260,22 +260,22 @@ function makeAIMarkField(marks: Array<{ text: string; revert?: AITextRevert }>) 
 }
 
 // ── Light mode syntax palette ─────────────────────────────────────────────────
-// Edit here to retheme light syntax highlighting.
-// Vars that match tokens.css exactly are noted; the rest are warm-paper values.
+// 100% CSS vars — all tokens resolve from tokens.css :root.theme-light.
+// Edit the palette in tokens.css; never add hex values here.
 const CL = {
-  keyword:    'var(--blue)',         // #275b99 light — exact token match
-  control:    '#6b4aa5',             // purple (≈ --purple light #6936b8)
-  string:     '#2b6a4a',             // green  (≈ --green light #266f46)
-  regexp:     '#a34a44',             // red    (≈ --red light #b23535)
-  comment:    '#756b60',             // warm muted brown
-  number:     '#8b6527',             // amber  (≈ --yellow light #8b641b)
-  definition: 'var(--accent)',       // #176b60 light — exact token match (teal)
-  operator:   '#5d5750',             // dim
-  punct:      '#877d72',             // subtle
-  propName:   '#40362b',             // dark brown
-  heading:    'var(--text-bright)',  // #221c16 light — exact token match
-  emphasis:   '#64594b',             // warm italic
-  strong:     '#31281f',             // darkest body text
+  keyword:    'var(--blue)',          // steel blue
+  control:    'var(--purple)',        // purple (import/export/control)
+  string:     'var(--green)',         // green
+  regexp:     'var(--red)',           // rose
+  comment:    'var(--text-muted)',    // secondary text, italic
+  number:     'var(--yellow)',        // amber
+  definition: 'var(--accent)',        // teal brand (named declarations)
+  operator:   'var(--text-dim)',      // ghost / faintest
+  punct:      'var(--text-dim)',      // ghost / faintest
+  propName:   'var(--text)',          // body text (neutral)
+  heading:    'var(--text-bright)',   // headings (darkest in light)
+  emphasis:   'var(--text-muted)',    // italic, dimmer
+  strong:     'var(--text-bright)',   // boldest
 } as const;
 
 // ── Paper light syntax highlight style ───────────────────────────────────────
@@ -374,6 +374,120 @@ const creamEditorTheme = EditorView.theme({
 // Bundled as a single extension for use as theme prop
 const creamTheme = [creamEditorTheme, syntaxHighlighting(creamHighlightStyle, { fallback: true })];
 
+// ── Dark mode syntax palette ──────────────────────────────────────────────────
+// Mirrors the CL structure but maps to the Charcoal & Candle dark tokens.
+const DK = {
+  keyword:    'var(--blue)',        // #528bbc — bright steel blue
+  control:    'var(--purple)',      // #9d7cd8 — purple (import/export/break)
+  string:     'var(--green)',       // #82cfa5 — mint green
+  regexp:     'var(--red)',         // #cf7b76 — rose
+  comment:    'var(--text-muted)', // #9E9589 — warm gray, italic
+  number:     'var(--yellow)',      // #dab26e — amber
+  definition: 'var(--accent)',      // #D4A853 — brand amber (named declarations)
+  operator:   'var(--text-muted)', // dim
+  punct:      'var(--text-dim)',    // ghost
+  propName:   'var(--text)',        // body text (neutral)
+  heading:    'var(--text-bright)', // #F0E8D8 — cream white
+  emphasis:   'var(--text-muted)', // italic, dimmer
+  strong:     'var(--text-bright)', // boldest
+} as const;
+
+// ── Dark syntax highlight style ───────────────────────────────────────────────
+const darkHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword,                                           color: DK.keyword, fontWeight: '500' },
+  { tag: tags.controlKeyword,                                    color: DK.control },
+  { tag: [tags.string, tags.special(tags.string)],               color: DK.string },
+  { tag: tags.regexp,                                            color: DK.regexp },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment],    color: DK.comment, fontStyle: 'italic' },
+  { tag: [tags.number, tags.integer, tags.float],                color: DK.number },
+  { tag: tags.bool,                                              color: DK.number, fontWeight: '500' },
+  { tag: tags.null,                                              color: DK.number },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: DK.definition },
+  { tag: [tags.typeName, tags.namespace],                        color: DK.number },
+  { tag: tags.className,                                         color: DK.number, fontWeight: '600' },
+  { tag: tags.definition(tags.variableName),                     color: DK.definition },
+  { tag: tags.definition(tags.propertyName),                     color: DK.definition },
+  { tag: tags.operator,                                          color: DK.operator },
+  { tag: tags.punctuation,                                       color: DK.punct },
+  { tag: tags.propertyName,                                      color: DK.propName },
+  { tag: tags.attributeName,                                     color: DK.keyword },
+  { tag: tags.attributeValue,                                    color: DK.string },
+  { tag: [tags.url, tags.link],                                  color: DK.definition, textDecoration: 'underline' },
+  { tag: tags.tagName,                                           color: DK.regexp, fontWeight: '500' },
+  { tag: tags.angleBracket,                                      color: DK.punct },
+  { tag: tags.heading,                                           color: DK.heading, fontWeight: 'bold' },
+  { tag: tags.emphasis,                                          fontStyle: 'italic', color: DK.emphasis },
+  { tag: tags.strong,                                            fontWeight: '700', color: DK.strong },
+  { tag: tags.strikethrough,                                     textDecoration: 'line-through', color: DK.comment },
+  { tag: tags.meta,                                              color: DK.comment },
+  { tag: tags.invalid,                                           color: DK.regexp, textDecoration: 'underline wavy' },
+  { tag: tags.deleted,                                           color: DK.regexp, textDecoration: 'line-through' },
+  { tag: tags.inserted,                                          color: DK.string },
+  { tag: tags.changed,                                           color: DK.number },
+  { tag: tags.self,                                              color: DK.keyword, fontStyle: 'italic' },
+  { tag: tags.atom,                                              color: DK.number },
+  { tag: tags.annotation,                                        color: DK.control },
+]);
+
+// ── Dark editor UI theme (backgrounds, gutters, panels) ───────────────────────
+const darkEditorTheme = EditorView.theme({
+  '&': {
+    background: 'var(--surface)',
+    color: 'var(--text)',
+  },
+  '.cm-gutters': {
+    background: 'var(--surface2)',
+    color: 'var(--text-dim)',
+    borderRight: '1px solid var(--border)',
+  },
+  '.cm-activeLineGutter': {
+    background: 'var(--surface-deep)',
+  },
+  '.cm-activeLine': {
+    background: 'var(--editor-active-ln)',
+  },
+  '.cm-searchMatch': {
+    background: 'rgba(var(--orange-rgb), 0.16)',
+    outline: '1px solid rgba(var(--orange-rgb), 0.32)',
+  },
+  '.cm-searchMatch.cm-searchMatch-selected': {
+    background: 'rgba(var(--accent-rgb), 0.18)',
+  },
+  '.cm-selectionMatch': {
+    background: 'rgba(var(--accent-rgb), 0.08)',
+  },
+  '.cm-panels': {
+    background: 'var(--surface2)',
+    color: 'var(--text)',
+  },
+  '.cm-panels.cm-panels-top': {
+    borderBottom: '1px solid var(--border)',
+  },
+  '.cm-tooltip': {
+    background: 'var(--surface)',
+    border: '1px solid var(--border2)',
+    color: 'var(--text)',
+  },
+  '.cm-completionLabel': {
+    color: 'var(--text)',
+  },
+  '.cm-completionDetail': {
+    color: 'var(--text-muted)',
+  },
+  '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+    background: 'var(--accent-bg)',
+    color: 'var(--accent)',
+  },
+  '.cm-foldPlaceholder': {
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--text-muted)',
+  },
+}, { dark: true });
+
+// Bundled dark theme
+const darkTheme = [darkEditorTheme, syntaxHighlighting(darkHighlightStyle, { fallback: true })];
+
 // ── Theme ─────────────────────────────────────────────────────────────────────
 // All colour values use CSS custom properties from tokens.css so a single
 // palette edit propagates to the editor automatically.
@@ -382,7 +496,8 @@ function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
     '&': {
       height: '100%',
       fontSize: `${fontSize}px`,
-      fontFamily: 'var(--font-mono)',
+      // Prose editing uses the UI font (Nunito); code mode uses the mono font (Maple Mono).
+      fontFamily: codeMode ? 'var(--font-mono)' : 'var(--font-ui)',
     },
     '.cm-scroller': {
       overflow: 'auto',
@@ -998,7 +1113,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
           value={cmValue}
           onChange={handleCodeMirrorChange}
           extensions={extensions}
-          theme={isDark ? oneDark : creamTheme}
+          theme={isDark ? darkTheme : creamTheme}
           height="100%"
           onCreateEditor={(view) => {
             viewRef.current = view;

@@ -34,8 +34,10 @@ import {
 } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { writeFile } from '../services/fs';
 import { WORKSPACE_MUTATED_EVENT, createFile, createCanvasFile, createFolder, refreshWorkspaceFiles, deleteFile, duplicateFile, duplicateFolder, renameFile, moveFile, updateFileReferences } from '../services/workspace';
 import SyncModal from './SyncModal';
+import { getGitAccountToken, listGitAccountLabels } from '../services/syncConfig';
 import ProjectSearchPanel from './ProjectSearchPanel';
 import type { Workspace, FileTreeNode, AIEditMark, SidebarButton } from '../types';
 import { loadWorkspaceSession, saveWorkspaceSession } from '../services/workspaceSession';
@@ -139,6 +141,7 @@ interface TreeNodeProps {
   // multi-select
   multiSelected: Set<string>;
   onMultiToggle: (path: string) => void;
+  onRangeSelect: (path: string) => void;
 }
 
 const DRAGGABLE_IMAGE_EXTS = new Set(['png','jpg','jpeg','gif','webp','svg','avif','bmp','ico','tiff','tif']);
@@ -148,7 +151,7 @@ function _TreeNodeItem({
   onToggleDir, onFileSelect, onStartCreate, onContextMenu, onDeleteFile, onDuplicateFile,
   renamingPath, renameValue, renameInputRef, onRenameStart, onRenameChange, onRenameConfirm, onRenameCancel,
   dragOverDir, onDirDragEnter, onDirDragLeave, onDirDrop,
-  multiSelected, onMultiToggle,
+  multiSelected, onMultiToggle, onRangeSelect,
 }: TreeNodeProps) {
   const indent = 8 + depth * 14;
 
@@ -243,6 +246,7 @@ function _TreeNodeItem({
             onDirDrop={onDirDrop}
             multiSelected={multiSelected}
             onMultiToggle={onMultiToggle}
+            onRangeSelect={onRangeSelect}
           />
         ))}
       </>
@@ -289,6 +293,11 @@ function _TreeNodeItem({
       onDrop={(e) => onDirDrop(e, parentDir)}
       onClick={(e) => {
         if (!isRenaming) {
+          if (e.shiftKey && multiSelected.size > 0) {
+            e.stopPropagation();
+            onRangeSelect(node.path);
+            return;
+          }
           if (e.metaKey || e.ctrlKey) {
             e.stopPropagation();
             onMultiToggle(node.path);
@@ -527,8 +536,10 @@ const SidebarInner = function Sidebar({
 
   // ── Multi-select state ─────────────────────────────────────────────────────
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
+  const lastClickedFileRef = useRef<string | null>(null);
 
   function handleMultiToggle(path: string) {
+    lastClickedFileRef.current = path;
     setMultiSelected((prev) => {
       const s = new Set(prev);
       if (s.has(path)) s.delete(path); else s.add(path);
@@ -545,6 +556,56 @@ const SidebarInner = function Sidebar({
       title: t('sidebar.deleteSelectedTitle'),
       message: `Delete ${paths.length} file(s)?\n\nThis will be tracked in git and can be reverted via Sync.`,
     });
+  }
+
+  function getFlatVisibleFiles(nodes: FileTreeNode[]): string[] {
+    const result: string[] = [];
+    function walk(arr: FileTreeNode[]) {
+      for (const n of arr) {
+        if (n.isDirectory) {
+          if (expandedDirs.has(n.path) && n.children) walk(n.children);
+        } else {
+          result.push(n.path);
+        }
+      }
+    }
+    walk(nodes);
+    return result;
+  }
+
+  function handleFileRangeSelect(path: string) {
+    const anchor = lastClickedFileRef.current;
+    lastClickedFileRef.current = path;
+    if (!anchor) { handleMultiToggle(path); return; }
+    const flat = getFlatVisibleFiles(workspace.fileTree);
+    const ai = flat.indexOf(anchor);
+    const bi = flat.indexOf(path);
+    if (ai < 0 || bi < 0) { handleMultiToggle(path); return; }
+    const [from, to] = ai <= bi ? [ai, bi] : [bi, ai];
+    setMultiSelected((prev) => {
+      const s = new Set(prev);
+      for (const p of flat.slice(from, to + 1)) s.add(p);
+      return s;
+    });
+  }
+
+  async function handleExternalFileDrop(nativeFiles: FileList, destDir: string) {
+    if (nativeFiles.length === 0) return;
+    const destAbsPath = destDir ? `${workspace.path}/${destDir}` : workspace.path;
+    const relPaths: string[] = [];
+    for (let i = 0; i < nativeFiles.length; i++) {
+      const file = nativeFiles[i];
+      if (!file.name) continue;
+      const buf = await file.arrayBuffer();
+      await writeFile(`${destAbsPath}/${file.name}`, new Uint8Array(buf));
+      relPaths.push(destDir ? `${destDir}/${file.name}` : file.name);
+    }
+    if (relPaths.length > 0) {
+      if (destDir) setExpandedDirs((prev) => { const s = new Set(prev); s.add(destDir); return s; });
+      const { files: wsFiles, fileTree } = await refreshWorkspaceFiles(workspace);
+      onWorkspaceChange({ ...workspace, files: wsFiles, fileTree });
+      if (relPaths.length === 1) onFileSelect(relPaths[0]);
+    }
   }
 
   function handleDirDragEnter(e: React.DragEvent, dirPath: string) {
@@ -572,7 +633,10 @@ const SidebarInner = function Sidebar({
     dragCounters.current.delete(destDir);
     setDragOverDir(null);
     const srcRel = e.dataTransfer.getData('text/x-workspace-file');
-    if (!srcRel) return;
+    if (!srcRel) {
+      if (e.dataTransfer.files.length > 0) await handleExternalFileDrop(e.dataTransfer.files, destDir);
+      return;
+    }
     // Prevent dropping a folder into itself or any descendant
     if (destDir === srcRel || destDir.startsWith(srcRel + '/')) return;
     // Don't move into own parent (no-op)
@@ -706,7 +770,13 @@ const SidebarInner = function Sidebar({
       scheduleGitCountRefresh(1200);
     };
 
-    const handleWindowFocus = () => scheduleGitCountRefresh();
+    const handleWindowFocus = () => {
+      scheduleGitCountRefresh();
+      if (onRefreshFiles && !refreshingFiles) {
+        setRefreshingFiles(true);
+        void onRefreshFiles().finally(() => setRefreshingFiles(false));
+      }
+    };
     const handleVisibilityChange = () => {
       if (!document.hidden) scheduleGitCountRefresh();
     };
@@ -851,7 +921,10 @@ const SidebarInner = function Sidebar({
   async function handleSyncConfirm(message: string) {
     setSyncStatus('syncing');
     try {
-      await invoke('git_sync', { path: workspace.path, message });
+      // Try to find a stored git account token for HTTPS push (SSH remotes work without one)
+      const labels = listGitAccountLabels();
+      const token = labels.length > 0 ? getGitAccountToken(labels[0]) : null;
+      await invoke('git_sync', { path: workspace.path, message, token: token ?? null });
       onSyncComplete();
       await fetchGitCount();
       setSyncStatus('done');
@@ -952,16 +1025,20 @@ const SidebarInner = function Sidebar({
         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { dragCounters.current.delete('__root__'); setDragOverDir(null); } }}
         onDrop={async (e) => {
           // Only handle drops directly on the container (not on a folder child)
+          e.preventDefault();
           setDragOverDir(null);
           dragCounters.current.delete('__root__');
           const srcRel = e.dataTransfer.getData('text/x-workspace-file');
-          if (!srcRel) return;
-          const srcDir = srcRel.includes('/') ? srcRel.substring(0, srcRel.lastIndexOf('/')) : '';
-          if (!srcDir) return; // already at root
-          const newRel = await moveFile(workspace, srcRel, '');
-          const { files, fileTree } = await refreshWorkspaceFiles(workspace);
-          onWorkspaceChange({ ...workspace, files, fileTree });
-          if (activeFile === srcRel) onFileSelect(newRel);
+          if (srcRel) {
+            const srcDir = srcRel.includes('/') ? srcRel.substring(0, srcRel.lastIndexOf('/')) : '';
+            if (!srcDir) return; // already at root
+            const newRel = await moveFile(workspace, srcRel, '');
+            const { files, fileTree } = await refreshWorkspaceFiles(workspace);
+            onWorkspaceChange({ ...workspace, files, fileTree });
+            if (activeFile === srcRel) onFileSelect(newRel);
+          } else if (e.dataTransfer.files.length > 0) {
+            await handleExternalFileDrop(e.dataTransfer.files, '');
+          }
         }}
       >
         {workspace.fileTree.length === 0 && (
@@ -996,6 +1073,7 @@ const SidebarInner = function Sidebar({
             onDirDrop={handleDirDrop}
             multiSelected={multiSelected}
             onMultiToggle={handleMultiToggle}
+            onRangeSelect={handleFileRangeSelect}
           />
         ))}
       </div>

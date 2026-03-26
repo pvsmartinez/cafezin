@@ -45,16 +45,53 @@
     }
   }
 
-  function bindDownloadClicks() {
-    document
-      .querySelectorAll(".btn-download[data-platform]")
-      .forEach(function (node) {
-        node.addEventListener("click", function () {
-          var platform = node.getAttribute("data-platform") || "unknown";
-          track("download_click", { platform: platform });
-          ga4("file_download", { file_name: "Cafezin", platform: platform });
-        });
+  function inferPlatform(node) {
+    var explicit = node.getAttribute("data-platform");
+    if (explicit) return explicit;
+    var href = node.href || node.getAttribute("href") || "";
+    if (/\.dmg/i.test(href)) return "mac";
+    if (/\.exe|setup/i.test(href)) return "windows";
+    if (/testflight|apps\.apple/i.test(href)) return "ios";
+    if (/play\.google|\.apk/i.test(href)) return "android";
+    return "unknown";
+  }
+
+  // Dispara conversão do Google Ads e navega após confirmação (ou timeout de 2s).
+  function gtagSendEvent(url) {
+    var callback = function () {
+      if (typeof url === "string") {
+        window.location = url;
+      }
+    };
+    if (typeof window.gtag === "function") {
+      window.gtag("event", "conversion_event_purchase_1", {
+        event_callback: callback,
+        event_timeout: 2000,
       });
+    } else {
+      // gtag não carregou (bloqueador de ads etc.) — navega direto.
+      callback();
+    }
+  }
+
+  function bindDownloadClicks() {
+    document.querySelectorAll(".btn-download").forEach(function (node) {
+      node.addEventListener("click", function (e) {
+        var href = node.href || node.getAttribute("href") || "";
+        var platform = inferPlatform(node);
+
+        // Rastreia no Supabase e GA4.
+        track("download_click", { platform: platform });
+        ga4("file_download", { file_name: "Cafezin", platform: platform });
+
+        // Só intercepta links externos (downloads do GitHub etc.).
+        // Links internos (/#download, /pricing) navegam normalmente.
+        if (href && /^https?:\/\//i.test(href)) {
+          e.preventDefault();
+          gtagSendEvent(href);
+        }
+      });
+    });
   }
 
   // Chamado por scripts inline nas páginas de conversão.

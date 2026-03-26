@@ -22,6 +22,7 @@ import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types
 import type { Editor as TldrawEditor } from 'tldraw';
 import { getMimeType, IMAGE_EXTS } from '../utils/mime';
 import { getActiveTask } from '../services/taskService';
+import { getRoutinesForWorkspaceType } from '../utils/workspaceRoutines';
 
 import { ModelPicker } from './ai/AIModelPicker';
 import { CodeBlock, parseSegments } from './ai/AICodeBlock';
@@ -812,26 +813,56 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
         {/* Empty state */}
         {session.messages.length === 0 && !stream.isStreaming && (
           <div className="ai-empty-state">
-            Ask Copilot anything about your document.
-            <br />
-            <span className="ai-hint">Enter to send · Shift+Enter new line · Esc to close</span>
-            {agentContext && <div className="ai-agent-notice"><Sparkle weight="fill" size={12} /> AGENT.md loaded as context</div>}
-            {session.savedSession && session.savedSession.messages.length > 0 && (
-              <button className="ai-restore-session-btn" onClick={handleRestoreSession} type="button">
-                <span className="ai-restore-session-label"><ArrowCounterClockwise weight="thin" size={12} /> Restore last conversation</span>
-                <span className="ai-restore-session-meta">
-                  {session.savedSession.messages.filter((m) => m.role === 'user').length}{' '}
-                  message{session.savedSession.messages.filter((m) => m.role === 'user').length !== 1 ? 's' : ''}{' '}
-                  · {fmtRelative(session.savedSession.savedAt)}
-                </span>
-              </button>
+            {agentContext && (
+              <div className="ai-agent-notice">
+                <Sparkle weight="fill" size={12} /> AGENT.md loaded as context
+              </div>
             )}
-            {workspacePath && (
-              <button className="ai-restore-session-btn ai-restore-session-btn--secondary" onClick={openHistoryPanel} type="button">
-                <span className="ai-restore-session-label"><FileText weight="thin" size={12} /> Abrir sessões antigas</span>
-                <span className="ai-restore-session-meta">Ver todas as sessões salvas deste workspace</span>
-              </button>
-            )}
+
+            {/* Routine pills */}
+            {workspacePath && (() => {
+              const routines = getRoutinesForWorkspaceType(workspaceConfig?.workspaceType);
+              return (
+                <div className="ai-routines">
+                  <div className="ai-routines-label">Rotinas</div>
+                  <div className="ai-routines-list">
+                    {routines.map((routine) => (
+                      <button
+                        key={routine.id}
+                        className="ai-routine-pill"
+                        type="button"
+                        onClick={() => {
+                          setInput(routine.prompt);
+                          setTimeout(() => handleSend(undefined, routine.prompt), 0);
+                        }}
+                      >
+                        {routine.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Session history links — now subtle, below routines */}
+            <div className="ai-empty-history">
+              {session.savedSession && session.savedSession.messages.length > 0 && (
+                <button className="ai-history-link" onClick={handleRestoreSession} type="button">
+                  <ArrowCounterClockwise weight="regular" size={11} />
+                  Retomar conversa anterior
+                  <span className="ai-history-link-meta">
+                    · {session.savedSession.messages.filter((m) => m.role === 'user').length} msg
+                    · {fmtRelative(session.savedSession.savedAt)}
+                  </span>
+                </button>
+              )}
+              {workspacePath && (
+                <button className="ai-history-link" onClick={openHistoryPanel} type="button">
+                  <FileText weight="regular" size={11} />
+                  Ver sessões salvas
+                </button>
+              )}
+            </div>
           </div>
         )}
 

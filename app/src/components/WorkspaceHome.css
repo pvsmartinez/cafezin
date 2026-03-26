@@ -142,6 +142,95 @@
   transform: translateY(-1px);
 }
 
+/* ── Workspace type selector ───────────────────────────────── */
+.wh-type-section {
+  margin-bottom: 28px;
+}
+
+.wh-type-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.wh-type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.wh-type-pill:hover {
+  background: var(--surface);
+  border-color: var(--border2);
+  color: var(--text);
+}
+
+.wh-type-pill--active {
+  border-color: rgba(var(--accent-rgb), 0.6);
+  background: rgba(var(--accent-rgb), 0.08);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.wh-type-pill--active:hover {
+  background: rgba(var(--accent-rgb), 0.13);
+  border-color: rgba(var(--accent-rgb), 0.8);
+  color: var(--accent);
+}
+
+.wh-type-pill-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.wh-type-pill-label {
+  font-size: var(--font-size-sm);
+}
+
+.wh-type-skills {
+  font-size: var(--font-size-xs);
+  color: var(--text-dim);
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* ── What is a workspace (concept row) ─────────────────────── */
+.wh-concept {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: -12px;
+  margin-bottom: 28px;
+}
+
+.wh-concept-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 450;
+  opacity: 0.7;
+}
+
+.wh-concept-sep {
+  color: var(--border2);
+  font-size: 14px;
+  margin: 0 2px;
+  user-select: none;
+  opacity: 0.5;
+}
+
 /* ── Stats row ──────────────────────────────────────────────── */
 .wh-stats {
   display: flex;

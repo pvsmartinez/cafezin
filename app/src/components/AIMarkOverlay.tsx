@@ -85,10 +85,17 @@ export default function AIMarkOverlay({
       }
       return;
     }
-    // Initial calculation — CodeMirror may not have committed its DOM layout yet
-    // (it schedules measure passes asynchronously), so we retry after a frame.
+    // Initial calculation — CodeMirror may not have committed its DOM layout yet.
+    // New marks can arrive before CM has finished its async content update pipeline:
+    //   1. content state change → Editor useEffect → setCmValue (re-render) →
+    //      @uiw/react-codemirror dispatches to CM → CM schedules measure RAF.
+    // This multi-step chain means CM's coordsAtPos returns null for newly inserted
+    // text in the first 1-2 frames. We retry at increasing intervals to catch the
+    // CM measure pass once it completes (usually within ~200ms).
     recalculate();
     const raf = requestAnimationFrame(() => recalculate());
+    const t100 = setTimeout(() => recalculate(), 100);
+    const t400 = setTimeout(() => recalculate(), 400);
     // Recalculate when the editor scrolls (marks move with content)
     const scroller = containerRef.current?.querySelector('.cm-scroller');
     const onScroll = () => recalculate();
@@ -97,6 +104,8 @@ export default function AIMarkOverlay({
     window.addEventListener('resize', onScroll, { passive: true });
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(t100);
+      clearTimeout(t400);
       scroller?.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
     };

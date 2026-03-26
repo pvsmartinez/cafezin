@@ -109,11 +109,10 @@
 }
 
 .ai-empty-state {
-  color: var(--text-muted);
-  font-size: var(--font-size-base);
-  text-align: center;
-  padding: 20px 0;
-  line-height: 1.8;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 4px 8px;
 }
 
 .ai-hint {
@@ -121,33 +120,90 @@
   color: var(--text-dim);
 }
 
-/* ── Restore last session CTA ─────────────────────────────────────── */
-.ai-restore-session-btn {
-  display: inline-flex;
+/* ── Routine pills ────────────────────────────────────────────────── */
+.ai-routines {
+  display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.ai-routines-label {
+  font-size: var(--font-size-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.ai-routines-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ai-routine-pill {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 18px;
-  padding: 10px 22px;
-  background: var(--surface2);
-  border: 1px solid var(--border2);
+  padding: 5px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   color: var(--text-muted);
   font-size: var(--font-size-sm);
   font-family: inherit;
   cursor: pointer;
-  transition: all var(--transition-base);
-  text-align: center;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
 }
 
-.ai-restore-session-btn:hover {
-  border-color: var(--accent);
-  color: var(--text);
-  background: rgba(var(--accent-rgb, 100,160,255), 0.06);
+.ai-routine-pill:hover {
+  background: rgba(var(--accent-rgb), 0.07);
+  border-color: rgba(var(--accent-rgb), 0.4);
+  color: var(--accent);
+}
+
+/* ── Session history links ────────────────────────────────────────── */
+.ai-empty-history {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.ai-history-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: var(--font-size-xs);
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+  transition: color var(--transition-fast);
+  opacity: 0.7;
+}
+
+.ai-history-link:hover {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.ai-history-link-meta {
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
+/* ── Restore last session CTA (kept for compat but unused) ────────── */
+.ai-restore-session-btn {
+  display: none;
 }
 
 .ai-restore-session-btn--secondary {
-  margin-top: 10px;
+  display: none;
 }
 
 .ai-restore-session-label {

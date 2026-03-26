@@ -219,7 +219,7 @@ function CanvasAIMarkOverlay() {
                     padding: '3px 6px',
                     borderLeft: '1px solid rgba(212,169,106,0.2)',
                     borderRight: '1px solid rgba(212,169,106,0.2)',
-                    fontSize: 11, color: 'rgba(212,169,106,0.85)', fontFamily: 'monospace',
+                    fontSize: 11, color: 'rgba(212,169,106,0.85)', fontFamily: 'var(--font-mono)',
                   }}
                 >
                   <span style={{ color: 'rgba(212,169,106,0.9)', fontSize: 10 }}>✦</span>

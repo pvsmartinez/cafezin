@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { GearSix, X } from '@phosphor-icons/react';
@@ -174,6 +174,7 @@ export default function SettingsModal({
   const [gitFlowState, setGitFlowState] = useState<SyncDeviceFlowState | null>(null)
   const [gitFlowBusy, setGitFlowBusy] = useState(false)
   const [gitAccounts, setGitAccounts] = useState<string[]>([])
+  const activateSyncCancelRef = useRef<{ cancelled: boolean } | null>(null)
 
   // ── Activate sync (connect local workspace to GitHub) ────────────────────
   const [activateSyncBusy, setActivateSyncBusy] = useState(false)
@@ -274,6 +275,16 @@ export default function SettingsModal({
     return name.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
   }
 
+  function handleCancelDeviceFlow() {
+    if (activateSyncCancelRef.current) activateSyncCancelRef.current.cancelled = true;
+    activateSyncCancelRef.current = null;
+    setActivateSyncBusy(false);
+    setGitFlowBusy(false);
+    setActivateSyncFlowState(null);
+    setGitFlowState(null);
+    setSyncError(null);
+  }
+
   async function handleActivateSync() {
     if (!workspace) return;
     const label = regLabel.trim() || 'personal';
@@ -287,13 +298,16 @@ export default function SettingsModal({
       } else {
         let token = getGitAccountToken(label);
         if (!token) {
+          const cancel = { cancelled: false };
+          activateSyncCancelRef.current = cancel;
           setGitFlowBusy(true);
           try {
-            token = await startGitAccountFlow(label, (s) => setActivateSyncFlowState(s));
+            token = await startGitAccountFlow(label, (s) => setActivateSyncFlowState(s), cancel);
             setActivateSyncFlowState(null);
             setGitAccounts((prev) => prev.includes(label) ? prev : [...prev, label]);
           } finally {
             setGitFlowBusy(false);
+            activateSyncCancelRef.current = null;
           }
         }
         const repoName = showSyncAdvanced
@@ -326,9 +340,11 @@ export default function SettingsModal({
 
   async function handleConnectGitAccount() {
     if (!gitLabel.trim()) return;
+    const cancel = { cancelled: false };
+    activateSyncCancelRef.current = cancel;
     setGitFlowBusy(true);
     try {
-      await startGitAccountFlow(gitLabel.trim(), (s) => setGitFlowState(s));
+      await startGitAccountFlow(gitLabel.trim(), (s) => setGitFlowState(s), cancel);
       setGitFlowState(null);
       const label = gitLabel.trim();
       setGitLabel('');
@@ -954,6 +970,7 @@ export default function SettingsModal({
               onUnregister={handleUnregister}
               syncError={syncError}
               onNavigateToAccount={() => setTab('account')}
+              onCancelDeviceFlow={handleCancelDeviceFlow}
             />
           )}
 

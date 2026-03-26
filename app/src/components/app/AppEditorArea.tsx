@@ -71,6 +71,7 @@ interface AppEditorAreaProps {
   onMarkUserEdited: (id: string) => void;
   onOpenFile: (relPath: string, lineNo?: number) => void | Promise<void>;
   onCreateFirstWorkspaceFile: () => void | Promise<void>;
+  onWorkspaceTypeChange: (type: string) => void;
   onOpenAIReview: () => void;
   onSwitchWorkspace: () => void | Promise<void>;
   onActivateSync: () => void;
@@ -134,6 +135,7 @@ export function AppEditorAreaInner({
   onMarkUserEdited,
   onOpenFile,
   onCreateFirstWorkspaceFile,
+  onWorkspaceTypeChange,
   onOpenAIReview,
   onSwitchWorkspace,
   onActivateSync,
@@ -251,6 +253,7 @@ export function AppEditorAreaInner({
                 workspace={workspace}
                 onOpenFile={onOpenFile}
                 onCreateFirstFile={onCreateFirstWorkspaceFile}
+                onWorkspaceTypeChange={onWorkspaceTypeChange}
                 aiMarks={aiMarks}
                 onOpenAIReview={onOpenAIReview}
                 onSwitchWorkspace={onSwitchWorkspace}
