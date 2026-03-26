@@ -53,7 +53,7 @@
   background: var(--accent);
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform 0.16s ease;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);  /* spring mais elegante */
   border-radius: 1px 1px 0 0;
 }
 
