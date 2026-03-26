@@ -65,7 +65,44 @@
     if (eventName === "contact_submit") ga4("generate_lead", metadata);
   };
 
+  function adaptHeroCta() {
+    var ua = navigator.userAgent || "";
+    var plat = navigator.platform || "";
+    if (!/Win/i.test(plat) && !/Windows NT/i.test(ua)) return;
+
+    var WIN_URL =
+      "https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin_setup.exe";
+    var MAC_URL =
+      "https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin.dmg";
+
+    function swap(id, href, platform) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.href = href;
+      el.setAttribute("data-platform", platform);
+      var label = el.getAttribute("data-win-label");
+      if (label) {
+        var span = el.querySelector("[data-cta-label]");
+        if (span) {
+          span.textContent = label;
+        } else if (!el.querySelector("svg")) {
+          el.textContent = label;
+        }
+      }
+      var iconMac = el.querySelector('[data-icon="mac"]');
+      var iconWin = el.querySelector('[data-icon="win"]');
+      if (iconMac) iconMac.style.display = "none";
+      if (iconWin) iconWin.style.display = "";
+    }
+
+    swap("js-hero-primary", WIN_URL, "windows");
+    swap("js-hero-alt",     MAC_URL, "mac");
+    swap("js-cta-primary",  WIN_URL, "windows");
+    swap("js-cta-alt",      MAC_URL, "mac");
+  }
+
   bindDownloadClicks();
+  adaptHeroCta();
 
   // Evento explícito de conversão setado no <body> (ex: página de obrigado).
   var pageEvent = document.body.getAttribute("data-track-page-event");
