@@ -2,6 +2,7 @@
  * FindReplaceBar — floating Ctrl+F bar that appears at the top of the editor area.
  *
  * For text/code files (CodeMirror): uses @codemirror/search SearchQuery API.
+ * For markdown files (Tiptap): searches document text directly via ProseMirror.
  * For canvas files (tldraw): searches shape text and zooms between matches.
  */
 
@@ -18,6 +19,8 @@ import {
 } from '@codemirror/search';
 import { SearchCursor } from '@codemirror/search';
 import type { EditorHandle } from './Editor';
+import type { Editor as TiptapEditor } from '@tiptap/react';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import type { Editor as TldrawEditor, TLShape } from 'tldraw';
 import './FindReplaceBar.css';
 
@@ -55,6 +58,70 @@ function zoomToShape(editor: TldrawEditor, shape: TLShape) {
   if (!bounds) return;
   editor.zoomToBounds(bounds, { animation: { duration: 200 }, inset: 80 });
   editor.select(shape.id);
+}
+
+// ── Tiptap search helpers ─────────────────────────────────────────────────────
+
+/** Convert a plain-text character offset into a ProseMirror document position. */
+function tiptapCharToPos(doc: PMNode, charOffset: number): number {
+  let chars = 0;
+  let result = -1;
+  doc.descendants((node, pos) => {
+    if (result !== -1) return false;
+    if (!node.isText) return undefined;
+    const len = node.text!.length;
+    if (chars + len > charOffset) { result = pos + (charOffset - chars); return false; }
+    chars += len;
+    return undefined;
+  });
+  if (result === -1 && charOffset === chars) result = doc.content.size;
+  return result;
+}
+
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function findAllInTiptap(
+  editor: TiptapEditor,
+  query: string,
+  caseSensitive: boolean,
+  wholeWord: boolean,
+  useRegex: boolean,
+): Array<{ from: number; to: number }> {
+  if (!query) return [];
+  const doc = editor.state.doc;
+  const docText = doc.textContent;
+
+  let pattern = useRegex ? query : escapeRegex(query);
+  if (wholeWord) pattern = `\\b${pattern}\\b`;
+  let regex: RegExp;
+  try { regex = new RegExp(pattern, caseSensitive ? 'g' : 'gi'); }
+  catch { return []; }
+
+  const results: Array<{ from: number; to: number }> = [];
+  let m: RegExpExecArray | null;
+  // eslint-disable-next-line no-cond-assign
+  while ((m = regex.exec(docText)) !== null) {
+    const from = tiptapCharToPos(doc, m.index);
+    const to   = tiptapCharToPos(doc, m.index + m[0].length);
+    if (from !== -1 && to !== -1) results.push({ from, to });
+  }
+  return results;
+}
+
+function highlightTiptapMatch(
+  editor: TiptapEditor,
+  match: { from: number; to: number },
+) {
+  editor.commands.setTextSelection(match);
+  try {
+    const dom = editor.view.domAtPos(match.from);
+    const el = (dom.node as Element).nodeType === 1
+      ? dom.node as Element
+      : (dom.node as Element).parentElement;
+    el?.scrollIntoView({ block: 'nearest' });
+  } catch { /* ignore */ }
 }
 
 // ── Match count helper for CodeMirror ─────────────────────────────────────────
@@ -97,6 +164,9 @@ export default function FindReplaceBar({
   const [canvasMatchIdx, setCanvasMatchIdx] = useState(0);
   const [canvasMatchCount, setCanvasMatchCount] = useState(0);
   const [cmMatchCount, setCmMatchCount] = useState(0);
+  // Tiptap navigation state
+  const [tiptapMatchIdx, setTiptapMatchIdx] = useState(0);
+  const [tiptapMatches, setTiptapMatches] = useState<Array<{ from: number; to: number }>>([]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
@@ -108,9 +178,21 @@ export default function FindReplaceBar({
     return () => clearTimeout(t);
   }, [open]);
 
-  // Build and apply CodeMirror SearchQuery whenever query/options change
+  // Build and apply search query whenever query/options change
   const applyQuery = useCallback(() => {
     if (fileKind === 'canvas') return;
+
+    // ── Tiptap path ──────────────────────────────────────────────────────────
+    const tiptap = editorRef?.current?.getTiptapEditor?.();
+    if (tiptap) {
+      const matches = findAllInTiptap(tiptap, query, caseSensitive, wholeWord, useRegex);
+      setTiptapMatches(matches);
+      setTiptapMatchIdx(0);
+      if (matches.length > 0) highlightTiptapMatch(tiptap, matches[0]);
+      return;
+    }
+
+    // ── CodeMirror path ───────────────────────────────────────────────────────
     const view = editorRef?.current?.getView();
     if (!view) return;
 
@@ -164,6 +246,14 @@ export default function FindReplaceBar({
       zoomToShape(canvasEditor, matches[idx]);
       return;
     }
+    const tiptap = editorRef?.current?.getTiptapEditor?.();
+    if (tiptap) {
+      if (tiptapMatches.length === 0) return;
+      const idx = (tiptapMatchIdx + 1) % tiptapMatches.length;
+      setTiptapMatchIdx(idx);
+      highlightTiptapMatch(tiptap, tiptapMatches[idx]);
+      return;
+    }
     const view = editorRef?.current?.getView();
     if (!view) return;
     applyQuery();
@@ -179,6 +269,14 @@ export default function FindReplaceBar({
       zoomToShape(canvasEditor, matches[idx]);
       return;
     }
+    const tiptap = editorRef?.current?.getTiptapEditor?.();
+    if (tiptap) {
+      if (tiptapMatches.length === 0) return;
+      const idx = (tiptapMatchIdx - 1 + tiptapMatches.length) % tiptapMatches.length;
+      setTiptapMatchIdx(idx);
+      highlightTiptapMatch(tiptap, tiptapMatches[idx]);
+      return;
+    }
     const view = editorRef?.current?.getView();
     if (!view) return;
     applyQuery();
@@ -186,6 +284,26 @@ export default function FindReplaceBar({
   }
 
   function handleReplaceOne() {
+    const tiptap = editorRef?.current?.getTiptapEditor?.();
+    if (tiptap) {
+      if (tiptapMatches.length === 0 || !query) return;
+      const match = tiptapMatches[tiptapMatchIdx];
+      // Verify the selection still matches, then replace
+      const matched = tiptap.state.doc.textBetween(match.from, match.to);
+      const expected = useRegex
+        ? new RegExp(query, caseSensitive ? '' : 'i').test(matched)
+        : caseSensitive ? matched === query : matched.toLowerCase() === query.toLowerCase();
+      if (expected) {
+        tiptap.chain().setTextSelection(match).deleteSelection().insertContent(replacement).run();
+      }
+      // Recompute matches after change
+      const newMatches = findAllInTiptap(tiptap, query, caseSensitive, wholeWord, useRegex);
+      setTiptapMatches(newMatches);
+      const idx = Math.min(tiptapMatchIdx, Math.max(0, newMatches.length - 1));
+      setTiptapMatchIdx(idx);
+      if (newMatches.length > 0) highlightTiptapMatch(tiptap, newMatches[idx]);
+      return;
+    }
     const view = editorRef?.current?.getView();
     if (!view || fileKind === 'canvas') return;
     applyQuery();
@@ -194,6 +312,18 @@ export default function FindReplaceBar({
   }
 
   function handleReplaceAll() {
+    const tiptap = editorRef?.current?.getTiptapEditor?.();
+    if (tiptap) {
+      if (tiptapMatches.length === 0 || !query) return;
+      // Replace from end to start to keep positions valid
+      const sorted = [...tiptapMatches].reverse();
+      for (const match of sorted) {
+        tiptap.chain().setTextSelection(match).deleteSelection().insertContent(replacement).run();
+      }
+      setTiptapMatches([]);
+      setTiptapMatchIdx(0);
+      return;
+    }
     const view = editorRef?.current?.getView();
     if (!view || fileKind === 'canvas') return;
     applyQuery();
@@ -223,14 +353,23 @@ export default function FindReplaceBar({
     if (view) {
       view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
     }
+    // Clear Tiptap selection on close
+    const tiptap = editorRef?.current?.getTiptapEditor?.();
+    if (tiptap) {
+      const pos = tiptap.state.selection.from;
+      tiptap.commands.setTextSelection(pos);
+    }
     setCmMatchCount(0);
+    setTiptapMatches([]);
+    setTiptapMatchIdx(0);
     onClose();
   }
 
   if (!open) return null;
 
   const isCanvas = fileKind === 'canvas';
-  const matchCount = isCanvas ? canvasMatchCount : cmMatchCount;
+  const isTiptap = !isCanvas && !!(editorRef?.current?.getTiptapEditor?.());
+  const matchCount = isCanvas ? canvasMatchCount : isTiptap ? tiptapMatches.length : cmMatchCount;
 
   return (
     <div className="frb-root" onKeyDown={handleKeyDown} role="dialog" aria-label="Find and replace">

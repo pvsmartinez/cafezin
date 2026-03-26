@@ -2,6 +2,7 @@ import { lazy, memo, Suspense, type ComponentProps, type MutableRefObject, type 
 import type { Editor as TldrawEditor } from 'tldraw';
 import Editor from '../Editor';
 import type { EditorHandle } from '../Editor';
+import ProseEditor from '../ProseEditor';
 import { CanvasErrorBoundary } from '../CanvasErrorBoundary';
 import { EditorErrorBoundary } from '../EditorErrorBoundary';
 import WorkspaceHome from '../WorkspaceHome';
@@ -288,6 +289,24 @@ export function AppEditorAreaInner({
                 isLocked={lockedFiles.has(activeFile)}
               />
             ) : (
+              fileTypeInfo?.kind === 'markdown' ? (
+                <ProseEditor
+                  key={activeFile ?? 'none'}
+                  ref={editorRef}
+                  content={content}
+                  onChange={onContentChange}
+                  onToggleFind={() => onSetFindReplaceOpen(true)}
+                  onAIRequest={onAIRequest}
+                  onSelectionContextChange={onSelectionContextChange}
+                  aiMarks={activeFileMarks.map((mark) => ({ id: mark.id, text: mark.text, revert: mark.revert }))}
+                  onAIMarkEdited={onMarkReviewed}
+                  fontSize={appSettings.editorFontSize}
+                  onImagePaste={onImagePaste}
+                  activeFile={activeFile ?? undefined}
+                  isDark={isDarkTheme}
+                  isLocked={activeFile ? lockedFiles.has(activeFile) : false}
+                />
+              ) : (
               <Editor
                 key={activeFile ?? 'none'}
                 ref={editorRef}
@@ -308,6 +327,7 @@ export function AppEditorAreaInner({
                 diagnostics={tsDiagnostics}
 
               />
+              )
             )}
           </Suspense>
         </EditorErrorBoundary>

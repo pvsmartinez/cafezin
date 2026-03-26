@@ -56,8 +56,8 @@ export function getFileTypeInfo(filename: string): FileTypeInfo {
 
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
 
-  if (ext === 'md' || ext === 'mdx') {
-    return { kind: 'markdown', supportsPreview: true, defaultMode: 'edit', language: 'markdown' };
+  if (ext === 'md' || ext === 'mdx' || ext === 'txt') {
+    return { kind: 'markdown', supportsPreview: ext !== 'txt', defaultMode: 'edit', language: 'markdown' };
   }
 
   if (ext === 'pdf') {

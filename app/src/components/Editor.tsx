@@ -113,6 +113,11 @@ export interface EditorHandle {
    * in the editor, or null if the text isn't found.
    */
   getMarkCoords(target: { text: string; revert?: AITextRevert } | string): { top: number; left: number; bottom: number; right: number } | null;
+  /**
+   * Returns the Tiptap Editor instance when the ProseEditor is active, or null
+   * when the CM6 Editor is active. FindReplaceBar uses this for prose search.
+   */
+  getTiptapEditor?(): import('@tiptap/react').Editor | null;
 }
 
 interface EditorProps {
@@ -904,6 +909,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
         if (!coords) return null;
         return { top: coords.top, left: coords.left, bottom: coords.bottom, right: coords.right };
       },
+      getTiptapEditor() { return null; },
     }));
 
     useEffect(() => {
