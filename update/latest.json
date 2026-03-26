@@ -1,7 +1,7 @@
 {
   "version": "0.1.6",
   "notes": "Vers\u00e3o inicial com auto-update.",
-  "pub_date": "2026-03-26T22:00:00Z",
+  "pub_date": "2026-03-26T22:11:15Z",
   "min_versions": {
     "release": "0.1.0",
     "dev": "0.1.0",
@@ -14,8 +14,8 @@
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UEYzU0VuMHNadityV29TUzMzWXQ5YnNwY2FFU2lwd2J5c1BhVkIrZDNuYVlYVkZ4eC9NYkNJYjJhTkM4NTQ3OVJNZnFCNjh0RTkrckdVSU1CenByelFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0NTYyMzcxCWZpbGU6Q2FmZXppbi5hcHAudGFyLmd6CkdIQThRT0ZWY2JESEJ0TVFnKy96Q1dPSmU2RXUzaFgyQjA0dkpiZlJKQnU0bjduOWp3MitkREIyZTdIbDhYUFkyRnUyWHZZT21IQkd3Z04xV0xsUUJRPT0K"
     },
     "windows-x86_64": {
-      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.5/Cafezin_setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UEdCMjRkNVYxbFRrYnNDS0FuNVZIbWpOckE2d2FLdklqZTJWKzYyUU1Gb0NBMHJmOUNKU3NpdXZLU1l0UVpIQUdSdTc4bGQ0MkxCSGduTm0wTkVtWkEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0NDgzNTIwCWZpbGU6Q2FmZXppbl8wLjEuNV94NjQtc2V0dXAuZXhlCnpkb3VjQll4cCsvQlJuWjBkK0JlWm1wbUtzdWEzZDd0d0h2Vks3WjIyTXVHYkNqTWdLUXFLT0pwbEV4NEQ2Y3oyNktES3pyTEwyVVI5MzJVMkhqeUFRPT0K"
+      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.6/Cafezin_setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UE9KVWJlRHZxeE0rdXlrYVloem02TEJVZGZqNTNxMEpPd0tIRUxiVkRnYmJySkVGY09nYVlzY1pvWEZqcDduTXF5VXVaREYyNEhQNTQyQWg1UTI2dVFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0NTYyOTk5CWZpbGU6Q2FmZXppbl8wLjEuNl94NjQtc2V0dXAuZXhlCmRRaEszV29xVGNzZ1c3R25tQW1WVlRhR0RlSjBVTnlUeHlFSVdGckxxemJaZGFlb2xadUQzTSttN1dSRHJWcjJXbzB0STVROVlVQlRQbHBUbnVmbUJRPT0K"
     }
   }
 }
