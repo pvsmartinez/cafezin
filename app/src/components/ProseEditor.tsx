@@ -141,7 +141,14 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
     },
     ref,
   ) => {
-    const suppressEchoRef    = useRef(false);
+    // Tracks the last markdown string we emitted from onUpdate so we can
+    // distinguish "echo of our own edit" from "external content update" in
+    // the sync effect below. Using a value comparison avoids the race
+    // condition that the old boolean suppressEchoRef had with concurrent AI
+    // writes: if an AI write came in between the user's onUpdate and the
+    // subsequent React render, the boolean would incorrectly suppress the
+    // external update.
+    const lastEmittedMdRef   = useRef<string | null>(null);
     const aiMarksStoreRef    = useRef<AIMark[]>(aiMarks ?? []);
     const aiMarksRef         = useRef(aiMarks ?? []);
     const onAIMarkEditedRef  = useRef(onAIMarkEdited);
@@ -243,9 +250,9 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
             }
           }
         }
-        // Emit markdown
-        suppressEchoRef.current = true;
+        // Emit markdown and record it so the sync effect can detect the echo.
         const md: string = (ed.storage as unknown as { markdown: { getMarkdown(): string } }).markdown.getMarkdown();
+        lastEmittedMdRef.current = md;
         onChange(md);
       },
       onSelectionUpdate({ editor: ed }) {
@@ -262,7 +269,14 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
     // ── Sync external content changes (AI writes, file loads) ─────────────────
     useEffect(() => {
       if (!editor) return;
-      if (suppressEchoRef.current) { suppressEchoRef.current = false; return; }
+      // If this content update is just the echo of our own onUpdate emission,
+      // skip it — the editor already has this content. Clear the record so
+      // any future external update (different value) will be applied.
+      if (lastEmittedMdRef.current === content) {
+        lastEmittedMdRef.current = null;
+        return;
+      }
+      lastEmittedMdRef.current = null;
       editor.commands.setContent(content, { emitUpdate: false });
     }, [editor, content]);
 

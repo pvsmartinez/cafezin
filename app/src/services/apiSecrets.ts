@@ -26,6 +26,9 @@ export const SYNCED_SECRET_KEYS = [
   // BYOK provider keys — user can choose any provider instead of Copilot
   'cafezin-openai-key',
   'cafezin-anthropic-key',
+  // Copilot OAuth token — canonical (non-namespaced) key; picked up by the
+  // getStoredOAuthToken() fallback on any device regardless of workspace clientId
+  'copilot-github-oauth-token',
   // Provider + model preference — synced so the choice follows the user across devices
   'cafezin-ai-provider',
   'cafezin-ai-model',

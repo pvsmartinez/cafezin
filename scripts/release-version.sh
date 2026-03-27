@@ -101,6 +101,12 @@ require_clean_worktree() {
     echo ""
     git -C "$ROOT_DIR" add -A
     git -C "$ROOT_DIR" commit -m "chore: checkpoint before release"
+  fi
+  # Always pull before pushing so remote changes (e.g. from another machine)
+  # do not cause a rejected push.
+  echo "── Syncing with remote ──────────────────────────────────────────────"
+  git -C "$ROOT_DIR" pull --rebase origin main
+  if [[ -n "$status" ]]; then
     git -C "$ROOT_DIR" push origin main
     echo "✓ Checkpoint committed and pushed"
     echo ""

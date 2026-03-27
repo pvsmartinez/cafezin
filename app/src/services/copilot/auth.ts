@@ -1,6 +1,7 @@
 import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import { EDITOR_HEADERS } from './constants';
+import { saveApiSecret } from '../apiSecrets';
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
@@ -34,6 +35,7 @@ export function getStoredOAuthToken(clientId?: string | null): string | null {
 export function clearOAuthToken(clientId?: string | null): void {
   localStorage.removeItem(getOAuthTokenStorageKey(clientId));
   localStorage.removeItem(LEGACY_OAUTH_TOKEN_KEY);
+  void saveApiSecret(LEGACY_OAUTH_TOKEN_KEY, ''); // remove from cloud
   _sessionToken = null;
   _sessionTokenExpiry = 0;
   _tokenRefreshPending = null;
@@ -77,6 +79,9 @@ export async function startDeviceFlow(
 
     if (poll.access_token) {
       localStorage.setItem(getOAuthTokenStorageKey(normalizedClientId), poll.access_token);
+      // Also save to the canonical (non-namespaced) key so other devices can pick
+      // it up via syncSecretsFromCloud() regardless of workspace clientId.
+      void saveApiSecret(LEGACY_OAUTH_TOKEN_KEY, poll.access_token);
       _sessionToken = null;
       _sessionTokenExpiry = 0;
       _tokenRefreshPending = null;

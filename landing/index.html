@@ -28,16 +28,16 @@
   <meta property="og:url" content="https://cafezin.pmatz.com/" />
   <meta property="og:title" content="Cafezin - Local-first AI writing app for Markdown, notes, canvas, and slides" />
   <meta property="og:description" content="A local-first AI writing and knowledge workspace for writers, educators, and creators. Markdown, canvas, slides, voice capture, built-in git, and reviewable AI edits in one app." />
-  <meta property="og:image" content="https://cafezin.pmatz.com/icon.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  <meta property="og:image" content="https://cafezin.pmatz.com/screen-editor.png" />
+  <meta property="og:image:width" content="1280" />
+  <meta property="og:image:height" content="800" />
   <meta property="og:locale" content="en_US" />
   <meta property="og:site_name" content="Cafezin" />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Cafezin - Local-first AI writing app for Markdown, notes, canvas, and slides" />
   <meta name="twitter:description" content="A local-first AI writing and knowledge workspace for writers, educators, and creators. Markdown, canvas, slides, voice capture, built-in git, and reviewable AI edits in one app." />
-  <meta name="twitter:image" content="https://cafezin.pmatz.com/icon.png" />
+  <meta name="twitter:image" content="https://cafezin.pmatz.com/screen-editor.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -216,49 +216,44 @@
     </div>
   </section>
 
-  <section class="mockup-section">
-    <div class="mockup-wrap">
-      <div class="mockup-window">
-        <div class="mockup-titlebar">
-          <span class="titlebar-dot red"></span>
-          <span class="titlebar-dot yellow"></span>
-          <span class="titlebar-dot green"></span>
-          <span class="titlebar-title">Cafezin - my-book.md</span>
+  <section class="screenshots-section">
+    <div class="screenshots-inner">
+      <div class="screens-tabs">
+        <button class="screen-tab active" data-target="screen-editor">✍️ AI Writing</button>
+        <button class="screen-tab" data-target="screen-canvas">🎞 Slides &amp; Canvas</button>
+        <button class="screen-tab" data-target="screen-settings">⚙ Model settings</button>
+      </div>
+      <div class="screens-viewer">
+        <div class="screen-panel active" id="screen-editor">
+          <img src="screen-editor.png"
+               alt="Cafezin writing editor: book chapter open with AI review panel providing feedback on the right"
+               class="screenshot-img" width="960" loading="lazy" />
         </div>
-        <div class="mockup-body">
-          <div class="mockup-sidebar">
-            <div class="mockup-sidebar-item active">📄 my-book.md</div>
-            <div class="mockup-sidebar-item">📄 chapter-02.md</div>
-            <div class="mockup-sidebar-item">🎨 story-map.tldr</div>
-            <div class="mockup-sidebar-item">📄 outline.md</div>
-            <div class="mockup-sidebar-item dim">📁 drafts/</div>
-          </div>
-          <div class="mockup-editor">
-            <div class="mockup-line heading"># Chapter 1 - The Beginning</div>
-            <div class="mockup-line"></div>
-            <div class="mockup-line">It had been an ordinary afternoon until everything changed.</div>
-            <div class="mockup-line">The sun was slowly setting beyond the horizon,</div>
-            <div class="mockup-line">painting the sky in orange and red.</div>
-            <div class="mockup-line"></div>
-            <div class="mockup-line ai-mark">Joana stood by the window, deep in thought.</div>
-            <div class="mockup-line ai-mark">Something felt different about that evening.</div>
-            <div class="mockup-line"></div>
-            <div class="mockup-line heading2">## The discovery</div>
-            <div class="mockup-line"></div>
-            <div class="mockup-line">The envelope had been sitting on the table for hours.</div>
-            <div class="mockup-cursor">|</div>
-          </div>
-          <div class="mockup-ai">
-            <div class="mockup-ai-header">
-              <span class="ai-dot"></span>
-              Copilot
-            </div>
-            <div class="mockup-ai-bubble user">Continue the paragraph with more tension</div>
-            <div class="mockup-ai-bubble assistant">She finally opened it. Her hands trembled slightly as she unfolded the yellowed paper...</div>
-          </div>
+        <div class="screen-panel" id="screen-canvas">
+          <img src="screen-canvas.png"
+               alt="Cafezin canvas view: a course with 10 slides laid out in the visual workspace"
+               class="screenshot-img" width="960" loading="lazy" />
+        </div>
+        <div class="screen-panel" id="screen-settings">
+          <img src="screen-settings.png"
+               alt="Cafezin settings: choose between GitHub Copilot, OpenAI, Anthropic, Groq, and Google Gemini"
+               class="screenshot-img" width="960" loading="lazy" />
         </div>
       </div>
     </div>
+    <script>
+      (function () {
+        var tabs = document.querySelectorAll('.screen-tab');
+        tabs.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            tabs.forEach(function (b) { b.classList.remove('active'); });
+            document.querySelectorAll('.screen-panel').forEach(function (p) { p.classList.remove('active'); });
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.target).classList.add('active');
+          });
+        });
+      })();
+    </script>
   </section>
 
   <section class="features" id="features">
@@ -349,6 +344,52 @@
     </div>
   </section>
 
+  <section class="testimonials">
+    <div class="section-inner">
+      <div class="section-label">What users say</div>
+      <h2 class="section-title">Trusted by writers, educators, and creators</h2>
+      <div class="testimonials-grid">
+
+        <div class="testimonial-card">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"I've tried every AI writing tool out there. What pulled me in with Cafezin was being able to see exactly what the AI changed — it marks the edits and I accept or reject each one. Finished two chapters in a week without losing my voice."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-initials">MW</div>
+            <div>
+              <div class="testimonial-name">Marcus W.</div>
+              <div class="testimonial-role">Novelist, 3 published books</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"I prep my lectures using notes I've been building for years. Now I open them inside Cafezin, ask the AI to structure an outline and turn it into slides — and it actually reads the documents I have open. Saves me two hours of prep per class."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-initials">CF</div>
+            <div>
+              <div class="testimonial-name">Carlos F.</div>
+              <div class="testimonial-role">University professor, Computer Science</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"I was using four different tools: one for notes, one for outlines, one for AI, one for slides. Cafezin replaced all of them. My whole research project in one place, with AI that knows what I'm working on."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-initials">AS</div>
+            <div>
+              <div class="testimonial-name">Ana S.</div>
+              <div class="testimonial-role">PhD student, Linguistics</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
   <section class="pricing-preview">
     <div class="section-inner">
       <div class="section-label">Pricing</div>
@@ -379,7 +420,7 @@
             <li>Everything in Free</li>
             <li>Unlimited AI workspace context</li>
             <li>GitHub Copilot, GPT-4o, Claude</li>
-            <li>BYOK — use your own API key</li>
+            <li>Use your own API key (ChatGPT, Claude, Copilot)</li>
             <li>Priority support</li>
           </ul>
           <a href="/pricing" class="btn btn-primary" style="justify-content:center;">
