@@ -392,8 +392,15 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
         return `No matching target found for "${args.target ?? 'all'}". Available targets: ${names}`;
       }
 
+      // Formats that require a shell or the tldraw editor — not available on mobile.
+      const MOBILE_UNSUPPORTED = new Set(['custom', 'git-publish', 'canvas-png', 'canvas-pdf']);
+
       const lines: string[] = [];
       for (const target of toRun) {
+        if (ctx.isMobile && MOBILE_UNSUPPORTED.has(target.format)) {
+          lines.push(`[${target.name}] ⚠ Format "${target.format}" is not supported on mobile (requires shell / canvas editor). Run this target on the desktop.`);
+          continue;
+        }
         try {
           const result = await runExportTarget({
             workspacePath,

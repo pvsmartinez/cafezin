@@ -77,6 +77,12 @@ export interface ToolContext {
   /** Agent that owns locks created by this executor call. */
   agentId?: string;
   /**
+   * When true, the executor is running inside a mobile app (iOS/Android).
+   * Shell-dependent tools (custom export, git-publish, run_command) must be
+   * skipped and should return a human-readable "not supported on mobile" message.
+   */
+  isMobile?: boolean;
+  /**
    * Current in-memory content of the active file (from the editor, not disk).
    * Supplied so patch tools can base diffs on unsaved user edits rather than
    * stale on-disk content, preventing silent overwrite of in-progress work.

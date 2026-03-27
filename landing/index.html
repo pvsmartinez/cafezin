@@ -227,17 +227,32 @@
         <div class="screen-panel active" id="screen-editor">
           <img src="screen-editor.png"
                alt="Cafezin writing editor: book chapter open with AI review panel providing feedback on the right"
-               class="screenshot-img" width="960" loading="lazy" />
+               class="screenshot-img" width="960" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+          <div class="screenshot-placeholder" style="display:none">
+            <div class="screenshot-placeholder-icon">✍️</div>
+            <span>AI Writing editor — screenshot coming soon</span>
+          </div>
         </div>
         <div class="screen-panel" id="screen-canvas">
           <img src="screen-canvas.png"
                alt="Cafezin canvas view: a course with 10 slides laid out in the visual workspace"
-               class="screenshot-img" width="960" loading="lazy" />
+               class="screenshot-img" width="960" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+          <div class="screenshot-placeholder" style="display:none">
+            <div class="screenshot-placeholder-icon">🎞</div>
+            <span>Slides &amp; Canvas view — screenshot coming soon</span>
+          </div>
         </div>
         <div class="screen-panel" id="screen-settings">
           <img src="screen-settings.png"
                alt="Cafezin settings: choose between GitHub Copilot, OpenAI, Anthropic, Groq, and Google Gemini"
-               class="screenshot-img" width="960" loading="lazy" />
+               class="screenshot-img" width="960" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+          <div class="screenshot-placeholder" style="display:none">
+            <div class="screenshot-placeholder-icon">⚙</div>
+            <span>Model settings — screenshot coming soon</span>
+          </div>
         </div>
       </div>
     </div>
@@ -354,9 +369,9 @@
           <div class="testimonial-stars">★★★★★</div>
           <p class="testimonial-text">"I've tried every AI writing tool out there. What pulled me in with Cafezin was being able to see exactly what the AI changed — it marks the edits and I accept or reject each one. Finished two chapters in a week without losing my voice."</p>
           <div class="testimonial-author">
-            <div class="testimonial-initials">MW</div>
+            <img src="avatar-carlos.png" alt="Carlos F." class="testimonial-avatar" />
             <div>
-              <div class="testimonial-name">Marcus W.</div>
+              <div class="testimonial-name">Carlos F.</div>
               <div class="testimonial-role">Novelist, 3 published books</div>
             </div>
           </div>
@@ -366,9 +381,9 @@
           <div class="testimonial-stars">★★★★★</div>
           <p class="testimonial-text">"I prep my lectures using notes I've been building for years. Now I open them inside Cafezin, ask the AI to structure an outline and turn it into slides — and it actually reads the documents I have open. Saves me two hours of prep per class."</p>
           <div class="testimonial-author">
-            <div class="testimonial-initials">CF</div>
+            <img src="avatar-ana.png" alt="Ana S." class="testimonial-avatar" />
             <div>
-              <div class="testimonial-name">Carlos F.</div>
+              <div class="testimonial-name">Ana S.</div>
               <div class="testimonial-role">University professor, Computer Science</div>
             </div>
           </div>
@@ -378,9 +393,9 @@
           <div class="testimonial-stars">★★★★★</div>
           <p class="testimonial-text">"I was using four different tools: one for notes, one for outlines, one for AI, one for slides. Cafezin replaced all of them. My whole research project in one place, with AI that knows what I'm working on."</p>
           <div class="testimonial-author">
-            <div class="testimonial-initials">AS</div>
+            <img src="avatar-arjun.png" alt="Arjun M." class="testimonial-avatar" />
             <div>
-              <div class="testimonial-name">Ana S.</div>
+              <div class="testimonial-name">Arjun M.</div>
               <div class="testimonial-role">PhD student, Linguistics</div>
             </div>
           </div>

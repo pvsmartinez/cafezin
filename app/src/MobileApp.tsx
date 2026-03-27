@@ -219,6 +219,26 @@ export default function MobileApp() {
         return;
       }
 
+      // Normal workspace with git — auto-pull silently in the background.
+      // The workspace is already open and usable; this just keeps it up to date.
+      if (ws.fileTree.length > 0 && ws.hasGit) {
+        const urlForToken = resolvedGitUrl ?? wsGitUrl;
+        const wsEntry = urlForToken
+          ? syncedWorkspaces.find(w => w.gitUrl === urlForToken)
+          : syncedWorkspaces.find(w => {
+              const n = path.replace(/\/+$/, '').split('/').pop();
+              return w.localPath?.replace(/\/+$/, '').split('/').pop() === n;
+            });
+        const token = wsEntry ? (getGitAccountToken(wsEntry.gitAccountLabel) ?? undefined) : undefined;
+        // Fire-and-forget: do not await — workspace is already open and usable.
+        gitPull(path, token).then(async () => {
+          const refreshed = await loadWorkspace(path);
+          setWorkspace(refreshed);
+        }).catch(() => {
+          // Silent: offline or auth error — user can still work locally.
+        });
+      }
+
       // If the workspace opened but is empty AND has a git remote, auto-pull.
       // This happens when the container UUID changes between builds and the local
       // repo needs a fast-forward pull to restore any files that are "missing"

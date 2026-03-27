@@ -61,10 +61,13 @@ You are running inside the Cafezin iOS app. Keep these limitations in mind:
 - Browse the web and fetch URLs
 - Save notes to workspace memory (remember tool)
 - Save tasks for desktop execution (save_desktop_task tool)
+- Export workspace as **PDF** (markdown → PDF, pure JS) or **ZIP** — call export_workspace
+- After exporting, tell the user to open the file in the Files tab (it will be in the outputDir folder)
 
 **What you CANNOT do on mobile:**
 - Run shell commands or scripts (no terminal, no npm/node/python/make)
 - Edit canvas/tldraw files (slides and diagrams are desktop-only)
+- Export as canvas-png, canvas-pdf, custom script, or git-publish (all require shell/canvas)
 - Compile or execute code
 - Access external network APIs from within HTML previews (sandbox restricted)
 - Push to git requiring SSH keys (HTTPS token auth only)
@@ -366,6 +369,7 @@ export default function MobileCopilot({
       const executor = buildToolExecutor({
         workspacePath: workspace.path,
         canvasEditor: { current: null }, // no canvas on mobile
+        isMobile: true,
         onFileWritten,
       });
       await runCopilotAgent(
