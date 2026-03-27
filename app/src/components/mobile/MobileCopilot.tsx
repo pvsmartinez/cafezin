@@ -167,6 +167,7 @@ interface MobileCopilotProps {
   /** Relative path of the currently open file — used as context */
   contextFilePath?: string;
   contextFileContent?: string;
+  secretsSynced?: number;
   /** Called when agent writes/patches a file so the file tree can refresh */
   onFileWritten?: (path: string) => void;
   onOpenFileReference?: (relPath: string, lineNo?: number) => void | Promise<void>;
@@ -177,6 +178,7 @@ export default function MobileCopilot({
   contextFilePath,
   contextFileContent,
   onFileWritten,
+  secretsSynced,
   onOpenFileReference,
 }: MobileCopilotProps) {
   const copilotOAuthClientId = workspace?.config.githubOAuth?.clientId?.trim() || undefined;
@@ -203,7 +205,7 @@ export default function MobileCopilot({
       return;
     }
     setAuthStatus(getStoredOAuthToken(copilotOAuthClientId) ? 'authenticated' : 'unauthenticated');
-  }, [copilotOAuthClientId]);
+  }, [copilotOAuthClientId, secretsSynced]);
 
   async function handleSignIn() {
     setAuthError(null);

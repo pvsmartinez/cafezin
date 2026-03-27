@@ -427,6 +427,27 @@ mod git_cli {
         else { Err(String::from_utf8_lossy(&out.stderr).to_string()) }
     }
 
+    /// Apply a unified diff patch in reverse (i.e. revert a specific hunk).
+    pub fn git_apply_patch(path: String, patch: String) -> Result<String, String> {
+        use std::io::Write;
+        use std::process::Stdio;
+        let mut child = Command::new("git")
+            .args(["apply", "--reverse", "-"])
+            .current_dir(&path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        if let Some(stdin) = child.stdin.take() {
+            let mut stdin = stdin;
+            stdin.write_all(patch.as_bytes()).ok();
+        }
+        let out = child.wait_with_output().map_err(|e| e.to_string())?;
+        if out.status.success() { Ok("applied".into()) }
+        else { Err(String::from_utf8_lossy(&out.stderr).to_string()) }
+    }
+
     pub fn git_checkout_branch(path: String, branch: String, token: Option<String>) -> Result<String, String> {
         // Fetch the latest from origin (so the branch exists locally if it's new)
         let _ = Command::new("git")
@@ -921,6 +942,28 @@ mod git_native {
         Ok("reverted".into())
     }
 
+    /// Apply a unified diff patch in reverse (revert a specific hunk).
+    /// Falls back to the CLI variant because libgit2 does not expose apply.
+    pub fn git_apply_patch(path: String, patch: String) -> Result<String, String> {
+        use std::io::Write;
+        use std::process::Stdio;
+        let mut child = std::process::Command::new("git")
+            .args(["apply", "--reverse", "-"])
+            .current_dir(&path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        if let Some(stdin) = child.stdin.take() {
+            let mut stdin = stdin;
+            stdin.write_all(patch.as_bytes()).ok();
+        }
+        let out = child.wait_with_output().map_err(|e| e.to_string())?;
+        if out.status.success() { Ok("applied".into()) }
+        else { Err(String::from_utf8_lossy(&out.stderr).to_string()) }
+    }
+
     pub fn git_checkout_branch(path: String, branch: String, token: Option<String>) -> Result<String, String> {
         let repo = Repository::open(&path).map_err(|e| e.to_string())?;
 
@@ -1095,6 +1138,8 @@ fn git_get_remote(path: String) -> Result<String, String> { git::git_get_remote(
 fn git_set_remote(path: String, url: String) -> Result<String, String> { git::git_set_remote(path, url) }
 #[tauri::command]
 fn git_checkout_file(path: String, file: String) -> Result<String, String> { git::git_checkout_file(path, file) }
+#[tauri::command]
+fn git_apply_patch(path: String, patch: String) -> Result<String, String> { git::git_apply_patch(path, patch) }
 #[tauri::command]
 async fn git_checkout_branch(path: String, branch: String, token: Option<String>) -> Result<String, String> {
     tokio::task::spawn_blocking(move || git::git_checkout_branch(path, branch, token))
@@ -1618,7 +1663,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo])
+        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_apply_patch, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

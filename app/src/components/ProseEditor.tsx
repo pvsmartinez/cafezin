@@ -25,6 +25,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorHandle } from './Editor';
 import type { AISelectionContext, AITextRevert } from '../types/index';
+import { findAIMarkRange } from '../utils/aiMarkMatch';
 import './ProseEditor.css';
 
 // ── Text-search helpers ───────────────────────────────────────────────────────
@@ -351,9 +352,17 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
 
       getMarkCoords(target: { text: string; revert?: AITextRevert } | string) {
         if (!editor) return null;
-        const needle = typeof target === 'string' ? target : target.text;
-        const range = findTextInDoc(editor.state.doc, needle);
-        if (!range) return null;
+        // Use findAIMarkRange (same logic as CM6) so revert.afterText is tried
+        // before mark.text — keeps ProseEditor and CodeMirror in sync.
+        const docText = editor.state.doc.textContent;
+        const markTarget = typeof target === 'string' ? { text: target } : target;
+        const charRange = findAIMarkRange(docText, markTarget);
+        if (!charRange) return null;
+        const range = {
+          from: charToDocPos(editor.state.doc, charRange.from),
+          to: charToDocPos(editor.state.doc, charRange.to),
+        };
+        if (range.from === -1 || range.to === -1) return null;
         try {
           const startCoords = editor.view.coordsAtPos(range.from);
           const endCoords   = editor.view.coordsAtPos(range.to);

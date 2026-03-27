@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, Warning, ArrowsClockwise, CaretDown, CaretRight, ArrowUUpLeft } from '@phosphor-icons/react';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
@@ -17,11 +17,96 @@ interface DiffResult {
   diff_truncated?: boolean;
 }
 
-// Parse a "git status --short" line into flag + filename
+interface Hunk {
+  header: string;
+  lines: string[];
+  patch: string;
+}
+
+interface FileDiff {
+  filePath: string;
+  headerLines: string[];
+  hunks: Hunk[];
+}
+
+function getFlagTone(flag: string) {
+  if (flag === 'M' || flag === 'MM') return 'modified';
+  if (flag === 'A' || flag === 'AM') return 'added';
+  if (flag === 'D') return 'deleted';
+  if (flag === '??') return 'untracked';
+  if (flag === 'R') return 'renamed';
+  return 'other';
+}
+
+function formatHunkCount(count: number) {
+  return `${count} ${count === 1 ? 'change' : 'changes'}`;
+}
+
 function parseStatusLine(line: string): { flag: string; file: string } {
-  const flag = line.slice(0, 2).trim();
-  const file = line.slice(3);
-  return { flag, file };
+  return {
+    flag: line.slice(0, 2).trim(),
+    file: line.slice(3),
+  };
+}
+
+function parseDiff(raw: string): FileDiff[] {
+  const lines = raw.split('\n');
+  const files: FileDiff[] = [];
+  let currentFile: FileDiff | null = null;
+  let currentHunkHeader = '';
+  let currentHunkLines: string[] = [];
+
+  const flushHunk = () => {
+    if (!currentFile || !currentHunkHeader) return;
+    const patch = [...currentFile.headerLines, currentHunkHeader, ...currentHunkLines].join('\n') + '\n';
+    currentFile.hunks.push({
+      header: currentHunkHeader,
+      lines: [...currentHunkLines],
+      patch,
+    });
+    currentHunkHeader = '';
+    currentHunkLines = [];
+  };
+
+  const flushFile = () => {
+    if (!currentFile) return;
+    flushHunk();
+    files.push(currentFile);
+    currentFile = null;
+  };
+
+  for (const line of lines) {
+    if (line.startsWith('diff --git ')) {
+      flushFile();
+      const match = line.match(/diff --git a\/.+ b\/(.+)$/);
+      currentFile = {
+        filePath: match ? match[1] : line,
+        headerLines: [line],
+        hunks: [],
+      };
+      continue;
+    }
+
+    if (!currentFile) continue;
+
+    if (!currentHunkHeader && (line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ '))) {
+      currentFile.headerLines.push(line);
+      continue;
+    }
+
+    if (line.startsWith('@@ ')) {
+      flushHunk();
+      currentHunkHeader = line;
+      continue;
+    }
+
+    if (currentHunkHeader) {
+      currentHunkLines.push(line);
+    }
+  }
+
+  flushFile();
+  return files;
 }
 
 function StatusFlag({ flag }: { flag: string }) {
@@ -42,27 +127,152 @@ function StatusFlag({ flag }: { flag: string }) {
   return <span className={`sm-flag ${cls}`}>{label}</span>;
 }
 
-// Render a unified diff with syntax-highlighted lines
-function DiffView({ diff }: { diff: string }) {
-  if (!diff.trim()) return null;
+function classifyDiffLine(line: string) {
+  if (line.startsWith('+')) return 'sm-diff-add';
+  if (line.startsWith('-')) return 'sm-diff-del';
+  return 'sm-diff-ctx';
+}
+
+function splitDiffLine(line: string) {
+  if (line.startsWith('+') || line.startsWith('-') || line.startsWith(' ')) {
+    return { gutter: line[0], text: line.slice(1) || ' ' };
+  }
+  return { gutter: ' ', text: line || ' ' };
+}
+
+function HunkView({
+  hunk,
+  reverting,
+  disabled,
+  onRevert,
+}: {
+  hunk: Hunk;
+  reverting: boolean;
+  disabled: boolean;
+  onRevert: () => void;
+}) {
+  return (
+    <div className="sm-hunk">
+      <div className="sm-hunk-header">
+        <div className="sm-hunk-header-text">
+          <span className="sm-hunk-badge">Hunk</span>
+          <span className="sm-hunk-label">{hunk.header}</span>
+        </div>
+        <button
+          type="button"
+          className={`sm-inline-revert-btn${reverting ? ' reverting' : ''}`}
+          onClick={onRevert}
+          disabled={disabled || reverting}
+          title="Reverter este trecho"
+        >
+          <ArrowUUpLeft weight="thin" size={12} />
+          <span>{reverting ? 'Reverting…' : 'Revert hunk'}</span>
+        </button>
+      </div>
+
+      <div className="sm-hunk-lines">
+        {hunk.lines.map((line, index) => {
+          const { gutter, text } = splitDiffLine(line);
+          return (
+            <div key={index} className={`sm-diff-line ${classifyDiffLine(line)}`}>
+              <span className="sm-diff-gutter">{gutter}</span>
+              <span className="sm-diff-text">{text}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function FileDiffSection({
+  flag,
+  fileDiff,
+  syncing,
+  revertingFile,
+  workspacePath,
+  onRevertFile,
+  onRefresh,
+  onError,
+}: {
+  flag: string;
+  fileDiff: FileDiff;
+  syncing: boolean;
+  revertingFile: boolean;
+  workspacePath: string;
+  onRevertFile: (file: string) => void;
+  onRefresh: () => void;
+  onError: (message: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(() => fileDiff.hunks.length <= 1);
+  const [revertingHunks, setRevertingHunks] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    setExpanded(fileDiff.hunks.length <= 1);
+  }, [fileDiff.filePath, fileDiff.hunks.length]);
+
+  async function handleRevertHunk(hunk: Hunk, index: number) {
+    setRevertingHunks((prev) => new Set(prev).add(index));
+    try {
+      await invoke('git_apply_patch', { path: workspacePath, patch: hunk.patch });
+      onRefresh();
+    } catch (error) {
+      onError(`Revert failed: ${String(error)}`);
+    } finally {
+      setRevertingHunks((prev) => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
+    }
+  }
 
   return (
-    <div className="sm-diff">
-      {diff.split('\n').map((line, i) => {
-        const cls =
-          line.startsWith('+++') || line.startsWith('---') ? 'sm-diff-file' :
-          line.startsWith('+') ? 'sm-diff-add' :
-          line.startsWith('-') ? 'sm-diff-del' :
-          line.startsWith('@@') ? 'sm-diff-hunk' :
-          line.startsWith('diff ') || line.startsWith('index ') ? 'sm-diff-meta' :
-          'sm-diff-ctx';
-        return (
-          <div key={i} className={`sm-diff-line ${cls}`}>
-            {line || ' '}
-          </div>
-        );
-      })}
-    </div>
+    <section className="sm-file-diff" data-flag={getFlagTone(flag)}>
+      <div className="sm-file-diff-header">
+        <button
+          type="button"
+          className="sm-file-diff-toggle"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <span className="sm-file-diff-caret">
+            {expanded ? <CaretDown weight="thin" size={12} /> : <CaretRight weight="thin" size={12} />}
+          </span>
+          <StatusFlag flag={flag} />
+          <span className="sm-file-diff-name">{fileDiff.filePath}</span>
+          <span className="sm-hunk-count">{formatHunkCount(fileDiff.hunks.length)}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`sm-file-revert-btn${revertingFile ? ' reverting' : ''}`}
+          onClick={() => onRevertFile(fileDiff.filePath)}
+          disabled={syncing || revertingFile}
+          title="Reverter arquivo inteiro"
+        >
+          <ArrowUUpLeft weight="thin" size={13} />
+          <span>{revertingFile ? 'Reverting…' : 'Revert file'}</span>
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="sm-hunks">
+          {fileDiff.hunks.length > 0 ? (
+            fileDiff.hunks.map((hunk, index) => (
+              <HunkView
+                key={`${fileDiff.filePath}-${index}`}
+                hunk={hunk}
+                reverting={revertingHunks.has(index)}
+                disabled={syncing || revertingFile}
+                onRevert={() => void handleRevertHunk(hunk, index)}
+              />
+            ))
+          ) : (
+            <div className="sm-no-hunks">Nenhum trecho parseado para este arquivo.</div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -71,46 +281,53 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DiffResult | null>(null);
+  const [fileDiffs, setFileDiffs] = useState<FileDiff[]>([]);
   const [commitMsg, setCommitMsg] = useState('');
-  const [reverting, setReverting] = useState<Set<string>>(new Set());
-  // Diff is collapsed by default — avoids rendering thousands of lines on open
-  const [diffExpanded, setDiffExpanded] = useState(false);
+  const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
+
+  const fileDiffByPath = useMemo(
+    () => new Map(fileDiffs.map((fileDiff) => [fileDiff.filePath, fileDiff])),
+    [fileDiffs],
+  );
 
   function fetchDiff() {
     setResult(null);
+    setFileDiffs([]);
     setError(null);
     setLoading(true);
     invoke<DiffResult>('git_diff', { path: workspacePath })
-      .then((r) => setResult(r))
-      .catch((e) => setError(String(e)))
+      .then((next) => {
+        setResult(next);
+        setFileDiffs(parseDiff(next.diff));
+      })
+      .catch((nextError) => setError(String(nextError)))
       .finally(() => setLoading(false));
   }
 
-  // Fetch diff when modal opens
   useEffect(() => {
     if (!open) return;
     setSyncing(false);
-    setReverting(new Set());
-    setDiffExpanded(false);
-    const ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    setCommitMsg(`sync: ${ts}`);
+    setRevertingFiles(new Set());
+    const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    setCommitMsg(`sync: ${timestamp}`);
     fetchDiff();
   }, [open, workspacePath]);
 
-  async function handleRevert(file: string) {
-    setReverting((prev) => new Set([...prev, file]));
+  async function handleRevertFile(file: string) {
+    setRevertingFiles((prev) => new Set(prev).add(file));
     try {
       await invoke('git_checkout_file', { path: workspacePath, file });
-      // Re-fetch diff to reflect the revert
       fetchDiff();
-    } catch (e) {
-      setError(`Revert failed: ${String(e)}`);
+    } catch (nextError) {
+      setError(`Revert failed: ${String(nextError)}`);
     } finally {
-      setReverting((prev) => { const next = new Set(prev); next.delete(file); return next; });
+      setRevertingFiles((prev) => {
+        const next = new Set(prev);
+        next.delete(file);
+        return next;
+      });
     }
   }
-
-  if (!open) return null;
 
   async function handleConfirm() {
     if (syncing) return;
@@ -119,111 +336,128 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
     try {
       await onConfirm(commitMsg || `sync: ${new Date().toISOString().slice(0, 19).replace('T', ' ')}`);
       onClose();
-    } catch (e) {
-      setError(String(e));
+    } catch (nextError) {
+      setError(String(nextError));
       setSyncing(false);
     }
   }
 
+  if (!open) return null;
+
   const hasChanges = (result?.files.length ?? 0) > 0;
 
   return createPortal(
-    <div className="sm-overlay" onClick={(e) => { if (e.target === e.currentTarget && !syncing) onClose(); }}>
+    <div className="sm-overlay" onClick={(event) => { if (event.target === event.currentTarget && !syncing) onClose(); }}>
       <div className="sm-modal">
-        {/* Header */}
         <div className="sm-header">
           <span className="sm-title">
-            <ArrowsClockwise weight="thin" size={14} /> Sync changes
+            <ArrowsClockwise weight="thin" size={14} />
+            Sync changes
             {result && (
               <span className="sm-file-count">
                 {result.files.length} file{result.files.length !== 1 ? 's' : ''}
               </span>
             )}
+            {result?.diff_truncated && (
+              <span className="sm-diff-truncated-badge" title="Diff maior que 100 KB; exibindo só o início">
+                truncated
+              </span>
+            )}
           </span>
-          <button className="sm-close" onClick={onClose} disabled={syncing}><X weight="thin" size={14} /></button>
+          <button type="button" className="sm-close" onClick={onClose} disabled={syncing}>
+            <X weight="thin" size={14} />
+          </button>
         </div>
 
-        {/* Body */}
         <div className="sm-body">
-          {loading && (
-            <div className="sm-loading">Fetching changes…</div>
-          )}
+          {loading && <div className="sm-loading">Fetching changes…</div>}
 
           {!loading && error && (
-            <div className="sm-error"><Warning weight="thin" size={14} /> {error}</div>
+            <div className="sm-error">
+              <Warning weight="thin" size={14} />
+              {error}
+            </div>
           )}
 
           {!loading && result && (
-            <>
-              {/* File list */}
-              {result.files.length === 0 ? (
-                <div className="sm-empty">Nothing to sync — working tree is clean.</div>
-              ) : (
-                <div className="sm-files">
-                  <div className="sm-section-label">Changed files</div>
-                  {result.files.map((line, i) => {
-                    const { flag, file } = parseStatusLine(line);
-                    const isReverting = reverting.has(file);
-                    return (
-                      <div key={i} className="sm-file-row">
-                        <StatusFlag flag={flag} />
-                        <span className="sm-file-name">{file}</span>
-                        {flag !== '??' && (
-                          <button
-                            className={`sm-revert-btn${isReverting ? ' reverting' : ''}`}
-                            onClick={() => handleRevert(file)}
-                            disabled={isReverting || syncing}
-                            title="Discard changes"
-                          >
-                              {isReverting ? '…' : <ArrowUUpLeft weight="thin" size={12} />}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+            result.files.length === 0 ? (
+              <div className="sm-empty">Nothing to sync — working tree is clean.</div>
+            ) : (
+              <div className="sm-file-list">
+                <div className="sm-section-label">Changed files</div>
+                {result.files.map((line, index) => {
+                  const { flag, file } = parseStatusLine(line);
+                  const fileDiff = fileDiffByPath.get(file);
+                  const revertingFile = revertingFiles.has(file);
 
-              {/* Diff — collapsed by default to avoid rendering thousands of lines on open */}
-              {result.diff.trim() && (
-                <div className="sm-diff-section">
-                  <button
-                    className="sm-section-label sm-section-label--toggle"
-                    onClick={() => setDiffExpanded((v) => !v)}
-                    type="button"
-                  >
-                    <span className="sm-section-label-arrow">{diffExpanded ? <CaretDown weight="thin" size={12} /> : <CaretRight weight="thin" size={12} />}</span>
-                    Diff
-                    {result.diff_truncated && (
-                      <span className="sm-diff-truncated-badge" title="Diff is larger than 100 KB — showing first 100 KB only">
-                        truncated
-                      </span>
-                    )}
-                  </button>
-                  {diffExpanded && <DiffView diff={result.diff} />}
-                </div>
-              )}
-            </>
+                  if (!fileDiff) {
+                    return (
+                      <section key={`${file}-${index}`} className="sm-file-diff" data-flag={getFlagTone(flag)}>
+                        <div className="sm-file-diff-header">
+                          <div className="sm-file-diff-toggle sm-file-diff-toggle--inert">
+                            <span className="sm-file-diff-caret" />
+                            <StatusFlag flag={flag} />
+                            <span className="sm-file-diff-name">{file}</span>
+                            <span className="sm-hunk-count sm-hunk-count--muted">No parsed diff</span>
+                          </div>
+                          {flag !== '??' && (
+                            <button
+                              type="button"
+                              className={`sm-file-revert-btn${revertingFile ? ' reverting' : ''}`}
+                              onClick={() => void handleRevertFile(file)}
+                              disabled={syncing || revertingFile}
+                              title="Reverter arquivo inteiro"
+                            >
+                              <ArrowUUpLeft weight="thin" size={13} />
+                              <span>{revertingFile ? 'Reverting…' : 'Revert file'}</span>
+                            </button>
+                          )}
+                        </div>
+                      </section>
+                    );
+                  }
+
+                  return (
+                    <FileDiffSection
+                      key={`${file}-${index}`}
+                      flag={flag}
+                      fileDiff={fileDiff}
+                      syncing={syncing}
+                      revertingFile={revertingFile}
+                      workspacePath={workspacePath}
+                      onRevertFile={(targetFile) => void handleRevertFile(targetFile)}
+                      onRefresh={fetchDiff}
+                      onError={setError}
+                    />
+                  );
+                })}
+              </div>
+            )
           )}
         </div>
 
-        {/* Footer */}
         <div className="sm-footer">
           <input
             className="sm-commit-input"
             value={commitMsg}
-            onChange={(e) => setCommitMsg(e.target.value)}
+            onChange={(event) => setCommitMsg(event.target.value)}
             placeholder="Commit message…"
             disabled={syncing}
-            onKeyDown={(e) => { if (e.key === 'Enter' && hasChanges) handleConfirm(); }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && hasChanges) {
+                void handleConfirm();
+              }
+            }}
           />
+
           <div className="sm-footer-actions">
-            <button className="sm-btn sm-btn-cancel" onClick={onClose} disabled={syncing}>
+            <button type="button" className="sm-btn sm-btn-cancel" onClick={onClose} disabled={syncing}>
               Cancel
             </button>
             <button
+              type="button"
               className={`sm-btn sm-btn-confirm${syncing ? ' syncing' : ''}`}
-              onClick={handleConfirm}
+              onClick={() => void handleConfirm()}
               disabled={syncing || loading}
             >
               <ArrowsClockwise weight="thin" size={13} />

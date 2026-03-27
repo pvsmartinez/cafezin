@@ -16,7 +16,7 @@ import { markWorkspaceMemoryEntriesStale } from './services/memoryMetadata';
 
 import BottomPanel, { type FileMeta } from './components/BottomPanel';
 import { useDragResize } from './hooks/useDragResize';
-import { syncSecretsFromCloud } from './services/apiSecrets';
+import { syncSecretsFromCloud, saveApiSecret } from './services/apiSecrets';
 
 import { resolveCopilotModelForChatCompletions } from './services/copilot';
 import { useTabManager } from './hooks/useTabManager';
@@ -543,8 +543,14 @@ export default function App() {
   useAppSession();
 
   // On startup, silently pull any secrets already saved to Supabase.
-  // No-ops when not logged in or offline.
-  useEffect(() => { syncSecretsFromCloud(); }, []);
+  // Also migrate any existing Copilot token from localStorage to the cloud
+  // (one-time migration for tokens stored before cloud-sync was added).
+  useEffect(() => {
+    syncSecretsFromCloud().then(() => {
+      const token = localStorage.getItem('copilot-github-oauth-token');
+      if (token) void saveApiSecret('copilot-github-oauth-token', token);
+    });
+  }, []);
 
   // Apply/remove light theme class on body
   useEffect(() => {

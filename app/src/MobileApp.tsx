@@ -79,6 +79,9 @@ export default function MobileApp() {
   const [activeTab, setActiveTab] = useState<Tab>('files');
   const [openFile, setOpenFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
+  // Incremented after every syncSecretsFromCloud() completes so MobileCopilot
+  // can re-check auth status if the token arrived after mount.
+  const [secretsSynced, setSecretsSynced] = useState(0);
 
   // Form state — local only, not part of auth business logic
   const [emailInput, setEmailInput] = useState('');
@@ -130,7 +133,7 @@ export default function MobileApp() {
     onAuthSuccess: () => {
       toast({ message: 'Login realizado com sucesso!', type: 'success' });
       // Pull all synced secrets (Groq key, Copilot token, etc.) right after login
-      void syncSecretsFromCloud();
+      void syncSecretsFromCloud().then(() => setSecretsSynced(c => c + 1));
     },
   });
 
@@ -142,7 +145,7 @@ export default function MobileApp() {
 
   // Pull secrets from cloud on startup (covers the case where the session
   // was already active from a previous launch — no login event fires)
-  useEffect(() => { void syncSecretsFromCloud(); }, []);
+  useEffect(() => { void syncSecretsFromCloud().then(() => setSecretsSynced(c => c + 1)); }, []);
 
   // ── Bootstrap: load last workspace from localStorage ─────────────────────
   useEffect(() => {
@@ -907,6 +910,7 @@ export default function MobileApp() {
             contextFilePath={openFile ?? undefined}
             contextFileContent={fileContent ?? undefined}
             onFileWritten={refreshWorkspace}
+            secretsSynced={secretsSynced}
             onOpenFileReference={async (relPath) => {
               await handleFileSelect(relPath);
               setActiveTab('files');

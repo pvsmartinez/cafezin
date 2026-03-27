@@ -96,17 +96,18 @@ export default function AIMarkOverlay({
     const raf = requestAnimationFrame(() => recalculate());
     const t100 = setTimeout(() => recalculate(), 100);
     const t400 = setTimeout(() => recalculate(), 400);
-    // Recalculate when the editor scrolls (marks move with content)
-    const scroller = containerRef.current?.querySelector('.cm-scroller');
+    // Recalculate when ANY descendant scrolls (CM6 uses .cm-scroller, Tiptap
+    // uses its own element) — capture:true catches scroll from any child.
+    const container = containerRef.current;
     const onScroll = () => recalculate();
-    scroller?.addEventListener('scroll', onScroll, { passive: true });
+    container?.addEventListener('scroll', onScroll, { passive: true, capture: true });
     // Recalculate on window resize (container rect changes)
     window.addEventListener('resize', onScroll, { passive: true });
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(t100);
       clearTimeout(t400);
-      scroller?.removeEventListener('scroll', onScroll);
+      container?.removeEventListener('scroll', onScroll, { capture: true });
       window.removeEventListener('resize', onScroll);
     };
   }, [visible, recalculate, containerRef]);
