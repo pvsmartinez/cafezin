@@ -136,6 +136,7 @@
     swap("js-hero-alt", MAC_URL, "mac");
     swap("js-cta-primary", WIN_URL, "windows");
     swap("js-cta-alt", MAC_URL, "mac");
+    swap("js-pricing-free", WIN_URL, "windows");
 
     // Compare/persona pages: se não há botão Windows explícito, troca qualquer
     // .btn-download apontando para .dmg → .exe (ex: CTA sections das compare pages).
