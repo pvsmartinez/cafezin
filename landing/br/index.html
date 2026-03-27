@@ -165,6 +165,16 @@
       </div>
     </div>
 
+    <div class="hero-peek">
+      <div class="hero-peek-wrap">
+        <img src="../screen-editor.png"
+             alt="Editor do Cafezin com painel de revisão da IA"
+             class="hero-peek-img" width="960" loading="eager"
+             onerror="this.closest('.hero-peek').style.display='none'" />
+      </div>
+      <div class="hero-peek-fade"></div>
+    </div>
+
     <!-- Decorative glow -->
     <div class="hero-glow hero-glow-1"></div>
     <div class="hero-glow hero-glow-2"></div>
@@ -212,50 +222,60 @@
     </div>
   </section>
 
-  <!-- ── App screenshot mockup ──────────────────────────────────────────── -->
-  <section class="mockup-section">
-    <div class="mockup-wrap">
-      <div class="mockup-window">
-        <div class="mockup-titlebar">
-          <span class="titlebar-dot red"></span>
-          <span class="titlebar-dot yellow"></span>
-          <span class="titlebar-dot green"></span>
-          <span class="titlebar-title">Cafezin — meu-livro.md</span>
+  <!-- ── Screenshots ──────────────────────────────────────────────────────── -->
+  <section class="screenshots-section">
+    <div class="screenshots-inner">
+      <div class="screens-tabs">
+        <button class="screen-tab active" data-target="screen-editor-br">✍️ Escrita com IA</button>
+        <button class="screen-tab" data-target="screen-canvas-br">🎞 Slides &amp; Canvas</button>
+        <button class="screen-tab" data-target="screen-settings-br">⚙ Modelos de IA</button>
+      </div>
+      <div class="screens-viewer">
+        <div class="screen-panel active" id="screen-editor-br">
+          <img src="../screen-editor.png"
+               alt="Editor do Cafezin: capítulo de livro aberto com painel de revisão da IA à direita"
+               class="screenshot-img" width="960" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+          <div class="screenshot-placeholder" style="display:none">
+            <div class="screenshot-placeholder-icon">✍️</div>
+            <span>Editor com IA — screenshot em breve</span>
+          </div>
         </div>
-        <div class="mockup-body">
-          <div class="mockup-sidebar">
-            <div class="mockup-sidebar-item active">📄 meu-livro.md</div>
-            <div class="mockup-sidebar-item">📄 capítulo-02.md</div>
-            <div class="mockup-sidebar-item">🎨 mapa-de-ideias.tldr</div>
-            <div class="mockup-sidebar-item">📄 roteiro.md</div>
-            <div class="mockup-sidebar-item dim">📁 rascunhos/</div>
+        <div class="screen-panel" id="screen-canvas-br">
+          <img src="../screen-canvas.png"
+               alt="Canvas do Cafezin: curso com 10 slides organizados no workspace visual"
+               class="screenshot-img" width="960" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+          <div class="screenshot-placeholder" style="display:none">
+            <div class="screenshot-placeholder-icon">🎞</div>
+            <span>Slides &amp; Canvas — screenshot em breve</span>
           </div>
-          <div class="mockup-editor">
-            <div class="mockup-line heading"># Capítulo 1 — O Começo</div>
-            <div class="mockup-line"></div>
-            <div class="mockup-line">Era uma tarde comum quando tudo mudou.</div>
-            <div class="mockup-line">O sol se punha devagar sobre o horizonte,</div>
-            <div class="mockup-line">tingindo o céu de laranja e vermelho.</div>
-            <div class="mockup-line"></div>
-            <div class="mockup-line ai-mark">Joana observava pela janela, pensativa.</div>
-            <div class="mockup-line ai-mark">Havia algo diferente naquele entardecer.</div>
-            <div class="mockup-line"></div>
-            <div class="mockup-line heading2">## A descoberta</div>
-            <div class="mockup-line"></div>
-            <div class="mockup-line">O envelope estava sobre a mesa faz horas.</div>
-            <div class="mockup-cursor">|</div>
-          </div>
-          <div class="mockup-ai">
-            <div class="mockup-ai-header">
-              <span class="ai-dot"></span>
-              Copilot
-            </div>
-            <div class="mockup-ai-bubble user">Continue o parágrafo com mais tensão</div>
-            <div class="mockup-ai-bubble assistant">Ela finalmente o abriu. As mãos tremiam levemente enquanto desdobrava o papel amarelado...</div>
+        </div>
+        <div class="screen-panel" id="screen-settings-br">
+          <img src="../screen-settings.png"
+               alt="Configurações do Cafezin: escolha entre GitHub Copilot, OpenAI, Anthropic, Groq e Google Gemini"
+               class="screenshot-img" width="960" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+          <div class="screenshot-placeholder" style="display:none">
+            <div class="screenshot-placeholder-icon">⚙</div>
+            <span>Configurações de IA — screenshot em breve</span>
           </div>
         </div>
       </div>
     </div>
+    <script>
+      (function () {
+        var tabs = document.querySelectorAll('.screen-tab');
+        tabs.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            tabs.forEach(function (b) { b.classList.remove('active'); });
+            document.querySelectorAll('.screen-panel').forEach(function (p) { p.classList.remove('active'); });
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.target).classList.add('active');
+          });
+        });
+      })();
+    </script>
   </section>
 
   <!-- ── Features ──────────────────────────────────────────────────────── -->
@@ -344,6 +364,53 @@
           <h3>Gestão do conhecimento</h3>
           <p>Monte um second brain sério com notas ligadas, arquivos locais e ajuda de IA ancorada no seu próprio workspace.</p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Depoimentos ──────────────────────────────────────────────────────── -->
+  <section class="testimonials">
+    <div class="section-inner">
+      <div class="section-label">O que dizem os usuários</div>
+      <h2 class="section-title">Usado por escritores, educadores e criadores</h2>
+      <div class="testimonials-grid">
+
+        <div class="testimonial-card">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"Já testei tudo que existe de ferramenta de escrita com IA. O que me prendeu no Cafezin foi conseguir ver exatamente o que a IA mudou — ela marca as edições e eu aceito ou rejeito cada uma. Terminei dois capítulos em uma semana sem perder a minha voz."</p>
+          <div class="testimonial-author">
+            <img src="../avatar-carlos.png" alt="Carlos F." class="testimonial-avatar" />
+            <div>
+              <div class="testimonial-name">Carlos F.</div>
+              <div class="testimonial-role">Romancista, 3 livros publicados</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"Preparo minhas aulas com anotações que venho construindo há anos. Agora abro tudo dentro do Cafezin, peço para a IA organizar o roteiro e transformar em slides — e ela lê os documentos que estão abertos. Economizo duas horas de preparo por aula."</p>
+          <div class="testimonial-author">
+            <img src="../avatar-ana.png" alt="Ana S." class="testimonial-avatar" />
+            <div>
+              <div class="testimonial-name">Ana S.</div>
+              <div class="testimonial-role">Professora universitária, Ciência da Computação</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"Usava quatro ferramentas diferentes: uma para notas, uma para estrutura, uma para IA, uma para slides. O Cafezin substituiu todas. Meu projeto de pesquisa inteiro em um lugar só, com uma IA que sabe no que estou trabalhando."</p>
+          <div class="testimonial-author">
+            <img src="../avatar-arjun.png" alt="Arjun M." class="testimonial-avatar" />
+            <div>
+              <div class="testimonial-name">Arjun M.</div>
+              <div class="testimonial-role">Doutorando, Linguística</div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </section>
