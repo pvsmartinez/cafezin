@@ -140,6 +140,132 @@ function splitDiffLine(line: string) {
   return { gutter: ' ', text: line || ' ' };
 }
 
+// ── Inline word-level diff ────────────────────────────────────
+
+type Segment = { text: string; highlighted: boolean };
+
+function tokenizeWords(text: string): string[] {
+  return text.split(/(\s+)/).filter((s) => s.length > 0);
+}
+
+/**
+ * LCS-based word diff between two strings.
+ * Returns highlighted segments for each side, or null if lines are too
+ * dissimilar (which would highlight nearly everything, defeating the purpose).
+ */
+function computeInlineDiff(
+  oldText: string,
+  newText: string,
+): { oldSegs: Segment[]; newSegs: Segment[] } | null {
+  if (oldText === newText) return null;
+
+  const ot = tokenizeWords(oldText);
+  const nt = tokenizeWords(newText);
+
+  // Guard against O(m*n) blowup on huge lines
+  if (ot.length * nt.length > 20000) return null;
+
+  const m = ot.length;
+  const n = nt.length;
+  const stride = n + 1;
+  const dp = new Uint16Array((m + 1) * stride);
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i * stride + j] =
+        ot[i - 1] === nt[j - 1]
+          ? dp[(i - 1) * stride + (j - 1)] + 1
+          : Math.max(dp[(i - 1) * stride + j], dp[i * stride + (j - 1)]);
+    }
+  }
+
+  const lcsLen = dp[m * stride + n];
+  // Skip if lines share less than 25% of tokens — the highlight would be noise
+  if (m + n > 0 && (2 * lcsLen) / (m + n) < 0.25) return null;
+
+  // Backtrack to produce segments
+  const oldSegs: Segment[] = [];
+  const newSegs: Segment[] = [];
+  let i = m;
+  let j = n;
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && ot[i - 1] === nt[j - 1]) {
+      oldSegs.unshift({ text: ot[i - 1], highlighted: false });
+      newSegs.unshift({ text: nt[j - 1], highlighted: false });
+      i--;
+      j--;
+    } else if (
+      j > 0 &&
+      (i === 0 || dp[i * stride + (j - 1)] >= dp[(i - 1) * stride + j])
+    ) {
+      newSegs.unshift({ text: nt[j - 1], highlighted: true });
+      j--;
+    } else {
+      oldSegs.unshift({ text: ot[i - 1], highlighted: true });
+      i--;
+    }
+  }
+
+  return { oldSegs, newSegs };
+}
+
+type EnrichedLine = { rawLine: string; inlineSegs?: Segment[] };
+
+/**
+ * Pairs consecutive blocks of deleted/added lines and computes inline diffs
+ * for each matched pair. Only pairs when counts match to avoid misleading diffs.
+ */
+function enrichHunkLines(lines: string[]): EnrichedLine[] {
+  const result: EnrichedLine[] = lines.map((rawLine) => ({ rawLine }));
+  let i = 0;
+
+  while (i < lines.length) {
+    const delStart = i;
+    while (i < lines.length && lines[i].startsWith('-')) i++;
+    const delEnd = i;
+
+    const addStart = i;
+    while (i < lines.length && lines[i].startsWith('+')) i++;
+    const addEnd = i;
+
+    const delCount = delEnd - delStart;
+    const addCount = addEnd - addStart;
+
+    if (delCount > 0 && addCount > 0 && delCount === addCount) {
+      for (let k = 0; k < delCount; k++) {
+        const diff = computeInlineDiff(
+          lines[delStart + k].slice(1),
+          lines[addStart + k].slice(1),
+        );
+        if (diff) {
+          result[delStart + k].inlineSegs = diff.oldSegs;
+          result[addStart + k].inlineSegs = diff.newSegs;
+        }
+      }
+    }
+
+    // Advance past context lines if no block was consumed
+    if (delCount === 0 && addCount === 0) i++;
+  }
+
+  return result;
+}
+
+function InlineText({ segs }: { segs: Segment[] }) {
+  return (
+    <>
+      {segs.map((seg, idx) =>
+        seg.highlighted ? (
+          <mark key={idx} className="sm-diff-word-hl">{seg.text}</mark>
+        ) : (
+          <span key={idx}>{seg.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 function HunkView({
   hunk,
   reverting,
@@ -151,6 +277,8 @@ function HunkView({
   disabled: boolean;
   onRevert: () => void;
 }) {
+  const enrichedLines = useMemo(() => enrichHunkLines(hunk.lines), [hunk.lines]);
+
   return (
     <div className="sm-hunk">
       <div className="sm-hunk-header">
@@ -171,12 +299,14 @@ function HunkView({
       </div>
 
       <div className="sm-hunk-lines">
-        {hunk.lines.map((line, index) => {
-          const { gutter, text } = splitDiffLine(line);
+        {enrichedLines.map(({ rawLine, inlineSegs }, index) => {
+          const { gutter, text } = splitDiffLine(rawLine);
           return (
-            <div key={index} className={`sm-diff-line ${classifyDiffLine(line)}`}>
+            <div key={index} className={`sm-diff-line ${classifyDiffLine(rawLine)}`}>
               <span className="sm-diff-gutter">{gutter}</span>
-              <span className="sm-diff-text">{text}</span>
+              <span className="sm-diff-text">
+                {inlineSegs ? <InlineText segs={inlineSegs} /> : text}
+              </span>
             </div>
           );
         })}

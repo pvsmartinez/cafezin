@@ -401,6 +401,23 @@
   color: var(--text-muted);
 }
 
+/* Inline word-level highlight within changed lines */
+.sm-diff-word-hl {
+  border-radius: 2px;
+  padding: 0 1px;
+  font-style: normal; /* reset <mark> default */
+  color: inherit;
+  background: transparent;
+}
+
+.sm-diff-del .sm-diff-word-hl {
+  background: rgba(var(--red-rgb, 201, 117, 112), 0.38);
+}
+
+.sm-diff-add .sm-diff-word-hl {
+  background: rgba(var(--green-rgb, 126, 200, 160), 0.38);
+}
+
 .sm-no-hunks {
   padding: 10px;
   color: var(--text-muted);
