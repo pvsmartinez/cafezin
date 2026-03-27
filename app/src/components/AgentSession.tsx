@@ -277,6 +277,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
   // ── Input / attachments ───────────────────────────────────────────────────
   const [input, setInput] = useState(initialPrompt);
+  const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [pendingFileRef, setPendingFileRef] = useState<{ name: string; content: string } | null>(null);
   const [pendingSelectionContext, setPendingSelectionContext] = useState<AISelectionContext | null>(null);
@@ -534,9 +535,20 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     if (prevStreamingRef.current && !stream.isStreaming) {
       setJustDone(true);
       const t = setTimeout(() => setJustDone(false), 1800);
+      // Fire queued prompt as soon as streaming stops
+      if (queuedPrompt) {
+        const queued = queuedPrompt;
+        setQueuedPrompt(null);
+        // Small delay so UI settles before next send
+        setTimeout(() => {
+          isPinnedToBottom.current = true;
+          void stream.handleSend(undefined, undefined, [], null, null, queued, () => {});
+        }, 120);
+      }
       return () => clearTimeout(t);
     }
     prevStreamingRef.current = stream.isStreaming;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream.isStreaming]);
 
   useEffect(() => {
@@ -553,10 +565,23 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream.isStreaming, stream.error]);
 
+  // ── Queue prompt ──────────────────────────────────────────────────────────
+  function handleQueuePrompt() {
+    const text = input.trim();
+    if (!text) return;
+    setQueuedPrompt(text);
+    setInput('');
+  }
+
   // ── Keyboard ─────────────────────────────────────────────────────────────
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === 'Enter' && e.shiftKey && stream.isStreaming) {
+      e.preventDefault();
+      handleQueuePrompt();
+    }
     if (e.key === 'Escape') {
+      if (queuedPrompt) { setQueuedPrompt(null); return; }
       if (stream.isStreaming) stream.handleStop();
       else onClose();
     }
@@ -1149,6 +1174,15 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             </button>
           </div>
         )}
+        {queuedPrompt && (
+          <div className="ai-queued-prompt">
+            <span className="ai-queued-prompt-icon">⏱</span>
+            <span className="ai-queued-prompt-text" title={queuedPrompt}>{queuedPrompt}</span>
+            <button className="ai-img-remove" onClick={() => setQueuedPrompt(null)} title="Cancelar fila">
+              <X weight="thin" size={12} />
+            </button>
+          </div>
+        )}
         <textarea
           ref={inputRef}
           value={input}
@@ -1214,17 +1248,32 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             <button onClick={stream.handleStop} className="ai-btn-send ai-btn-send--stop" title="Stop (Esc)">
               <Stop size={10} weight="fill" />
             </button>
+          ) : stream.isStreaming && input.trim() ? (
+            <div className="ai-btn-send-group">
+              <button
+                onClick={() => handleSend()}
+                className="ai-btn-send ai-btn-send--interrupt"
+                title="Interrupt and send (Enter)"
+              >
+                <ArrowUp weight="bold" size={12} />
+              </button>
+              <button
+                onClick={handleQueuePrompt}
+                className="ai-btn-send-queue"
+                title="Queue after agent finishes (Shift+Enter)"
+              >
+                <ArrowUp weight="thin" size={10} />
+                <ArrowUp weight="thin" size={10} style={{ marginTop: -6 }} />
+              </button>
+            </div>
           ) : (
             <button
               onClick={() => handleSend()}
-                disabled={!input.trim() && pendingImages.length === 0}
-              className={`ai-btn-send${stream.isStreaming ? ' ai-btn-send--interrupt' : ''}`}
-              title={stream.isStreaming ? 'Interrupt and send (Enter)' : 'Send (Enter)'}
+              disabled={!input.trim() && pendingImages.length === 0}
+              className="ai-btn-send"
+              title="Send (Enter)"
             >
-              {stream.isStreaming
-                ? <ArrowUp weight="bold" size={12} />
-                : <ArrowUp weight="thin" size={16} />
-              }
+              <ArrowUp weight="thin" size={16} />
             </button>
           )}
         </div>

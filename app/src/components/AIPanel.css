@@ -982,6 +982,69 @@ body.theme-light .ai-session-stat-chip {
   background: rgba(var(--red-rgb), 0.88);
 }
 
+/* Queue send — group wrapping interrupt + queue buttons */
+.ai-btn-send-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  align-self: flex-end;
+}
+
+.ai-btn-send-group .ai-btn-send--interrupt {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  min-width: 36px;
+  padding: 3px 10px;
+}
+
+/* Queue button — stacked below the interrupt button */
+.ai-btn-send-queue {
+  background: rgba(var(--orange-rgb), 0.18);
+  border: 1px solid rgba(var(--orange-rgb), 0.35);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  color: var(--orange);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 10px;
+  gap: 0;
+  min-width: 36px;
+  transition: background var(--transition-base);
+}
+
+.ai-btn-send-queue:hover {
+  background: rgba(var(--orange-rgb), 0.28);
+}
+
+/* Queued prompt chip shown above textarea */
+.ai-queued-prompt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(var(--orange-rgb), 0.08);
+  border: 1px solid rgba(var(--orange-rgb), 0.25);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: var(--font-size-xs);
+  color: var(--orange);
+}
+
+.ai-queued-prompt-icon {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.ai-queued-prompt-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
 .ai-send-spinner {
   display: inline-block;
   width: 13px;
