@@ -58,3 +58,6 @@ verify_jwt = false
 
 [functions.price-preview]
 verify_jwt = false
+
+[functions.track-landing]
+verify_jwt = false

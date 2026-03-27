@@ -58,6 +58,7 @@ interface LandingEventRow {
   event_name: string
   page_path: string
   platform: string | null
+  metadata: Record<string, unknown> | null
 }
 
 function json(data: unknown, status = 200): Response {
@@ -166,6 +167,8 @@ async function listAnalytics(): Promise<{
   since_30d: string
   download_clicks_7d: number
   app_sessions_7d: number
+  unique_devices_7d: number
+  unique_devices_30d: number
   premium_checkout_starts_7d: number
   premium_checkout_successes_30d: number
   contact_submits_30d: number
@@ -178,7 +181,7 @@ async function listAnalytics(): Promise<{
 
   const { data, error } = await serviceClient()
     .from('landing_events')
-    .select('created_at, event_name, page_path, platform')
+    .select('created_at, event_name, page_path, platform, metadata')
     .gte('created_at', since30d.toISOString())
     .neq('event_name', 'page_view')
     .order('created_at', { ascending: false })
@@ -195,6 +198,8 @@ async function listAnalytics(): Promise<{
   let checkoutStarts7d = 0
   let checkoutSuccess30d = 0
   let contactSubmits30d = 0
+  const devices7d  = new Set<string>()
+  const devices30d = new Set<string>()
 
   for (const row of rows) {
     const createdAt = new Date(row.created_at).getTime()
@@ -212,6 +217,12 @@ async function listAnalytics(): Promise<{
       const platform = (row.platform ?? 'other') as keyof typeof sessionsByPlatform
       if (platform in sessionsByPlatform) sessionsByPlatform[platform] += 1
       else sessionsByPlatform.other += 1
+
+      const deviceId = typeof row.metadata?.device_id === 'string' ? row.metadata.device_id : null
+      if (deviceId) {
+        devices30d.add(deviceId)
+        if (in7d) devices7d.add(deviceId)
+      }
     }
 
     if (row.event_name === 'premium_checkout_start' && in7d) checkoutStarts7d += 1
@@ -224,6 +235,8 @@ async function listAnalytics(): Promise<{
     since_30d: since30d.toISOString(),
     download_clicks_7d: downloads7d,
     app_sessions_7d: sessions7d,
+    unique_devices_7d: devices7d.size,
+    unique_devices_30d: devices30d.size,
     premium_checkout_starts_7d: checkoutStarts7d,
     premium_checkout_successes_30d: checkoutSuccess30d,
     contact_submits_30d: contactSubmits30d,
