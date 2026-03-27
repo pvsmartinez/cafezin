@@ -3,10 +3,10 @@
   "notes": "Vers\u00e3o inicial com auto-update.",
   "pub_date": "2026-03-27T15:39:37Z",
   "min_versions": {
-    "release": "0.1.0",
-    "dev": "0.1.0",
-    "mas": "0.1.0",
-    "ios": "0.1.0"
+    "release": "0.1.7",
+    "dev": "0.1.7",
+    "mas": "0.1.7",
+    "ios": "0.1.7"
   },
   "platforms": {
     "darwin-aarch64": {
