@@ -78,17 +78,18 @@
     return "unknown";
   }
 
-  function gtagSendEvent(url) {
+  function gtagSendEvent(url, params) {
     var callback = function () {
       if (typeof url === "string") {
         window.location = url;
       }
     };
     if (typeof window.gtag === "function") {
-      window.gtag("event", "conversion_event_purchase_1", {
+      var eventParams = Object.assign({}, params || {}, {
         event_callback: callback,
         event_timeout: 2000,
       });
+      window.gtag("event", "file_download", eventParams);
     } else {
       callback();
     }
@@ -111,14 +112,15 @@
         var platform = inferPlatform(node);
 
         track("download_click", { platform: platform });
-        ga4("file_download", { file_name: "Cafezin", platform: platform });
 
         if (
           href &&
           (/^https?:\/\//i.test(href) || /^\/download\//i.test(href))
         ) {
           e.preventDefault();
-          gtagSendEvent(href);
+          gtagSendEvent(href, { file_name: "Cafezin", platform: platform });
+        } else {
+          ga4("file_download", { file_name: "Cafezin", platform: platform });
         }
       });
     });
