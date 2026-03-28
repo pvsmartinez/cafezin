@@ -35,7 +35,10 @@ struct ManagedShellProcess {
 
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 fn ensure_shell_cwd_allowed(cwd: &str) -> Result<(), String> {
-    let home = std::env::var("HOME").unwrap_or_default();
+    // Windows uses USERPROFILE; Unix uses HOME.
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
     if home.is_empty() || !cwd.starts_with(&home) {
         return Err(format!("shell_run: cwd must be within $HOME (rejected: {cwd})"));
     }
@@ -81,19 +84,25 @@ fn build_shell_process_id() -> String {
 }
 
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
-fn shell_program() -> String {
-    let shell = std::env::var("SHELL").unwrap_or_default();
-    match shell.as_str() {
-        s if s.ends_with("/bash") || s.ends_with("/zsh") || s.ends_with("/sh") => s.to_string(),
-        _ => "/bin/bash".to_string(),
-    }
-}
-
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
 fn build_shell_command(cmd: &str, cwd: &str) -> Command {
-    let mut command = Command::new(shell_program());
-    command.args(["-lc", cmd]).current_dir(cwd);
-    command
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows use cmd.exe. The /C flag executes the command and exits.
+        let mut command = Command::new("cmd");
+        command.args(["/C", cmd]).current_dir(cwd);
+        command
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let shell = std::env::var("SHELL").unwrap_or_default();
+        let shell_bin = match shell.as_str() {
+            s if s.ends_with("/bash") || s.ends_with("/zsh") || s.ends_with("/sh") => s.to_string(),
+            _ => "/bin/bash".to_string(),
+        };
+        let mut command = Command::new(shell_bin);
+        command.args(["-lc", cmd]).current_dir(cwd);
+        command
+    }
 }
 
 
@@ -1061,9 +1070,10 @@ struct GrepHit {
 
 /// Fast native grep across workspace text files.
 /// Returns up to 60 hits as structured { path, line, content }.
+/// On Unix uses the system `grep` binary; on Windows falls back to a pure-Rust
+/// implementation (no grep binary available by default).
 /// pattern is used as a fixed string unless is_regex=true.
-/// Respects case-insensitivity (always -i).
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[cfg(not(any(feature = "mas", target_os = "ios", target_os = "windows")))]
 #[tauri::command]
 fn grep_workspace(
     workspace_path: String,
@@ -1107,6 +1117,83 @@ fn grep_workspace(
         let content = parts[2].trim().to_string();
         hits.push(GrepHit { path, line, content });
     }
+    Ok(hits)
+}
+
+/// Pure-Rust grep fallback for Windows (no system grep binary).
+#[cfg(all(not(any(feature = "mas", target_os = "ios")), target_os = "windows"))]
+#[tauri::command]
+fn grep_workspace(
+    workspace_path: String,
+    pattern: String,
+    is_regex: bool,
+) -> Result<Vec<GrepHit>, String> {
+    use std::io::{BufRead, BufReader};
+
+    let skip_dirs = ["node_modules", ".git", ".cafezin"];
+    let text_exts = ["md", "mdx", "txt", "ts", "tsx", "js", "jsx",
+                     "py", "sql", "sh", "json", "toml", "yaml", "yml",
+                     "css", "html", "rs"];
+    let exclude_files = ["*.tldr.json"];
+
+    // Build a simple case-insensitive pattern matcher.
+    let pat_lower = pattern.to_lowercase();
+    let matches_line: Box<dyn Fn(&str) -> bool + Send> = if is_regex {
+        // For regex on Windows, fall back to literal match to keep binary size small.
+        // The JS fallback in the frontend handles regex properly anyway.
+        Box::new(move |line: &str| line.to_lowercase().contains(&pat_lower))
+    } else {
+        Box::new(move |line: &str| line.to_lowercase().contains(&pat_lower))
+    };
+
+    let mut hits: Vec<GrepHit> = Vec::new();
+    let base = std::path::Path::new(&workspace_path);
+
+    fn walk(
+        dir: &std::path::Path,
+        base: &std::path::Path,
+        skip_dirs: &[&str],
+        text_exts: &[&str],
+        exclude_files: &[&str],
+        matcher: &dyn Fn(&str) -> bool,
+        hits: &mut Vec<GrepHit>,
+    ) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for entry in entries.flatten() {
+            if hits.len() >= 60 { return; }
+            let path = entry.path();
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if path.is_dir() {
+                if skip_dirs.iter().any(|d| *d == name_str.as_ref()) { continue; }
+                walk(&path, base, skip_dirs, text_exts, exclude_files, matcher, hits);
+            } else {
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+                if !text_exts.contains(&ext) { continue; }
+                // Exclude patterns (simple suffix check)
+                if exclude_files.iter().any(|p| {
+                    let p = p.trim_start_matches('*');
+                    name_str.ends_with(p)
+                }) { continue; }
+                let Ok(file) = std::fs::File::open(&path) else { continue };
+                let reader = BufReader::new(file);
+                for (idx, line_result) in reader.lines().enumerate() {
+                    if hits.len() >= 60 { return; }
+                    let Ok(line) = line_result else { continue };
+                    if matcher(&line) {
+                        let rel = path.strip_prefix(base).unwrap_or(&path);
+                        hits.push(GrepHit {
+                            path: rel.to_string_lossy().replace('\\', "/"),
+                            line: idx + 1,
+                            content: line.trim().to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    walk(base, base, &skip_dirs, &text_exts, &exclude_files, &*matches_line, &mut hits);
     Ok(hits)
 }
 
