@@ -34,6 +34,46 @@
       "permanent": false
     },
     {
+      "source": "/download/mac",
+      "destination": "https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin.dmg",
+      "permanent": false
+    },
+    {
+      "source": "/download/windows",
+      "destination": "https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin_setup.exe",
+      "permanent": false
+    },
+    {
+      "source": "/download",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/download",
+      "permanent": false
+    },
+    {
+      "source": "/download",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/download",
+      "permanent": false
+    },
+    {
       "source": "/pricing",
       "has": [
         {
@@ -61,6 +101,36 @@
         }
       ],
       "destination": "/br/pricing",
+      "permanent": false
+    },
+    {
+      "source": "/releases",
+      "has": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale",
+          "value": "pt-BR"
+        }
+      ],
+      "destination": "/br/releases",
+      "permanent": false
+    },
+    {
+      "source": "/releases",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "cafezin_locale"
+        }
+      ],
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)"
+        }
+      ],
+      "destination": "/br/releases",
       "permanent": false
     },
     {

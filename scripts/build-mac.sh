@@ -348,14 +348,22 @@ if [[ "$DO_RELEASE" == "true" && -n "$DMG_PATH" ]]; then
     cp "$TARGZ_PATH" "$ROOT_DIR/$TARGZ_DEST"
     cp "$TARGZ_SIG_PATH" "$ROOT_DIR/$SIG_DEST"
     FILES="$FILES $ROOT_DIR/$TARGZ_DEST $ROOT_DIR/$SIG_DEST"
+    RELEASE_NOTES_FILE="$ROOT_DIR/landing/release-notes-latest.md"
 
     echo ""
     echo "▸ Uploading to GitHub release ${TAG}..."
     cd "$ROOT_DIR"
-    gh release upload "$TAG" $FILES --clobber 2>/dev/null || \
+    if gh release upload "$TAG" $FILES --clobber 2>/dev/null; then
+      true
+    elif [[ -f "$RELEASE_NOTES_FILE" ]]; then
+      gh release create "$TAG" $FILES \
+        --title "Cafezin $TAG" \
+        --notes-file "$RELEASE_NOTES_FILE"
+    else
       gh release create "$TAG" $FILES \
         --title "Cafezin $TAG" \
         --generate-notes
+    fi
 
     echo "✓  Uploaded to https://github.com/pvsmartinez/cafezin/releases/tag/$TAG"
 

@@ -1187,6 +1187,92 @@ body {
   align-items: start;
 }
 
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.download-grid,
+.release-list {
+  display: grid;
+  gap: 18px;
+}
+
+.download-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin: 28px 0 14px;
+}
+
+.download-card,
+.release-card {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+}
+
+.download-card h2,
+.release-card h2 {
+  margin-top: 0;
+}
+
+.download-card .btn,
+.download-card .btn-primary,
+.download-card .btn-outline {
+  width: 100%;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.release-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.release-version-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.release-summary {
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.release-highlights {
+  margin: 0 0 18px 22px;
+}
+
+.release-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 14px;
+}
+
+.release-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 40px 24px;
+  border: 1px dashed var(--border2);
+  border-radius: 18px;
+}
+
 .contact-form {
   display: grid;
   gap: 18px;

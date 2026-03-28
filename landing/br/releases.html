@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0PNRME8PLH"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-0PNRME8PLH');
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Release notes — Cafezin</title>
+  <meta name="description" content="Veja o que mudou no Cafezin, com release notes curtas e links oficiais de download para cada versão." />
+  <link rel="canonical" href="https://cafezin.pmatz.com/br/releases" />
+  <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/releases" />
+  <link rel="alternate" hreflang="pt-BR" href="https://cafezin.pmatz.com/br/releases" />
+  <link rel="alternate" hreflang="x-default" href="https://cafezin.pmatz.com/releases" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icon.png" />
+  <meta name="theme-color" content="#1c1610" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Vollkorn:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="/br">
+        <img src="/coffe.png" alt="Logo do Cafezin" class="nav-logo-img" width="28" height="28" />
+        <span class="nav-logo-name">Cafezin</span>
+      </a>
+      <div class="nav-links">
+        <a class="nav-link" href="/br/pricing">Preços</a>
+        <a class="nav-link" href="/br/download">Downloads</a>
+        <a class="nav-link" href="/br/releases">Release notes</a>
+        <a class="nav-link" href="/br/contact">Contato</a>
+        <div class="locale-switch" aria-label="Seletor de idioma">
+          <a class="locale-option" href="/releases" onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">EN</a>
+          <a class="locale-option active" href="/br/releases" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <section class="page-hero">
+    <div class="page-hero-inner">
+      <div class="page-hero-label">Release notes</div>
+      <h1 class="page-hero-title">O que mudou no Cafezin</h1>
+      <p class="page-hero-sub">
+        Release notes pensadas para produto, geradas a partir do que foi entregue desde a versão anterior.
+      </p>
+      <div class="page-actions">
+        <a class="btn btn-primary" href="/br/download">Ver downloads</a>
+        <a class="btn btn-ghost" href="https://github.com/pvsmartinez/cafezin/releases" rel="noopener noreferrer">GitHub Releases</a>
+      </div>
+    </div>
+  </section>
+
+  <main>
+    <div class="prose">
+      <div id="js-releases-list" class="release-list">
+        <div class="release-empty">Carregando release notes…</div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-logo">
+        <img src="/coffe.png" alt="Cafezin" class="footer-logo-img" />
+        <span>Cafezin</span>
+      </div>
+      <nav class="footer-links">
+        <a href="/br">Início</a>
+        <a href="/br/download">Downloads</a>
+        <a href="/br/pricing">Preços</a>
+        <a href="/br/contact">Contato</a>
+      </nav>
+      <p class="footer-copy">© 2026 Pedro Martinez. Feito com café no Brasil.</p>
+    </div>
+  </footer>
+
+  <script src="/releases-page.js"></script>
+</body>
+</html>

@@ -1,10 +1,31 @@
 (function () {
   var TRACK_ENDPOINT =
     "https://dxxwlnvemqgpdrnkzrcr.supabase.co/functions/v1/track-landing";
+  var WIN_URL = "/download/windows";
+  var MAC_URL = "/download/mac";
 
   function locale() {
     var lang = (document.documentElement.lang || "").toLowerCase();
     return lang.indexOf("pt") === 0 ? "pt-BR" : "en";
+  }
+
+  function normalizeDownloadHref(href) {
+    if (!href) return href;
+    if (
+      /github\.com\/pvsmartinez\/cafezin\/releases\/latest\/download\/Cafezin\.dmg/i.test(
+        href,
+      )
+    ) {
+      return MAC_URL;
+    }
+    if (
+      /github\.com\/pvsmartinez\/cafezin\/releases\/latest\/download\/Cafezin_setup\.exe/i.test(
+        href,
+      )
+    ) {
+      return WIN_URL;
+    }
+    return href;
   }
 
   function send(payload) {
@@ -26,7 +47,6 @@
     }).catch(function () {});
   }
 
-  // Envia evento de conversão para o Supabase (funil interno).
   function track(eventName, metadata) {
     send({
       eventName: eventName,
@@ -37,8 +57,6 @@
     });
   }
 
-  // Dispara evento no GA4 (page views e comportamento vêm automaticamente pelo
-  // Enhanced Measurement; aqui apenas eventos de conversão explícitos).
   function ga4(eventName, params) {
     if (typeof window.gtag === "function") {
       window.gtag("event", eventName, params || {});
@@ -48,7 +66,11 @@
   function inferPlatform(node) {
     var explicit = node.getAttribute("data-platform");
     if (explicit) return explicit;
-    var href = node.href || node.getAttribute("href") || "";
+    var href = normalizeDownloadHref(
+      node.href || node.getAttribute("href") || "",
+    );
+    if (/\/download\/mac(?:$|[?#/])/i.test(href)) return "mac";
+    if (/\/download\/windows(?:$|[?#/])/i.test(href)) return "windows";
     if (/\.dmg/i.test(href)) return "mac";
     if (/\.exe|setup/i.test(href)) return "windows";
     if (/testflight|apps\.apple/i.test(href)) return "ios";
@@ -56,7 +78,6 @@
     return "unknown";
   }
 
-  // Dispara conversão do Google Ads e navega após confirmação (ou timeout de 2s).
   function gtagSendEvent(url) {
     var callback = function () {
       if (typeof url === "string") {
@@ -69,24 +90,33 @@
         event_timeout: 2000,
       });
     } else {
-      // gtag não carregou (bloqueador de ads etc.) — navega direto.
       callback();
     }
   }
 
   function bindDownloadClicks() {
+    document.querySelectorAll("a[href]").forEach(function (node) {
+      var href = node.getAttribute("href") || "";
+      var normalized = normalizeDownloadHref(href);
+      if (normalized !== href) {
+        node.setAttribute("href", normalized);
+      }
+    });
+
     document.querySelectorAll(".btn-download").forEach(function (node) {
       node.addEventListener("click", function (e) {
-        var href = node.href || node.getAttribute("href") || "";
+        var href = normalizeDownloadHref(
+          node.href || node.getAttribute("href") || "",
+        );
         var platform = inferPlatform(node);
 
-        // Rastreia no Supabase e GA4.
         track("download_click", { platform: platform });
         ga4("file_download", { file_name: "Cafezin", platform: platform });
 
-        // Só intercepta links externos (downloads do GitHub etc.).
-        // Links internos (/#download, /pricing) navegam normalmente.
-        if (href && /^https?:\/\//i.test(href)) {
+        if (
+          href &&
+          (/^https?:\/\//i.test(href) || /^\/download\//i.test(href))
+        ) {
           e.preventDefault();
           gtagSendEvent(href);
         }
@@ -94,7 +124,6 @@
     });
   }
 
-  // Chamado por scripts inline nas páginas de conversão.
   window.cafezinTrack = function (eventName, metadata) {
     track(eventName, metadata || {});
     if (eventName === "premium_checkout_start") ga4("begin_checkout", metadata);
@@ -106,11 +135,6 @@
     var ua = navigator.userAgent || "";
     var plat = navigator.platform || "";
     if (!/Win/i.test(plat) && !/Windows NT/i.test(ua)) return;
-
-    var WIN_URL =
-      "https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin_setup.exe";
-    var MAC_URL =
-      "https://github.com/pvsmartinez/cafezin/releases/latest/download/Cafezin.dmg";
 
     function swap(id, href, platform) {
       var el = document.getElementById(id);
@@ -138,16 +162,15 @@
     swap("js-cta-alt", MAC_URL, "mac");
     swap("js-pricing-free", WIN_URL, "windows");
 
-    // Compare/persona pages: se não há botão Windows explícito, troca qualquer
-    // .btn-download apontando para .dmg → .exe (ex: CTA sections das compare pages).
     var hasExplicitWin = !!document.querySelector(
-      'a[href*="Cafezin_setup.exe"]',
+      'a[href*="/download/windows"], a[href*="Cafezin_setup.exe"]',
     );
     if (!hasExplicitWin) {
       document
         .querySelectorAll("a.btn-download[href]")
         .forEach(function (node) {
-          if (/Cafezin\.dmg/i.test(node.getAttribute("href"))) {
+          var href = normalizeDownloadHref(node.getAttribute("href") || "");
+          if (/Cafezin\.dmg/i.test(href) || /\/download\/mac/i.test(href)) {
             node.href = WIN_URL;
             node.setAttribute("data-platform", "windows");
             var mainSpan = node.querySelector(".btn-main");
@@ -162,7 +185,6 @@
   bindDownloadClicks();
   adaptHeroCta();
 
-  // Evento explícito de conversão setado no <body> (ex: página de obrigado).
   var pageEvent = document.body.getAttribute("data-track-page-event");
   if (pageEvent) {
     track(pageEvent);

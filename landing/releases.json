@@ -1,0 +1,19 @@
+{
+  "releases": [
+    {
+      "version": "0.1.8",
+      "tag": "v0.1.8",
+      "title": "Cafezin 0.1.8",
+      "publishedAt": "2026-03-28T18:50:44Z",
+      "summary": "Initial updater-ready release with official macOS and Windows installers.",
+      "highlights": [
+        "Introduced the first public updater feed for Cafezin.",
+        "Published official macOS and Windows installer artifacts.",
+        "Established the base release channel for future automatic updates."
+      ],
+      "links": {
+        "githubRelease": "https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.8"
+      }
+    }
+  ]
+}

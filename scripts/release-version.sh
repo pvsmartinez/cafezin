@@ -22,6 +22,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 APP_DIR="$ROOT_DIR/app"
+RELEASE_NOTES_SCRIPT="$SCRIPT_DIR/generate-release-notes.mjs"
+RELEASE_NOTES_MD="$ROOT_DIR/landing/release-notes-latest.md"
+RELEASES_JSON="$ROOT_DIR/landing/releases.json"
+LATEST_JSON="$ROOT_DIR/update/latest.json"
 
 BUMP="patch"
 RUN_IOS=true
@@ -222,15 +226,33 @@ echo "✓ tauri.conf.json → $TAURI_VERSION"
 echo "✓ Cargo.toml      → $CARGO_VERSION"
 
 echo ""
-echo "── [3/5] Commit and push version bump ──────────────────────────────"
+echo "── [3/6] Generate release notes ────────────────────────────────────"
+node "$RELEASE_NOTES_SCRIPT" \
+  --version "$NEW_VERSION" \
+  --previous-version "$CURRENT_VERSION" \
+  --repo "pvsmartinez/cafezin" \
+  --output-md "$RELEASE_NOTES_MD" \
+  --output-json "$RELEASES_JSON" \
+  --update-json "$LATEST_JSON"
+echo "✓ Release notes updated"
+
+echo ""
+echo "── [4/6] Commit and push version bump ──────────────────────────────"
 cd "$ROOT_DIR"
-git add app/package.json app/package-lock.json app/src-tauri/Cargo.toml app/src-tauri/tauri.conf.json
+git add \
+  app/package.json \
+  app/package-lock.json \
+  app/src-tauri/Cargo.toml \
+  app/src-tauri/tauri.conf.json \
+  landing/release-notes-latest.md \
+  landing/releases.json \
+  update/latest.json
 git commit -m "chore: release $TAG"
 git push origin main
 echo "✓ Version bump committed and pushed"
 
 echo ""
-echo "── [4/5] Trigger platform releases ─────────────────────────────────"
+echo "── [5/6] Trigger platform releases ─────────────────────────────────"
 if [[ "$WAIT_WINDOWS" == "true" ]]; then
   bash "$SCRIPT_DIR/release-all.sh" --tag "$TAG"
 else
@@ -239,7 +261,7 @@ fi
 
 if [[ "$RUN_IOS" == "true" ]]; then
   echo ""
-  echo "── [5/5] iOS / TestFlight ──────────────────────────────────────────"
+  echo "── [6/6] iOS / TestFlight ──────────────────────────────────────────"
   bash "$SCRIPT_DIR/build-ios.sh"
 fi
 
