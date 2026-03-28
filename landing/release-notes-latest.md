@@ -1,12 +1,13 @@
-# Cafezin 0.1.8
+# Cafezin 0.1.9
 
-Initial updater-ready release with official macOS and Windows installers.
+Release 0.1.9 packages the work shipped since 0.1.8, with updates across the app, installers, and release flow.
 
 ## Highlights
 
-- Introduced the first public updater feed for Cafezin.
-- Published official macOS and Windows installer artifacts.
-- Established the base release channel for future automatic updates.
+- Chore: sync
+- Chore: update latest.json for v0.1.8 [skip ci]
+- Chore: update latest.json for v0.1.8 macOS
+- Updated 12 changed files across the app and release flow.
 
 ## Downloads
 
@@ -15,4 +16,4 @@ Initial updater-ready release with official macOS and Windows installers.
 
 ## Full release
 
-https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.8
+https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.9
