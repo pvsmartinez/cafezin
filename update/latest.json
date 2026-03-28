@@ -1,7 +1,7 @@
 {
-  "version": "0.1.8",
+  "version": "0.1.9",
   "notes": "Release 0.1.9 packages the work shipped since 0.1.8, with updates across the app, installers, and release flow.",
-  "pub_date": "2026-03-28T18:50:44Z",
+  "pub_date": "2026-03-28T20:39:09Z",
   "min_versions": {
     "release": "0.1.7",
     "dev": "0.1.7",
@@ -10,8 +10,8 @@
   },
   "platforms": {
     "darwin-aarch64": {
-      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.8/Cafezin_0.1.8_aarch64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UEwyTVNyME8rSENSUGRFTHpMdUc3Mzd6bzdqNzRaczVWT3dOV0MyMWt5Rkd3ajE3b2FXMmwzMnJYNlljaWlseTlUY0xYcXBHcnpRKzdjSXdvL3QxZ2d3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0NzIzNDc2CWZpbGU6Q2FmZXppbi5hcHAudGFyLmd6CndMdTBYeDZlWFVzejBRNWhnbEZhQjZMY2dyVzQ2T2tkWW1MVksxZ090Z0tTVE9NcFNaUDVjb3NiSXM0YXN3blhSNHRxbHBMaHNCTlN0eHZsSEE0eENBPT0K"
+      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.9/Cafezin_0.1.9_aarch64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UElHQnBpNUVkWTBmeGJCd2gwb2FULzQ1eGlPaW9sV2R4aEc5SnJIaUVKRU9iSU9MWkdZa3VCeVIydzBhZXQwelZuYTczTXNnWkVJQlpHR2VjUklXZ3dNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0NzMwMjgxCWZpbGU6Q2FmZXppbi5hcHAudGFyLmd6ClZqbjJLa1NwODZxZnYrcHhTcHdjSlFIb01QaUY0QTl0VWc1SWZ6SS9PM0Z3WGZ6alo4OEdWaFNyb25CaGQrMnRCck1wR3RJa3dNSXVJMGtZeXZGVkFBPT0K"
     },
     "windows-x86_64": {
       "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.8/Cafezin_setup.exe",
