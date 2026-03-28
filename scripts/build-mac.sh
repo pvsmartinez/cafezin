@@ -32,10 +32,25 @@ fi
 
 # ── Fallback to canonical workspace secrets for signing ─────────────────────
 PEDRIN_ENV="/Users/pedromartinez/Dev/pmatz/pedrin/.env"
-if [[ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" && -f "$PEDRIN_ENV" ]]; then
-  PEDRIN_TAURI_PASSWORD="$(grep '^TAURI_SIGNING_PRIVATE_KEY_PASSWORD=' "$PEDRIN_ENV" | head -1 | cut -d= -f2- || true)"
-  if [[ -n "$PEDRIN_TAURI_PASSWORD" ]]; then
-    export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$PEDRIN_TAURI_PASSWORD"
+if [[ -f "$PEDRIN_ENV" ]]; then
+  _load_pedrin_var() {
+    grep "^${1}=" "$PEDRIN_ENV" | head -1 | cut -d= -f2- || true
+  }
+  if [[ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
+    _val="$(_load_pedrin_var TAURI_SIGNING_PRIVATE_KEY_PASSWORD)"
+    [[ -n "$_val" ]] && export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$_val"
+  fi
+  if [[ -z "${APPLE_ID:-}" ]]; then
+    _val="$(_load_pedrin_var APPLE_ID)"
+    [[ -n "$_val" ]] && export APPLE_ID="$_val"
+  fi
+  if [[ -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
+    _val="$(_load_pedrin_var APPLE_APP_SPECIFIC_PASSWORD)"
+    [[ -n "$_val" ]] && export APPLE_APP_SPECIFIC_PASSWORD="$_val"
+  fi
+  if [[ -z "${APPLE_TEAM_ID:-}" ]]; then
+    _val="$(_load_pedrin_var APPLE_TEAM_ID)"
+    [[ -n "$_val" ]] && export APPLE_TEAM_ID="$_val"
   fi
 fi
 
@@ -85,6 +100,41 @@ if [[ "$DO_RELEASE" == "true" ]]; then
     echo "   Generate one with: npx tauri signer generate -w $SIGNING_KEY_FILE"
   fi
 fi
+
+# ── Codesign + Notarize (release builds) ────────────────────────────────────
+codesign_and_notarize() {
+  local app_path="$1"
+  local CERT="Developer ID Application: Pedro Martinez (8VV48629P3)"
+
+  if [[ -z "${APPLE_ID:-}" || -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" || -z "${APPLE_TEAM_ID:-}" ]]; then
+    echo "⚠  Skipping notarization — APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID not set."
+    return 0
+  fi
+
+  echo ""
+  echo "▸ Codesigning $app_path..."
+  codesign \
+    --deep --force --options runtime \
+    --sign "$CERT" \
+    --entitlements "$APP_DIR/src-tauri/Entitlements.plist" \
+    "$app_path" 2>&1 | grep -v "^$" || true
+  echo "✓  Codesigned"
+
+  echo ""
+  echo "▸ Notarizing (this takes 1–3 min)..."
+  local zip_path="/tmp/Cafezin_notarize_$$.zip"
+  ditto -c -k --keepParent "$app_path" "$zip_path"
+  xcrun notarytool submit "$zip_path" \
+    --apple-id "$APPLE_ID" \
+    --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+    --team-id "$APPLE_TEAM_ID" \
+    --wait \
+    2>&1 | tail -20
+  rm -f "$zip_path"
+
+  echo "▸ Stapling ticket..."
+  xcrun stapler staple "$app_path" && echo "✓  Stapled"
+}
 
 # ── Create a professional DMG using create-dmg ──────────────────────────────
 make_custom_dmg() {
@@ -198,6 +248,11 @@ echo "✓  Build successful!"
 [[ -n "$DMG_PATH" ]]      && echo "   .dmg:        $DMG_PATH"
 [[ -n "$TARGZ_PATH" ]]    && echo "   .tar.gz:     $TARGZ_PATH"
 [[ -n "$TARGZ_SIG_PATH" ]] && echo "   .tar.gz.sig: $TARGZ_SIG_PATH"
+
+# ── Codesign + notarize for release builds ───────────────────────────────────
+if [[ "$DO_RELEASE" == "true" && -n "$APP_PATH" ]]; then
+  codesign_and_notarize "$APP_PATH"
+fi
 
 # ── Optionally install into ~/Applications ───────────────────────────────────
 if [[ "$DO_INSTALL" == "true" && -n "$APP_PATH" ]]; then

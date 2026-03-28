@@ -50,8 +50,8 @@
       <div class="page-hero-label">Contact</div>
       <h1 class="page-hero-title">Talk to Cafezin</h1>
       <p class="page-hero-sub">
-        Questions, feedback, partnerships, or support.<br />
-        Send a message and it goes straight to Pedro.
+        Support, billing, partnerships, or privacy questions.<br />
+        Reach Cafezin directly by form or at <a href="mailto:support@pmatz.com">support@pmatz.com</a>.
       </p>
     </div>
   </section>
@@ -61,8 +61,8 @@
       <div>
         <div class="info-box">
           <p>
-            <strong>Fastest path:</strong> use the form below. Messages are forwarded to Pedro via Telegram.
-            If you prefer email, write to <a href="mailto:pmatz.email@gmail.com">pmatz.email@gmail.com</a>.
+            <strong>Fastest path:</strong> use the form below for support, billing, product feedback, or partnership requests.
+            If you prefer email, write to <a href="mailto:support@pmatz.com">support@pmatz.com</a>.
           </p>
         </div>
 
@@ -73,6 +73,11 @@
           <li>Partnerships or speaking opportunities</li>
           <li>Privacy and data requests</li>
         </ul>
+
+        <p>
+          <strong>Best way to get a fast reply:</strong> include the purchase email, operating system, and a short description of the issue.
+          Most messages are handled within 1-2 business days.
+        </p>
       </div>
 
       <form id="contact-form" class="contact-form">
@@ -103,7 +108,7 @@
           </span>
         </button>
 
-        <p id="contact-status" class="contact-status">Messages sent here go to Pedro's Telegram and can also be handled by email.</p>
+        <p id="contact-status" class="contact-status">Messages sent here go to Cafezin support and can be handled by email or internal support routing.</p>
       </form>
     </div>
   </main>
@@ -171,9 +176,9 @@
           if (window.cafezinTrack) {
             window.cafezinTrack('contact_submit', { hasEmail: !!payload.email });
           }
-          setStatus('Message sent. Pedro will receive it on Telegram.', 'ok');
+          setStatus('Message sent. Cafezin support has received it.', 'ok');
         } catch (error) {
-          setStatus(error.message || 'Failed to send. Try again or email pmatz.email@gmail.com.', 'error');
+          setStatus(error.message || 'Failed to send. Try again or email support@pmatz.com.', 'error');
         } finally {
           setBusy(false);
         }
