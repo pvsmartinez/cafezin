@@ -1,6 +1,22 @@
 {
   "releases": [
     {
+      "version": "0.1.10",
+      "tag": "v0.1.10",
+      "title": "Cafezin 0.1.10",
+      "publishedAt": "2026-03-29T17:47:12.533Z",
+      "summary": "Release 0.1.10 packages the work shipped since 0.1.9, with updates across the app, installers, and release flow.",
+      "highlights": [
+        "Chore: sync",
+        "Chore: update latest.json for v0.1.9 [skip ci]",
+        "Chore: update latest.json for v0.1.9 macOS",
+        "Updated 12 changed files across the app and release flow."
+      ],
+      "links": {
+        "githubRelease": "https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.10"
+      }
+    },
+    {
       "version": "0.1.9",
       "tag": "v0.1.9",
       "title": "Cafezin 0.1.9",
