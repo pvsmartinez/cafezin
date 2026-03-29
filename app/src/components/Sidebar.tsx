@@ -35,7 +35,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { writeFile } from '../services/fs';
-import { WORKSPACE_MUTATED_EVENT, createFile, createCanvasFile, createFolder, refreshWorkspaceFiles, deleteFile, duplicateFile, duplicateFolder, renameFile, moveFile, updateFileReferences } from '../services/workspace';
+import { WORKSPACE_MUTATED_EVENT, createFile, createCanvasFile, createSlidesCanvasFile, createFolder, refreshWorkspaceFiles, deleteFile, duplicateFile, duplicateFolder, renameFile, moveFile, updateFileReferences } from '../services/workspace';
 import SyncModal from './SyncModal';
 import { getGitAccountToken, listGitAccountLabels } from '../services/syncConfig';
 import ProjectSearchPanel from './ProjectSearchPanel';
@@ -85,6 +85,7 @@ function fileIconInfo(name: string): { icon: React.ReactNode; cls: string } {
 
 // ── File-type groups for the three-category creator ────────────────────────
 type FileCategory = 'canvas' | 'text' | 'code' | 'spreadsheet';
+type CanvasSubtype = 'freeform' | 'slides';
 
 const TEXT_TYPES = [
   { ext: '.md',   label: 'Markdown' },
@@ -454,6 +455,7 @@ const SidebarInner = function Sidebar({
   const [creatingKind, setCreatingKind] = useState<'file' | 'folder'>('file');
   const [newName, setNewName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<FileCategory>('text');
+  const [canvasSubtype, setCanvasSubtype] = useState<CanvasSubtype>('freeform');
   const [selectedExt, setSelectedExt] = useState('.md');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; path: string; isDir: boolean } | null>(null);
   const [movePicker, setMovePicker] = useState<{ path: string; x: number; y: number } | null>(null);
@@ -847,6 +849,7 @@ const SidebarInner = function Sidebar({
     else if (cat === 'text')   setSelectedExt('.md');
     else if (cat === 'spreadsheet') setSelectedExt('.csv');
     else                       setSelectedExt('.ts');
+    if (cat !== 'canvas') setCanvasSubtype('freeform');
     setTimeout(() => createInputRef.current?.focus(), 0);
   }
 
@@ -904,7 +907,11 @@ const SidebarInner = function Sidebar({
     if (selectedExt === '.tldr.json') {
       const base = baseName.replace(/\.tldr\.json$/, '');
       relPath = `${prefix}${base}.tldr.json`;
-      await createCanvasFile(workspace, `${prefix}${base}`);
+      if (canvasSubtype === 'slides') {
+        await createSlidesCanvasFile(workspace, `${prefix}${base}`);
+      } else {
+        await createCanvasFile(workspace, `${prefix}${base}`);
+      }
     } else {
       const hasExt = baseName.endsWith(selectedExt);
       relPath = `${prefix}${hasExt ? baseName : baseName + selectedExt}`;
@@ -1132,6 +1139,24 @@ const SidebarInner = function Sidebar({
                     <span className="scc-label">{t('sidebar.newSpreadsheet')}</span>
                   </button>
                 </div>
+
+                {/* ── Sub-options for Canvas (freeform vs slides) ── */}
+                {selectedCategory === 'canvas' && (
+                  <div className="sidebar-creator-subtypes">
+                    <button
+                      type="button"
+                      className={`sidebar-type-pill${canvasSubtype === 'freeform' ? ' active' : ''}`}
+                      onClick={() => { setCanvasSubtype('freeform'); setTimeout(() => createInputRef.current?.focus(), 0); }}
+                      title="Canvas livre — sem restrição de câmera"
+                    >Canvas</button>
+                    <button
+                      type="button"
+                      className={`sidebar-type-pill${canvasSubtype === 'slides' ? ' active' : ''}`}
+                      onClick={() => { setCanvasSubtype('slides'); setTimeout(() => createInputRef.current?.focus(), 0); }}
+                      title="Slides — câmera travada num slide de cada vez"
+                    >Slides</button>
+                  </div>
+                )}
 
                 {/* ── Sub-options for Text ── */}
                 {selectedCategory === 'text' && (

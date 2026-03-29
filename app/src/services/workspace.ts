@@ -324,6 +324,32 @@ export async function createCanvasFile(workspace: Workspace, filename: string): 
   }
 }
 
+/**
+ * Create a tldraw canvas file pre-configured for Slide Mode.
+ * Writes a minimal snapshot with `document.meta.slideLocked = true` so the
+ * CanvasEditor initialises straight into slide-locked mode.
+ */
+export async function createSlidesCanvasFile(workspace: Workspace, filename: string): Promise<void> {
+  const name = filename.endsWith('.tldr.json') ? filename : `${filename}.tldr.json`;
+  const absPath = `${workspace.path}/${name}`;
+  const parentDir = absPath.substring(0, absPath.lastIndexOf('/'));
+  if (parentDir && !(await exists(parentDir))) {
+    await mkdir(parentDir, { recursive: true });
+  }
+  if (!(await exists(absPath))) {
+    const snapshot = {
+      document: {
+        id: 'document:document',
+        typeName: 'document',
+        meta: { slideLocked: true },
+      },
+      session: {},
+    };
+    await writeTextFile(absPath, JSON.stringify(snapshot));
+    dispatchWorkspaceMutation(workspace.path, 'create-canvas');
+  }
+}
+
 /** Delete a file or directory from the workspace. */
 export async function deleteFile(workspace: Workspace, relPath: string, isDir = false): Promise<void> {
   await remove(`${workspace.path}/${relPath}`, isDir ? { recursive: true } : undefined);

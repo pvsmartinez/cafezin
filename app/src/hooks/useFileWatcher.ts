@@ -12,7 +12,7 @@ import type { Workspace } from '../types';
 import { readFile, refreshWorkspaceFiles } from '../services/workspace';
 import { getFileTypeInfo } from '../utils/fileType';
 
-const RELOAD_SKIP_KINDS = new Set(['pdf', 'video', 'audio', 'image', 'canvas']);
+const RELOAD_SKIP_KINDS = new Set(['pdf', 'video', 'audio', 'image', 'canvas', 'rtf', 'docx', 'pptx']);
 const LEGACY_INTERNAL_PATHS = new Set([
   'cafezin/ai-marks.json',
   'cafezin/config.json',

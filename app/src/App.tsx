@@ -921,7 +921,7 @@ export default function App() {
     const info = getFileTypeInfo(filename);
 
     // Binary/non-text files: no content to read — register tab and switch
-    if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image' || info.kind === 'spreadsheet') {
+    if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image' || info.kind === 'spreadsheet' || info.kind === 'rtf' || info.kind === 'docx' || info.kind === 'pptx') {
       tabContentsRef.current.set(filename, '');
       tabViewModeRef.current.set(filename, info.defaultMode as 'edit' | 'preview');
       addTab(filename);

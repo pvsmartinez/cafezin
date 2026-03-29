@@ -1,0 +1,179 @@
+name: Windows Store MSIX
+
+# Builds a self-contained MSIX package for the Microsoft Store.
+# No Authenticode certificate purchase required:
+#   - We self-sign with a fresh cert generated in CI.
+#   - Microsoft re-signs the package when you submit via Partner Center.
+#   - End users install from the Store, which carries Microsoft's signature.
+#
+# After registering on Partner Center, update identity_name and publisher_cn
+# with the exact values shown in your Partner Center app page.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag (e.g. v0.2.0)"
+        required: true
+      identity_name:
+        description: "Package Identity Name from Partner Center (e.g. PedroMartinez.Cafezin)"
+        required: false
+        default: "PedroMartinez.Cafezin"
+      publisher_cn:
+        description: "Publisher value from Partner Center (e.g. CN=Pedro Martinez)"
+        required: false
+        default: "CN=Pedro Martinez"
+
+env:
+  APP_NAME: Cafezin
+
+jobs:
+  build-msix:
+    name: Windows Store MSIX
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Install npm dependencies
+        run: npm install --legacy-peer-deps
+        working-directory: app
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+
+      # Build the React/Vite frontend so cargo can embed it into the binary.
+      - name: Build frontend
+        run: npm run build
+        working-directory: app
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      # Compile the Rust binary directly — no Tauri bundler, no MSI/NSIS overhead.
+      # The frontend dist is embedded at compile time via tauri-build.
+      - name: Build Cafezin binary
+        run: cargo build --release
+        working-directory: app/src-tauri
+
+      # Convert the semver tag (v0.2.0) into a 4-part MSIX version (0.2.0.0).
+      - name: Parse version
+        id: version
+        shell: pwsh
+        run: |
+          $ver = "${{ inputs.tag }}".TrimStart('v')
+          $parts = $ver.Split('.')
+          while ($parts.Count -lt 4) { $parts += @('0') }
+          "ver=$ver"           >> $env:GITHUB_OUTPUT
+          "msix_ver=$($parts[0..3] -join '.')" >> $env:GITHUB_OUTPUT
+
+      # Generate a self-signed cert in CI — no purchased certificate required.
+      # Microsoft re-signs the MSIX when you submit it to Partner Center.
+      - name: Generate self-signed certificate
+        id: cert
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate `
+            -Type CodeSigningCert `
+            -Subject "${{ inputs.publisher_cn }}" `
+            -KeyUsage DigitalSignature `
+            -FriendlyName "Cafezin MSIX Signing" `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
+            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+
+      # Stage the binary and scaled icon assets into the MSIX folder layout.
+      - name: Create MSIX package structure
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "msix-pkg/Assets" -Force | Out-Null
+
+          # Main binary — take the largest exe at the root of target/release/
+          $exe = Get-ChildItem "app/src-tauri/target/release/*.exe" `
+            | Sort-Object Length -Descending `
+            | Select-Object -First 1
+          Copy-Item $exe.FullName "msix-pkg/Cafezin.exe"
+
+          # Scale icons from the existing 128x128 asset
+          Add-Type -AssemblyName System.Drawing
+          $src = [System.Drawing.Image]::FromFile(
+            (Resolve-Path "app/src-tauri/icons/128x128.png").Path
+          )
+          foreach ($a in @(
+            @{ Name = "Square44x44Logo";   W = 44;  H = 44  },
+            @{ Name = "Square150x150Logo"; W = 150; H = 150 },
+            @{ Name = "StoreLogo";         W = 50;  H = 50  },
+            @{ Name = "Wide310x150Logo";   W = 310; H = 150 }
+          )) {
+            $bmp = New-Object System.Drawing.Bitmap($a.W, $a.H)
+            $g   = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $g.DrawImage($src, 0, 0, $a.W, $a.H)
+            $g.Dispose()
+            $bmp.Save("msix-pkg/Assets/$($a.Name).png",
+              [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+          }
+          $src.Dispose()
+
+      # Fill placeholders in the template file that lives in the repo.
+      # Avoids PowerShell heredocs, which conflict with YAML literal block indentation.
+      - name: Write AppxManifest.xml
+        shell: pwsh
+        run: |
+          (Get-Content "app/src-tauri/AppxManifest.xml.template" -Raw) `
+            -replace '__IDENTITY_NAME__', '${{ inputs.identity_name }}' `
+            -replace '__PUBLISHER_CN__',  '${{ inputs.publisher_cn }}' `
+            -replace '__MSIX_VERSION__',  '${{ steps.version.outputs.msix_ver }}' |
+            Set-Content "msix-pkg/AppxManifest.xml" -Encoding UTF8
+
+      - name: Package MSIX with makeappx
+        shell: pwsh
+        run: |
+          $makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" `
+            -Recurse -Filter "makeappx.exe" `
+            | Where-Object { $_.FullName -match "x64" } `
+            | Sort-Object FullName -Descending `
+            | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $makeappx) { throw "makeappx.exe not found — Windows SDK may not be installed on this runner" }
+          & $makeappx pack /d msix-pkg /p Cafezin.msix /o
+
+      # Self-signed signature satisfies makeappx; Partner Center replaces it with Microsoft's cert.
+      - name: Sign MSIX with self-signed certificate
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" `
+            -Recurse -Filter "signtool.exe" `
+            | Where-Object { $_.FullName -match "x64" } `
+            | Sort-Object FullName -Descending `
+            | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $signtool) { throw "signtool.exe not found" }
+          & $signtool sign /fd sha256 /sha1 "${{ steps.cert.outputs.thumbprint }}" Cafezin.msix
+
+      - name: Checksum
+        shell: bash
+        run: shasum -a 256 Cafezin.msix > Cafezin.msix.sha256
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-store-msix
+          path: |
+            Cafezin.msix
+            Cafezin.msix.sha256
+          if-no-files-found: error

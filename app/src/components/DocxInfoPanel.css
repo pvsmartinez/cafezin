@@ -1,0 +1,148 @@
+.docx-panel {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 32px 24px;
+  overflow-y: auto;
+}
+
+.docx-panel-inner {
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+}
+
+.docx-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.docx-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 10px;
+}
+
+.docx-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 28px;
+}
+
+.docx-desc code {
+  font-family: var(--font-mono, monospace);
+  background: var(--surface, #f0f0f0);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+/* ── Info grid ── */
+.docx-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  text-align: left;
+  margin-bottom: 28px;
+}
+
+.docx-info-col {
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 13px;
+}
+
+.docx-info-col--keep {
+  background: var(--green-soft, rgba(40, 167, 69, 0.08));
+  border: 1px solid var(--green-border, rgba(40, 167, 69, 0.2));
+}
+
+.docx-info-col--lose {
+  background: var(--orange-soft, rgba(255, 152, 0, 0.07));
+  border: 1px solid var(--orange-border, rgba(255, 152, 0, 0.2));
+}
+
+.docx-info-col h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 10px;
+  color: var(--text-muted);
+}
+
+.docx-info-col--keep h3 {
+  color: var(--green, #1a7a40);
+}
+
+.docx-info-col--lose h3 {
+  color: var(--orange, #c47a00);
+}
+
+.docx-info-col ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--text);
+  line-height: 1.8;
+}
+
+/* ── Actions ── */
+.docx-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.docx-btn {
+  padding: 8px 24px;
+  border-radius: 7px;
+  border: none;
+  background: var(--accent, #5a6aad);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.docx-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.docx-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.docx-success {
+  font-size: 13px;
+  color: var(--green, #1a7a40);
+  background: var(--green-soft, rgba(40, 167, 69, 0.08));
+  border: 1px solid var(--green-border, rgba(40, 167, 69, 0.2));
+  border-radius: 6px;
+  padding: 8px 16px;
+}
+
+.docx-error {
+  font-size: 13px;
+  color: var(--red, #bf3c3c);
+  margin: 0;
+}
+
+.docx-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  margin: 0;
+}
+
+.docx-note code {
+  font-family: var(--font-mono, monospace);
+}

@@ -1,5 +1,5 @@
 /** What kind of file this is — drives which viewer/editor is shown. */
-export type FileKind = 'markdown' | 'pdf' | 'video' | 'audio' | 'image' | 'canvas' | 'html' | 'code' | 'spreadsheet' | 'unknown';
+export type FileKind = 'markdown' | 'pdf' | 'video' | 'audio' | 'image' | 'canvas' | 'html' | 'code' | 'spreadsheet' | 'rtf' | 'docx' | 'pptx' | 'unknown';
 
 export interface FileTypeInfo {
   kind: FileKind;
@@ -98,6 +98,21 @@ export function getFileTypeInfo(filename: string): FileTypeInfo {
       defaultMode: 'edit',
       language: CODE_EXTENSIONS[ext],
     };
+  }
+
+  // RTF documents — stripped to plain text by RtfViewer
+  if (ext === 'rtf') {
+    return { kind: 'rtf', supportsPreview: false, defaultMode: 'edit', language: '' };
+  }
+
+  // Word documents — info panel with export-as-markdown option
+  if (ext === 'docx' || ext === 'doc') {
+    return { kind: 'docx', supportsPreview: false, defaultMode: 'edit', language: '' };
+  }
+
+  // PowerPoint presentations — info panel with import-as-canvas option
+  if (ext === 'pptx' || ext === 'ppt') {
+    return { kind: 'pptx', supportsPreview: false, defaultMode: 'edit', language: '' };
   }
 
   // Slides etc. — treat as unknown, open read-only in editor

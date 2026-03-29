@@ -5,6 +5,7 @@ import {
   Tldraw,
   DefaultColorStyle, DefaultSizeStyle, DefaultFontStyle,
   DefaultFillStyle, DefaultDashStyle,
+  createShapeId, toRichText,
 } from 'tldraw';
 import { readFile } from '../services/fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -43,6 +44,85 @@ import { CanvasSlideStrip }     from './canvas/CanvasSlideStrip';
 import { CanvasImageDialog }    from './canvas/CanvasImageDialog';
 import { CanvasPresentOverlay } from './canvas/CanvasPresentOverlay';
 import { CanvasContextMenus }   from './canvas/CanvasContextMenus';
+
+// ── PPTX → Canvas import ─────────────────────────────────────────────────────
+// Called from handleMount when the canvas file was created from a .pptx import.
+// Creates one tldraw frame per slide with title and body text shapes.
+function importPptxSlidesToEditor(
+  editor: Editor,
+  slides: Array<{ title: string; body: string }>,
+  theme: CanvasTheme,
+) {
+  const { SLIDE_W, SLIDE_H, SLIDE_GAP } = { SLIDE_W: 1280, SLIDE_H: 720, SLIDE_GAP: 80 };
+  const PAD = 80;
+
+  slides.forEach((slide, idx) => {
+    const frameId = createShapeId();
+    const frameX = idx * (SLIDE_W + SLIDE_GAP);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    editor.createShape({
+      id: frameId,
+      type: 'frame',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      parentId: editor.getCurrentPageId() as any,
+      x: frameX,
+      y: 0,
+      props: { w: SLIDE_W, h: SLIDE_H, name: slide.title || `Slide ${idx + 1}` },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    if (slide.title) {
+      const h = theme.heading;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editor.createShape({
+        id: createShapeId(),
+        type: 'text',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        parentId: frameId as any,
+        x: PAD,
+        y: 100,
+        meta: { textRole: 'heading' },
+        props: {
+          richText: toRichText(slide.title),
+          color: h.color,
+          size: h.size,
+          font: h.font,
+          textAlign: h.align,
+          autoSize: false,
+          w: SLIDE_W - PAD * 2,
+          scale: 1,
+        },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+    }
+
+    if (slide.body) {
+      const b = theme.body;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editor.createShape({
+        id: createShapeId(),
+        type: 'text',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        parentId: frameId as any,
+        x: PAD,
+        y: slide.title ? 260 : 100,
+        meta: { textRole: 'body' },
+        props: {
+          richText: toRichText(slide.body),
+          color: b.color,
+          size: b.size,
+          font: b.font,
+          textAlign: b.align,
+          autoSize: false,
+          w: SLIDE_W - PAD * 2,
+          scale: 1,
+        },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+    }
+  });
+}
 
 // ── tldraw error fallback overrides ──────────────────────────────────────────
 // Replaces tldraw's built-in "Something went wrong / Reset" dialog with our own
@@ -166,6 +246,11 @@ export default function CanvasEditor({
   const [themeOpen, setThemeOpen] = useState(false);
   const [editingPreset, setEditingPreset] = useState<'heading' | 'body' | null>(null);
 
+  // ── Slide-locked mode — camera always snapped to one slide at a time ─────────
+  const [slideLocked, setSlideLocked] = useState(false);
+  const slideLockedRef = useRef(false);
+  slideLockedRef.current = slideLocked;
+
   // ── Image dialog state ─────────────────────────────────────────────────────
   const [imgDialogOpen, setImgDialogOpen] = useState(false);
   const [imgUrlInput, setImgUrlInput]     = useState('');
@@ -195,6 +280,24 @@ export default function CanvasEditor({
   const { shapeCtxMenu, setShapeCtxMenu, lockPill, setLockPill, lockFlash } =
     useCanvasLockUI({ editorRef, mainDivRef });
 
+  // ── goToFrameSafe — navigates to slide idx, handling camera lock/unlock ───────
+  // When slide-locked: briefly unlock camera, animate zoom, then re-lock.
+  function goToFrameSafe(idx: number) {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (slideLockedRef.current) {
+      editor.setCameraOptions({ ...CAMERA_OPTIONS, isLocked: false });
+    }
+    goToFrame(idx); // handles clamping, setFrameIndex, and zoomToFrame
+    if (slideLockedRef.current) {
+      setTimeout(() => {
+        if (slideLockedRef.current && editorRef.current) {
+          editorRef.current.setCameraOptions({ ...CAMERA_OPTIONS, isLocked: true });
+        }
+      }, 450);
+    }
+  }
+
   // ── Clear blob URL cache when this canvas instance unmounts ─────────────────
   useEffect(() => {
     return () => {
@@ -220,6 +323,67 @@ export default function CanvasEditor({
   useEffect(() => {
     editorRef.current?.user.updateUserPreferences({ colorScheme: darkMode ? 'dark' : 'light' });
   }, [darkMode]);
+
+  // ── Slide-locked mode: sync camera lock when slideLocked or isPresenting changes
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (!slideLocked || isPresenting) {
+      editor.setCameraOptions({ ...CAMERA_OPTIONS, isLocked: false });
+      return;
+    }
+    // Zoom to the current slide, then lock
+    const f = frames[frameIndex];
+    if (f) {
+      const bounds = editor.getShapePageBounds(f.id);
+      if (bounds) editor.zoomToBounds(bounds, { animation: { duration: 350 }, inset: 40 });
+    }
+    const t = setTimeout(() => {
+      if (slideLockedRef.current && editorRef.current) {
+        editorRef.current.setCameraOptions({ ...CAMERA_OPTIONS, isLocked: true });
+      }
+    }, 420);
+    return () => clearTimeout(t);
+  // Only react to slideLocked/isPresenting changes, not every frameIndex change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideLocked, isPresenting]);
+
+  // ── Slide-locked keyboard navigation (arrows when no shape is selected) ───────
+  useEffect(() => {
+    if (!slideLocked || isPresenting) return;
+    function onKey(e: KeyboardEvent) {
+      const ed = editorRef.current;
+      if (!ed) return;
+      if (ed.getEditingShapeId()) return;              // typing in a shape — pass through
+      if (ed.getSelectedShapeIds().length > 0) return; // shapes selected — let tldraw nudge them
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      let dir = 0;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') dir = 1;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') dir = -1;
+      if (dir === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setFrameIndex((prev) => {
+        const next = Math.max(0, Math.min(frames.length - 1, prev + dir));
+        if (next === prev) return prev;
+        const f = frames[next];
+        if (!f) return prev;
+        ed.setCameraOptions({ ...CAMERA_OPTIONS, isLocked: false });
+        const bounds = ed.getShapePageBounds(f.id);
+        if (bounds) ed.zoomToBounds(bounds, { animation: { duration: 350 }, inset: 40 });
+        setTimeout(() => {
+          if (slideLockedRef.current && editorRef.current) {
+            editorRef.current.setCameraOptions({ ...CAMERA_OPTIONS, isLocked: true });
+          }
+        }, 450);
+        return next;
+      });
+    }
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  // Re-register when frames change so stale closure is replaced
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideLocked, isPresenting, frames]);
 
   // ── Clear pending timers on unmount ──────────────────────────────────────────
   useEffect(() => () => {
@@ -279,6 +443,7 @@ export default function CanvasEditor({
 
   // ── tldraw component overrides ────────────────────────────────────────────────
   // In present mode: hide all editing UI so the canvas is view-only.
+  // In slide-locked mode: hide NavigationPanel (zoom buttons are useless when locked).
   const tlComponents = useMemo<TLComponents>(() => ({
     SharePanel: null, HelpMenu: null, Minimap: null, StylePanel: null,
     ContextMenu: null, // replaced by our shape context menu
@@ -291,8 +456,9 @@ export default function CanvasEditor({
       TopPanel: null, ActionsMenu: null, HelperButtons: null, InFrontOfTheCanvas: null,
     } : {
       InFrontOfTheCanvas: CanvasOverlays,
+      ...(slideLocked ? { NavigationPanel: null } : {}),
     }),
-  }), [isPresenting]);
+  }), [isPresenting, slideLocked]);
 
   // ── Parse initial snapshot ONCE ───────────────────────────────────────────────
   // tldraw's `snapshot` prop is an "initial value" — re-passing on every render
@@ -349,6 +515,33 @@ export default function CanvasEditor({
       syncDefaultStylesToTheme(editor, savedTheme);
     } catch (err) {
       console.warn('[CanvasEditor] handleMount: theme load error (non-fatal):', err);
+    }
+
+    // ── Read persisted slide-locked preference from document meta ──
+    try {
+      const meta = editor.getDocumentSettings().meta as Record<string, unknown>;
+      if (meta?.slideLocked === true) {
+        setSlideLocked(true);
+      }
+    } catch (err) {
+      console.warn('[CanvasEditor] handleMount: slideLocked read error (non-fatal):', err);
+    }
+
+    // ── Import PPTX slides if this canvas was created from a .pptx file ──
+    try {
+      const meta = editor.getDocumentSettings().meta as Record<string, unknown>;
+      const pptxImport = meta?.pptxImport as { slides: Array<{ title: string; body: string }> } | undefined;
+      if (pptxImport?.slides?.length) {
+        const savedTheme = loadThemeFromDoc(editor);
+        importPptxSlidesToEditor(editor, pptxImport.slides, savedTheme);
+        // Clear the pending import so re-opening doesn't re-import
+        const cleanMeta = { ...meta };
+        delete cleanMeta['pptxImport'];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editor.updateDocumentSettings({ meta: cleanMeta as any });
+      }
+    } catch (err) {
+      console.warn('[CanvasEditor] handleMount: pptxImport error (non-fatal):', err);
     }
 
     try {
@@ -721,7 +914,7 @@ export default function CanvasEditor({
             frames={frames}
             frameIndex={frameIndex}
             editorRef={editorRef}
-            onGoToFrame={goToFrame}
+            onGoToFrame={slideLocked ? goToFrameSafe : goToFrame}
             onEnterPresent={enterPresent}
             onAddSlide={addSlide}
             onRescanFrames={rescanFrames}
@@ -730,10 +923,39 @@ export default function CanvasEditor({
             onDuplicateFrame={duplicateFrame}
             onReorderFrames={reorderFrames}
             onFitSlide={() => {
-              const ed = editorRef.current;
-              if (ed && frames[frameIndex]) zoomToFrame(ed, frames[frameIndex] as AnyFrame);
+              if (slideLocked) {
+                goToFrameSafe(frameIndex);
+              } else {
+                const ed = editorRef.current;
+                if (ed && frames[frameIndex]) zoomToFrame(ed, frames[frameIndex] as AnyFrame);
+              }
             }}
           />
+
+          {/* Slide Mode toggle — lock camera to one slide at a time */}
+          {frames.length > 0 && !isPresenting && (
+            <button
+              className={`canvas-theme-toggle${slideLocked ? ' canvas-theme-toggle--on' : ''}`}
+              onClick={() => {
+                const next = !slideLocked;
+                setSlideLocked(next);
+                // Persist preference in document meta so reopening restores it
+                try {
+                  const editor = editorRef.current;
+                  if (editor) {
+                    const existing = editor.getDocumentSettings().meta as Record<string, unknown>;
+                    editor.updateDocumentSettings({ meta: { ...existing, slideLocked: next } });
+                  }
+                } catch { /* non-fatal */ }
+              }}
+              title={slideLocked
+                ? 'Slide Mode ativo — câmera travada no slide atual. Clique para voltar ao canvas livre'
+                : 'Slide Mode — trava a câmera num slide de cada vez, como Google Slides'
+              }
+            >
+              ⊞ Slides
+            </button>
+          )}
 
           {/* Right: theme toggle */}
           <button

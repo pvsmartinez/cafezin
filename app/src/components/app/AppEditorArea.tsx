@@ -20,6 +20,9 @@ const WebPreview = lazy(() => import('../WebPreview'));
 const PDFViewer = lazy(() => import('../PDFViewer'));
 const MediaViewer = lazy(() => import('../MediaViewer'));
 const SpreadsheetViewer = lazy(() => import('../SpreadsheetViewer'));
+const RtfViewer = lazy(() => import('../RtfViewer'));
+const DocxInfoPanel = lazy(() => import('../DocxInfoPanel'));
+const PptxInfoPanel = lazy(() => import('../PptxInfoPanel'));
 
 type ViewMode = 'edit' | 'preview';
 
@@ -209,6 +212,28 @@ export function AppEditorAreaInner({
                 onMarkReviewed={onMarkReviewed}
                 onMarkRejected={onMarkRejected}
                 onMarkUserEdited={onMarkUserEdited}
+              />
+            ) : fileTypeInfo?.kind === 'rtf' && activeFile ? (
+              <RtfViewer
+                absPath={`${workspace.path}/${activeFile}`}
+                filename={activeFile}
+                workspacePath={workspace.path}
+                onStat={onSetFileStat}
+                onOpenFile={onOpenFile}
+              />
+            ) : fileTypeInfo?.kind === 'docx' && activeFile ? (
+              <DocxInfoPanel
+                absPath={`${workspace.path}/${activeFile}`}
+                filename={activeFile}
+                workspacePath={workspace.path}
+                onOpenFile={onOpenFile}
+              />
+            ) : fileTypeInfo?.kind === 'pptx' && activeFile ? (
+              <PptxInfoPanel
+                absPath={`${workspace.path}/${activeFile}`}
+                filename={activeFile}
+                workspacePath={workspace.path}
+                onOpenFile={onOpenFile}
               />
             ) : (fileTypeInfo?.kind === 'video' || fileTypeInfo?.kind === 'audio' || fileTypeInfo?.kind === 'image') && activeFile ? (
               <MediaViewer
