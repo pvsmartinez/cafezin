@@ -10,15 +10,24 @@
  * AIMarkOverlay and FindReplaceBar can work without changes.
  */
 import { useEditor, EditorContent } from '@tiptap/react';
+import type { Editor as TiptapEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Extension } from '@tiptap/core';
+import Underline from '@tiptap/extension-underline';
 import { Markdown } from 'tiptap-markdown';
+import {
+  TextB, TextItalic, TextUnderline, TextStrikethrough,
+  TextHOne, TextHTwo, TextHThree,
+  ListBullets, ListNumbers,
+  Quotes, Code, Terminal, Minus, LinkSimple,
+} from '@phosphor-icons/react';
 import {
   forwardRef,
   useImperativeHandle,
   useEffect,
   useRef,
   useCallback,
+  useState,
 } from 'react';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -27,6 +36,89 @@ import type { EditorHandle } from './Editor';
 import type { AISelectionContext, AITextRevert } from '../types/index';
 import { findAIMarkRange } from '../utils/aiMarkMatch';
 import './ProseEditor.css';
+
+// ── Prose formatting toolbar ─────────────────────────────────────────────────
+
+interface ToolBtn {
+  title: string;
+  icon: React.ReactNode;
+  action: () => void;
+  isActive: boolean;
+}
+
+function ProseToolbar({ editor }: { editor: TiptapEditor }) {
+  // Re-render whenever selection/marks change so active states stay in sync
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const update = () => forceUpdate((n) => n + 1);
+    editor.on('selectionUpdate', update);
+    editor.on('transaction', update);
+    return () => {
+      editor.off('selectionUpdate', update);
+      editor.off('transaction', update);
+    };
+  }, [editor]);
+
+  function setLink() {
+    const prev = editor.getAttributes('link').href ?? '';
+    // eslint-disable-next-line no-alert
+    const url = window.prompt('URL do link:', prev);
+    if (url === null) return; // cancelled
+    if (url === '') {
+      editor.chain().focus().unsetMark('link').run();
+    } else {
+      editor.chain().focus().toggleMark('link', { href: url, target: '_blank' }).run();
+    }
+  }
+
+  const groups: ToolBtn[][] = [
+    [
+      { title: 'Negrito (⌘B)',           icon: <TextB size={15} weight="bold" />,              action: () => editor.chain().focus().toggleBold().run(),       isActive: editor.isActive('bold') },
+      { title: 'Itálico (⌘I)',           icon: <TextItalic size={15} />,                        action: () => editor.chain().focus().toggleItalic().run(),     isActive: editor.isActive('italic') },
+      { title: 'Sublinhado (⌘U)',        icon: <TextUnderline size={15} />,                     action: () => editor.chain().focus().toggleUnderline().run(),   isActive: editor.isActive('underline') },
+      { title: 'Tachado',               icon: <TextStrikethrough size={15} />,                 action: () => editor.chain().focus().toggleStrike().run(),     isActive: editor.isActive('strike') },
+    ],
+    [
+      { title: 'Título 1',              icon: <TextHOne size={15} />,                           action: () => editor.chain().focus().toggleHeading({ level: 1 }).run(), isActive: editor.isActive('heading', { level: 1 }) },
+      { title: 'Título 2',              icon: <TextHTwo size={15} />,                           action: () => editor.chain().focus().toggleHeading({ level: 2 }).run(), isActive: editor.isActive('heading', { level: 2 }) },
+      { title: 'Título 3',              icon: <TextHThree size={15} />,                         action: () => editor.chain().focus().toggleHeading({ level: 3 }).run(), isActive: editor.isActive('heading', { level: 3 }) },
+    ],
+    [
+      { title: 'Lista com marcadores',  icon: <ListBullets size={15} />,                       action: () => editor.chain().focus().toggleBulletList().run(), isActive: editor.isActive('bulletList') },
+      { title: 'Lista numerada',        icon: <ListNumbers size={15} />,                       action: () => editor.chain().focus().toggleOrderedList().run(), isActive: editor.isActive('orderedList') },
+    ],
+    [
+      { title: 'Citação',               icon: <Quotes size={15} />,                            action: () => editor.chain().focus().toggleBlockquote().run(), isActive: editor.isActive('blockquote') },
+      { title: 'Código inline',         icon: <Code size={15} />,                              action: () => editor.chain().focus().toggleCode().run(),       isActive: editor.isActive('code') },
+      { title: 'Bloco de código',       icon: <Terminal size={15} />,                          action: () => editor.chain().focus().toggleCodeBlock().run(),  isActive: editor.isActive('codeBlock') },
+    ],
+    [
+      { title: 'Linha horizontal',      icon: <Minus size={15} />,                             action: () => editor.chain().focus().setHorizontalRule().run(), isActive: false },
+      { title: 'Link',                  icon: <LinkSimple size={15} />,                        action: setLink,                                               isActive: editor.isActive('link') },
+    ],
+  ];
+
+  return (
+    <div className="prose-toolbar" role="toolbar" aria-label="Formatação">
+      {groups.map((group, gi) => (
+        <div key={gi} className="prose-toolbar-group">
+          {group.map((btn) => (
+            <button
+              key={btn.title}
+              title={btn.title}
+              aria-label={btn.title}
+              aria-pressed={btn.isActive}
+              onMouseDown={(e) => { e.preventDefault(); btn.action(); }}
+              className={`prose-toolbar-btn${btn.isActive ? ' active' : ''}`}
+            >
+              {btn.icon}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ── Text-search helpers ───────────────────────────────────────────────────────
 
@@ -188,6 +280,7 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
     const editor = useEditor({
       extensions: [
         StarterKit,
+        Underline,
         Markdown.configure({ html: false, transformPastedText: true }),
         // AI mark decorations via a ProseMirror plugin registered as a Tiptap extension
         Extension.create({
@@ -385,8 +478,7 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
         data-locked={isLocked || undefined}
         data-theme={isDark ? 'dark' : 'light'}
         style={{ '--prose-font-size': `${fontSize}px` } as React.CSSProperties}
-      >
-        <EditorContent editor={editor} className="tiptap-content" />
+      >        {editor && !isLocked && <ProseToolbar editor={editor} />}        <EditorContent editor={editor} className="tiptap-content" />
       </div>
     );
   },
