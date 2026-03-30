@@ -147,17 +147,29 @@ export function stripBase64ForLog(messages: ChatMessage[]): object[] {
  * even after the conversation has moved on — so we prefer recent user turns.
  */
 export function getCompressionAnchorUserText(messages: ChatMessage[]): string {
+  const extractText = (content: ChatMessage['content']): string => {
+    if (typeof content === 'string') return content.trim();
+    if (Array.isArray(content)) {
+      // Multipart message (e.g. canvas screenshot + user text) — extract text parts only
+      return (content as any[])
+        .filter((p: any) => p.type === 'text')
+        .map((p: any) => String(p.text ?? ''))
+        .join(' ')
+        .trim();
+    }
+    return '';
+  };
+
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
-    if (msg.role !== 'user' || typeof msg.content !== 'string') continue;
-    const text = msg.content.trim();
+    if (msg.role !== 'user') continue;
+    const text = extractText(msg.content);
     if (!text) continue;
     if (text.startsWith('[SESSION SUMMARY')) continue;
     return text;
   }
 
-  const fallback = messages.find((m) => m.role === 'user' && typeof m.content === 'string');
-  return typeof fallback?.content === 'string' && fallback.content.trim()
-    ? fallback.content.trim()
-    : '(current user request not recoverable)';
+  const fallback = messages.find((m) => m.role === 'user');
+  const fallbackText = fallback ? extractText(fallback.content) : '';
+  return fallbackText || '(current user request not recoverable)';
 }

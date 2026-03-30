@@ -109,12 +109,19 @@ export async function summarizeAndCompress(
       break;
     }
   }
-  // Strip vision-only messages; they can't be re-used after compression.
-  const tail = (tailStart >= 0 ? loop.slice(tailStart) : []).filter(
-    (m) =>
-      !(Array.isArray(m.content) &&
-        (m.content as any[]).some((p: any) => p.type === 'image_url')),
-  );
+  // Strip vision payloads from the tail — images can't be re-used after compression
+  // and would inflate the token count. For mixed messages (text + image) we keep the
+  // text parts so the user message and its context are preserved; pure image-only
+  // messages (e.g. canvas-only injections) are dropped entirely.
+  const stripTailImages = (m: ChatMessage): ChatMessage | null => {
+    if (!Array.isArray(m.content)) return m;
+    const textParts = (m.content as any[]).filter((p: any) => p.type !== 'image_url');
+    if (textParts.length === 0) return null; // pure vision message — drop
+    return { ...m, content: textParts };
+  };
+  const tail = (tailStart >= 0 ? loop.slice(tailStart) : [])
+    .map(stripTailImages)
+    .filter((m): m is ChatMessage => m !== null);
 
   const summaryMsg: ChatMessage = {
     role: 'user',
