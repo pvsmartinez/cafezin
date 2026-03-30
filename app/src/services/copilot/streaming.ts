@@ -914,13 +914,17 @@ export async function runCopilotAgent(
               (m.content as any[]).some((p: any) => p.type === 'image_url')) acc.push(i);
           return acc;
         }, []);
-        if (visionIdxsForPrune.length > 0) {
-          for (let i = visionIdxsForPrune.length - 1; i >= 0; i--) {
-            loop.splice(visionIdxsForPrune[i], 1);
-          }
-        }
 
         if (latestScreenshotUrl) {
+          // Only prune existing vision messages when replacing them with a fresh
+          // canvas/preview screenshot. Without this guard, user-attached images sent
+          // in the current turn were being erased after any tool call, causing the
+          // model to lose the user's photos and respond to stale conversation context.
+          if (visionIdxsForPrune.length > 0) {
+            for (let i = visionIdxsForPrune.length - 1; i >= 0; i--) {
+              loop.splice(visionIdxsForPrune[i], 1);
+            }
+          }
           const isValidDataUrl =
             latestScreenshotUrl.startsWith('data:image/') &&
             latestScreenshotUrl.includes(';base64,') &&
