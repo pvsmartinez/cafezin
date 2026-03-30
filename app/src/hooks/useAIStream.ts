@@ -495,6 +495,10 @@ export function useAIStream({
     // Pin only the system prompt, then fill backward from the most-recent
     // message. This avoids anchoring on the first user turn, which caused
     // the model to re-focus on an old intent instead of the latest prompt.
+    //
+    // Groups are kept intact: tool results are always included together with
+    // their parent assistant+tool_calls message. Splitting a group would cause
+    // sanitizeLoop to silently drop the orphan tool results, wasting tokens.
     const apiMessages = (() => {
       const CHAT_TOKEN_BUDGET = getModelTokenBudgets(model).chatBudget;
       const all = [systemPrompt, ...newMessages];
@@ -503,11 +507,24 @@ export function useAIStream({
       const pinnedTokens = estimateTokens(pinned);
       const tail: typeof all = [];
       let tailTokens = 0;
-      for (let i = all.length - 1; i > 0; i--) {
-        const t = estimateTokens([all[i]]);
-        if (pinnedTokens + tailTokens + t > CHAT_TOKEN_BUDGET) break;
-        tail.unshift(all[i]);
-        tailTokens += t;
+      let i = all.length - 1;
+      while (i > 0) {
+        // Collect a group: tool results + their paired assistant, or a single message.
+        const group: typeof all = [];
+        if (all[i].role === 'tool') {
+          // Walk back collecting all consecutive tool results.
+          while (i > 0 && all[i].role === 'tool') { group.unshift(all[i]); i--; }
+          // Include the preceding assistant+tool_calls message that called them.
+          if (i > 0 && all[i].role === 'assistant' && (all[i] as any).tool_calls?.length) {
+            group.unshift(all[i]); i--;
+          }
+        } else {
+          group.unshift(all[i]); i--;
+        }
+        const groupTokens = estimateTokens(group);
+        if (pinnedTokens + tailTokens + groupTokens > CHAT_TOKEN_BUDGET) break;
+        tail.unshift(...group);
+        tailTokens += groupTokens;
       }
       return [...pinned, ...tail];
     })();

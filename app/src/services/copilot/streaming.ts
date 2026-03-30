@@ -105,8 +105,23 @@ function buildDumpMeta(
   };
 }
 
+// Prefixes of synthetic user messages injected by the canvas/preview screenshot
+// machinery — they must NOT be mistaken for genuine user intent when filtering tools.
+const SYNTHETIC_USER_MSG_PREFIXES = [
+  'canvas screenshot after',
+  'html preview screenshot',
+  'current canvas state',
+];
+
 function inferCopilotToolIntent(messages: ChatMessage[]) {
-  const lastUser = [...messages].reverse().find((message) => message.role === 'user');
+  // Skip synthetic vision-injection user messages (canvas/preview screenshots injected
+  // into the loop as user turns) — they contain no user intent and would cause tools
+  // like `remember` and `save_desktop_task` to be filtered out for all subsequent rounds.
+  const lastUser = [...messages].reverse().find((message) => {
+    if (message.role !== 'user') return false;
+    const text = contentToPlainText(message.content).toLowerCase().trimStart();
+    return !SYNTHETIC_USER_MSG_PREFIXES.some((prefix) => text.startsWith(prefix));
+  });
   const prompt = contentToPlainText(lastUser?.content ?? '').trim();
   const normalized = prompt.toLowerCase();
   const hasInjectedContext =
