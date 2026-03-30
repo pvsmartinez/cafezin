@@ -1,12 +1,13 @@
-# Cafezin 0.1.10
+# Cafezin 0.1.11
 
-Release 0.1.10 packages the work shipped since 0.1.9, with updates across the app, installers, and release flow.
+Release 0.1.11 packages the work shipped since 0.1.10, with updates across the app, installers, and release flow.
 
 ## Highlights
 
+- Chore: checkpoint before release
 - Chore: sync
-- Chore: update latest.json for v0.1.9 [skip ci]
-- Chore: update latest.json for v0.1.9 macOS
+- Chore: update latest.json for v0.1.10 [skip ci]
+- Chore: update latest.json for v0.1.10 macOS
 - Updated 12 changed files across the app and release flow.
 
 ## Downloads
@@ -16,4 +17,4 @@ Release 0.1.10 packages the work shipped since 0.1.9, with updates across the ap
 
 ## Full release
 
-https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.10
+https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.11
