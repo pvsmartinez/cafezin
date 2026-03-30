@@ -111,6 +111,14 @@
         );
         var platform = inferPlatform(node);
 
+        // Skip tracking for non-download navigation links (e.g. "See Pricing" buttons
+        // that share the btn-download style class but are not actual file downloads).
+        var isDownload =
+          /^https?:\/\//i.test(href) ||
+          /^\/download/i.test(href) ||
+          /\.(dmg|exe|msi|apk)$/i.test(href);
+        if (!isDownload) return;
+
         track("download_click", { platform: platform });
 
         if (
