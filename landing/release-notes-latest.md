@@ -4,11 +4,11 @@ Release 0.1.11 packages the work shipped since 0.1.10, with updates across the a
 
 ## Highlights
 
-- Chore: checkpoint before release
+- Fix: pricing grid 4-col layout + skip file_download tracking on pricing nav buttons
 - Chore: sync
-- Chore: update latest.json for v0.1.10 [skip ci]
-- Chore: update latest.json for v0.1.10 macOS
-- Updated 12 changed files across the app and release flow.
+- Chore: update latest.json for v0.1.11 [skip ci]
+- Chore: update latest.json for v0.1.11 macOS
+- Chore: release v0.1.11
 
 ## Downloads
 

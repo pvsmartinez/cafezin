@@ -23,23 +23,43 @@ const envFromPedrin = loadSimpleEnv(
 );
 const openAiKey =
   process.env.OPENAI_API_KEY || envFromPedrin.OPENAI_API_KEY || "";
+// GitHub Models API (models.inference.ai.azure.com) accepts a regular GitHub PAT
+// and provides GPT-4o — used as fallback when no OpenAI key is configured.
+const githubToken =
+  process.env.GITHUB_TOKEN || envFromPedrin.GITHUB_TOKEN || "";
 
 const fromTag = `v${previousVersion}`;
 const hasFromTag = gitTagExists(fromTag);
 const range = hasFromTag ? `${fromTag}..HEAD` : "HEAD";
 
-const commitLines = gitLines(
+const allCommitLines = gitLines(
   ["log", "--no-merges", "--pretty=format:%s (%h)", range],
-  60,
+  80,
 );
+// Filter out noisy infra-only commits that tell users nothing
+const NOISE_RE =
+  /^(chore|ci|build|release|sync|checkpoint|update latest\.json|skip ci|bump version)/i;
+const commitLines = allCommitLines.filter((line) => !NOISE_RE.test(line));
 const changedFiles = gitLines(["diff", "--name-only", range], 120);
 const diffStat = gitText(["diff", "--stat", range]);
+// Actual diff content — only source files, truncated to keep the prompt manageable
+const diffContent = gitText([
+  "diff",
+  range,
+  "--",
+  "app/src",
+  "src-tauri/src",
+  ":(exclude)*.lock",
+  ":(exclude)*.json",
+  ":(exclude)dist",
+  ":(exclude)node_modules",
+]).slice(0, 8000);
 
 const fallback = buildFallbackNotes({
   version,
   previousVersion,
   repo,
-  commitLines,
+  commitLines: allCommitLines,
   changedFiles,
 });
 const aiNotes = openAiKey
@@ -51,6 +71,7 @@ const aiNotes = openAiKey
       commitLines,
       changedFiles,
       diffStat,
+      diffContent,
     }).catch(() => null)
   : null;
 const notes = normalizeNotes(aiNotes || fallback, fallback);
@@ -166,27 +187,44 @@ async function generateWithOpenAI({
   commitLines,
   changedFiles,
   diffStat,
+  diffContent,
 }) {
   const prompt = [
-    "You are writing concise product-facing release notes for Cafezin.",
-    "Return strict JSON with keys: summary (string), highlights (array of 3 to 5 strings).",
-    "Do not mention internal implementation details unless they directly matter to users.",
-    `New version: ${version}`,
-    `Previous version: ${previousVersion}`,
-    `Repository: ${repo}`,
+    `Cafezin ${version} — release notes (previous: ${previousVersion}).`,
     "",
-    "Recent commit subjects:",
+    "Meaningful commit subjects (infrastructure-only commits already removed):",
     commitLines.length
       ? commitLines.map((line) => `- ${line}`).join("\n")
-      : "- No commit subjects available",
+      : "- (none — all commits were infrastructure/chore)",
     "",
-    "Changed files:",
-    changedFiles.length
-      ? changedFiles.map((line) => `- ${line}`).join("\n")
-      : "- No changed files available",
+    "Changed source files (app/src and src-tauri/src):",
+    changedFiles
+      .filter((f) => f.startsWith("app/src") || f.startsWith("src-tauri/src"))
+      .slice(0, 40)
+      .map((line) => `- ${line}`)
+      .join("\n") || "- (no source changes detected)",
     "",
     "Diff stat:",
-    diffStat || "No diff stat available",
+    diffStat || "(none)",
+    "",
+    "Source diff (app/src and src-tauri/src, first 8000 chars):",
+    diffContent || "(none)",
+  ].join("\n");
+
+  const systemPrompt = [
+    "You write user-facing release notes for Cafezin, a local-first AI writing desktop app (macOS + Windows).",
+    "Your audience: writers, educators, and creators who use the app daily.",
+    "",
+    "Rules:",
+    "- Read the diff carefully. Derive highlights from ACTUAL code changes, not from commit message wording.",
+    "- Each highlight must describe a concrete user-visible change: a new feature, a fix, a UI improvement.",
+    "- Never write vague lines like 'various improvements', 'code cleanup', or 'internal updates'.",
+    "- Never mention chore commits, CI, build infra, or version bumps.",
+    "- If the diff shows no meaningful user-facing changes, say so honestly in the summary and return 1 highlight.",
+    "- summary: 1-2 sentences, plain English, what this release means for the user.",
+    "- highlights: 3-5 specific bullet strings, no leading dashes, no markdown.",
+    "",
+    'Output valid JSON only: { "summary": string, "highlights": string[] }',
   ].join("\n");
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -196,19 +234,12 @@ async function generateWithOpenAI({
       Authorization: `Bearer ${openAiKey}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
-      temperature: 0.4,
+      model: "gpt-4o",
+      temperature: 0.3,
       response_format: { type: "json_object" },
       messages: [
-        {
-          role: "system",
-          content:
-            "Write compact, credible software release notes. Output valid JSON only.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
       ],
     }),
   });
