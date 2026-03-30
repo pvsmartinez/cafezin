@@ -62,19 +62,20 @@ const fallback = buildFallbackNotes({
   commitLines: allCommitLines,
   changedFiles,
 });
-const aiNotes = (openAiKey || githubToken)
-  ? await generateWithAI({
-      openAiKey,
-      githubToken,
-      version,
-      previousVersion,
-      repo,
-      commitLines,
-      changedFiles,
-      diffStat,
-      diffContent,
-    }).catch(() => null)
-  : null;
+const aiNotes =
+  openAiKey || githubToken
+    ? await generateWithAI({
+        openAiKey,
+        githubToken,
+        version,
+        previousVersion,
+        repo,
+        commitLines,
+        changedFiles,
+        diffStat,
+        diffContent,
+      }).catch(() => null)
+    : null;
 const notes = normalizeNotes(aiNotes || fallback, fallback);
 
 writeFile(outputMd, buildMarkdown({ version, tag: `v${version}`, notes }));
@@ -254,7 +255,9 @@ async function generateWithAI({
 
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
-    throw new Error(`AI request failed with status ${response.status}: ${errText.slice(0, 200)}`);
+    throw new Error(
+      `AI request failed with status ${response.status}: ${errText.slice(0, 200)}`,
+    );
   }
 
   const payload = await response.json();
