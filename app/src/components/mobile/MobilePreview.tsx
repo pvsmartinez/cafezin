@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { readTextFile, readFile } from '../../services/fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { CaretLeft, SpeakerSimpleHigh } from '@phosphor-icons/react';
 import { getFileTypeInfo } from '../../utils/fileType';
 import { loadSlidePreviews } from '../../utils/slidePreviews';
-import MarkdownPreview from '../MarkdownPreview';
 import type { WorkspaceFeatureConfig } from '../../types';
+
+const MarkdownPreview = lazy(() => import('../MarkdownPreview'));
 
 interface MobilePreviewProps {
   /** Absolute workspace path */
@@ -111,7 +112,9 @@ function MarkdownViewer({ absPath, features }: { absPath: string; features?: Wor
 
   return (
     <div className="px-5 pt-5 pb-10">
-      <MarkdownPreview content={content} features={features} />
+      <Suspense fallback={<div className="flex justify-center p-8"><div className="spinner" /></div>}>
+        <MarkdownPreview content={content} features={features} />
+      </Suspense>
     </div>
   );
 }

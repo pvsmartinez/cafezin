@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Editor as TldrawEditor } from 'tldraw';
+import { canvasAIContext } from '../utils/canvasAISummary';
 
 interface UseAIDocumentContextParams {
   activeFile: string | null;
@@ -43,14 +44,9 @@ export function useAIDocumentContext({
       }
       const editor = canvasEditorRef.current;
       const file   = activeFile ?? '';
-      // Dynamic import keeps tldraw out of the main bundle.
-      // By the time this effect fires, CanvasEditor (which statically imports
-      // tldraw) is already mounted, so the import resolves from cache instantly.
-      import('../utils/canvasAISummary').then(({ canvasAIContext }) => {
-        if (canvasEditorRef.current === editor) {
-          setAiDocumentContext(canvasAIContext(editor, file));
-        }
-      });
+      if (canvasEditorRef.current === editor) {
+        setAiDocumentContext(canvasAIContext(editor, file));
+      }
     } else {
       setAiDocumentContext(content);
     }

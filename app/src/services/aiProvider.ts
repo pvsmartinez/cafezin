@@ -18,8 +18,9 @@
 import type { ChatMessage } from '../types';
 import { DEFAULT_MODEL } from '../types';
 import { fetch } from '@tauri-apps/plugin-http';
-import { resolveCopilotModelForChatCompletions, streamCopilotChat } from './copilot';
+import { fetchGhostCompletion, resolveCopilotModelForChatCompletions, streamCopilotChat } from './copilot';
 import type { CopilotModel } from '../types';
+import { supabase } from './supabase';
 
 // ── Provider types ────────────────────────────────────────────────────────────
 
@@ -350,7 +351,6 @@ async function streamCafezinManagedAI(
   signal?: AbortSignal,
 ): Promise<void> {
   try {
-    const { supabase } = await import('./supabase');
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session?.access_token) {
@@ -450,7 +450,6 @@ export async function fetchProviderGhostCompletion(
 
   // Delegate Copilot to its dedicated implementation (uses Copilot session token).
   if (provider === 'copilot') {
-    const { fetchGhostCompletion } = await import('./copilot/streaming');
     return fetchGhostCompletion(prefix, suffix, language, signal, oauthClientId);
   }
 
