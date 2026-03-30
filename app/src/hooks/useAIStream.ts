@@ -245,6 +245,11 @@ export function useAIStream({
   }
   const retryPayloadRef = useRef<RetryPayload | null>(null);
   const lastSeenContextRef = useRef<Pick<AgentContextSnapshot, 'activeFile' | 'activeFileRevision' | 'workspaceStructureRevision' | 'workspaceChangeSeq'> & { activeFileContent?: string } | null>(null);
+  /** Text of the user's first message — anchored in every turn so the model stays on goal. */
+  const sessionGoalRef = useRef<string>('');
+  /** Files the agent has read this session: path → workspaceChangeSeq at time of read.
+   *  Injected into the freshness note so the model knows what it already has and skips re-reads. */
+  const sessionReadCacheRef = useRef<Map<string, number>>(new Map());
 
   /**
    * Computes a compact unified-diff-style summary of what changed between two text versions.
@@ -290,6 +295,10 @@ export function useAIStream({
   function buildContextFreshnessNote(snapshot: AgentContextSnapshot): string {
     const previous = lastSeenContextRef.current;
     const lines = [
+      // Session goal anchor — prepended first so the model always sees it, even deep into context
+      ...(sessionGoalRef.current
+        ? [`[Session goal — stay focused on this throughout] ${sessionGoalRef.current.slice(0, 280)}`]
+        : []),
       '[Live editor/workspace state for this request]',
       `Active file: ${snapshot.activeFile ?? '(none)'}`,
       `Active file revision: ${snapshot.activeFileRevision}`,
@@ -334,6 +343,27 @@ export function useAIStream({
       }
     }
 
+    // File read cache — tell the model what it already read so it skips unnecessary re-reads.
+    const cache = sessionReadCacheRef.current;
+    if (cache.size > 0) {
+      const fresh: string[] = [];
+      const stale: string[] = [];
+      for (const [path, seqAtRead] of cache.entries()) {
+        const changed = snapshot.workspaceChangeSeq > seqAtRead || (isFileDirty?.(path) ?? false);
+        (changed ? stale : fresh).push(path);
+      }
+      if (fresh.length > 0) {
+        lines.push(
+          `Already read this session — skip re-reading unless you need a specific section: ${fresh.join(', ')}`,
+        );
+      }
+      if (stale.length > 0) {
+        lines.push(
+          `Read this session but changed since — re-read if relevant to current request: ${stale.join(', ')}`,
+        );
+      }
+    }
+
     lines.push(
       'Treat this live state as newer than earlier conversation turns. ' +
       'If file paths or structure matter and the workspace changed, rerun outline_workspace or search_workspace_index. ' +
@@ -375,6 +405,14 @@ export function useAIStream({
       onStreamingChange?.(false);
     };
   }, [agentId, onStreamingChange]);
+
+  // Reset session tracking when the conversation is cleared (new chat).
+  useEffect(() => {
+    if (messages.length === 0) {
+      sessionGoalRef.current = '';
+      sessionReadCacheRef.current.clear();
+    }
+  }, [messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Stop ─────────────────────────────────────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -566,6 +604,20 @@ export function useAIStream({
         sessionGranted: sessionRiskGrantedRef.current,
       });
 
+      // Wrap the executor to record which files the agent reads. This feeds the
+      // file read cache injected into buildContextFreshnessNote so the model
+      // knows what's already in its context and avoids pointless re-reads.
+      const trackingExecutor: ToolExecutor = async (name, args) => {
+        const result = await executor(name, args);
+        if (name === 'read_workspace_file' && typeof (args as any).path === 'string') {
+          sessionReadCacheRef.current.set(
+            (args as any).path as string,
+            getAgentContextSnapshot?.()?.workspaceChangeSeq ?? 0,
+          );
+        }
+        return result;
+      };
+
       const isMobilePlatform    = import.meta.env.VITE_TAURI_MOBILE === 'true';
       const activeTools = getWorkspaceTools(workspace, workspaceExportConfig).filter((t) => {
         if (isMobilePlatform && t.function.name === 'run_command') return false;
@@ -577,7 +629,7 @@ export function useAIStream({
         await runCopilotAgent(
           apiMessages,
           activeTools,
-          executor,
+          trackingExecutor,
           onChunk,
           (activity: ToolActivity) => {
             if (runIdRef.current !== runId) return;
@@ -605,7 +657,7 @@ export function useAIStream({
         await runProviderAgent(
           apiMessages,
           activeTools,
-          executor,
+          trackingExecutor,
           onChunk,
           (activity: ToolActivity) => {
             if (runIdRef.current !== runId) return;
@@ -716,6 +768,13 @@ export function useAIStream({
     setError(null);
     setLiveItems([]);
     clearInputAndAttachments?.();
+
+    // Capture the session goal from the user's first substantive turn.
+    // Stored in sessionGoalRef and injected into every freshness note so the model
+    // always has the anchor even after many tool rounds or context compression.
+    if (!sessionGoalRef.current && messages.length === 0 && textToSend) {
+      sessionGoalRef.current = textToSend.slice(0, 300);
+    }
 
     const capturedImages  = imageOverride ? [imageOverride] : (pendingImagesRef ?? []);
     const capturedFileRef = pendingFileRefVal ?? null;

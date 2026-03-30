@@ -46,14 +46,19 @@ export async function summarizeAndCompress(
             role: 'system',
             content:
               'You are a technical session summarizer. The agent context window is full and needs to be compressed. ' +
-              'Summarize the conversation below into a dense technical briefing covering:\n' +
-              '1. The user\'s original goal\n' +
-              '2. Everything accomplished so far — each tool call, file created/modified, canvas change made\n' +
-              '3. Current state of the workspace / canvas\n' +
-              '4. What still needs to be done to complete the user\'s goal\n' +
-              '5. Any important findings, constraints, or decisions\n' +
-              '6. **Schema/rules/format changes**: if any data structures, file formats, database schemas, or workspace rules were discussed or corrected during this session, state the CURRENT (corrected) version explicitly. These are the most common source of confusion in future sessions — old assumptions must be overridden.\n\n' +
-              'Be precise and technical. Use bullet points. Aim for 400–700 words.',
+              'Respond with EXACTLY these 5 sections. Use the section headers verbatim:\n\n' +
+              '## ORIGINAL GOAL\n' +
+              'One sentence: the user\'s original goal for this session.\n\n' +
+              '## ACCOMPLISHED\n' +
+              'Bullet list of everything done: each tool call, file created/modified, canvas change, decision made.\n\n' +
+              '## CURRENT STATE\n' +
+              'Brief snapshot of where things stand right now.\n\n' +
+              '## STILL NEEDED\n' +
+              'Bullet list of what remains to fully complete the original goal. Be specific — these are action items.\n\n' +
+              '## CRITICAL FACTS\n' +
+              'Any schema/format/rules changes, corrected assumptions, or important constraints. ' +
+              'State the CURRENT (corrected) version explicitly — old assumptions must be overridden.\n\n' +
+              'Be precise and technical. Aim for 350–550 words total.',
           },
           {
             role: 'user',
@@ -127,9 +132,9 @@ export async function summarizeAndCompress(
     role: 'user',
     content:
       `[SESSION SUMMARY — ${round} rounds archived to workspace log (cafezin/copilot-log.jsonl)]\n\n` +
-      `Current user request: ${currentUserRequest}\n\n` +
+      `⚑ ORIGINAL GOAL (do not lose track of this):\n${currentUserRequest}\n\n` +
       `Progress summary:\n${summaryText}\n\n` +
-      `Priority rule: follow the current user request above if any older goal in the summary conflicts with it.\n\n` +
+      `Priority rule: complete the ORIGINAL GOAL above. If the summary's "STILL NEEDED" section lists pending steps, continue those next.\n\n` +
       `---\nThe full turn-by-turn transcript is in the workspace log (read_file on ` +
       `cafezin/copilot-log.jsonl). Continuing from here:`,
   };
