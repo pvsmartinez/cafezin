@@ -1,7 +1,7 @@
 {
   "version": "0.1.11",
   "notes": "Release 0.1.11 packages the work shipped since 0.1.10, with updates across the app, installers, and release flow.",
-  "pub_date": "2026-03-30T03:52:35Z",
+  "pub_date": "2026-03-30T03:59:07Z",
   "min_versions": {
     "release": "0.1.7",
     "dev": "0.1.7",
@@ -14,8 +14,8 @@
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UE9veENrWXJIWC9TdGJuS0pxWURJUmYxbXFwTGFQRVNTNmpzOUI1cmJCYW91SzJkaTVxcjI0VmFTVUhhSDMyVTM4MmZFWm1xazhLNXZtWlg5dTd0N3dvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0ODQyNjk4CWZpbGU6Q2FmZXppbi5hcHAudGFyLmd6CmFWdENGWFU0bUZKZFNsa01Kd01hVnJnWkw2Rm9PQWNkblBNRjBHa3lHYmRsZEpmcVZneWY5VklYWkdiUzQ2a3luRXorT1dmS0xXTmU2WDhHOC9EeEFRPT0K"
     },
     "windows-x86_64": {
-      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.10/Cafezin_setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UE5Tb25hcGdzNXlidXQ2U1pVbXVxSURyZ3JVWXdPQ3NOUWVJeHUzcjIyVXV6M3R2VzZUS0NLTHZSY3pMYXJjdGFoRDlvNDJvVmxlYVBCeEFjamx0VFFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0ODA2OTY1CWZpbGU6Q2FmZXppbl8wLjEuMTBfeDY0LXNldHVwLmV4ZQpyNUoxYjNqVExHcjYyUEpNeEdLdGlLdVNpVUFRVnplaWVMdmtWQ1BsUWc5N0J3ZUtZT1lJcHR6VTBweGJDRjBiTEpTbFFqTWdoUHBacXorZUFUcnJCQT09Cg=="
+      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.11/Cafezin_setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UElCUG9BZUpmRzQ2U0VNM2FGQmtScVVuVk5kMURtUkpvbXVUb2pzd2kyN004cnJQcGJ3ODNLQm5TbllnS1plWnJDR3U2R1o5MUVQUTlTcVJ2Tis4YVFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0ODQzMTIzCWZpbGU6Q2FmZXppbl8wLjEuMTFfeDY0LXNldHVwLmV4ZQpuNExkWDVvRElqRXlaeVkxVEdGbXNDTDdLMUVTTTZMNG5QU1laWGUxTVdwQTBEUFZjRFd4MUZJbUplM2dxQ2pCa2U0YUlqTTRNelYxTktiV3llWHNDQT09Cg=="
     }
   }
 }
