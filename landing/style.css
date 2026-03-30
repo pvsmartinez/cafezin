@@ -765,8 +765,8 @@ body {
 
 .pricing-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
   max-width: 1320px;
   margin: 0 auto 40px;
 }
@@ -775,7 +775,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border2);
   border-radius: 20px;
-  padding: 36px 32px;
+  padding: 28px 22px;
   display: flex;
   flex-direction: column;
   gap: 0;
