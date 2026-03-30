@@ -3,17 +3,15 @@
  *
  * Two states:
  *   1. Not logged into Cafezin → "Crie sua conta / faça login"
- *   2. Logged in but free plan → "Torne-se Premium"
+ *   2. Logged in but free plan → "Assine Basic ou superior"
  *
- * Both states explain the BYOK model: the user pays for Cafezin Premium and
+ * Both states explain the access model: any AI requires Basic or higher.
  * brings their own API key — no extra usage fees from us.
  */
 
-import { useState } from 'react';
 import { Star, ArrowSquareOut, ArrowClockwise } from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { AccountState } from '../../types';
-import { createCheckoutUrl } from '../../services/accountService';
 import './PremiumGate.css';
 
 // Per-provider links shown in the BYOK section so users know where to get keys.
@@ -33,29 +31,15 @@ interface PremiumGateProps {
 
 export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateProps) {
   const notLoggedIn = !account.authenticated;
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const locale = navigator.language.startsWith('pt') ? 'pt-BR' : 'en';
 
   async function openUpgrade() {
-    // Unauthenticated users go to the pricing page; authenticated users get a
-    // pre-filled checkout with their email and user_id already set.
+    // Upgrades now always go through the web account page so the user can
+    // choose Basic, Standard, or Pro there.
     const landingUrl = locale === 'pt-BR'
       ? 'https://cafezin.pmatz.com/br/premium'
       : 'https://cafezin.pmatz.com/premium';
-    if (notLoggedIn) {
-      openUrl(landingUrl).catch(() => window.open(landingUrl, '_blank'));
-      return;
-    }
-    setCheckoutLoading(true);
-    try {
-      const url = await createCheckoutUrl(locale);
-      openUrl(url).catch(() => window.open(url, '_blank'));
-    } catch {
-      // Fallback to landing page pricing section
-      openUrl(landingUrl).catch(() => window.open(landingUrl, '_blank'));
-    } finally {
-      setCheckoutLoading(false);
-    }
+    openUrl(landingUrl).catch(() => window.open(landingUrl, '_blank'));
   }
 
   function openProviderLink(url: string) {
@@ -76,13 +60,13 @@ export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateP
         </div>
 
         <div className="premium-gate-title">
-          {notLoggedIn ? 'IA disponível no plano Premium' : 'Recurso do plano Premium'}
+          {notLoggedIn ? 'IA disponível no plano Basic' : 'Recurso do plano Basic ou superior'}
         </div>
 
         <p className="premium-gate-desc">
           {notLoggedIn
-            ? 'Para usar a IA no Cafezin, faça login na sua conta ou crie uma conta Premium.'
-            : 'Seu plano atual não inclui IA. Faça upgrade para Premium e use sua própria chave de API — sem cobranças extras de uso da nossa parte.'}
+            ? 'Para usar a IA no Cafezin, faça login na sua conta ou assine um plano Basic, Standard ou Pro.'
+            : 'Seu plano atual não inclui IA. Faça upgrade para Basic ou superior e escolha entre Cafezin IA gerenciada ou seu próprio provider com BYOK.'}
         </p>
 
         {notLoggedIn ? (
@@ -96,30 +80,28 @@ export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateP
             <button
               className="ai-auth-btn premium-gate-cta"
               onClick={() => void openUpgrade()}
-              disabled={checkoutLoading}
               style={{ marginTop: 6, opacity: 0.75 }}
             >
-              {checkoutLoading ? 'Aguarde…' : 'Criar conta Premium ↗'}
-              {!checkoutLoading && <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />}
+              Criar conta e ver planos ↗
+              <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />
             </button>
           </>
         ) : (
           <button
             className="ai-auth-btn premium-gate-cta"
             onClick={() => void openUpgrade()}
-            disabled={checkoutLoading}
           >
-            {checkoutLoading ? 'Aguarde…' : 'Assinar por $5/mês ↗'}
-            {!checkoutLoading && <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />}
+            Escolher plano na web ↗
+            <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />
           </button>
         )}
 
-        {/* BYOK explanation */}
         <div className="premium-gate-byok">
           <div className="premium-gate-byok-title">Como funciona</div>
           <p className="premium-gate-byok-desc">
-            Com o Premium, você usa sua <strong>própria chave de API</strong> do
-            provedor que preferir. Nenhum custo extra de uso nos pagamentos do Cafezin.
+            Com o plano Basic ou superior, você libera a IA no app. Depois disso, pode usar a
+            <strong> Cafezin IA</strong> com cota mensal incluída ou sua <strong>própria chave de API</strong>
+            no provider que preferir.
           </p>
           <div className="premium-gate-byok-links">
             {BYOK_PROVIDERS.map((p) => (
@@ -134,7 +116,6 @@ export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateP
           </div>
         </div>
 
-        {/* Refresh — lets the user re-check after upgrading */}
         <button
           className="premium-gate-refresh"
           onClick={() => void onRefresh()}
@@ -142,7 +123,7 @@ export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateP
           title="Já assinei — verificar status"
         >
           <ArrowClockwise size={13} className={loading ? 'premium-gate-spin' : ''} />
-          {loading ? 'Verificando…' : 'Já sou Premium — atualizar'}
+          {loading ? 'Verificando…' : 'Já assinei — atualizar'}
         </button>
       </div>
     </div>

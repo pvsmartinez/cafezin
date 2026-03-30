@@ -13,9 +13,8 @@
     "syncDirty_one": "{{count}} unsync'd file",
     "syncDirty_other": "{{count}} unsync'd files",
     "upToDate": "up to date",
-    "emptyKicker": "First step",
-    "emptyTitle": "Create your first file to get started",
-    "emptyDesc": "This workspace is still empty. Create an initial document and keep Copilot in the flow from the start.",
+    "emptyKicker": "What will you work on here?",
+    "emptyCoexist": "✓ Types don't exclude each other — the same workspace can be a book and a course at once.",
     "createFirstFile": "+ New file",
     "conceptFolder": "Project folder",
     "conceptAgent": "Real context for the AI agent",
@@ -23,7 +22,24 @@
     "activateSync": "☁ Activate sync",
     "recentFiles": "Recent files",
     "agentContextLoaded": "AGENT.md loaded as AI context",
-    "aiEditsPending": "AI edits pending review"
+    "aiEditsPending": "AI edits pending review",
+    "conceptCalloutTitle": "Workspace = project folder. ",
+    "conceptCalloutBody": "All files inside it are visible here. When AI is active, it can read and edit any file in this folder.",
+    "workspaceType": "Workspace type",
+    "activeSkills": "Active skills:",
+    "switchWorkspace": "Switch workspace"
+  },
+  "wt": {
+    "book": "Book",
+    "bookSkills": "long-form writing, chapter review, PDF export",
+    "classes": "Lessons",
+    "classesSkills": "lesson plans, slides, teaching materials",
+    "notes": "Notes",
+    "notesSkills": "quick capture, note links, topic review",
+    "project": "Project",
+    "projectSkills": "technical docs, tasks, decision tracking",
+    "research": "Research",
+    "researchSkills": "source synthesis, annotations, argument structure"
   },
   "sidebar": {
     "explorerLabel": "EXPLORER",

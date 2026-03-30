@@ -113,14 +113,17 @@ export async function fetchAccountState(options?: { force?: boolean }): Promise<
       }
 
       const state: AccountState = {
-        authenticated:     true,
-        plan:              (data.plan   as AccountState['plan'])   ?? 'free',
-        status:            (data.status as AccountState['status']) ?? 'inactive',
-        isPremium:         data.isPremium         ?? false,
-        canUseAI:          data.canUseAI          ?? false,
-        currentPeriodEnd:  data.currentPeriodEnd  ?? null,
-        cancelAtPeriodEnd: data.cancelAtPeriodEnd ?? false,
-        trialEnd:          data.trialEnd          ?? null,
+        authenticated:            true,
+        plan:                     (data.plan   as AccountState['plan'])   ?? 'free',
+        status:                   (data.status as AccountState['status']) ?? 'inactive',
+        isPremium:                data.isPremium                         ?? false,
+        canUseAI:                 data.canUseAI                          ?? false,
+        currentPeriodEnd:         data.currentPeriodEnd                  ?? null,
+        cancelAtPeriodEnd:        data.cancelAtPeriodEnd                 ?? false,
+        trialEnd:                 data.trialEnd                          ?? null,
+        aiTier:                   (data.aiTier as AccountState['aiTier']) ?? 'none',
+        aiCreditsUsedMicrocents:  Number(data.aiCreditsUsedMicrocents)  ?? 0,
+        aiCreditsLimitMicrocents: Number(data.aiCreditsLimitMicrocents) ?? 0,
       };
 
       writeCache(state);
@@ -145,10 +148,13 @@ export async function fetchAccountState(options?: { force?: boolean }): Promise<
  * Returns the hosted checkout URL to open in the browser.
  * Throws if the user is not authenticated or the request fails.
  */
-export async function createCheckoutUrl(locale: 'en' | 'pt-BR' = 'en'): Promise<string> {
+export async function createCheckoutUrl(
+  locale: 'en' | 'pt-BR' = 'en',
+  tier: 'basic' | 'standard' | 'pro' = 'basic'
+): Promise<string> {
   const { data, error } = await supabase.functions.invoke('create-checkout', {
     method: 'POST',
-    body: { locale },
+    body: { locale, tier },
   });
   if (error) throw error;
   if (!data?.url) throw new Error('No checkout URL returned');

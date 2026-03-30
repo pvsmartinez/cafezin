@@ -42,7 +42,7 @@ function buildNudge(isCanvas: boolean): NudgePayload {
   };
 }
 
-export function useProactiveNudge(isCanvasActive: boolean) {
+export function useProactiveNudge(isCanvasActive: boolean, enabled = true) {
   const editCountRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeNudge, setActiveNudge] = useState<NudgePayload | null>(null);
@@ -53,6 +53,7 @@ export function useProactiveNudge(isCanvasActive: boolean) {
   }, []);
 
   const recordEdit = useCallback(() => {
+    if (!enabled) return;
     editCountRef.current += 1;
     if (editCountRef.current < EDIT_THRESHOLD) return;
     editCountRef.current = 0;
@@ -68,7 +69,7 @@ export function useProactiveNudge(isCanvasActive: boolean) {
       setActiveNudge(null);
       timerRef.current = null;
     }, AUTO_DISMISS_MS);
-  }, [isCanvasActive]);
+  }, [isCanvasActive, enabled]);
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);

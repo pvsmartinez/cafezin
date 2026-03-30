@@ -35,11 +35,11 @@ const SLIDES: Record<Locale, HelpSlide[]> = {
       Icon: Sparkle,
     },
     {
-      eyebrow: 'Copilot',
-      title: 'O Copilot trabalha com o contexto do seu workspace',
-      body: 'Abra o painel de IA para revisar texto, estruturar ideias, transformar rascunho em material pronto e usar ferramentas do workspace.',
-      accent: 'Cmd+K para abrir rapido',
-      bullets: ['Pergunte sobre o arquivo atual', 'Peca para criar e editar arquivos', 'Use canvas, docs e contexto real juntos'],
+      eyebrow: 'Inteligência Artificial',
+      title: 'A IA é opcional e usa a sua própria chave',
+      body: 'O Cafezin funciona 100% sem IA. Se quiser ativá-la, você coloca a sua própria chave de API — o custo vai direto pro provedor, não entra no plano.',
+      accent: 'Cmd+K para abrir o painel de IA',
+      bullets: ['OpenAI, Claude, Groq, GitHub Copilot, Gemini ou modelo local (Ollama)', 'A IA vê e edita todos os arquivos da pasta do workspace', 'Chave criptografada e sincronizada entre seus dispositivos'],
       Icon: RocketLaunch,
     },
     {
@@ -77,11 +77,11 @@ const SLIDES: Record<Locale, HelpSlide[]> = {
       Icon: Sparkle,
     },
     {
-      eyebrow: 'Copilot',
-      title: 'Copilot works with real workspace context',
+      eyebrow: 'Artificial Intelligence',
+      title: 'AI works with real workspace context',
       body: 'Open the AI panel to revise text, structure ideas, turn rough drafts into finished material, and use workspace tools directly.',
-      accent: 'Cmd+K opens it fast',
-      bullets: ['Ask about the current file', 'Create and edit files through tools', 'Use docs, canvas, and project context together'],
+      accent: 'Cmd+K opens the AI panel',
+      bullets: ['Use any model — OpenAI, Claude, Groq, GitHub Copilot, or local', 'Ask about the current file or create and edit files through tools', 'AI sees the full project, not just the open file'],
       Icon: RocketLaunch,
     },
     {

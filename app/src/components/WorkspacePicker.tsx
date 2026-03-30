@@ -387,6 +387,26 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
           <p className="wp-tagline">Just Chilling</p>
         </div>
 
+        {/* ── First-run concept explainer (shown when no workspaces exist) ── */}
+        {!hasAnyWorkspaces && !createMode && (
+          <div className="wp-concept-box">
+            <div className="wp-concept-item">
+              <span className="wp-concept-icon">📁</span>
+              <div>
+                <strong>Workspace = pasta de projeto</strong>
+                <span>Aponte para qualquer pasta do seu computador. Todos os arquivos dentro dela ficam visíveis e organizáveis aqui.</span>
+              </div>
+            </div>
+            <div className="wp-concept-item">
+              <span className="wp-concept-icon">✨</span>
+              <div>
+                <strong>IA é opcional — e usa a sua própria chave</strong>
+                <span>O Cafezin funciona 100% sem IA. Se quiser ativá-la, basta colocar uma chave de API sua (OpenAI, Claude, Groq, Copilot ou modelo local). O custo é direto com o provedor, não entra no plano.</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Primary actions ── */}
         <div className="wp-actions">
           <button className="wp-btn-action" onClick={handlePick} disabled={loading || createBusy}>

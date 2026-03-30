@@ -762,10 +762,19 @@ export async function runCopilotAgent(
         .replace(/<(?:tool_response|function_results)[^>]*>[\s\S]*?<\/(?:tool_response|function_results)>/g, '')
         .replace(/<\/?function_calls>/g, '')
         .trim();
+      // Sanitize tool call arguments before adding to the loop. Truncated or malformed
+      // JSON in the arguments field causes the Copilot API to reject the entire next
+      // request with 400 "Invalid JSON format in tool call arguments".
+      const loopToolCalls = allToolCalls.map(tc => {
+        const parsed = parseToolArguments(tc.function.arguments);
+        // Re-serialize the (possibly repaired) value to guarantee well-formed JSON.
+        const safeArgs = parsed.ok ? JSON.stringify(parsed.value) : '{}';
+        return { ...tc, function: { ...tc.function, arguments: safeArgs } };
+      });
       loop.push({
         role: 'assistant',
         content: cleanAssistantContent,
-        tool_calls: allToolCalls,
+        tool_calls: loopToolCalls,
       });
 
       if (cleanAssistantContent) {

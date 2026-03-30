@@ -11,8 +11,8 @@
     gtag('config', 'G-0PNRME8PLH');
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Premium — Cafezin</title>
-  <meta name="description" content="Sign in to start or manage your Cafezin Premium subscription." />
+  <title>Account — Cafezin</title>
+  <meta name="description" content="Sign in to start, switch, or manage your Cafezin Basic, Standard, or Pro plan." />
   <meta name="robots" content="noindex, follow" />
   <link rel="canonical" href="https://cafezin.pmatz.com/premium" />
   <link rel="alternate" hreflang="en" href="https://cafezin.pmatz.com/premium" />
@@ -185,20 +185,126 @@
       font-size: 0.85rem;
       user-select: none;
     }
+
+    .premium-tier-grid {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .premium-tier-card {
+      appearance: none;
+      width: 100%;
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text);
+      padding: 1rem 1.05rem;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    .premium-tier-card:hover {
+      transform: translateY(-1px);
+      border-color: rgba(var(--accent-rgb), 0.36);
+    }
+
+    .premium-tier-card[data-selected="true"] {
+      border-color: rgba(var(--accent-rgb), 0.7);
+      box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.14);
+      background: rgba(var(--accent-rgb), 0.08);
+    }
+
+    .premium-tier-card[data-current="true"] {
+      border-color: rgba(var(--accent-rgb), 0.9);
+      background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.14), rgba(255, 255, 255, 0.03));
+    }
+
+    .premium-tier-top {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.35rem;
+    }
+
+    .premium-tier-name {
+      color: var(--text-bright);
+      font-weight: 800;
+      font-size: 1.02rem;
+    }
+
+    .premium-tier-price {
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.95rem;
+      white-space: nowrap;
+    }
+
+    .premium-tier-budget {
+      color: var(--text-bright);
+      font-size: 0.92rem;
+      font-weight: 700;
+      margin-bottom: 0.2rem;
+    }
+
+    .premium-tier-desc {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .premium-tier-note {
+      color: var(--text-dim);
+      font-size: 0.88rem;
+      line-height: 1.6;
+    }
   </style>
 </head>
 <body>
   <main class="premium-shell">
     <section class="premium-card">
-      <div class="premium-kicker">Cafezin Premium</div>
-      <h1 class="premium-title">Subscribe or manage your account</h1>
+      <div class="premium-kicker">Cafezin Account</div>
+      <h1 class="premium-title">Start, switch, or manage your plan</h1>
       <p class="premium-sub">
-        Sign in with your Cafezin account to start Premium for
-        <strong id="premium-page-price">your localized price at checkout</strong>,
-        or open the portal to update billing details and cancel whenever you want.
+        Sign in with your Cafezin account to choose Basic, Standard, or Pro,
+        or open the portal to change tier, update billing details, and cancel whenever you want.
       </p>
 
       <div id="status" class="premium-status">Checking session…</div>
+
+      <div id="plan-picker" class="premium-tier-grid">
+        <button class="premium-tier-card" type="button" data-tier="basic">
+          <div class="premium-tier-top">
+            <div class="premium-tier-name">Basic</div>
+            <div class="premium-tier-price">$5/mo</div>
+          </div>
+          <div class="premium-tier-budget">$2/month of managed Cafezin AI included</div>
+          <div class="premium-tier-desc">Unlock AI in Cafezin and keep BYOK available for GitHub Copilot, OpenAI, Anthropic, Groq, and more.</div>
+        </button>
+
+        <button class="premium-tier-card" type="button" data-tier="standard">
+          <div class="premium-tier-top">
+            <div class="premium-tier-name">Standard</div>
+            <div class="premium-tier-price">$20/mo</div>
+          </div>
+          <div class="premium-tier-budget">$15/month of managed Cafezin AI included</div>
+          <div class="premium-tier-desc">The best fit for daily drafting, revision, and heavier AI use without reaching for your own provider first.</div>
+        </button>
+
+        <button class="premium-tier-card" type="button" data-tier="pro">
+          <div class="premium-tier-top">
+            <div class="premium-tier-name">Pro</div>
+            <div class="premium-tier-price">$50/mo</div>
+          </div>
+          <div class="premium-tier-budget">$40/month of managed Cafezin AI included</div>
+          <div class="premium-tier-desc">For heavier AI workloads, bigger experiments, and people who want the most managed usage included inside the app.</div>
+        </button>
+      </div>
+
+      <div class="premium-tier-note">
+        All paid plans unlock AI inside Cafezin. If you already subscribe, use the customer portal below to switch tier or cancel.
+      </div>
 
       <form id="auth-form" class="premium-form">
         <div class="premium-field">
@@ -217,8 +323,8 @@
       </form>
 
       <div id="actions" hidden>
-        <button id="checkout-btn" class="premium-btn">Start Premium ↗</button>
-        <button id="portal-btn" class="premium-btn">Manage subscription ↗</button>
+        <button id="checkout-btn" class="premium-btn">Start Basic ↗</button>
+        <button id="portal-btn" class="premium-btn">Manage plan ↗</button>
         <div class="premium-util-links">
           <button id="refresh-btn" class="premium-util-btn" type="button">Refresh status</button>
           <span class="premium-util-sep">·</span>
@@ -227,11 +333,11 @@
       </div>
 
       <div id="message" class="premium-note">
-        Premium unlocks the integrated AI inside Cafezin. You still use your own API key.
+        All paid plans unlock AI inside Cafezin. You can use managed Cafezin AI or connect your own provider with BYOK.
       </div>
 
       <div class="premium-links">
-        <a href="/pricing">See plan details</a>
+        <a href="/pricing">See pricing</a>
         <a href="/refund">Refund policy</a>
         <a href="/terms-of-service">Terms</a>
         <a href="/br/premium" onclick="document.cookie='cafezin_locale=pt-BR; Path=/; Max-Age=31536000; SameSite=Lax'">PT-BR</a>
@@ -239,7 +345,6 @@
     </section>
   </main>
 
-  <script src="/price-preview.js"></script>
   <script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -264,11 +369,30 @@
     const portalBtn = document.getElementById('portal-btn');
     const refreshBtn = document.getElementById('refresh-btn');
     const signoutBtn = document.getElementById('signout-btn');
+    const tierCards = Array.from(document.querySelectorAll('[data-tier]'));
     const locale = 'en';
-
-    window.loadCafezinPricePreview({
-      amountSelector: '#premium-page-price',
-    });
+    const TIER_META = {
+      basic: {
+        label: 'Basic',
+        price: '$5/mo',
+        budget: '$2 managed AI included',
+      },
+      standard: {
+        label: 'Standard',
+        price: '$20/mo',
+        budget: '$15 managed AI included',
+      },
+      pro: {
+        label: 'Pro',
+        price: '$50/mo',
+        budget: '$40 managed AI included',
+      },
+    };
+    const validTiers = Object.keys(TIER_META);
+    const paidPlans = new Set(['premium', 'basic', 'standard', 'pro']);
+    const queryTier = new URLSearchParams(window.location.search).get('tier');
+    let selectedTier = validTiers.includes(queryTier) ? queryTier : 'basic';
+    let currentPaidTier = null;
 
     function setMessage(text, kind = 'note') {
       messageEl.className = kind === 'error'
@@ -285,16 +409,47 @@
       button.textContent = busy ? busyText : button.dataset.defaultText;
     }
 
+    function normalizeTier(value) {
+      if (value === 'premium') return 'basic';
+      return validTiers.includes(value) ? value : 'basic';
+    }
+
+    function setCheckoutLabel() {
+      const tier = TIER_META[selectedTier];
+      checkoutBtn.textContent = `Start ${tier.label} ↗`;
+      checkoutBtn.dataset.defaultText = checkoutBtn.textContent;
+    }
+
+    function syncTierCards() {
+      tierCards.forEach((card) => {
+        const tier = card.dataset.tier;
+        card.dataset.selected = String(tier === selectedTier);
+        card.dataset.current = String(tier === currentPaidTier);
+      });
+    }
+
+    function selectTier(nextTier, options = {}) {
+      const tier = validTiers.includes(nextTier) ? nextTier : 'basic';
+      selectedTier = tier;
+      setCheckoutLabel();
+      syncTierCards();
+      if (!options.skipHistory) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tier', tier);
+        window.history.replaceState({}, '', url);
+      }
+    }
+
     async function getAccountState() {
       const { data, error } = await supabase.rpc('get_my_account_state');
       if (error) throw error;
       return data;
     }
 
-    async function callBillingFunction(name) {
+    async function callBillingFunction(name, extraBody = {}) {
       const { data, error } = await supabase.functions.invoke(name, {
         method: 'POST',
-        body: { locale },
+        body: { locale, ...extraBody },
       });
       if (error) throw error;
       if (!data?.url) throw new Error('No URL returned');
@@ -304,10 +459,12 @@
     async function render() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        currentPaidTier = null;
+        syncTierCards();
         authForm.hidden = false;
         actionsEl.hidden = true;
-        statusEl.textContent = 'Sign in to subscribe to or manage Premium.';
-        setMessage('If you do not have an account yet, create one now and complete the subscription right after.');
+        statusEl.textContent = 'Sign in to subscribe to or manage Basic, Standard, or Pro.';
+        setMessage('If you do not have an account yet, create one now and finish checkout right after.');
         return;
       }
 
@@ -316,25 +473,34 @@
 
       try {
         const account = await getAccountState();
-        const premium = !!account?.isPremium;
+        const paid = !!account?.isPremium || paidPlans.has(account?.plan);
+        currentPaidTier = paid ? normalizeTier(account?.aiTier || account?.plan) : null;
+        if (currentPaidTier) {
+          selectTier(currentPaidTier, { skipHistory: true });
+        } else {
+          syncTierCards();
+        }
         const renewsAt = account?.currentPeriodEnd
           ? new Date(account.currentPeriodEnd).toLocaleDateString('en-US')
           : null;
+        const budget = currentPaidTier ? TIER_META[currentPaidTier].budget : null;
 
-        statusEl.innerHTML = premium
-          ? `Account: <strong>${user.email}</strong><br>Plan: <strong>Premium</strong>${renewsAt ? `<br>Renews on: <strong>${renewsAt}</strong>` : ''}${account?.cancelAtPeriodEnd ? '<br>Cancellation scheduled for the end of the current period.' : ''}`
+        statusEl.innerHTML = paid
+          ? `Account: <strong>${user.email}</strong><br>Plan: <strong>${TIER_META[currentPaidTier].label}</strong>${budget ? `<br>Included managed AI: <strong>${budget}</strong>` : ''}${renewsAt ? `<br>Renews on: <strong>${renewsAt}</strong>` : ''}${account?.cancelAtPeriodEnd ? '<br>Cancellation scheduled for the end of the current period.' : ''}`
           : `Account: <strong>${user.email}</strong><br>Plan: <strong>Free</strong>`;
 
-        checkoutBtn.hidden = premium;
-        portalBtn.hidden = !premium;
+        checkoutBtn.hidden = paid;
+        portalBtn.hidden = !paid;
 
         setMessage(
-          premium
-            ? 'Open the Paddle portal to update your card, download invoices, or cancel the subscription.'
-            : 'Your account is ready. Click “Start Premium” to open Paddle checkout.',
-          premium ? 'ok' : 'note'
+          paid
+            ? 'Open the Paddle portal to change tier, update your card, download invoices, or cancel the subscription.'
+            : `Your account is ready. Click “Start ${TIER_META[selectedTier].label}” to open Paddle checkout.`,
+          paid ? 'ok' : 'note'
         );
       } catch (error) {
+        currentPaidTier = null;
+        syncTierCards();
         statusEl.textContent = `Account: ${user.email}`;
         checkoutBtn.hidden = false;
         portalBtn.hidden = true;
@@ -384,8 +550,8 @@
     checkoutBtn.addEventListener('click', async () => {
       setBusy(checkoutBtn, 'Opening checkout…', true);
       try {
-        window.cafezinTrack?.('premium_checkout_start', { locale: 'en' });
-        await callBillingFunction('create-checkout');
+        window.cafezinTrack?.('premium_checkout_start', { locale: 'en', tier: selectedTier });
+        await callBillingFunction('create-checkout', { tier: selectedTier });
       } catch (error) {
         setMessage(error.message || 'Failed to open checkout.', 'error');
       } finally {
@@ -415,14 +581,32 @@
 
     signoutBtn.addEventListener('click', async () => {
       await supabase.auth.signOut();
+      currentPaidTier = null;
+      selectTier(selectedTier, { skipHistory: true });
       await render();
       setMessage('Signed out.');
+    });
+
+    tierCards.forEach((card) => {
+      card.addEventListener('click', () => {
+        const tier = card.dataset.tier;
+        selectTier(tier);
+        if (currentPaidTier && tier !== currentPaidTier) {
+          setMessage(`To switch to ${TIER_META[tier].label}, open “Manage plan”.`, 'note');
+          return;
+        }
+        if (!currentPaidTier) {
+          setMessage(`Selected ${TIER_META[tier].label} (${TIER_META[tier].price}).`, 'note');
+        }
+      });
     });
 
     supabase.auth.onAuthStateChange(() => {
       void render();
     });
 
+    setCheckoutLabel();
+    syncTierCards();
     await render();
   </script>
   <script src="/landing-analytics.js"></script>

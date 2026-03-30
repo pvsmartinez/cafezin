@@ -20,12 +20,12 @@ export interface SyncTabProps {
   regError: string;
   onRegister: () => void;
   gitAccounts: string[];
+  knownGitLabels: string[];
+  hasLocalGitTokenForSelectedLabel: boolean;
   activateSyncBusy: boolean;
   activateSyncFlowState: SyncDeviceFlowState | null;
   gitFlowBusy: boolean;
   gitFlowState: SyncDeviceFlowState | null;
-  showSyncAdvanced: boolean;
-  setShowSyncAdvanced: React.Dispatch<React.SetStateAction<boolean>>;
   syncAdvancedMode: 'create' | 'existing';
   setSyncAdvancedMode: (v: 'create' | 'existing') => void;
   syncAdvancedRepoName: string;
@@ -59,12 +59,12 @@ export function SyncTab({
   regError,
   onRegister,
   gitAccounts,
+  knownGitLabels,
+  hasLocalGitTokenForSelectedLabel,
   activateSyncBusy,
   activateSyncFlowState,
   gitFlowBusy,
   gitFlowState,
-  showSyncAdvanced,
-  setShowSyncAdvanced,
   syncAdvancedMode,
   setSyncAdvancedMode,
   syncAdvancedRepoName,
@@ -82,6 +82,11 @@ export function SyncTab({
   onNavigateToAccount,
   onCancelDeviceFlow,
 }: SyncTabProps) {
+  const needsGitAuthOnThisDevice = !hasLocalGitTokenForSelectedLabel;
+  const activateLabel = syncAdvancedMode === 'existing'
+    ? 'Conectar repo e ativar sync'
+    : 'Criar repo e ativar sync';
+
   return (
     <div className="sm-section-list">
 
@@ -176,19 +181,19 @@ export function SyncTab({
                         value={regLabel}
                         onChange={(e) => setRegLabel(e.target.value)}
                       >
-                        {gitAccounts.map((label) => (
+                        {knownGitLabels.map((label) => (
                           <option key={label} value={label}>{label}</option>
                         ))}
                       </select>
                     ) : (
-                      <span className="sm-row-desc">Nenhuma conta Git conectada neste dispositivo ainda.</span>
+                      <span className="sm-row-desc">Nenhum rótulo de conta Git conhecido ainda.</span>
                     )}
                   </div>
                   <div className="sm-sync-register">
                     <button
                       className={`sm-save-btn ${regState === 'done' ? 'saved' : ''}`}
                       onClick={onRegister}
-                      disabled={regState === 'busy' || gitAccounts.length === 0}
+                      disabled={regState === 'busy' || knownGitLabels.length === 0}
                     >
                       {regState === 'busy' ? 'Registrando…' : regState === 'done' ? '✓ Registrado' : 'Registrar no sync'}
                     </button>
@@ -203,23 +208,91 @@ export function SyncTab({
                 O Cafezin vai conectar este workspace a um repositório Git e passar a sincronizá-lo por lá.
               </p>
 
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className={`sm-secondary-btn ${syncAdvancedMode === 'create' ? 'active' : ''}`}
+                    onClick={() => setSyncAdvancedMode('create')}
+                    style={{ flex: 1, fontSize: 12 }}
+                  >
+                    Criar repo novo
+                  </button>
+                  <button
+                    className={`sm-secondary-btn ${syncAdvancedMode === 'existing' ? 'active' : ''}`}
+                    onClick={() => setSyncAdvancedMode('existing')}
+                    style={{ flex: 1, fontSize: 12 }}
+                  >
+                    Usar URL existente
+                  </button>
+                </div>
+
+                {syncAdvancedMode === 'create' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label className="sm-label">Nome do repositório</label>
+                    <input
+                      className="sm-input"
+                      value={syncAdvancedRepoName}
+                      onChange={(e) => setSyncAdvancedRepoName(e.target.value.toLowerCase().replace(/[^a-z0-9._-]+/g, '-'))}
+                      placeholder={workspace.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-')}
+                    />
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        className={`sm-secondary-btn ${syncAdvancedPrivate ? 'active' : ''}`}
+                        onClick={() => setSyncAdvancedPrivate(true)}
+                        style={{ flex: 1, fontSize: 12 }}
+                      >
+                        🔒 Privado
+                      </button>
+                      <button
+                        className={`sm-secondary-btn ${!syncAdvancedPrivate ? 'active' : ''}`}
+                        onClick={() => setSyncAdvancedPrivate(false)}
+                        style={{ flex: 1, fontSize: 12 }}
+                      >
+                        🌐 Público
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label className="sm-label">URL do repositório existente</label>
+                    <input
+                      className="sm-input"
+                      value={syncAdvancedUrl}
+                      onChange={(e) => setSyncAdvancedUrl(e.target.value)}
+                      placeholder="https://github.com/usuario/repo.git"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="sm-row sm-row--col">
                 <label className="sm-label">
                   Conta do Git para usar
                   <span className="sm-row-desc"> — é com ela que o repositório será criado ou associado</span>
                 </label>
-                {gitAccounts.length > 0 ? (
+                {knownGitLabels.length > 1 ? (
                   <select
                     className="sm-select"
                     value={regLabel}
                     onChange={(e) => setRegLabel(e.target.value)}
                   >
-                    {gitAccounts.map((label) => (
-                      <option key={label} value={label}>{label}</option>
+                    {knownGitLabels.map((label) => (
+                      <option key={label} value={label}>
+                        {label}{gitAccounts.includes(label) ? ' (autenticada neste device)' : ' (conhecida pelo sync)'}
+                      </option>
                     ))}
                   </select>
+                ) : knownGitLabels.length === 1 ? (
+                  <div className="sm-sync-state-card">
+                    <strong>{knownGitLabels[0]}</strong>
+                    <span>
+                      {gitAccounts.includes(knownGitLabels[0])
+                        ? 'Conta já autenticada neste dispositivo.'
+                        : 'Conta sugerida pelo histórico de sync. Se faltar token local, o GitHub só será pedido ao confirmar.'}
+                    </span>
+                  </div>
                 ) : (
-                  <span className="sm-row-desc">Se ainda não houver conta conectada, o Cafezin vai pedir autorização do GitHub na primeira ativação.</span>
+                  <span className="sm-row-desc">Nenhuma conta conhecida ainda. Escolha o destino acima; o GitHub só será pedido no final para autorizar este dispositivo.</span>
                 )}
               </div>
 
@@ -238,9 +311,9 @@ export function SyncTab({
                 </div>
               )}
 
-              {gitAccounts.length === 0 && !activateSyncFlowState && !gitFlowBusy && (
+              {needsGitAuthOnThisDevice && !activateSyncFlowState && !gitFlowBusy && (
                 <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 4px' }}>
-                  Primeira vez neste dispositivo — autorização única do GitHub, válida para todos os workspaces.
+                  Este dispositivo ainda não tem token Git para a conta escolhida. A autorização do GitHub só aparece depois que você confirmar o destino do sync.
                 </p>
               )}
 
@@ -269,75 +342,8 @@ export function SyncTab({
                   disabled={activateSyncBusy || gitFlowBusy}
                   style={{ width: '100%' }}
                 >
-                  ☁ Ativar sync
+                  ☁ {activateLabel}
                 </button>
-                )}
-
-                <button
-                  className="sm-secondary-btn"
-                  onClick={() => setShowSyncAdvanced((v) => !v)}
-                  style={{ fontSize: 12, alignSelf: 'flex-start' }}
-                >
-                    {showSyncAdvanced ? '▲ Ocultar opções' : '▼ Opções avançadas'}
-                </button>
-
-                {showSyncAdvanced && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)' }}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        className={`sm-secondary-btn ${syncAdvancedMode === 'create' ? 'active' : ''}`}
-                        onClick={() => setSyncAdvancedMode('create')}
-                        style={{ flex: 1, fontSize: 12 }}
-                      >
-                        Criar repo
-                      </button>
-                      <button
-                        className={`sm-secondary-btn ${syncAdvancedMode === 'existing' ? 'active' : ''}`}
-                        onClick={() => setSyncAdvancedMode('existing')}
-                        style={{ flex: 1, fontSize: 12 }}
-                      >
-                        URL existente
-                      </button>
-                    </div>
-
-                    {syncAdvancedMode === 'create' ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <label className="sm-label">Nome do repositório</label>
-                        <input
-                          className="sm-input"
-                          value={syncAdvancedRepoName}
-                          onChange={(e) => setSyncAdvancedRepoName(e.target.value.toLowerCase().replace(/[^a-z0-9._-]+/g, '-'))}
-                          placeholder={workspace.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-')}
-                        />
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            className={`sm-secondary-btn ${syncAdvancedPrivate ? 'active' : ''}`}
-                            onClick={() => setSyncAdvancedPrivate(true)}
-                            style={{ flex: 1, fontSize: 12 }}
-                          >
-                            🔒 Privado
-                          </button>
-                          <button
-                            className={`sm-secondary-btn ${!syncAdvancedPrivate ? 'active' : ''}`}
-                            onClick={() => setSyncAdvancedPrivate(false)}
-                            style={{ flex: 1, fontSize: 12 }}
-                          >
-                            🌐 Público
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <label className="sm-label">URL do repositório existente</label>
-                        <input
-                          className="sm-input"
-                          value={syncAdvancedUrl}
-                          onChange={(e) => setSyncAdvancedUrl(e.target.value)}
-                          placeholder="https://github.com/usuario/repo.git"
-                        />
-                      </div>
-                    )}
-                  </div>
                 )}
               </div>
 

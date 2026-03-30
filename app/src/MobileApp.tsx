@@ -554,6 +554,7 @@ export default function MobileApp() {
           open={showSettings}
           workspace={workspace}
           isLoggedIn={isLoggedIn}
+          syncedWorkspaces={syncedWorkspaces}
           onClose={() => setShowSettings(false)}
           onWorkspaceUpdated={handleWorkspaceUpdated}
           onRefreshSyncedList={loadSyncedList}
@@ -582,6 +583,7 @@ export default function MobileApp() {
             open={showSettings}
             workspace={workspace}
             isLoggedIn={isLoggedIn}
+            syncedWorkspaces={syncedWorkspaces}
             onClose={() => setShowSettings(false)}
             onWorkspaceUpdated={handleWorkspaceUpdated}
             onRefreshSyncedList={loadSyncedList}
@@ -698,6 +700,7 @@ export default function MobileApp() {
           open={showSettings}
           workspace={workspace}
           isLoggedIn={isLoggedIn}
+          syncedWorkspaces={syncedWorkspaces}
           onClose={() => setShowSettings(false)}
           onWorkspaceUpdated={handleWorkspaceUpdated}
           onRefreshSyncedList={loadSyncedList}
@@ -911,6 +914,7 @@ export default function MobileApp() {
             contextFileContent={fileContent ?? undefined}
             onFileWritten={refreshWorkspace}
             secretsSynced={secretsSynced}
+            onOpenSettings={() => setShowSettings(true)}
             onOpenFileReference={async (relPath) => {
               await handleFileSelect(relPath);
               setActiveTab('files');
@@ -930,6 +934,7 @@ export default function MobileApp() {
         open={showSettings}
         workspace={workspace}
         isLoggedIn={isLoggedIn}
+        syncedWorkspaces={syncedWorkspaces}
         onClose={() => setShowSettings(false)}
         onWorkspaceUpdated={handleWorkspaceUpdated}
         onRefreshSyncedList={loadSyncedList}

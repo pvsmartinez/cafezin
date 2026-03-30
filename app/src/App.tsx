@@ -53,6 +53,7 @@ import { loadAppSettings, useAppShellState } from './hooks/useAppShellState';
 import { useForceUpdateCheck } from './hooks/useForceUpdateCheck';
 import { useTsDiagnostics } from './hooks/useTsDiagnostics';
 import { useProactiveNudge } from './hooks/useProactiveNudge';
+import { useFeedbackNudge } from './hooks/useFeedbackNudge';
 import { AppOverlays } from './components/app/AppOverlays';
 import { AppHeader } from './components/app/AppHeader';
 import { AppEditorArea } from './components/app/AppEditorArea';
@@ -431,7 +432,12 @@ export default function App() {
   // Demo Hub publish status toast
   // Proactive AI nudge
   const isCanvasActive = !!activeFile?.endsWith('.tldr.json');
-  const { activeNudge, recordEdit, dismissNudge } = useProactiveNudge(isCanvasActive);
+  const { activeNudge, recordEdit, dismissNudge } = useProactiveNudge(
+    isCanvasActive,
+    appSettings.proactiveNudge ?? true,
+  );
+  // Feedback nudge — appears after SESSION_THRESHOLD sessions
+  const { showFeedbackNudge, dismissFeedbackNudge } = useFeedbackNudge();
   // Clean up saved-toast timer on unmount
   useEffect(() => () => {
     if (savedToastTimerRef.current) clearTimeout(savedToastTimerRef.current);
@@ -1550,6 +1556,8 @@ export default function App() {
         updateToastVersion={updateToastVersion}
         setUpdateToastVersion={setUpdateToastVersion}
         onOpenUpdateReleaseModal={handleOpenUpdateReleaseModal}
+        showFeedbackNudge={showFeedbackNudge}
+        onDismissFeedbackNudge={dismissFeedbackNudge}
       />
 
     </div>

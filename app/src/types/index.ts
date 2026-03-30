@@ -568,6 +568,8 @@ export interface AppSettings {
   locale?: 'en' | 'pt-BR';
   /** User overrides for global app keyboard shortcuts */
   shortcutOverrides?: ShortcutOverrideMap;
+  /** Show proactive AI suggestions while writing (default true) */
+  proactiveNudge?: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -619,8 +621,14 @@ export const FALLBACK_MODELS: CopilotModelInfo[] = [
 // ── Account / Subscription / Entitlements ─────────────────────────────────────
 // These types mirror the Supabase get_my_account_state() RPC response.
 
-export type SubscriptionPlan = 'free' | 'premium';
+export type SubscriptionPlan = 'free' | 'basic' | 'standard' | 'pro' | 'premium';
 export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'inactive';
+
+/**
+ * Managed AI tier — 'none' means BYOK only (no managed quota).
+ * 'basic' / 'standard' / 'pro' correspond to paid plans with OpenRouter budget.
+ */
+export type AIManagedTier = 'none' | 'basic' | 'standard' | 'pro';
 
 /** Canonical account state fetched from Supabase and cached locally. */
 export interface AccountState {
@@ -640,12 +648,21 @@ export interface AccountState {
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
   trialEnd?: string | null;
+  /** Managed AI tier ('none' = BYOK only). */
+  aiTier: AIManagedTier;
+  /** Credits consumed this cycle (micro-cents: 1 USD = 10_000). */
+  aiCreditsUsedMicrocents: number;
+  /** Monthly quota ceiling (micro-cents). 0 when no managed AI. */
+  aiCreditsLimitMicrocents: number;
 }
 
 /** Unauthenticated / free default — safe to use as the initial state. */
 export const FREE_ACCOUNT_STATE: AccountState = {
   authenticated: false,
   plan: 'free',
+  aiTier: 'none',
+  aiCreditsUsedMicrocents: 0,
+  aiCreditsLimitMicrocents: 0,
   status: 'inactive',
   isPremium: false,
   canUseAI: false,

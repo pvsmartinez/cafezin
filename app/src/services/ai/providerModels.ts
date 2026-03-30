@@ -9,12 +9,12 @@
 
 import { fetch } from '@tauri-apps/plugin-http';
 import type { AIProviderType } from '../aiProvider';
-import { getCustomEndpoint, getProviderKey } from '../aiProvider';
+import { getCustomEndpoint, getProviderKey, CAFEZIN_MANAGED_MODELS } from '../aiProvider';
 import type { CopilotModelInfo } from '../../types';
 import { SK } from '../storageKeys';
 
-type RefreshableProvider = Exclude<AIProviderType, 'copilot'>;
-type ListedProvider = Exclude<AIProviderType, 'copilot' | 'custom'>;
+type RefreshableProvider = Exclude<AIProviderType, 'copilot' | 'cafezin'>;
+type ListedProvider = Exclude<AIProviderType, 'copilot' | 'cafezin' | 'custom'>;
 
 export interface ProviderModelInfo {
   id: string;
@@ -40,6 +40,31 @@ const VENDOR_LABELS: Record<RefreshableProvider, string> = {
   google: 'Google',
   custom: 'Custom',
 };
+
+/**
+ * Returns the managed AI model list for the cafezin provider, filtered by the
+ * user's active tier. consumptionRate is mapped to CopilotModelInfo.multiplier
+ * so the existing chat picker can show it as a usage indicator.
+ *
+ * @param tier - current user tier ('basic' | 'standard' | 'pro' | 'none')
+ */
+export function getCafezinModelsForPicker(
+  tier: 'none' | 'basic' | 'standard' | 'pro',
+): CopilotModelInfo[] {
+  const tierOrder: Record<string, number> = { none: 0, basic: 1, standard: 2, pro: 3 };
+  const userTierLevel = tierOrder[tier] ?? 0;
+
+  return CAFEZIN_MANAGED_MODELS
+    .filter((m) => tierOrder[m.minTier] <= userTierLevel)
+    .map((m) => ({
+      id:             m.id,
+      name:           m.name,
+      multiplier:     m.consumptionRate,
+      isPremium:      m.consumptionRate > 2,
+      vendor:         m.vendor,
+      supportsVision: m.supportsVision,
+    } satisfies CopilotModelInfo));
+}
 
 const PROVIDER_MODEL_STORAGE_KEY = 'cafezin-provider-model-catalog-v1';
 const PROVIDER_MODEL_META_STORAGE_KEY = 'cafezin-provider-model-catalog-meta-v1';

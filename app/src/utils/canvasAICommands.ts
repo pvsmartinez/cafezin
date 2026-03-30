@@ -501,6 +501,55 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
     return { count, shapeId: null };
   }
 
+  // ── add_card_list ─────────────────────────────────────────────────────────
+  // Creates a grid of solid-fill colored cards (geo rectangles) auto-sized to fill the slide.
+  // Pattern: {"op":"add_card_list","slide":"abc","title":"Título","cards":[{"text":"…","color":"yellow"},…],"cols":1}
+  if (op === 'add_card_list') {
+    const suffix = cmd.slide ? String(cmd.slide) : '';
+    if (!suffix) throw new Error('add_card_list requires a "slide" field with a frame ID.');
+    const pid = existing.find((s) => s.type === 'frame' && s.id.endsWith(suffix))?.id as TLShapeId | undefined;
+    if (!pid) throw new Error(`add_card_list: frame not found for slide="${suffix}". Call list_canvas_shapes to get valid IDs.`);
+
+    const title = String(cmd.title ?? '');
+    const cols  = Math.max(1, Math.min(4, Math.round(Number(cmd.cols ?? 1))));
+    const rawCards = Array.isArray(cmd.cards) ? (cmd.cards as Record<string, unknown>[]) : [];
+    if (rawCards.length === 0) throw new Error('add_card_list: "cards" array is required and must not be empty.');
+
+    let currentY = safeCoord(cmd.y_start, title ? 18 : 80);
+    let count = 0;
+
+    if (title) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editor.createShapes<TLTextShape>([{ id: createShapeId(), type: 'text', parentId: pid, x: 80, y: currentY, props: { richText: toRichTextMd(title), color: 'black', size: 'xl', font: 'sans', textAlign: 'start', autoSize: false, w: 1120 } as any }]);
+      currentY += 88;
+      count++;
+    }
+
+    const MARGIN_X     = 80;
+    const TOTAL_W      = SLIDE_W - MARGIN_X * 2;   // 1120
+    const GAP_X        = 16;
+    const GAP_Y        = 12;
+    const MARGIN_BOTTOM = 30;
+    const availableH   = SLIDE_H - currentY - MARGIN_BOTTOM;
+    const rows  = Math.ceil(rawCards.length / cols);
+    const cardW = Math.floor((TOTAL_W - GAP_X * (cols - 1)) / cols);
+    const cardH = Math.min(180, Math.floor((availableH - GAP_Y * (rows - 1)) / rows));
+
+    for (let i = 0; i < rawCards.length; i++) {
+      const card = rawCards[i];
+      const col  = i % cols;
+      const row  = Math.floor(i / cols);
+      const cx   = MARGIN_X + col * (cardW + GAP_X);
+      const cy   = currentY + row * (cardH + GAP_Y);
+      editor.createShapes<TLGeoShape>([{
+        id: createShapeId(), type: 'geo', parentId: pid, x: cx, y: cy,
+        props: { geo: 'rectangle', w: cardW, h: cardH, richText: toRichTextMd(String(card.text ?? '')), color: mapColor(card.color, 'yellow'), fill: 'solid', size: 'm', font: mapFont(cmd.font, 'sans'), align: 'middle', scale: 1 },
+      }]);
+      count++;
+    }
+    return { count, shapeId: null };
+  }
+
   // ── Auto-position for new freestanding shapes ─────────────────────────────
   const idx = existing.length;
   const x = safeCoord(cmd.x, 100 + (idx % 5) * 220);

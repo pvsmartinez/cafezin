@@ -34,7 +34,16 @@ function groupByVendor(models: CopilotModelInfo[]): Array<{ vendor: string; item
 
 // ── Rate badge ────────────────────────────────────────────────────────────────
 // Shows billing tier: free (0×), standard (1×), premium (N×)
-export function MultiplierBadge({ value }: { value: number }) {
+// When showConsumption=true, shows an estimated prompts/month label instead
+// (used for the cafezin managed AI provider where the multiplier = consumptionRate).
+export function MultiplierBadge({ value, showConsumption }: { value: number; showConsumption?: boolean }) {
+  if (showConsumption) {
+    // consumptionRate: 0.5 = fast/cheap, 1.0 = standard, 2.0 = heavy, 4-5 = very heavy
+    if (value <= 0.5) return <span className="ai-rate-badge ai-rate-free" title="Modelo leve — consome menos cota">leve</span>;
+    if (value <= 1.0) return <span className="ai-rate-badge ai-rate-standard" title="Modelo padrão — consumo normal">médio</span>;
+    if (value <= 2.5) return <span className="ai-rate-badge ai-rate-premium" title="Modelo pesado — consome mais cota">pesado</span>;
+    return <span className="ai-rate-badge ai-rate-premium" title="Modelo muito pesado — consome bastante cota">muito pesado</span>;
+  }
   if (value === 0) return <span className="ai-rate-badge ai-rate-free">free</span>;
   if (value <= 1)  return <span className="ai-rate-badge ai-rate-standard">1×</span>;
   return <span className="ai-rate-badge ai-rate-premium">{value}×</span>;
@@ -48,9 +57,12 @@ interface ModelPickerProps {
   loading: boolean;
   onSignOut?: () => void;
   providerLabel?: string;
+  /** When true, MultiplierBadge shows a consumption label instead of a cost multiplier.
+   *  Use for the 'cafezin' managed AI provider where multiplier = consumptionRate. */
+  showConsumptionRate?: boolean;
 }
 
-export function ModelPicker({ models, value, onChange, loading, onSignOut, providerLabel }: ModelPickerProps) {
+export function ModelPicker({ models, value, onChange, loading, onSignOut, providerLabel, showConsumptionRate }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -124,7 +136,7 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut, provi
                 {getRecommendationMeta(m) && <span className="ai-model-option-hint">{getRecommendationMeta(m)?.hint}</span>}
               </span>
             </span>
-            <MultiplierBadge value={m.multiplier} />
+            <MultiplierBadge value={m.multiplier} showConsumption={showConsumptionRate} />
           </button>
         ))}
       </>
@@ -154,7 +166,7 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut, provi
           {providerLabel && <span className="ai-model-trigger-provider">{providerLabel}</span>}
           <span className="ai-model-trigger-name">{loading ? '…' : current.name}</span>
         </span>
-        <MultiplierBadge value={current.multiplier} />
+        <MultiplierBadge value={current.multiplier} showConsumption={showConsumptionRate} />
         <span className="ai-model-trigger-caret">▾</span>
       </button>
 

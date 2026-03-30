@@ -22,6 +22,11 @@ import {
   getActiveProvider,
   isAIConfigured,
   PROVIDER_LABELS,
+  PROVIDER_SHORT_LABELS,
+  setCustomEndpoint,
+  getCustomEndpoint,
+  getCustomModelId,
+  type AIProviderType,
 } from '../../services/aiProvider';
 import { DEFAULT_MODEL, FALLBACK_MODELS } from '../../types';
 import type { ChatMessage, CopilotModelInfo, ToolActivity, ContentPart } from '../../types';
@@ -30,6 +35,7 @@ import { saveApiSecret } from '../../services/apiSecrets';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Workspace } from '../../types';
 import { AIMarkdownText } from '../ai/AIMarkdownText';
+import { ManagedAIQuotaModal } from '../ai/ManagedAIQuotaModal';
 import { useAccountState } from '../../hooks/useAccountState';
 import { getGroqLangPreference } from '../../hooks/useVoiceInput';
 import { resolveVoiceTranscriptionLanguage } from '../../utils/voiceLanguage';
@@ -162,6 +168,28 @@ const GROQ_KEY = 'cafezin-groq-key';
 function getGroqKey(): string { return localStorage.getItem(GROQ_KEY) ?? ''; }
 function saveGroqKey(k: string) { void saveApiSecret(GROQ_KEY, k.trim()); }
 
+// ── BYOK helpers ─────────────────────────────────────────────────────────────
+const BYOK_KEY_MAP: Record<Exclude<AIProviderType, 'copilot' | 'cafezin' | 'custom'>, string> = {
+  openai:    'cafezin-openai-key',
+  anthropic: 'cafezin-anthropic-key',
+  groq:      'cafezin-groq-key',
+  google:    'cafezin-google-key',
+};
+
+const PROVIDER_KEY_URLS: Record<Exclude<AIProviderType, 'copilot' | 'cafezin' | 'custom'>, string> = {
+  openai:    'https://platform.openai.com/api-keys',
+  anthropic: 'https://console.anthropic.com/account/keys',
+  groq:      'https://console.groq.com/keys',
+  google:    'https://aistudio.google.com/app/apikey',
+};
+
+const PROVIDER_KEY_PLACEHOLDERS: Record<Exclude<AIProviderType, 'copilot' | 'cafezin' | 'custom'>, string> = {
+  openai:    'sk-...',
+  anthropic: 'sk-ant-...',
+  groq:      'gsk_...',
+  google:    'AIza...',
+};
+
 interface MobileCopilotProps {
   workspace: Workspace | null;
   /** Relative path of the currently open file — used as context */
@@ -171,6 +199,8 @@ interface MobileCopilotProps {
   /** Called when agent writes/patches a file so the file tree can refresh */
   onFileWritten?: (path: string) => void;
   onOpenFileReference?: (relPath: string, lineNo?: number) => void | Promise<void>;
+  /** Open the Settings sheet (used to direct user to change AI provider) */
+  onOpenSettings?: () => void;
 }
 
 export default function MobileCopilot({
@@ -180,11 +210,13 @@ export default function MobileCopilot({
   onFileWritten,
   secretsSynced,
   onOpenFileReference,
+  onOpenSettings,
 }: MobileCopilotProps) {
   const copilotOAuthClientId = workspace?.config.githubOAuth?.clientId?.trim() || undefined;
   const premiumUrl = navigator.language.startsWith('pt')
     ? 'https://cafezin.pmatz.com/br/premium'
     : 'https://cafezin.pmatz.com/premium';
+  const activeProvider = getActiveProvider();
   const mobileTools = useMemo(
     () => getWorkspaceTools(workspace, workspace?.config.exportConfig).filter(
       (t) => !CANVAS_TOOLS.has(t.function.name) && t.function.name !== 'run_command',
@@ -197,6 +229,9 @@ export default function MobileCopilot({
   const [authStatus, setAuthStatus] = useState<'checking' | 'unauthenticated' | 'connecting' | 'authenticated'>('checking');
   const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [keyInput, setKeyInput] = useState('');
+  const [customEndpointInput, setCustomEndpointInput] = useState(() => getCustomEndpoint());
+  const [customModelInput, setCustomModelInput] = useState(() => getCustomModelId());
 
   useEffect(() => {
     const provider = getActiveProvider();
@@ -223,9 +258,33 @@ export default function MobileCopilot({
   }
 
   function handleSignOut() {
-    clearOAuthToken(copilotOAuthClientId);
+    const provider = getActiveProvider();
+    if (provider === 'copilot') {
+      clearOAuthToken(copilotOAuthClientId);
+    } else if (provider === 'custom') {
+      setCustomEndpoint('');
+      localStorage.removeItem('cafezin-ai-model-custom');
+      void saveApiSecret('cafezin-custom-key', '');
+      setCustomEndpointInput('');
+      setCustomModelInput('');
+    } else {
+      void saveApiSecret(BYOK_KEY_MAP[provider as keyof typeof BYOK_KEY_MAP], '');
+    }
+    setKeyInput('');
     setAuthStatus('unauthenticated');
     setMessages([]);
+  }
+
+  function handleSaveKey() {
+    const provider = getActiveProvider();
+    if (provider === 'custom') {
+      setCustomEndpoint(customEndpointInput.trim());
+      if (customModelInput.trim()) localStorage.setItem('cafezin-ai-model-custom', customModelInput.trim());
+      if (keyInput.trim()) void saveApiSecret('cafezin-custom-key', keyInput.trim());
+    } else if (provider !== 'copilot') {
+      void saveApiSecret(BYOK_KEY_MAP[provider as keyof typeof BYOK_KEY_MAP], keyInput.trim());
+    }
+    setAuthStatus('authenticated');
   }
 
   // ── Models ───────────────────────────────────────────────────────────────
@@ -263,6 +322,7 @@ export default function MobileCopilot({
   /** Live tool activities for the in-flight agent turn */
   const [liveActivities, setLiveActivities] = useState<ToolActivity[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showManagedQuotaModal, setShowManagedQuotaModal] = useState(false);
   const [input, setInput] = useState('');
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -271,6 +331,12 @@ export default function MobileCopilot({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingText, liveActivities]);
+
+  useEffect(() => {
+    if (activeProvider === 'cafezin' && error?.includes('Cota mensal da Cafezin IA esgotada')) {
+      setShowManagedQuotaModal(true);
+    }
+  }, [activeProvider, error]);
 
   // Auto-grow textarea
   useEffect(() => {
@@ -489,17 +555,17 @@ export default function MobileCopilot({
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center gap-2 px-4 pt-3 pb-[10px] border-b border-app-border bg-surface shrink-0">
-          <span className="flex-1 text-[17px] font-semibold truncate">Copilot</span>
+          <span className="flex-1 text-[17px] font-semibold truncate">{PROVIDER_LABELS[getActiveProvider()]}</span>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 py-8 text-center">
           <div className="opacity-40 text-muted" style={{ fontSize: 32 }}>&#9733;</div>
           <div className="text-lg font-semibold">
-            {account.authenticated ? 'Recurso do plano Premium' : 'IA disponível no plano Premium'}
+            {account.authenticated ? 'Recurso do plano Basic ou superior' : 'IA disponível no plano Basic'}
           </div>
           <div className="text-sm text-muted max-w-[260px] leading-[1.5]">
             {account.authenticated
-              ? 'Faça upgrade para Premium e use sua própria chave de API sem custo extra de uso.'
-              : 'Crie sua conta Premium no site para usar IA no Cafezin.'}
+              ? 'Faça upgrade para Basic ou superior para liberar a IA no app.'
+              : 'Crie sua conta e assine um plano Basic, Standard ou Pro para usar IA no Cafezin.'}
           </div>
           <a
             href={premiumUrl}
@@ -515,17 +581,99 @@ export default function MobileCopilot({
             onClick={() => void refreshAccount()}
             disabled={accountLoading}
           >
-            {accountLoading ? 'Verificando…' : 'Já sou Premium — atualizar'}
+            {accountLoading ? 'Verificando…' : 'Já assinei — atualizar'}
           </button>
         </div>
       </div>
     );
   }
   if (authStatus === 'unauthenticated' || authStatus === 'connecting') {
+    const provider = getActiveProvider();
+
+    // BYOK providers: show inline key / endpoint entry instead of GitHub OAuth
+    if (provider !== 'copilot') {
+      const isByok = provider !== 'custom';
+      return (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 px-4 pt-3 pb-[10px] border-b border-app-border bg-surface shrink-0">
+            <span className="flex-1 text-[17px] font-semibold truncate">{PROVIDER_LABELS[provider]}</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 py-8 text-center">
+            <div className="opacity-40 text-muted"><Key size={32} weight="light" /></div>
+            {isByok ? (
+              <>
+                <div className="text-lg font-semibold">Enter your {PROVIDER_LABELS[provider]} key</div>
+                <div className="text-sm text-muted max-w-[260px] leading-[1.5]">
+                  Your key is encrypted and synced across devices.{' '}
+                  <button
+                    className="text-accent underline bg-transparent border-0 cursor-pointer text-sm p-0"
+                    onClick={() => openUrl(PROVIDER_KEY_URLS[provider as keyof typeof PROVIDER_KEY_URLS])}
+                  >
+                    Get a key ↗
+                  </button>
+                </div>
+                <input
+                  className="w-full bg-surface-2 border border-app-border rounded-lg px-[10px] py-2 text-app-text text-sm outline-none"
+                  type="password"
+                  placeholder={PROVIDER_KEY_PLACEHOLDERS[provider as keyof typeof PROVIDER_KEY_PLACEHOLDERS]}
+                  value={keyInput}
+                  onChange={e => setKeyInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSaveKey()}
+                />
+              </>
+            ) : (
+              <>
+                <div className="text-lg font-semibold">Configure local / custom AI</div>
+                <div className="text-sm text-muted max-w-[260px] leading-[1.5]">
+                  Enter the URL of your OpenAI-compatible server (Ollama, LM Studio, OpenRouter…)
+                </div>
+                <input
+                  className="w-full bg-surface-2 border border-app-border rounded-lg px-[10px] py-2 text-app-text text-sm outline-none"
+                  type="url"
+                  placeholder="http://192.168.1.x:11434/v1"
+                  value={customEndpointInput}
+                  onChange={e => setCustomEndpointInput(e.target.value)}
+                />
+                <input
+                  className="w-full bg-surface-2 border border-app-border rounded-lg px-[10px] py-2 text-app-text text-sm outline-none"
+                  type="text"
+                  placeholder="Model ID (e.g. llama3.2)"
+                  value={customModelInput}
+                  onChange={e => setCustomModelInput(e.target.value)}
+                />
+                <input
+                  className="w-full bg-surface-2 border border-app-border rounded-lg px-[10px] py-2 text-app-text text-sm outline-none"
+                  type="password"
+                  placeholder="API key (optional)"
+                  value={keyInput}
+                  onChange={e => setKeyInput(e.target.value)}
+                />
+              </>
+            )}
+            <button
+              className="btn-primary w-full"
+              onClick={handleSaveKey}
+              disabled={provider === 'custom'
+                ? !customEndpointInput.trim() || !customModelInput.trim()
+                : !keyInput.trim()}
+            >
+              Save &amp; continue
+            </button>
+            {onOpenSettings && (
+              <button className="text-sm text-muted" onClick={onOpenSettings}>
+                Change AI provider in Settings
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Copilot: GitHub OAuth device flow
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center gap-2 px-4 pt-3 pb-[10px] border-b border-app-border bg-surface shrink-0">
-          <span className="flex-1 text-[17px] font-semibold truncate">Copilot</span>
+          <span className="flex-1 text-[17px] font-semibold truncate">GitHub Copilot</span>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 py-8 text-center">
           {authStatus === 'connecting' && deviceFlow ? (
@@ -561,6 +709,11 @@ export default function MobileCopilot({
               <button className="btn-primary" onClick={handleSignIn}>
                 Sign in with GitHub
               </button>
+              {onOpenSettings && (
+                <button className="text-sm text-muted" onClick={onOpenSettings}>
+                  Use a different AI provider
+                </button>
+              )}
             </>
           )}
         </div>
@@ -568,7 +721,6 @@ export default function MobileCopilot({
     );
   }
 
-  const activeProvider = getActiveProvider();
   const currentModel = models.find(m => m.id === model) ?? { name: model };
 
   return (
@@ -720,7 +872,7 @@ export default function MobileCopilot({
           ref={textareaRef}
           className="flex-1 bg-surface-2 border border-app-border rounded-xl px-3 py-[10px] text-app-text text-[15px] font-[inherit] resize-none outline-none leading-[1.4] max-h-[140px] overflow-y-auto placeholder:text-muted"
           rows={1}
-          placeholder="Message Copilot…"
+          placeholder={`Message ${PROVIDER_SHORT_LABELS[activeProvider]}…`}
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -736,6 +888,20 @@ export default function MobileCopilot({
           {streaming ? '■' : '↑'}
         </button>
       </div>
+
+      <ManagedAIQuotaModal
+        open={showManagedQuotaModal}
+        message={error}
+        onClose={() => setShowManagedQuotaModal(false)}
+        onUpgrade={() => {
+          setShowManagedQuotaModal(false);
+          openUrl(premiumUrl).catch(() => window.open(premiumUrl, '_blank'));
+        }}
+        onChooseProvider={() => {
+          setShowManagedQuotaModal(false);
+          onOpenSettings?.();
+        }}
+      />
     </div>
   );
 }

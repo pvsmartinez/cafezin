@@ -10,6 +10,7 @@ import DesktopOnboardingModal from '../DesktopOnboardingModal';
 import ExportModal from '../ExportModal';
 import ImageSearchPanel from '../ImageSearchPanel';
 import NudgeToast from '../NudgeToast';
+import FeedbackNudge from '../FeedbackNudge';
 import { SK } from '../../services/storageKeys';
 import type { NudgePayload } from '../../hooks/useProactiveNudge';
 import type { MobilePendingTask } from '../../services/mobilePendingTasks';
@@ -63,6 +64,8 @@ export interface AppOverlaysProps {
   updateToastVersion: string | null;
   setUpdateToastVersion: React.Dispatch<React.SetStateAction<string | null>>;
   onOpenUpdateReleaseModal: () => void;
+  showFeedbackNudge: boolean;
+  onDismissFeedbackNudge: () => void;
 }
 
 const AppOverlaysInner = function AppOverlays({
@@ -109,6 +112,8 @@ const AppOverlaysInner = function AppOverlays({
   updateToastVersion,
   setUpdateToastVersion,
   onOpenUpdateReleaseModal,
+  showFeedbackNudge,
+  onDismissFeedbackNudge,
 }: AppOverlaysProps) {
   return (
     <>
@@ -191,6 +196,13 @@ const AppOverlaysInner = function AppOverlays({
           text={activeNudge.text}
           onAsk={() => onAskNudge(activeNudge.aiPrompt)}
           onDismiss={onDismissNudge}
+        />
+      )}
+
+      {showFeedbackNudge && !activeNudge && (
+        <FeedbackNudge
+          onOpenFeedback={onContactUs}
+          onDismiss={onDismissFeedbackNudge}
         />
       )}
 

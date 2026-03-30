@@ -89,29 +89,40 @@ export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile
             ⊘ {t('wh.switchWorkspace')}
           </button>
         )}
-
-        {/* Workspace type selector */}
-        <div className="wh-type-section">
-          <div className="wh-section-label">{t('wh.workspaceType')}</div>
-          <div className="wh-type-pills">
-            {WORKSPACE_TYPES.map((wt) => (
-              <button
-                key={wt.id}
-                className={`wh-type-pill${currentType === wt.id ? ' wh-type-pill--active' : ''}`}
-                onClick={() => onWorkspaceTypeChange?.(wt.id)}
-                title={t(wt.labelKey)}
-              >
-                <span className="wh-type-pill-icon">{wt.icon}</span>
-                <span className="wh-type-pill-label">{t(wt.labelKey)}</span>
-              </button>
-            ))}
-          </div>
-          {currentTypeInfo && (
-            <div className="wh-type-skills">
-              {t('wh.activeSkills')} {t(currentTypeInfo.skillsKey)}
+        {/* Workspace concept callout — only in empty state */}
+        {totalFiles === 0 && (
+          <div className="wh-concept-callout">
+            <span className="wh-concept-callout-icon">📁</span>
+            <div>
+              <strong>{t('wh.conceptCalloutTitle')}</strong>
+              {t('wh.conceptCalloutBody')}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+        {/* Workspace type selector — only when workspace has files (empty state shows full cards) */}
+        {totalFiles > 0 && (
+          <div className="wh-type-section">
+            <div className="wh-section-label">{t('wh.workspaceType')}</div>
+            <div className="wh-type-pills">
+              {WORKSPACE_TYPES.map((wt) => (
+                <button
+                  key={wt.id}
+                  className={`wh-type-pill${currentType === wt.id ? ' wh-type-pill--active' : ''}`}
+                  onClick={() => onWorkspaceTypeChange?.(wt.id)}
+                  title={t(wt.skillsKey)}
+                >
+                  <span className="wh-type-pill-icon">{wt.icon}</span>
+                  <span className="wh-type-pill-label">{t(wt.labelKey)}</span>
+                </button>
+              ))}
+            </div>
+            {currentTypeInfo && (
+              <div className="wh-type-skills">
+                {t('wh.activeSkills')} {t(currentTypeInfo.skillsKey)}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* What is a workspace */}
         <div className="wh-concept">
@@ -134,8 +145,20 @@ export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile
         {totalFiles === 0 && onCreateFirstFile && (
           <div className="wh-empty-hero">
             <div className="wh-empty-kicker">{t('wh.emptyKicker')}</div>
-            <h2 className="wh-empty-title">{t('wh.emptyTitle')}</h2>
-            <p className="wh-empty-desc">{t('wh.emptyDesc')}</p>
+            <div className="wh-type-cards-empty">
+              {WORKSPACE_TYPES.map((wt) => (
+                <button
+                  key={wt.id}
+                  className={`wh-type-card-empty${currentType === wt.id ? ' wh-type-card-empty--active' : ''}`}
+                  onClick={() => onWorkspaceTypeChange?.(wt.id)}
+                >
+                  <span className="wh-type-card-icon">{wt.icon}</span>
+                  <span className="wh-type-card-label">{t(wt.labelKey)}</span>
+                  <span className="wh-type-card-desc">{t(wt.skillsKey)}</span>
+                </button>
+              ))}
+            </div>
+            <p className="wh-empty-coexist">{t('wh.emptyCoexist')}</p>
             <button className="wh-create-first-btn" onClick={onCreateFirstFile}>
               <Plus weight="bold" size={14} />
               <span>{t('wh.createFirstFile')}</span>

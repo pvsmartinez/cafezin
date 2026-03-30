@@ -30,7 +30,7 @@ import type { DeviceFlowState } from '../services/copilot';
 import { COPILOT_MODELS_CHANGED_EVENT } from '../services/copilot/constants';
 import { getActiveModel, getActiveProvider } from '../services/aiProvider';
 import type { AIProviderType } from '../services/aiProvider';
-import { getProviderCatalog, getProviderModelsForPicker } from '../services/ai/providerModels';
+import { getProviderCatalog, getProviderModelsForPicker, getCafezinModelsForPicker } from '../services/ai/providerModels';
 import { readFile, writeFile } from '../services/fs';
 import { loadWorkspaceSession, saveWorkspaceSession } from '../services/workspaceSession';
 import type { WorkspaceAgentTabSession } from '../services/workspaceSession';
@@ -306,7 +306,15 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
       return resolveCopilotModelForChatCompletions(requestedModel ?? getActiveModel(), models);
     }
 
-    const catalog = getProviderCatalog(provider);
+    // For cafezin, resolve against the models list directly (no local catalog)
+    if (provider === 'cafezin') {
+      const requested = requestedModel?.trim();
+      const found = models.find((m) => m.id === requested);
+      if (found) return found.id;
+      return models[0]?.id ?? requestedModel;
+    }
+
+    const catalog = getProviderCatalog(provider as Exclude<AIProviderType, 'copilot' | 'cafezin'>);
     const catalogIds = new Set(catalog.map((model) => model.id));
 
     const requested = requestedModel?.trim();
@@ -342,8 +350,15 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     if (!isOpen) return;
     const provider = getActiveProvider();
     setActiveProviderState((current) => (current === provider ? current : provider));
+    if (provider === 'cafezin') {
+      const nextModels = getCafezinModelsForPicker(account?.aiTier ?? 'none');
+      setAvailableModels((current) => (sameModelList(current, nextModels) ? current : nextModels));
+      setTabs((tabs) => applyResolvedModelsToTabs(tabs, provider, nextModels));
+      setModelsLoading(false);
+      return;
+    }
     if (provider !== 'copilot') {
-      const nextModels = getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot'>);
+      const nextModels = getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot' | 'cafezin'>);
       setAvailableModels((current) => (sameModelList(current, nextModels) ? current : nextModels));
       setTabs((tabs) => applyResolvedModelsToTabs(tabs, provider, nextModels));
       setModelsLoading(false);
@@ -368,8 +383,13 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     function handleProviderChanged() {
       const provider = getActiveProvider();
       setActiveProviderState((current) => (current === provider ? current : provider));
-      if (provider !== 'copilot') {
-        const nextModels = getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot'>);
+      if (provider === 'cafezin') {
+        const nextModels = getCafezinModelsForPicker(account?.aiTier ?? 'none');
+        setAvailableModels((current) => (sameModelList(current, nextModels) ? current : nextModels));
+        setTabs((tabs) => applyResolvedModelsToTabs(tabs, provider, nextModels));
+        setModelsLoading(false);
+      } else if (provider !== 'copilot') {
+        const nextModels = getProviderModelsForPicker(provider as Exclude<AIProviderType, 'copilot' | 'cafezin'>);
         setAvailableModels((current) => (sameModelList(current, nextModels) ? current : nextModels));
         setTabs((tabs) => applyResolvedModelsToTabs(tabs, provider, nextModels));
         setModelsLoading(false);

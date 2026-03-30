@@ -665,7 +665,7 @@ export function useAIStream({
     // The UI gate (PremiumGate component) is the primary barrier; this is the
     // safety net in case the gate is bypassed or the component is used directly.
     if (!canUseAI) {
-      setError('Recurso disponível apenas no plano Premium. Acesse cafezin.app/premium para fazer upgrade.');
+      setError('Recurso disponível apenas no plano Basic ou superior. Acesse cafezin.pmatz.com para fazer upgrade.');
       return;
     }
     const textToSend = (textOverride ?? input ?? '').trim();

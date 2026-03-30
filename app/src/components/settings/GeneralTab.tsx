@@ -228,6 +228,25 @@ export function GeneralTab({
       </section>
 
       <section className="sm-section">
+        <h3 className="sm-section-title">Inteligência artificial</h3>
+
+        <div className="sm-row">
+          <div className="sm-row-label">
+            <span>Sugestões proativas</span>
+            <span className="sm-row-desc">O assistente sugere ajuda automaticamente após um período de escrita</span>
+          </div>
+          <label className="sm-toggle">
+            <input
+              type="checkbox"
+              checked={appSettings.proactiveNudge ?? true}
+              onChange={(e) => setApp('proactiveNudge', e.target.checked)}
+            />
+            <span className="sm-toggle-track" />
+          </label>
+        </div>
+      </section>
+
+      <section className="sm-section">
         <h3 className="sm-section-title">{t('settings.sectionHelp')}</h3>
         <p className="sm-section-desc">{t('settings.helpDesc')}</p>
         <div className="sm-support-actions">

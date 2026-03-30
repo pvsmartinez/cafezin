@@ -6,7 +6,14 @@ import {
 } from '../../services/aiProvider';
 import type { ProviderModelInfo } from '../../services/ai/providerModels';
 import { setFavoriteModelIds } from '../../services/ai/providerModels';
-import type { AppSettings } from '../../types';
+import type { AccountState, AppSettings } from '../../types';
+
+const MANAGED_TIER_LABELS: Record<AccountState['aiTier'], string> = {
+  none: 'Sem plano',
+  basic: 'Basic',
+  standard: 'Standard',
+  pro: 'Pro',
+};
 
 export interface AITabProps {
   appSettings: AppSettings;
@@ -43,6 +50,8 @@ export interface AITabProps {
   providerConfigured: Record<AIProviderType, boolean>;
   providerModelCatalog: ProviderModelInfo[];
   resolvedProviderModelOptions: { id: string; label: string }[];
+  account: AccountState;
+  premiumPageUrl: string;
 }
 
 export function AITab({
@@ -80,6 +89,8 @@ export function AITab({
   providerConfigured,
   providerModelCatalog,
   resolvedProviderModelOptions,
+  account,
+  premiumPageUrl,
 }: AITabProps) {
   const { t } = useTranslation();
 
@@ -127,6 +138,8 @@ export function AITab({
               <span className={`sm-provider-card-status ${providerConfigured[provider] ? 'is-ready' : ''}`}>
                 {provider === 'copilot'
                   ? providerConfigured[provider] ? 'Conectado' : 'Entrar pelo chat'
+                  : provider === 'cafezin'
+                  ? providerConfigured[provider] ? `${MANAGED_TIER_LABELS[account.aiTier]} ativo` : 'Basic ou superior'
                   : provider === 'custom'
                   ? providerConfigured[provider] ? 'Configurado' : 'Configurar'
                   : providerConfigured[provider] ? 'Chave salva' : 'Sem chave'}
@@ -139,7 +152,45 @@ export function AITab({
         </div>
 
         {/* Standard providers: API key field */}
-        {aiProvider !== 'copilot' && aiProvider !== 'custom' && (
+        {aiProvider === 'cafezin' && (
+          <div className="sm-custom-section">
+            <div className="sm-custom-notice">
+              A <strong>Cafezin IA</strong> usa o proxy gerenciado do app. Para usar qualquer IA no Cafezin,
+              sua conta precisa estar no plano <strong>Basic ou superior</strong>.
+            </div>
+
+            <div className="sm-row sm-row--col">
+              <label className="sm-label">Status da conta</label>
+              <span className="sm-row-desc">
+                {account.aiTier === 'none'
+                  ? 'Sua conta atual ainda não tem acesso a Cafezin IA.'
+                  : `Plano ${MANAGED_TIER_LABELS[account.aiTier]} ativo. Os modelos disponíveis abaixo seguem seu tier.`}
+              </span>
+            </div>
+
+            <div className="sm-row sm-row--col">
+              <label className="sm-label">Como funciona</label>
+              <div className="sm-custom-limitations">
+                O Cafezin autentica pela sua conta, aplica sua cota mensal e libera os modelos compatíveis com o seu plano.
+                Se a sua cota acabar, você pode fazer upgrade na web ou trocar para outro provider com BYOK.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+              <a
+                className="sm-save-btn"
+                href={premiumPageUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: 'inline-block', textDecoration: 'none' }}
+              >
+                Ver planos na web ↗
+              </a>
+            </div>
+          </div>
+        )}
+
+        {aiProvider !== 'copilot' && aiProvider !== 'custom' && aiProvider !== 'cafezin' && (
           <div className="sm-row sm-row--col">
             <label className="sm-label">
               {t('settings.apiKeyLabel')}
@@ -294,6 +345,8 @@ export function AITab({
             <span className="sm-row-desc">
               {aiProvider === 'copilot'
                 ? 'A lista do Copilot vem ao vivo da sua conta.'
+                : aiProvider === 'cafezin'
+                ? 'A lista da Cafezin IA é gerenciada pelo seu plano atual.'
                 : 'Atualize a lista direto do provider ativo para evitar catálogo defasado.'}
             </span>
             <button
@@ -341,7 +394,7 @@ export function AITab({
           </div>
         </div>
 
-        {aiProvider !== 'copilot' && (() => {
+        {aiProvider !== 'copilot' && aiProvider !== 'cafezin' && (() => {
           const catalog = providerModelCatalog;
           const catalogIds = new Set(catalog.map((m) => m.id));
           const customFavIds = aiFavoriteIds.filter((id) => !catalogIds.has(id));
@@ -362,7 +415,7 @@ export function AITab({
                           ? [...aiFavoriteIds, m.id]
                           : aiFavoriteIds.filter((id) => id !== m.id);
                         setAIFavoriteIds(next);
-                        setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot' | 'custom'>, next);
+                        setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot' | 'custom' | 'cafezin'>, next);
                       }}
                     />
                     <span>{m.name}</span>
@@ -379,7 +432,7 @@ export function AITab({
                       onChange={() => {
                         const next = aiFavoriteIds.filter((i) => i !== id);
                         setAIFavoriteIds(next);
-                        setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot' | 'custom'>, next);
+                        setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot' | 'custom' | 'cafezin'>, next);
                       }}
                     />
                     <span>{id}</span>

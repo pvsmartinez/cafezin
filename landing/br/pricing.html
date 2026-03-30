@@ -25,7 +25,7 @@
   <meta property="og:type"        content="website" />
   <meta property="og:url"         content="https://cafezin.pmatz.com/br/pricing" />
   <meta property="og:title"       content="Preços — Cafezin, workspace de escrita com IA" />
-  <meta property="og:description" content="Grátis para o workspace local-first principal. Premium para IA com contexto completo, edições revisáveis, fluxos por voz e acesso BYOK a múltiplos modelos." />
+  <meta property="og:description" content="Grátis para o workspace local-first principal. Basic, Standard e Pro liberam IA com créditos gerenciados do Cafezin ou acesso BYOK ao seu próprio provider." />
   <meta property="og:image"       content="https://cafezin.pmatz.com/icon.png" />
   <meta property="og:locale"      content="pt_BR" />
 
@@ -55,9 +55,21 @@
           },
           {
             "@type": "Offer",
-            "name": "Premium",
-            "priceCurrency": "BRL",
-            "description": "Valor em reais calculado no checkout pela Paddle"
+            "name": "Basic",
+            "price": "5",
+            "priceCurrency": "USD"
+          },
+          {
+            "@type": "Offer",
+            "name": "Standard",
+            "price": "20",
+            "priceCurrency": "USD"
+          },
+          {
+            "@type": "Offer",
+            "name": "Pro",
+            "price": "50",
+            "priceCurrency": "USD"
           }
         ]
       },
@@ -69,7 +81,7 @@
             "name": "Posso testar antes de assinar?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Sim. Você pode baixar o Cafezin gratuitamente e usar o editor, o canvas e as funcionalidades principais sem pagar. O Premium adiciona os fluxos integrados de IA sobre o workspace local-first."
+              "text": "Sim. Você pode baixar o Cafezin gratuitamente e usar o editor, o canvas e as funcionalidades principais sem pagar. Qualquer plano pago adiciona os fluxos integrados de IA sobre o workspace local-first."
             }
           },
           {
@@ -85,7 +97,7 @@
             "name": "Posso cancelar a qualquer momento?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Sim. Você pode cancelar a qualquer momento sem multa. O acesso ao Premium continua até o fim do período já pago."
+              "text": "Sim. Você pode cancelar a qualquer momento sem multa. O acesso pago continua até o fim do período já pago."
             }
           },
           {
@@ -142,10 +154,10 @@
   <section class="page-hero">
     <div class="page-hero-inner">
       <div class="page-hero-label">Planos</div>
-      <h1 class="page-hero-title">Preço simples para um fluxo mais profundo</h1>
+      <h1 class="page-hero-title">Preço simples para um fluxo de IA mais profundo</h1>
       <p class="page-hero-sub">
-        Comece grátis com o workspace local-first completo. Faça upgrade quando quiser usar AI
-        para escrever, revisar e organizar com o contexto dos seus arquivos e do canvas.
+        Comece grátis com o workspace local-first completo. Faça upgrade para Basic, Standard
+        ou Pro quando quiser usar AI para escrever, revisar e organizar com o contexto dos seus arquivos e do canvas.
       </p>
     </div>
   </section>
@@ -214,19 +226,16 @@
           <p class="pricing-fine">Disponível hoje em macOS e Windows. iPhone e Android estão em andamento. <a href="/br/releases">Release notes</a>.</p>
         </div>
 
-        <!-- Premium -->
-        <div class="pricing-card pricing-card-featured">
-          <div class="pricing-badge">Mais popular</div>
-          <div class="pricing-plan">Premium</div>
+        <div class="pricing-card">
+          <div class="pricing-plan">Basic</div>
 
           <div class="pricing-price">
-            <span id="premium-price-amount" class="pricing-amount">Em R$</span>
-            <span id="premium-price-period" class="pricing-period">no checkout</span>
+            <span class="pricing-amount">US$ 5</span>
+            <span class="pricing-period">/mês</span>
           </div>
 
           <p class="pricing-desc">
-            Tudo do plano gratuito, mais uma AI capaz de escrever, revisar, resumir e se apoiar no seu workspace.
-            No Brasil, mostramos abaixo o valor em reais calculado pela Paddle.
+            Libera a IA no Cafezin com o menor custo mensal e a opção de usar tanto a Cafezin IA quanto seu próprio provider.
           </p>
 
           <ul class="pricing-features">
@@ -236,46 +245,117 @@
             </li>
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
-              AI integrada — GitHub Copilot, OpenAI ou Anthropic
+              Chat, escrita, revisão e voz com IA
+            </li>
+            <li class="pricing-feature">
+              <span class="pf-check">✓</span>
+              Cafezin IA com <strong>US$ 2/mês</strong> de uso gerenciado incluído
+            </li>
+            <li class="pricing-feature">
+              <span class="pf-check">✓</span>
+              BYOK para GitHub Copilot, OpenAI, Anthropic, Groq e mais
             </li>
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
               Contexto completo entre documentos e canvas
             </li>
+          </ul>
+
+          <a href="/br/premium?tier=basic" class="btn pricing-btn pricing-btn-accent">
+            Assinar Basic
+          </a>
+          <p class="pricing-fine">Cobrança via Paddle · Cancele quando quiser · Ideal para uso ocasional de IA</p>
+        </div>
+
+        <div class="pricing-card pricing-card-featured">
+          <div class="pricing-badge">Mais popular</div>
+          <div class="pricing-plan">Standard</div>
+
+          <div class="pricing-price">
+            <span class="pricing-amount">US$ 20</span>
+            <span class="pricing-period">/mês</span>
+          </div>
+
+          <p class="pricing-desc">
+            O melhor encaixe para uso diário de IA em escrita e revisão, com um orçamento mensal muito maior de Cafezin IA incluído.
+          </p>
+
+          <ul class="pricing-features">
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
-              Edições de AI marcadas para revisão antes de virar versão final
+              <strong>Tudo do Basic</strong>
             </li>
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
-              Escrita e transcrição por voz dentro do assistente
+              Cafezin IA com <strong>US$ 15/mês</strong> de uso gerenciado incluído
             </li>
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
-              Múltiplos modelos (GPT, Claude, Gemini e mais)
+              Melhor para sessões longas de escrita e revisão
+            </li>
+            <li class="pricing-feature">
+              <span class="pf-check">✓</span>
+              BYOK continua disponível quando você preferir sua própria conta
             </li>
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
               Suporte prioritário por e-mail
             </li>
+          </ul>
+
+          <a href="/br/premium?tier=standard" class="btn pricing-btn pricing-btn-accent">
+            Assinar Standard
+          </a>
+          <p class="pricing-fine">Cobrança via Paddle · Cancele quando quiser · Melhor custo-benefício para IA frequente</p>
+        </div>
+
+        <div class="pricing-card">
+          <div class="pricing-plan">Pro</div>
+
+          <div class="pricing-price">
+            <span class="pricing-amount">US$ 50</span>
+            <span class="pricing-period">/mês</span>
+          </div>
+
+          <p class="pricing-desc">
+            Feito para cargas mais pesadas de IA, experimentos maiores e quem quer o maior volume de uso gerenciado incluído dentro do Cafezin.
+          </p>
+
+          <ul class="pricing-features">
             <li class="pricing-feature">
               <span class="pf-check">✓</span>
-              Cancele quando quiser
+              <strong>Tudo do Standard</strong>
+            </li>
+            <li class="pricing-feature">
+              <span class="pf-check">✓</span>
+              Cafezin IA com <strong>US$ 40/mês</strong> de uso gerenciado incluído
+            </li>
+            <li class="pricing-feature">
+              <span class="pf-check">✓</span>
+              Melhor para power users e uso mais pesado de modelos
+            </li>
+            <li class="pricing-feature">
+              <span class="pf-check">✓</span>
+              Troque entre IA gerenciada e BYOK quando quiser
+            </li>
+            <li class="pricing-feature">
+              <span class="pf-check">✓</span>
+              Prioridade em suporte de cobrança e conta
             </li>
           </ul>
 
-          <a href="/br/premium" class="btn pricing-btn pricing-btn-accent">
-            Começar agora
+          <a href="/br/premium?tier=pro" class="btn pricing-btn pricing-btn-accent">
+            Assinar Pro
           </a>
-          <p id="premium-price-note" class="pricing-fine">Cobrança via Paddle · Valor em reais no checkout · Cancele a qualquer momento</p>
+          <p class="pricing-fine">Cobrança via Paddle · Cancele quando quiser · Maior orçamento incluído de Cafezin IA</p>
         </div>
 
       </div>
 
       <p class="pricing-byok-note">
-        <strong>Nota sobre a AI (BYOK):</strong> o Cafezin conecta à sua própria chave de API —
-        GitHub Copilot, OpenAI, Anthropic ou outro provedor compatível. A assinatura paga o software;
-        o consumo dos modelos continua sob sua gestão, direto no provedor escolhido.
+        <strong>Nota sobre IA:</strong> qualquer plano pago libera IA dentro do Cafezin. Você pode usar a
+        <strong> Cafezin IA</strong> com o orçamento mensal gerenciado incluído ou conectar seu próprio provider com BYOK.
+        Se escolher BYOK, o consumo dos modelos continua sendo cobrado direto pelo provedor escolhido.
       </p>
     </div>
   </section>
@@ -284,7 +364,7 @@
   <section class="pricing-faq">
     <div class="section-inner">
       <div class="section-label">Dúvidas frequentes</div>
-      <h2 class="section-title">Perguntas sobre o Premium</h2>
+      <h2 class="section-title">Perguntas sobre os planos pagos</h2>
 
       <div class="faq-grid">
 
@@ -292,7 +372,7 @@
           <p class="faq-q">Posso testar antes de assinar?</p>
           <p class="faq-a">
             Sim. Baixe o Cafezin gratuitamente e use o editor, canvas e todas as
-            funcionalidades de produtividade sem pagar nada. O Premium adiciona os fluxos integrados de AI sobre esse workspace base.
+            funcionalidades de produtividade sem pagar nada. Qualquer plano pago adiciona os fluxos integrados de AI sobre esse workspace base.
           </p>
         </div>
 
@@ -308,9 +388,9 @@
           <p class="faq-q">Posso cancelar a qualquer momento?</p>
           <p class="faq-a">
             Sim, sem multa e sem burocracia. Acesse o portal de assinatura pela página
-            Premium no site ou por Configurações → Conta no app, ou entre em contato pelo e-mail
+            de conta no site ou por Configurações → Conta no app, ou entre em contato pelo e-mail
             <a href="mailto:support@pmatz.com">support@pmatz.com</a>.
-            Após o cancelamento, você continua com acesso Premium até o fim do período pago.
+            Após o cancelamento, você continua com acesso pago até o fim do período já cobrado.
           </p>
         </div>
 
@@ -334,11 +414,11 @@
         </div>
 
         <div class="faq-item">
-          <p class="faq-q">O preço pode mudar?</p>
+          <p class="faq-q">O que muda entre Basic, Standard e Pro?</p>
           <p class="faq-a">
-            Assinantes ativos são protegidos: o preço que você assina é o preço que
-            você paga enquanto a assinatura estiver ativa. Qualquer ajuste de preços
-            será comunicado com 30 dias de antecedência.
+            Os três liberam a IA no Cafezin. A principal diferença é a quantidade de uso
+            gerenciado mensal incluído da Cafezin IA: US$ 2 no Basic, US$ 15 no Standard e
+            US$ 40 no Pro. O BYOK continua disponível em todos os tiers pagos.
           </p>
         </div>
 
@@ -354,7 +434,7 @@
       <h2 class="cta-title">Pronto para começar?</h2>
       <p class="cta-sub">
         Baixe grátis. Sem cartão, sem cadastro.<br />
-        Ative a AI quando o seu fluxo pedir.
+        Ative a AI quando o seu fluxo pedir e escolha o tier pago que combina com o seu uso.
       </p>
       <div class="download-buttons cta-buttons">
         <a href="/download/mac" class="btn btn-download" data-platform="mac">
@@ -388,19 +468,6 @@
       <p class="footer-copy">© 2026 Pedro Martinez. Feito com ☕ no Brasil.</p>
     </div>
   </footer>
-
-  <script src="/price-preview.js"></script>
-  <script>
-    window.loadCafezinPricePreview({
-      amountSelector: '#premium-price-amount',
-      periodSelector: '#premium-price-period',
-      noteSelector: '#premium-price-note',
-      country: 'BR',
-      currency: 'BRL',
-      periodText: '/mês',
-      noteText: 'Cobrança via Paddle · Preço final em reais · Cancele a qualquer momento',
-    });
-  </script>
 
   <script src="/landing-analytics.js"></script>
 </body>

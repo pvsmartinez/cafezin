@@ -23,10 +23,11 @@ import type { CopilotModel } from '../types';
 
 // ── Provider types ────────────────────────────────────────────────────────────
 
-export type AIProviderType = 'copilot' | 'openai' | 'anthropic' | 'groq' | 'google' | 'custom';
+export type AIProviderType = 'copilot' | 'cafezin' | 'openai' | 'anthropic' | 'groq' | 'google' | 'custom';
 
 export const PROVIDER_LABELS: Record<AIProviderType, string> = {
   copilot:   'GitHub Copilot',
+  cafezin:   'Cafezin IA',
   openai:    'OpenAI',
   anthropic: 'Anthropic (Claude)',
   groq:      'Groq',
@@ -36,6 +37,7 @@ export const PROVIDER_LABELS: Record<AIProviderType, string> = {
 
 export const PROVIDER_SHORT_LABELS: Record<AIProviderType, string> = {
   copilot:   'Copilot',
+  cafezin:   'Cafezin IA',
   openai:    'OpenAI',
   anthropic: 'Claude',
   groq:      'Groq',
@@ -45,6 +47,7 @@ export const PROVIDER_SHORT_LABELS: Record<AIProviderType, string> = {
 
 export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
   copilot:   [], // dynamically loaded from /models endpoint
+  cafezin:   [], // models loaded from CAFEZIN_MANAGED_MODELS catalog
   openai:    ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini', 'o3-mini', 'o3'],
   anthropic: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5'],
   groq:      ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'meta-llama/llama-4-scout-17b-16e-instruct'],
@@ -54,12 +57,54 @@ export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
 
 export const PROVIDER_DEFAULT_MODELS: Record<AIProviderType, string> = {
   copilot:   DEFAULT_MODEL,
+  cafezin:   'google/gemini-2.0-flash', // cheapest model — available on all tiers
   openai:    'gpt-4.1',
   anthropic: 'claude-sonnet-4-5',
   groq:      'llama-3.3-70b-versatile',
   google:    'gemini-2.5-flash',
   custom:    '',
 };
+
+/**
+ * Managed AI models available via the Cafezin proxy (OpenRouter backend).
+ *
+ * consumptionRate: estimated prompts consumed per $1 of budget, normalized so
+ * that 1.0 = the standard-tier baseline budget. Shown in the UI as
+ * a relative multiplier for lighter/heavier models.
+ *
+ * Tiers: 'basic' = only basic-tier models; 'all' = available to standard+pro.
+ */
+export interface CafezinManagedModel {
+  id: string;           // OpenRouter model ID
+  name: string;         // Display name
+  vendor: string;
+  supportsVision: boolean;
+  /** Consumption multiplier relative to standard baseline (1.0 = normal speed). Higher = burns more budget. */
+  consumptionRate: number;
+  /** Minimum tier required to use this model. */
+  minTier: 'basic' | 'standard' | 'pro';
+}
+
+export const CAFEZIN_MANAGED_MODELS: CafezinManagedModel[] = [
+  // ── Basic tier models (budget-friendly) ────────────────────────────────
+  { id: 'google/gemini-2.0-flash',              name: 'Gemini 2.0 Flash',        vendor: 'Google',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
+  { id: 'google/gemini-2.5-flash',              name: 'Gemini 2.5 Flash',        vendor: 'Google',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
+  { id: 'meta-llama/llama-3.3-70b-instruct',    name: 'Llama 3.3 70B',           vendor: 'Meta',      supportsVision: false, consumptionRate: 0.5,  minTier: 'basic'    },
+  { id: 'meta-llama/llama-4-scout',             name: 'Llama 4 Scout',           vendor: 'Meta',      supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
+  { id: 'deepseek/deepseek-chat-v3-0324',       name: 'DeepSeek Chat V3',        vendor: 'DeepSeek',  supportsVision: false, consumptionRate: 0.5,  minTier: 'basic'    },
+  { id: 'mistralai/mistral-small-3.2',          name: 'Mistral Small 3.2',       vendor: 'Mistral',   supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
+  // ── Standard / Pro tier models ────────────────────────────────────────
+  { id: 'anthropic/claude-3-5-haiku',           name: 'Claude 3.5 Haiku',        vendor: 'Anthropic', supportsVision: true,  consumptionRate: 1.0,  minTier: 'standard' },
+  { id: 'anthropic/claude-3-7-sonnet',          name: 'Claude 3.7 Sonnet',       vendor: 'Anthropic', supportsVision: true,  consumptionRate: 2.0,  minTier: 'standard' },
+  { id: 'anthropic/claude-sonnet-4',            name: 'Claude Sonnet 4',         vendor: 'Anthropic', supportsVision: true,  consumptionRate: 2.0,  minTier: 'standard' },
+  { id: 'openai/gpt-4.1',                       name: 'GPT-4.1',                  vendor: 'OpenAI',    supportsVision: true,  consumptionRate: 1.5,  minTier: 'standard' },
+  { id: 'openai/gpt-4.1-mini',                  name: 'GPT-4.1 mini',             vendor: 'OpenAI',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'standard' },
+  { id: 'google/gemini-2.5-pro',                name: 'Gemini 2.5 Pro',           vendor: 'Google',    supportsVision: true,  consumptionRate: 2.0,  minTier: 'standard' },
+  { id: 'meta-llama/llama-4-maverick',          name: 'Llama 4 Maverick',         vendor: 'Meta',      supportsVision: true,  consumptionRate: 1.0,  minTier: 'standard' },
+  // ── Pro-only (heavy models) ────────────────────────────────────────────
+  { id: 'anthropic/claude-opus-4',              name: 'Claude Opus 4',            vendor: 'Anthropic', supportsVision: true,  consumptionRate: 5.0,  minTier: 'pro'      },
+  { id: 'openai/gpt-5',                         name: 'GPT-5',                    vendor: 'OpenAI',    supportsVision: true,  consumptionRate: 4.0,  minTier: 'pro'      },
+];
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
@@ -68,7 +113,7 @@ const MODEL_STORAGE_KEY    = 'cafezin-ai-model'; // legacy key — used only for
 const MODEL_KEY_PREFIX     = 'cafezin-ai-model-'; // per-provider keys for BYOK
 
 /** Storage key for each non-Copilot provider's API key. */
-const PROVIDER_KEY_MAP: Record<Exclude<AIProviderType, 'copilot'>, string> = {
+const PROVIDER_KEY_MAP: Record<Exclude<AIProviderType, 'copilot' | 'cafezin'>, string> = {
   openai:    'cafezin-openai-key',
   anthropic: 'cafezin-anthropic-key',
   groq:      'cafezin-groq-key',
@@ -121,8 +166,8 @@ export function setActiveModel(m: string): void {
   }
 }
 
-/** Returns the stored API key for a non-Copilot provider. */
-export function getProviderKey(p: Exclude<AIProviderType, 'copilot'>): string {
+/** Returns the stored API key for a non-Copilot BYOK provider. */
+export function getProviderKey(p: Exclude<AIProviderType, 'copilot' | 'cafezin'>): string {
   return localStorage.getItem(PROVIDER_KEY_MAP[p]) ?? '';
 }
 
@@ -133,6 +178,8 @@ export function isAIConfigured(): boolean {
     return !!localStorage.getItem('copilot-github-oauth-token') ||
       Object.keys(localStorage).some((key) => key.startsWith('copilot-github-oauth-token:'));
   }
+  // cafezin managed AI — always configured (auth comes from Supabase session)
+  if (p === 'cafezin') return true;
   if (p === 'custom') {
     return !!getCustomEndpoint() && !!getCustomModelId();
   }
@@ -287,6 +334,89 @@ async function streamAnthropic(
   }
 }
 
+// ── Cafezin managed AI adapter ────────────────────────────────────────────────
+
+/**
+ * Streams a chat completion through the Cafezin ai-proxy Edge Function.
+ * The proxy validates the user's Supabase session, checks their monthly quota,
+ * and forwards to OpenRouter. Auth token is read from the active Supabase session.
+ */
+async function streamCafezinManagedAI(
+  messages: ChatMessage[],
+  model: string,
+  onChunk: (text: string) => void,
+  onDone: () => void,
+  onError: (err: Error) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  try {
+    const { supabase } = await import('./supabase');
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      onError(new Error('Sessão expirada. Faça login novamente para usar a Cafezin IA.'));
+      return;
+    }
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const proxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
+
+    const response = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      signal,
+      body: JSON.stringify({ model, messages, stream: true }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      let parsed: { error?: string; message?: string; resets_at?: string } = {};
+      try { parsed = JSON.parse(body); } catch { /* raw error */ }
+
+      if (response.status === 401 && parsed.error === 'no_managed_ai_plan') {
+        onError(new Error('Sua conta Cafezin precisa de um plano Basic ou superior para usar a Cafezin IA.'));
+        return;
+      }
+
+      if (response.status === 402 || parsed.error === 'quota_exceeded') {
+        const resetDate = parsed.resets_at ? new Date(parsed.resets_at).toLocaleDateString('pt-BR') : '';
+        onError(new Error(
+          `Cota mensal da Cafezin IA esgotada.${resetDate ? ` Renova em ${resetDate}.` : ''} Faça upgrade do plano ou escolha outro provider.`,
+        ));
+        return;
+      }
+
+      if (response.status === 403 && parsed.error === 'model_not_allowed') {
+        onError(new Error(`Modelo "${model}" não disponível no seu plano. Escolha outro modelo.`));
+        return;
+      }
+
+      onError(new Error(parsed.message ?? `Erro ${response.status} do servidor de IA.`));
+      return;
+    }
+
+    // SSE passthrough \u2014 same parsing as streamOpenAICompatible
+    const text = await response.text();
+    for (const line of text.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') break;
+      try {
+        const chunk = JSON.parse(raw) as { choices?: Array<{ delta?: { content?: string } }> };
+        const content = chunk.choices?.[0]?.delta?.content;
+        if (content) onChunk(content);
+      } catch { /* skip malformed SSE line */ }
+    }
+    onDone();
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') { onDone(); return; }
+    onError(e instanceof Error ? e : new Error(String(e)));
+  }
+}
+
 // ── Ghost text — cheapest model per provider ─────────────────────────────────
 
 /**
@@ -295,12 +425,13 @@ async function streamAnthropic(
  * explicitly initiate, so we prefer zero or low cost.
  */
 const PROVIDER_GHOST_MODELS: Record<AIProviderType, string> = {
-  copilot:   'gpt-5-mini',          // multiplier 0 — completely free
-  openai:    'gpt-4o-mini',         // cheapest OpenAI chat model
-  anthropic: 'claude-3-5-haiku',    // cheapest Anthropic model
-  groq:      'llama-3.1-8b-instant',// fast & free-tier on Groq
-  google:    'gemini-2.0-flash',    // fastest/cheapest Gemini
-  custom:    '',                    // resolved at call time from stored config
+  copilot:   'gpt-5-mini',              // multiplier 0 — completely free
+  cafezin:   '',                        // ghost text disabled for managed AI (costs budget)
+  openai:    'gpt-4o-mini',             // cheapest OpenAI chat model
+  anthropic: 'claude-3-5-haiku',        // cheapest Anthropic model
+  groq:      'llama-3.1-8b-instant',    // fast & free-tier on Groq
+  google:    'gemini-2.0-flash',        // fastest/cheapest Gemini
+  custom:    '',                        // resolved at call time from stored config
 };
 
 /**
@@ -322,6 +453,9 @@ export async function fetchProviderGhostCompletion(
     const { fetchGhostCompletion } = await import('./copilot/streaming');
     return fetchGhostCompletion(prefix, suffix, language, signal, oauthClientId);
   }
+
+  // Cafezin managed AI does not support ghost completions.
+  if (provider === 'cafezin') return '';
 
   const langHint = language && language !== 'markdown' ? ` language="${language}"` : '';
   const prefixSnip = prefix.slice(-1500);
@@ -416,6 +550,7 @@ export async function fetchProviderGhostCompletion(
  *
  * Routes to:
  *  - GitHub Copilot  → existing `streamCopilotChat` (requires OAuth token)
+ *  - Cafezin IA      → Supabase Edge Function ai-proxy → OpenRouter (managed budget)
  *  - OpenAI          → api.openai.com (requires API key)
  *  - Anthropic       → api.anthropic.com (requires API key, different format)
  *  - Groq            → api.groq.com (requires API key, OpenAI-compatible)
@@ -453,6 +588,11 @@ export async function streamChat(
       signal,
       oauthClientId,
     );
+  }
+
+  // Cafezin managed AI — call our Supabase Edge Function ai-proxy
+  if (provider === 'cafezin') {
+    return streamCafezinManagedAI(messages, resolvedModel, onChunk, onDone, onError, signal);
   }
 
   if (provider === 'custom') {

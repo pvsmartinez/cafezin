@@ -27,6 +27,7 @@ import { getRoutinesForWorkspaceType } from '../utils/workspaceRoutines';
 import { ModelPicker } from './ai/AIModelPicker';
 import { CodeBlock, parseSegments } from './ai/AICodeBlock';
 import { AIMarkdownText } from './ai/AIMarkdownText';
+import { ManagedAIQuotaModal } from './ai/ManagedAIQuotaModal';
 import { ToolItem, useSessionStats } from './ai/AIToolProcess';
 
 import { useAISession, contentToString, fmtRelative } from '../hooks/useAISession';
@@ -245,10 +246,21 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   onOpenSettings,
   selectionContext,
 }, ref) {
+  const premiumUrl = navigator.language.startsWith('pt')
+    ? 'https://cafezin.pmatz.com/br/premium'
+    : 'https://cafezin.pmatz.com/premium';
 
   function resolveSessionModel(requestedModel?: string | null): CopilotModel {
     if (activeProvider === 'copilot') {
       return resolveCopilotModelForChatCompletions(requestedModel ?? DEFAULT_MODEL, availableModels);
+    }
+
+    // For cafezin managed AI, resolve against the availableModels list directly
+    if (activeProvider === 'cafezin') {
+      const requested = (requestedModel ?? '').trim();
+      const found = availableModels.find((m) => m.id === requested);
+      if (found) return found.id as CopilotModel;
+      return (availableModels[0]?.id ?? requestedModel ?? 'google/gemini-2.0-flash') as CopilotModel;
     }
 
     const providerCatalog = getProviderCatalog(activeProvider);
@@ -392,6 +404,13 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     agentId,
     activeFileContent: documentContext,
   });
+  const [showManagedQuotaModal, setShowManagedQuotaModal] = useState(false);
+
+  useEffect(() => {
+    if (activeProvider === 'cafezin' && stream.error?.includes('Cota mensal da Cafezin IA esgotada')) {
+      setShowManagedQuotaModal(true);
+    }
+  }, [activeProvider, stream.error]);
 
   const voice = useVoiceInput({
     onTranscript: (t) => setInput((prev) => prev ? `${prev} ${t}` : t),
@@ -759,6 +778,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             loading={modelsLoading}
             onSignOut={onSignOut}
             providerLabel={PROVIDER_SHORT_LABELS[activeProvider]}
+            showConsumptionRate={activeProvider === 'cafezin'}
           />
         </div>
       </div>
@@ -1103,6 +1123,20 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
           </div>
         </div>
       )}
+
+      <ManagedAIQuotaModal
+        open={showManagedQuotaModal}
+        message={stream.error}
+        onClose={() => setShowManagedQuotaModal(false)}
+        onUpgrade={() => {
+          setShowManagedQuotaModal(false);
+          openUrl(premiumUrl).catch(() => window.open(premiumUrl, '_blank'));
+        }}
+        onChooseProvider={() => {
+          setShowManagedQuotaModal(false);
+          onOpenSettings?.('ai');
+        }}
+      />
 
       {/* Input area */}
       <div

@@ -58,8 +58,10 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (!subscription || subscription.plan !== 'premium') {
-    return new Response(JSON.stringify({ error: 'Premium subscription not found' }), {
+  const paidPlans = new Set(['premium', 'basic', 'standard', 'pro']);
+
+  if (!subscription || !paidPlans.has(subscription.plan)) {
+    return new Response(JSON.stringify({ error: 'Paid subscription not found' }), {
       status: 404,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });

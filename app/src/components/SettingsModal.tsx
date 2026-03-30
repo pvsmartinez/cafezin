@@ -38,7 +38,7 @@ import {
 import { FALLBACK_MODELS } from '../types';
 import type { Workspace, AppSettings, SidebarButton, VercelWorkspaceConfig, WorkspaceFeatureConfig } from '../types';
 import { saveApiSecret } from '../services/apiSecrets';
-import { createCheckoutUrl, createCustomerPortalUrl } from '../services/accountService';
+import { createCustomerPortalUrl } from '../services/accountService';
 import { useAccountState } from '../hooks/useAccountState';
 import { getAgentCapabilityState } from '../utils/agentCapabilities';
 import { SK } from '../services/storageKeys';
@@ -148,16 +148,8 @@ export default function SettingsModal({
   }, [openBillingUrl, premiumPageUrl])
 
   const handleOpenCheckout = useCallback(async () => {
-    setBillingBusy('checkout')
-    try {
-      const url = await createCheckoutUrl(billingLocale)
-      openBillingUrl(url)
-    } catch {
-      openPremiumPage()
-    } finally {
-      setBillingBusy(null)
-    }
-  }, [billingLocale, openBillingUrl, openPremiumPage])
+    openPremiumPage()
+  }, [openPremiumPage])
 
   const handleOpenCustomerPortal = useCallback(async () => {
     setBillingBusy('portal')
@@ -179,7 +171,6 @@ export default function SettingsModal({
   // ── Activate sync (connect local workspace to GitHub) ────────────────────
   const [activateSyncBusy, setActivateSyncBusy] = useState(false)
   const [activateSyncFlowState, setActivateSyncFlowState] = useState<SyncDeviceFlowState | null>(null)
-  const [showSyncAdvanced, setShowSyncAdvanced] = useState(false)
   const [showGitDetails, setShowGitDetails] = useState(false)
   const [syncAdvancedMode, setSyncAdvancedMode] = useState<'create' | 'existing'>('create')
   const [syncAdvancedRepoName, setSyncAdvancedRepoName] = useState('')
@@ -219,12 +210,17 @@ export default function SettingsModal({
       .catch(() => setCurrentWorkspaceGitUrl(null))
   }, [open, workspace])
 
+  const knownGitLabels = Array.from(new Set([
+    ...syncWorkspaces.map((entry) => entry.gitAccountLabel).filter(Boolean),
+    ...gitAccounts,
+  ]))
+
   useEffect(() => {
-    if (gitAccounts.length === 0) return
-    if (!gitAccounts.includes(regLabel)) {
-      setRegLabel(gitAccounts.includes('personal') ? 'personal' : gitAccounts[0])
+    if (knownGitLabels.length === 0) return
+    if (!knownGitLabels.includes(regLabel)) {
+      setRegLabel(knownGitLabels.includes('personal') ? 'personal' : knownGitLabels[0])
     }
-  }, [gitAccounts, regLabel])
+  }, [knownGitLabels, regLabel])
 
   async function handleAuth() {
     const email = emailInput.trim()
@@ -292,7 +288,7 @@ export default function SettingsModal({
     setSyncError(null);
     try {
       let gitUrl: string;
-      if (showSyncAdvanced && syncAdvancedMode === 'existing') {
+      if (syncAdvancedMode === 'existing') {
         gitUrl = syncAdvancedUrl.trim();
         if (!gitUrl) throw new Error('Informe a URL do repositório');
       } else {
@@ -310,10 +306,8 @@ export default function SettingsModal({
             activateSyncCancelRef.current = null;
           }
         }
-        const repoName = showSyncAdvanced
-          ? sanitizeRepoName(syncAdvancedRepoName || workspace.name)
-          : sanitizeRepoName(workspace.name);
-        const isPrivate = showSyncAdvanced ? syncAdvancedPrivate : true;
+        const repoName = sanitizeRepoName(syncAdvancedRepoName || workspace.name);
+        const isPrivate = syncAdvancedPrivate;
         const repo = await createGitHubRepo(repoName, isPrivate, token!);
         gitUrl = repo.cloneUrl;
       }
@@ -330,7 +324,6 @@ export default function SettingsModal({
       const entry = await registerWorkspace(workspace.path, workspace.name, label).catch(() => null);
       if (entry) setSyncWorkspaces((prev) => [...prev.filter((w) => w.gitUrl !== entry.gitUrl), entry]);
       onWorkspaceChange({ ...workspace, hasGit: true });
-      setShowSyncAdvanced(false);
     } catch (e) {
       setSyncError(String(e));
     } finally {
@@ -397,7 +390,7 @@ export default function SettingsModal({
   const [aiProvider, setAIProviderLocal] = useState<AIProviderType>(() => getActiveProvider());
   const [aiProviderKey, setAIProviderKey] = useState(() => {
     const p = getActiveProvider();
-    return p !== 'copilot' ? getProviderKey(p) : '';
+    return p !== 'copilot' && p !== 'cafezin' ? getProviderKey(p) : '';
   });
   const [aiModel, setAIModel] = useState(() => getActiveModel());
   const [aiKeySaved, setAIKeySaved] = useState(false);
@@ -405,20 +398,20 @@ export default function SettingsModal({
   // Favorites for non-Copilot providers (shown in the chat model picker)
   const [aiFavoriteIds, setAIFavoriteIds] = useState<string[]>(() => {
     const p = getActiveProvider();
-    return p !== 'copilot' && p !== 'custom' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot' | 'custom'>) : [];
+    return p !== 'copilot' && p !== 'custom' && p !== 'cafezin' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot' | 'custom' | 'cafezin'>) : [];
   });
   const [customModelInput, setCustomModelInput] = useState('');
   const [aiCopilotModels, setAICopilotModels] = useState(FALLBACK_MODELS);
   const [aiCopilotModelsLoading, setAICopilotModelsLoading] = useState(false);
   const [aiProviderCatalog, setAIProviderCatalog] = useState<ProviderModelInfo[]>(() => {
     const p = getActiveProvider();
-    return p !== 'copilot' ? getProviderCatalog(p as Exclude<AIProviderType, 'copilot'>) : [];
+    return p !== 'copilot' && p !== 'cafezin' ? getProviderCatalog(p as Exclude<AIProviderType, 'copilot' | 'cafezin'>) : [];
   });
   const [aiProviderModelsLoading, setAIProviderModelsLoading] = useState(false);
   const [aiProviderModelsError, setAIProviderModelsError] = useState<string | null>(null);
   const [aiProviderModelsUpdatedAt, setAIProviderModelsUpdatedAt] = useState<string | null>(() => {
     const p = getActiveProvider();
-    return p !== 'copilot' ? getProviderCatalogMeta(p as Exclude<AIProviderType, 'copilot'>)?.updatedAt ?? null : null;
+    return p !== 'copilot' && p !== 'cafezin' ? getProviderCatalogMeta(p as Exclude<AIProviderType, 'copilot' | 'cafezin'>)?.updatedAt ?? null : null;
   });
   // Custom / Local provider state
   const [customEndpointDraft, setCustomEndpointDraft] = useState(() => getCustomEndpoint());
@@ -426,7 +419,7 @@ export default function SettingsModal({
   const [customDiagnosticLoading, setCustomDiagnosticLoading] = useState(false);
 
   function syncSelectedProviderCatalog(p: AIProviderType) {
-    if (p === 'copilot') {
+    if (p === 'copilot' || p === 'cafezin') {
       setAIProviderCatalog([]);
       setAIProviderModelsUpdatedAt(null);
       setAIProviderModelsError(null);
@@ -438,7 +431,7 @@ export default function SettingsModal({
   }
 
   function handleAIProviderChange(p: AIProviderType) {
-    const nextCatalog = p !== 'copilot' ? getProviderCatalog(p as Exclude<AIProviderType, 'copilot'>) : [];
+    const nextCatalog = p !== 'copilot' && p !== 'cafezin' ? getProviderCatalog(p as Exclude<AIProviderType, 'copilot' | 'cafezin'>) : [];
     const storedModel = getActiveModel();
     const nextModel = p === 'copilot'
       ? storedModel
@@ -449,9 +442,9 @@ export default function SettingsModal({
     setAIProviderLocal(p);
     setActiveProvider(p);
     void saveApiSecret('cafezin-ai-provider', p);
-    setAIProviderKey(p !== 'copilot' ? getProviderKey(p) : '');
+    setAIProviderKey(p !== 'copilot' && p !== 'cafezin' ? getProviderKey(p) : '');
     setAIModel(nextModel);
-    setAIFavoriteIds(p !== 'copilot' && p !== 'custom' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot' | 'custom'>) : []);
+    setAIFavoriteIds(p !== 'copilot' && p !== 'custom' && p !== 'cafezin' ? getFavoriteModelIds(p as Exclude<AIProviderType, 'copilot' | 'custom' | 'cafezin'>) : []);
     setCustomModelInput('');
     setCustomEndpointDraft(getCustomEndpoint());
     setCustomDiagnostic(null);
@@ -487,18 +480,18 @@ export default function SettingsModal({
   }
 
   function addCustomModel() {
-    if (aiProvider === 'copilot' || aiProvider === 'custom') return;
+    if (aiProvider === 'copilot' || aiProvider === 'custom' || aiProvider === 'cafezin') return;
     const id = customModelInput.trim();
     if (!id || aiFavoriteIds.includes(id)) { setCustomModelInput(''); return; }
     const next = [...aiFavoriteIds, id];
     setAIFavoriteIds(next);
-    setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot' | 'custom'>, next);
+    setFavoriteModelIds(aiProvider as Exclude<AIProviderType, 'copilot' | 'custom' | 'cafezin'>, next);
     setCustomModelInput('');
   }
 
   function handleSaveAIKey() {
-    if (aiProvider === 'copilot' || aiProvider === 'custom') return;
-    const keyMap: Record<Exclude<AIProviderType, 'copilot' | 'custom'>, string> = {
+    if (aiProvider === 'copilot' || aiProvider === 'custom' || aiProvider === 'cafezin') return;
+    const keyMap: Record<Exclude<AIProviderType, 'copilot' | 'custom' | 'cafezin'>, string> = {
       openai: 'cafezin-openai-key',
       anthropic: 'cafezin-anthropic-key',
       groq: 'cafezin-groq-key',
@@ -548,7 +541,7 @@ export default function SettingsModal({
       return;
     }
 
-    if (aiProvider === 'custom') return;
+    if (aiProvider === 'custom' || aiProvider === 'cafezin') return;
 
     setAIProviderModelsLoading(true);
     try {
@@ -682,6 +675,7 @@ export default function SettingsModal({
   const currentSyncEntry = currentWorkspaceGitUrl
     ? syncWorkspaces.find((entry) => entry.gitUrl === currentWorkspaceGitUrl) ?? null
     : null;
+  const hasLocalGitTokenForSelectedLabel = gitAccounts.includes(regLabel);
   const providerConfigured: Record<AIProviderType, boolean> = {
     copilot: hasCopilotAuth,
     openai: !!getProviderKey('openai'),
@@ -689,6 +683,7 @@ export default function SettingsModal({
     groq: !!getProviderKey('groq'),
     google: !!getProviderKey('google'),
     custom: !!getCustomEndpoint() && !!getCustomModelId(),
+    cafezin: account?.aiTier !== 'none' && !!account?.aiTier,
   };
   const copilotModelOptions = Array.from(
     new Map((aiCopilotModels.length > 0 ? aiCopilotModels : FALLBACK_MODELS).map((model) => [model.id, model])).values(),
@@ -864,7 +859,7 @@ export default function SettingsModal({
               canRefreshProviderModels={
                 aiProvider === 'copilot'
                   ? hasCopilotAuth
-                  : aiProvider === 'custom'
+                  : aiProvider === 'custom' || aiProvider === 'cafezin'
                   ? false
                   : !!(aiProviderKey.trim() || getProviderKey(aiProvider))
               }
@@ -872,6 +867,8 @@ export default function SettingsModal({
               providerConfigured={providerConfigured}
               providerModelCatalog={aiProviderCatalog}
               resolvedProviderModelOptions={resolvedProviderModelOptions}
+              account={account}
+              premiumPageUrl={premiumPageUrl}
             />
           )}
 
@@ -949,12 +946,12 @@ export default function SettingsModal({
               regError={regError}
               onRegister={handleRegister}
               gitAccounts={gitAccounts}
+              knownGitLabels={knownGitLabels}
+              hasLocalGitTokenForSelectedLabel={hasLocalGitTokenForSelectedLabel}
               activateSyncBusy={activateSyncBusy}
               activateSyncFlowState={activateSyncFlowState}
               gitFlowBusy={gitFlowBusy}
               gitFlowState={gitFlowState}
-              showSyncAdvanced={showSyncAdvanced}
-              setShowSyncAdvanced={setShowSyncAdvanced}
               syncAdvancedMode={syncAdvancedMode}
               setSyncAdvancedMode={setSyncAdvancedMode}
               syncAdvancedRepoName={syncAdvancedRepoName}

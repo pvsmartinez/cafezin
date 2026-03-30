@@ -324,34 +324,50 @@ export async function canvasToDataUrl(editor: Editor, pixelRatio = 1): Promise<s
 
 /**
  * Compress an image data URL: scale down to `maxWidth` pixels and convert to
- * JPEG at `quality` (0–1). Helps keep vision payloads within API limits.
+ * JPEG at `quality` (0–1). Guarantees the result is under `maxBytes` by
+ * making additional passes at reduced quality/width if needed.
  *
- * Returns the original URL unchanged if it is already small (< 100 KB) or
- * if the conversion fails for any reason.
+ * Returns the original URL unchanged if conversion fails for any reason.
  */
 export function compressDataUrl(
   dataUrl: string,
   maxWidth = 1024,
   quality = 0.7,
+  maxBytes = 180_000, // ~135 KB of raw base64 ≈ ~180 KB string length
 ): Promise<string> {
   return new Promise((resolve) => {
-    if (dataUrl.length < 100_000) {
-      resolve(dataUrl);
-      return;
-    }
     const img = new Image();
     img.onload = () => {
       try {
+        const drawAndEncode = (w: number, h: number, q: number): string => {
+          const cv = document.createElement('canvas');
+          cv.width = w;
+          cv.height = h;
+          const ctx = cv.getContext('2d');
+          if (!ctx) return dataUrl;
+          ctx.drawImage(img, 0, 0, w, h);
+          return cv.toDataURL('image/jpeg', q);
+        };
+
         const scale = img.width > maxWidth ? maxWidth / img.width : 1;
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { resolve(dataUrl); return; }
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        let w = Math.round(img.width * scale);
+        let h = Math.round(img.height * scale);
+        let result = drawAndEncode(w, h, quality);
+
+        // If still over budget, reduce quality in steps then shrink dimensions.
+        const qualitySteps = [0.45, 0.35, 0.25];
+        for (const q of qualitySteps) {
+          if (result.length <= maxBytes) break;
+          result = drawAndEncode(w, h, q);
+        }
+        // Last resort: halve dimensions.
+        if (result.length > maxBytes) {
+          w = Math.max(Math.round(w / 2), 128);
+          h = Math.max(Math.round(h / 2), 72);
+          result = drawAndEncode(w, h, 0.35);
+        }
+
+        resolve(result);
       } catch {
         resolve(dataUrl);
       }

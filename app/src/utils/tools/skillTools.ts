@@ -34,23 +34,28 @@ export const SKILL_CONTENT: Record<string, string> = {
 1. Call \`list_canvas_shapes\` → read current shape IDs, positions, and occupied area.
 2. Plan new shapes to avoid overlaps. Safe margins: x 80–1200, y 20–680 (inside 1280×720 slides).
 3. Minimum gap between shapes: 20px. Text width >= 200px. Geo label width >= 120px.
+4. Prefer high-level slide ops over manual coordinate math whenever possible.
 
 ## canvas_op command reference (one JSON object per call)
 \`\`\`
-{"op":"add_slide"}
-{"op":"duplicate_slide","slide":"<frameId>"}
-{"op":"apply_theme","slide":"<frameId>","theme":"dark"|"light"|"warm"|"cool"|"brand"}
-{"op":"set_slide_background","slide":"<frameId>","color":"#xxxxxx"}
-{"op":"recolor_slide","slide":"<frameId>","from":"<color>","to":"<color>"}
+{"op":"add_slide","name":"Slide title"}
+{"op":"duplicate_slide","slide":"<frameId>","name":"Slide 2"}
+{"op":"set_slide_background","slide":"<frameId>","url":"https://..."}
+{"op":"set_slide_background","slide":"<frameId>","color":"blue"}
+{"op":"copy_slide_background","from_slide":"<frameId>","to_slides":["<frameId>"]}
+{"op":"apply_theme","bg_color":"black","text_color":"white","to_slides":"all"}
+{"op":"recolor_slide","slide":"<frameId>","text_color":"white","geo_color":"light-blue"}
 
-{"op":"create_lesson","slide":"<frameId>","title":"...","points":["...","..."]}
-{"op":"add_two_col","slide":"<frameId>","left":["..."],"right":["..."]}
-{"op":"add_bullet_list","slide":"<frameId>","items":["..."],"x":100,"y":100}
+{"op":"create_lesson","slides":[{"type":"title","title":"Aula 01","subtitle":"Introdução"}]}
+{"op":"add_card_list","slide":"<frameId>","title":"Conceitos","cards":[{"text":"Agente","color":"yellow"},{"text":"Ambiente","color":"blue"}],"cols":1}
+{"op":"add_bullet_list","slide":"<frameId>","header":"Pontos","items":["Item 1","Item 2"],"y_start":80,"item_color":"yellow","pitch":90}
+{"op":"add_two_col","slide":"<frameId>","header":"Comparação","left_title":"Antes","left_items":["..."],"right_title":"Depois","right_items":["..."],"y_start":40}
 
-{"op":"add_note","slide":"<frameId>","text":"...","x":100,"y":100}
-{"op":"add_geo","slide":"<frameId>","geo":"rectangle","x":100,"y":100,"w":200,"h":80,"label":"..."}
-{"op":"add_arrow","from":"<shapeId>","to":"<shapeId>"}
-{"op":"add_image","slide":"<frameId>","src":"<url_or_base64>","x":100,"y":100,"w":300,"h":200}
+{"op":"add_text","slide":"<frameId>","text":"Título","x":100,"y":100,"size":"xl","color":"black"}
+{"op":"add_geo","slide":"<frameId>","geo":"rectangle","text":"Label","x":100,"y":100,"w":200,"h":80,"fill":"solid","color":"blue"}
+{"op":"add_note","slide":"<frameId>","text":"Pequeno sticky","x":100,"y":100}  ← avoid for main slide content; notes are intentionally small
+{"op":"add_arrow","x1":100,"y1":150,"x2":400,"y2":150,"label":"depends on","color":"grey"}
+{"op":"add_image","slide":"<frameId>","url":"https://...","x":100,"y":100,"w":300,"h":200,"to_back":true}
 
 {"op":"move","id":"<shapeId>","x":200,"y":150}
 {"op":"update","id":"<shapeId>","text":"new label","color":"blue","size":"xl"}
@@ -65,15 +70,26 @@ export const SKILL_CONTENT: Record<string, string> = {
 - Max 3 colors per slide. Default palette: white, black, blue, grey
 - Keep visual hierarchy clear — every slide should have one focal point
 
+## Layout heuristics for slides
+- For colorful teaching slides with stacked blocks, use \`add_card_list\` first.
+- For text-heavy slides, use \`add_bullet_list\`.
+- For compare/contrast, use \`add_two_col\`.
+- Use \`add_note\` only for real sticky-note style annotations, not as the main building block of a slide.
+- Default safe content width is 1120px inside a 1280×720 slide.
+- If you need manual two-column placement: left x=80 w=540, right x=660 w=540.
+
 ## Lesson workflow (new canvas)
 1. Call \`list_workspace_files\` to see existing lesson canvases for reference.
-2. Call \`create_folder\` or \`write_workspace_file\` to create the .tldr.json (use \`canvas_op\` to init).
-3. One \`create_lesson\` call per slide for the main content flow.
+2. Use \`canvas_op\` to initialize the deck; do not write raw .tldr.json manually.
+3. Prefer \`add_slide\` + \`add_card_list\` for rich lesson slides.
+4. Use \`create_lesson\` only for quick/simple outline decks.
+5. Reuse successful slides with \`duplicate_slide\` instead of recreating layouts manually.
 4. Call \`canvas_screenshot\` → fix issues → reply with summary.
 
 ## Lesson workflow (add to existing canvas)
 1. \`list_canvas_shapes\` to get existing frame IDs and layout.
 2. Append new slides with \`canvas_op\` commands.
+3. If the deck already has a good visual template, duplicate that slide first.
 3. \`canvas_screenshot\` → fix → reply.`,
 
   book: `# Book-Writing Skill

@@ -7,10 +7,12 @@ import type { Workspace } from '../../types';
 import {
   createGitHubRepo,
   getGitAccountToken,
+  listGitAccountLabels,
   registerWorkspace,
   registerWorkspaceByUrl,
   startGitAccountFlow,
   type SyncDeviceFlowState,
+  type SyncedWorkspace,
 } from '../../services/syncConfig';
 import {
   getActiveProvider, getProviderKey, PROVIDER_LABELS, type AIProviderType,
@@ -23,7 +25,7 @@ import { SK } from '../../services/storageKeys';
 
 const DEFAULT_GIT_ACCOUNT_LABEL = 'personal';
 
-const PROVIDER_KEY_MAP: Record<Exclude<AIProviderType, 'copilot' | 'custom'>, string> = {
+const PROVIDER_KEY_MAP: Record<Exclude<AIProviderType, 'copilot' | 'cafezin' | 'custom'>, string> = {
   openai: 'cafezin-openai-key',
   anthropic: 'cafezin-anthropic-key',
   groq: 'cafezin-groq-key',
@@ -43,6 +45,7 @@ interface MobileSettingsSheetProps {
   open: boolean;
   workspace: Workspace | null;
   isLoggedIn: boolean;
+  syncedWorkspaces: SyncedWorkspace[];
   onClose: () => void;
   onWorkspaceUpdated: (workspace: Workspace, gitUrl?: string | null) => void;
   onRefreshSyncedList: () => Promise<void>;
@@ -53,6 +56,7 @@ export default function MobileSettingsSheet({
   open,
   workspace,
   isLoggedIn,
+  syncedWorkspaces,
   onClose,
   onWorkspaceUpdated,
   onRefreshSyncedList,
@@ -74,27 +78,48 @@ export default function MobileSettingsSheet({
   const [publishRepoName, setPublishRepoName] = useState('');
   const [publishPrivateRepo, setPublishPrivateRepo] = useState(true);
   const [publishBusy, setPublishBusy] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [advancedMode, setAdvancedMode] = useState<'create' | 'existing'>('create');
   const [advancedUrl, setAdvancedUrl] = useState('');
+  const [selectedGitLabel, setSelectedGitLabel] = useState(DEFAULT_GIT_ACCOUNT_LABEL);
+
+  const deviceGitLabels = listGitAccountLabels();
+  const knownGitLabels = Array.from(new Set([
+    ...syncedWorkspaces.map((workspace) => workspace.gitAccountLabel).filter(Boolean),
+    ...deviceGitLabels,
+  ]));
+  const hasLocalGitTokenForSelectedLabel = !!getGitAccountToken(selectedGitLabel);
+  const needsGitAuthOnThisDevice = !hasLocalGitTokenForSelectedLabel;
 
   useEffect(() => {
     if (!open) return;
     const provider = getActiveProvider();
     setAIProvider(provider);
-    setProviderKey(provider === 'copilot' || provider === 'custom' ? '' : getProviderKey(provider));
+    setProviderKey(provider === 'copilot' || provider === 'cafezin' || provider === 'custom' ? '' : getProviderKey(provider));
     setVercelToken(localStorage.getItem(SK.VERCEL_TOKEN) ?? '');
     setPublishRepoName(sanitizeRepoName(workspace?.name ?? 'workspace'));
     setPublishPrivateRepo(true);
     setGitFlowState(null);
     setSavedSection(null);
-    setShowAdvanced(false);
     setAdvancedMode('create');
     setAdvancedUrl('');
     setCustomEndpointState(getCustomEndpoint());
     setCustomModelIdState(getCustomModelId());
     setCustomDiagnostic(null);
+    setSelectedGitLabel((current) => {
+      if (knownGitLabels.includes(current)) return current;
+      if (knownGitLabels.includes(DEFAULT_GIT_ACCOUNT_LABEL)) return DEFAULT_GIT_ACCOUNT_LABEL;
+      return knownGitLabels[0] ?? DEFAULT_GIT_ACCOUNT_LABEL;
+    });
   }, [open, workspace?.name]);
+
+  useEffect(() => {
+    if (knownGitLabels.length === 0) return;
+    setSelectedGitLabel((current) => {
+      if (knownGitLabels.includes(current)) return current;
+      if (knownGitLabels.includes(DEFAULT_GIT_ACCOUNT_LABEL)) return DEFAULT_GIT_ACCOUNT_LABEL;
+      return knownGitLabels[0];
+    });
+  }, [knownGitLabels]);
 
   const providerHelpUrl = useMemo(() => {
     if (aiProvider === 'openai') return 'https://platform.openai.com/api-keys';
@@ -131,7 +156,7 @@ export default function MobileSettingsSheet({
       if (mid) localStorage.setItem(SK.AI_MODEL_CUSTOM, mid);
       // API key: optional, encrypted + synced
       void saveApiSecret('cafezin-custom-key', providerKey.trim());
-    } else if (aiProvider !== 'copilot') {
+    } else if (aiProvider !== 'copilot' && aiProvider !== 'cafezin') {
       void saveApiSecret(PROVIDER_KEY_MAP[aiProvider], providerKey.trim());
     }
 
@@ -164,7 +189,7 @@ export default function MobileSettingsSheet({
 
   async function handleConnectGitAccount() {
     try {
-      await ensureGitHubToken(DEFAULT_GIT_ACCOUNT_LABEL);
+      await ensureGitHubToken(selectedGitLabel || DEFAULT_GIT_ACCOUNT_LABEL);
       toast({ message: 'Conta GitHub conectada.', type: 'success' });
     } catch (err) {
       toast({ message: `Falha ao conectar GitHub: ${String(err)}`, type: 'error', duration: null });
@@ -181,18 +206,19 @@ export default function MobileSettingsSheet({
     if (!workspace) return;
     setPublishBusy(true);
     try {
+      const label = selectedGitLabel || DEFAULT_GIT_ACCOUNT_LABEL;
       let gitUrl: string;
-      if (showAdvanced && advancedMode === 'existing') {
+      if (advancedMode === 'existing') {
         gitUrl = advancedUrl.trim();
         if (!gitUrl) throw new Error('Informe a URL do repositório');
       } else {
-        const repoName = showAdvanced ? sanitizeRepoName(publishRepoName) : sanitizeRepoName(workspace.name);
-        const isPrivate = showAdvanced ? publishPrivateRepo : true;
-        const token = await ensureGitHubToken(DEFAULT_GIT_ACCOUNT_LABEL);
+        const repoName = sanitizeRepoName(publishRepoName || workspace.name);
+        const isPrivate = publishPrivateRepo;
+        const token = await ensureGitHubToken(label);
         const repo = await createGitHubRepo(repoName, isPrivate, token);
         gitUrl = repo.cloneUrl;
       }
-      const authToken = getGitAccountToken(DEFAULT_GIT_ACCOUNT_LABEL) ?? undefined;
+      const authToken = getGitAccountToken(label) ?? undefined;
       await invoke('git_set_remote', { path: workspace.path, url: gitUrl });
       if (authToken) {
         await invoke('git_sync', {
@@ -201,7 +227,7 @@ export default function MobileSettingsSheet({
           token: authToken,
         });
       }
-      await registerWorkspaceByUrl(workspace.name, gitUrl, DEFAULT_GIT_ACCOUNT_LABEL).catch(() => null);
+      await registerWorkspaceByUrl(workspace.name, gitUrl, label).catch(() => null);
       await onRefreshSyncedList().catch(() => {});
       await refreshWorkspaceAfterGitChange(gitUrl);
       toast({ message: 'Sync ativado! Workspace conectado ao GitHub.', type: 'success' });
@@ -217,7 +243,7 @@ export default function MobileSettingsSheet({
     if (!workspace?.hasGit) return;
     setPublishBusy(true);
     try {
-      const entry = await registerWorkspace(workspace.path, workspace.name, DEFAULT_GIT_ACCOUNT_LABEL);
+      const entry = await registerWorkspace(workspace.path, workspace.name, selectedGitLabel || DEFAULT_GIT_ACCOUNT_LABEL);
       await onRefreshSyncedList().catch(() => {});
       await refreshWorkspaceAfterGitChange(entry?.gitUrl ?? null);
       toast({ message: 'Workspace atualizado na lista do Cafezin.', type: 'success' });
@@ -258,7 +284,7 @@ export default function MobileSettingsSheet({
                 onChange={(event) => {
                   const next = event.target.value as AIProviderType;
                   setAIProvider(next);
-                  setProviderKey(next === 'copilot' || next === 'custom' ? '' : getProviderKey(next));
+                  setProviderKey(next === 'copilot' || next === 'cafezin' || next === 'custom' ? '' : getProviderKey(next));
                   setCustomDiagnostic(null);
                 }}
               >
@@ -420,6 +446,95 @@ export default function MobileSettingsSheet({
                     </div>
                   )}
 
+                  <div className="flex flex-col gap-3 rounded-xl border border-app-border bg-surface-2 p-3">
+                    <div className="flex gap-2">
+                      <button
+                        className={`btn-secondary flex-1 text-[12px] ${advancedMode === 'create' ? 'border-accent text-accent' : ''}`}
+                        onClick={() => setAdvancedMode('create')}
+                      >
+                        Criar repo novo
+                      </button>
+                      <button
+                        className={`btn-secondary flex-1 text-[12px] ${advancedMode === 'existing' ? 'border-accent text-accent' : ''}`}
+                        onClick={() => setAdvancedMode('existing')}
+                      >
+                        URL existente
+                      </button>
+                    </div>
+
+                    {advancedMode === 'create' ? (
+                      <>
+                        <label className="flex flex-col gap-1.5 text-[11px] text-muted">
+                          <span>Nome do repositório (GitHub)</span>
+                          <input
+                            className="mb-input rounded-xl px-3 py-2.5 text-[13px] outline-none"
+                            value={publishRepoName}
+                            onChange={(event) => setPublishRepoName(sanitizeRepoName(event.target.value))}
+                            placeholder={sanitizeRepoName(workspace.name)}
+                          />
+                        </label>
+                        <div className="flex gap-2 text-[12px]">
+                          <button
+                            className={`btn-secondary flex-1 ${publishPrivateRepo ? 'border-accent text-accent' : ''}`}
+                            onClick={() => setPublishPrivateRepo(true)}
+                          >
+                            🔒 Privado
+                          </button>
+                          <button
+                            className={`btn-secondary flex-1 ${!publishPrivateRepo ? 'border-accent text-accent' : ''}`}
+                            onClick={() => setPublishPrivateRepo(false)}
+                          >
+                            🌐 Público
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <label className="flex flex-col gap-1.5 text-[11px] text-muted">
+                        <span>URL do repositório existente</span>
+                        <input
+                          className="mb-input rounded-xl px-3 py-2.5 text-[13px] outline-none"
+                          value={advancedUrl}
+                          onChange={(event) => setAdvancedUrl(event.target.value)}
+                          placeholder="https://github.com/usuario/repo.git"
+                        />
+                      </label>
+                    )}
+
+                    {knownGitLabels.length > 1 ? (
+                      <label className="flex flex-col gap-1.5 text-[11px] text-muted">
+                        <span>Conta Git para usar</span>
+                        <select
+                          className="mb-input rounded-xl px-3 py-2.5 text-[13px] outline-none"
+                          value={selectedGitLabel}
+                          onChange={(event) => setSelectedGitLabel(event.target.value)}
+                        >
+                          {knownGitLabels.map((label) => (
+                            <option key={label} value={label}>
+                              {label}{deviceGitLabels.includes(label) ? ' (neste device)' : ' (conhecida pelo sync)'}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : knownGitLabels.length === 1 ? (
+                      <div className="rounded-xl border border-app-border bg-surface px-3 py-3 text-[12px] leading-[1.5] text-muted">
+                        <strong className="block text-app-text">Conta Git sugerida: {knownGitLabels[0]}</strong>
+                        {deviceGitLabels.includes(knownGitLabels[0])
+                          ? 'Essa conta já está autenticada neste dispositivo.'
+                          : 'Essa conta veio do histórico de sync. O GitHub só será pedido se faltar token local.'}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-app-border bg-surface px-3 py-3 text-[12px] leading-[1.5] text-muted">
+                        Nenhuma conta Git conhecida ainda. O GitHub só será pedido no final para autorizar este dispositivo.
+                      </div>
+                    )}
+
+                    {needsGitAuthOnThisDevice && !gitFlowState && (
+                      <div className="rounded-xl border border-app-border bg-surface px-3 py-3 text-[12px] leading-[1.5] text-muted">
+                        Este dispositivo ainda não tem token Git para a conta escolhida.
+                      </div>
+                    )}
+                  </div>
+
                   {gitFlowState && (
                     <div className="rounded-xl border border-app-border bg-surface-2 px-3 py-3 text-[12px] leading-[1.5] text-muted">
                       <div>Abra o GitHub e insira este código:</div>
@@ -442,83 +557,19 @@ export default function MobileSettingsSheet({
                       ? <><div className="spinner w-4 h-4" /> {gitFlowBusy ? 'Aguardando GitHub…' : 'Ativando sync…'}</>
                       : !isLoggedIn
                       ? <><CloudArrowUp size={14} /> Entre para ativar sync</>
-                      : <><CloudArrowUp size={14} /> Ativar sync</>}
+                      : <><CloudArrowUp size={14} /> {advancedMode === 'existing' ? 'Conectar repo e ativar sync' : 'Criar repo e ativar sync'}</>}
                   </button>
 
-                  <button
-                    className="btn-secondary text-[12px]"
-                    onClick={() => setShowAdvanced((v) => !v)}
-                  >
-                    {showAdvanced ? '▲ Ocultar opções avançadas' : '▼ Opções avançadas'}
-                  </button>
-
-                  {showAdvanced && (
-                    <div className="flex flex-col gap-3 rounded-xl border border-app-border bg-surface-2 p-3">
-                      <div className="flex gap-2">
-                        <button
-                          className={`btn-secondary flex-1 text-[12px] ${advancedMode === 'create' ? 'border-accent text-accent' : ''}`}
-                          onClick={() => setAdvancedMode('create')}
-                        >
-                          Criar repo
-                        </button>
-                        <button
-                          className={`btn-secondary flex-1 text-[12px] ${advancedMode === 'existing' ? 'border-accent text-accent' : ''}`}
-                          onClick={() => setAdvancedMode('existing')}
-                        >
-                          URL existente
-                        </button>
-                      </div>
-
-                      {advancedMode === 'create' ? (
-                        <>
-                          <label className="flex flex-col gap-1.5 text-[11px] text-muted">
-                            <span>Nome do repositório (GitHub)</span>
-                            <input
-                              className="mb-input rounded-xl px-3 py-2.5 text-[13px] outline-none"
-                              value={publishRepoName}
-                              onChange={(event) => setPublishRepoName(sanitizeRepoName(event.target.value))}
-                              placeholder="nome-do-repositorio"
-                            />
-                          </label>
-                          <div className="flex gap-2 text-[12px]">
-                            <button
-                              className={`btn-secondary flex-1 ${publishPrivateRepo ? 'border-accent text-accent' : ''}`}
-                              onClick={() => setPublishPrivateRepo(true)}
-                            >
-                              🔒 Privado
-                            </button>
-                            <button
-                              className={`btn-secondary flex-1 ${!publishPrivateRepo ? 'border-accent text-accent' : ''}`}
-                              onClick={() => setPublishPrivateRepo(false)}
-                            >
-                              🌐 Público
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <label className="flex flex-col gap-1.5 text-[11px] text-muted">
-                          <span>URL do repositório existente</span>
-                          <input
-                            className="mb-input rounded-xl px-3 py-2.5 text-[13px] outline-none"
-                            value={advancedUrl}
-                            onChange={(event) => setAdvancedUrl(event.target.value)}
-                            placeholder="https://github.com/usuario/repo.git"
-                          />
-                        </label>
-                      )}
-
-                      <div className="flex items-center justify-between border-t border-app-border pt-2 text-[11px] text-muted">
-                        <span>Conta GitHub: {getGitAccountToken(DEFAULT_GIT_ACCOUNT_LABEL) ? 'conectada ✓' : 'não conectada'}</span>
-                        <button
-                          className="text-accent underline-offset-2 hover:underline"
-                          onClick={() => void handleConnectGitAccount()}
-                          disabled={gitFlowBusy}
-                        >
-                          {gitFlowBusy ? 'conectando…' : 'reconectar'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between text-[11px] text-muted">
+                    <span>Conta Git: {selectedGitLabel || DEFAULT_GIT_ACCOUNT_LABEL} {hasLocalGitTokenForSelectedLabel ? 'conectada ✓' : 'não conectada'}</span>
+                    <button
+                      className="text-accent underline-offset-2 hover:underline"
+                      onClick={() => void handleConnectGitAccount()}
+                      disabled={gitFlowBusy}
+                    >
+                      {gitFlowBusy ? 'conectando…' : hasLocalGitTokenForSelectedLabel ? 'reautenticar' : 'conectar'}
+                    </button>
+                  </div>
                 </>
               )}
             </div>

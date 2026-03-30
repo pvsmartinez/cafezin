@@ -10,12 +10,17 @@
  * Response: { url: string }   — open this URL in the user's browser
  *
  * Required secrets:
- *   PADDLE_API_KEY        — from Paddle Dashboard → Developer → Authentication
- *   PADDLE_PRICE_ID       — subscription price ID (format: pri_...)
- *   PADDLE_ENVIRONMENT    — 'sandbox' or 'production'
+ *   PADDLE_API_KEY         — from Paddle Dashboard → Developer → Authentication
+ *   PADDLE_PRICE_ID_BASIC  — Basic subscription price ID (format: pri_...)
+ *   PADDLE_PRICE_ID_STANDARD — Standard subscription price ID
+ *   PADDLE_PRICE_ID_PRO    — Pro subscription price ID
+ *   PADDLE_PRICE_ID        — legacy fallback price ID
+ *   PADDLE_ENVIRONMENT     — 'sandbox' or 'production'
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+
+type CheckoutTier = 'basic' | 'standard' | 'pro';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
@@ -32,9 +37,13 @@ Deno.serve(async (req) => {
   }
 
   let locale = 'en';
+  let tier: CheckoutTier = 'basic';
   try {
     const body = await req.json();
     if (body?.locale === 'pt-BR') locale = 'pt-BR';
+    if (body?.tier === 'basic' || body?.tier === 'standard' || body?.tier === 'pro') {
+      tier = body.tier;
+    }
   } catch {
     // Body is optional; default to English route.
   }
@@ -58,15 +67,27 @@ Deno.serve(async (req) => {
   }
 
   // ── Create Paddle checkout ────────────────────────────────────────────────
-  const apiKey  = Deno.env.get('PADDLE_API_KEY')!;
-  const priceId = Deno.env.get('PADDLE_PRICE_ID')!;
-  const env     = Deno.env.get('PADDLE_ENVIRONMENT') ?? 'production';
+  const apiKey = Deno.env.get('PADDLE_API_KEY')!;
+  const priceIdByTier: Record<CheckoutTier, string | undefined> = {
+    basic: Deno.env.get('PADDLE_PRICE_ID_BASIC') ?? Deno.env.get('PADDLE_PRICE_ID') ?? undefined,
+    standard: Deno.env.get('PADDLE_PRICE_ID_STANDARD') ?? undefined,
+    pro: Deno.env.get('PADDLE_PRICE_ID_PRO') ?? undefined,
+  };
+  const priceId = priceIdByTier[tier];
+  const env = Deno.env.get('PADDLE_ENVIRONMENT') ?? 'production';
   const baseUrl = env === 'sandbox'
     ? 'https://sandbox-api.paddle.com'
     : 'https://api.paddle.com';
   const successUrl = locale === 'pt-BR'
     ? 'https://cafezin.pmatz.com/br/premium/obrigado'
     : 'https://cafezin.pmatz.com/premium/obrigado';
+
+  if (!priceId) {
+    return new Response(JSON.stringify({ error: `Missing Paddle price for tier: ${tier}` }), {
+      status: 500,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
 
   const paddleRes = await fetch(`${baseUrl}/transactions`, {
     method: 'POST',
@@ -78,7 +99,7 @@ Deno.serve(async (req) => {
       items: [{ price_id: priceId, quantity: 1 }],
       customer_email: user.email,
       // Passed back verbatim in every webhook event as data.custom_data
-      custom_data: { user_id: user.id },
+      custom_data: { user_id: user.id, tier },
       checkout: {
         url: successUrl,
       },

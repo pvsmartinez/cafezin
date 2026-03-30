@@ -1,5 +1,13 @@
 import type { AccountState } from '../../types';
 
+const PLAN_LABELS: Record<AccountState['plan'], string> = {
+  free: 'Free',
+  premium: 'Basic',
+  basic: 'Basic',
+  standard: 'Standard',
+  pro: 'Pro',
+};
+
 type SyncStatus = 'idle' | 'checking' | 'not_connected' | 'connected';
 
 export interface AccountTabProps {
@@ -74,7 +82,7 @@ export function AccountTab({
         {syncStatus === 'not_connected' && (
           <div className="sm-sync-pat-form">
             <p className="sm-section-desc" style={{ marginTop: 0 }}>
-              Entre com e-mail e senha para ativar o Premium e sincronizar seus workspaces.
+              Entre com e-mail e senha para ativar seu plano Cafezin e sincronizar seus workspaces.
             </p>
             <div className="sm-sync-auth-tabs">
               <button
@@ -127,7 +135,11 @@ export function AccountTab({
               <div className="sm-row-label">
                 <span>Status atual</span>
                 <span className="sm-row-desc">
-                  {account.authenticated ? account.plan === 'premium' ? 'Premium ativo' : 'Plano gratuito' : 'Não autenticado'}
+                  {account.authenticated
+                    ? account.isPremium
+                      ? `${PLAN_LABELS[account.plan]} ativo`
+                      : 'Plano gratuito'
+                    : 'Não autenticado'}
                 </span>
               </div>
               <span
@@ -143,7 +155,7 @@ export function AccountTab({
                   border: `1px solid ${account.isPremium ? 'rgba(var(--yellow-rgb,212,169,106),0.35)' : 'var(--border)'}`,
                 }}
               >
-                {account.isPremium ? 'Premium' : 'Free'}
+                {account.isPremium ? PLAN_LABELS[account.plan] : 'Free'}
               </span>
             </div>
 
@@ -177,7 +189,7 @@ export function AccountTab({
                   onClick={() => void onOpenCustomerPortal()}
                   disabled={billingBusy !== null}
                 >
-                  {billingBusy === 'portal' ? 'Abrindo portal…' : 'Gerenciar assinatura ↗'}
+                  {billingBusy === 'portal' ? 'Abrindo portal…' : 'Gerenciar plano ↗'}
                 </button>
               </div>
             ) : account.authenticated ? (
@@ -187,7 +199,7 @@ export function AccountTab({
                   onClick={() => void onOpenCheckout()}
                   disabled={billingBusy !== null}
                 >
-                  {billingBusy === 'checkout' ? 'Abrindo checkout…' : 'Assinar Premium ↗'}
+                  {billingBusy === 'checkout' ? 'Abrindo planos…' : 'Escolher plano na web ↗'}
                 </button>
               </div>
             ) : null}
@@ -201,7 +213,7 @@ export function AccountTab({
                   className="sm-save-btn"
                   style={{ display: 'inline-block', textDecoration: 'none', cursor: 'pointer' }}
                 >
-                  Ver planos Premium ↗
+                  Ver planos ↗
                 </a>
               </div>
             )}
@@ -212,7 +224,7 @@ export function AccountTab({
       <section className="sm-section">
         <h3 className="sm-section-title">Suas chaves de API (BYOK)</h3>
         <p className="sm-section-desc">
-          Com o plano Premium, você usa sua própria chave de API.
+          Com o plano Basic ou superior, você pode usar sua própria chave de API.
           Nenhum custo extra de uso nos pagamentos do Cafezin.
           Configure suas chaves na aba <strong>IA</strong>.
           Pegue sua chave no provedor:
