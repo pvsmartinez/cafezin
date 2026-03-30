@@ -1,6 +1,6 @@
 {
   "version": "0.1.11",
-  "notes": "Release 0.1.11 packages the work shipped since 0.1.10, with updates across the app, installers, and release flow.",
+  "notes": "This update introduces a new feedback system, improved AI model selection, and enhanced workspace synchronization features for a smoother user experience.",
   "pub_date": "2026-03-30T03:59:07Z",
   "min_versions": {
     "release": "0.1.7",

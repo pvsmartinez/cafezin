@@ -62,9 +62,10 @@ const fallback = buildFallbackNotes({
   commitLines: allCommitLines,
   changedFiles,
 });
-const aiNotes = openAiKey
-  ? await generateWithOpenAI({
+const aiNotes = (openAiKey || githubToken)
+  ? await generateWithAI({
       openAiKey,
+      githubToken,
       version,
       previousVersion,
       repo,
@@ -179,8 +180,9 @@ function buildFallbackNotes({
   };
 }
 
-async function generateWithOpenAI({
+async function generateWithAI({
   openAiKey,
+  githubToken,
   version,
   previousVersion,
   repo,
@@ -189,6 +191,12 @@ async function generateWithOpenAI({
   diffStat,
   diffContent,
 }) {
+  // Prefer OpenAI key; fall back to GitHub Models API (also OpenAI-compatible)
+  const apiKey = openAiKey || githubToken;
+  const apiUrl = openAiKey
+    ? "https://api.openai.com/v1/chat/completions"
+    : "https://models.inference.ai.azure.com/chat/completions";
+
   const prompt = [
     `Cafezin ${version} — release notes (previous: ${previousVersion}).`,
     "",
@@ -227,11 +235,11 @@ async function generateWithOpenAI({
     'Output valid JSON only: { "summary": string, "highlights": string[] }',
   ].join("\n");
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${openAiKey}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: "gpt-4o",
@@ -245,7 +253,8 @@ async function generateWithOpenAI({
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI request failed with status ${response.status}`);
+    const errText = await response.text().catch(() => "");
+    throw new Error(`AI request failed with status ${response.status}: ${errText.slice(0, 200)}`);
   }
 
   const payload = await response.json();
