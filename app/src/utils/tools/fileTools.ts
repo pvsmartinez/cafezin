@@ -246,24 +246,25 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'search_workspace',
       description:
-        'Fast grep-based full-text search across all text files in the workspace. ' +
-        'Returns up to 60 matches with file path, line number and matched line content. ' +
-        'Supports plain text (case-insensitive) or a regex when query starts and ends with /. ' +
+        'Runs grep across all text files in the workspace — behaves exactly like `grep -rn -i` in a terminal. ' +
+        'Returns up to 60 matches with file path, line number, and matched line content. ' +
+        'Two modes: ' +
+        '(1) Plain text query → `grep -F -i` (fixed-string, literal substring, case-insensitive). ' +
+        '(2) Regex query (wrap in /…/flags) → `grep -i` with BRE regex, e.g. /cobra.*effect/ or /^## .* chapter/i. ' +
         'Searches: .md, .mdx, .txt, .ts, .tsx, .js, .jsx, .json, .css, .html, .rs, .toml, .yaml, .yml, .sh, .py, .sql. ' +
-        'IMPORTANT: this is a LITERAL grep — the query must match the actual text in the file verbatim (case-insensitive). ' +
-        'It is NOT semantic search. Do NOT paraphrase or use synonyms — if you do not know the exact phrasing, ' +
-        'use a short key term (e.g. "cobra effect" not "snake bounty farming"). ' +
-        'If a simple keyword returns no results, try a shorter fragment rather than rephrasing. ' +
-        'Use search_workspace_index first when you want ranked files by topic.',
+        'Since this IS grep: apply grep rules — use exact words or patterns, not natural language. ' +
+        'No fuzzy/semantic matching. If a term returns no results, shorten it (e.g. "cobra" instead of "Cobra Effect"); ' +
+        'do NOT rephrase with synonyms. Use regex mode for flexible matching (e.g. /cobra/i, /effect.*metric/).',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
             description:
-              'The exact text to search for (case-insensitive). Must match the actual words in the file verbatim. ' +
-              'Do NOT paraphrase — use the key term as it would appear in the document (e.g. "Cobra Effect", not "snake breeding incentive problem"). ' +
-              'Can be a single word, a short phrase, or a regex pattern (wrap in / ... / for regex).',
+              'Plain text: literal substring to grep for (case-insensitive), e.g. "Cobra Effect". ' +
+              'Regex: wrap in /…/ for BRE pattern, e.g. /cobra.*effect/ or /^## introduction/. ' +
+              'Apply grep rules: use the actual words expected in the file, not paraphrases or synonyms. ' +
+              'If unsure of exact phrasing, use the shortest key term (e.g. "cobra") rather than guessing a longer phrase.',
           },
         },
         required: ['query'],
