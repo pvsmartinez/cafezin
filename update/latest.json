@@ -1,7 +1,7 @@
 {
-  "version": "0.1.11",
+  "version": "0.1.12",
   "notes": "Cafezin 0.1.12 introduces smarter AI session tracking and compression improvements, ensuring better context retention and coherence during extended writing sessions.",
-  "pub_date": "2026-03-30T03:59:07Z",
+  "pub_date": "2026-03-31T01:20:03Z",
   "min_versions": {
     "release": "0.1.7",
     "dev": "0.1.7",
@@ -10,8 +10,8 @@
   },
   "platforms": {
     "darwin-aarch64": {
-      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.11/Cafezin_0.1.11_aarch64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UE9veENrWXJIWC9TdGJuS0pxWURJUmYxbXFwTGFQRVNTNmpzOUI1cmJCYW91SzJkaTVxcjI0VmFTVUhhSDMyVTM4MmZFWm1xazhLNXZtWlg5dTd0N3dvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0ODQyNjk4CWZpbGU6Q2FmZXppbi5hcHAudGFyLmd6CmFWdENGWFU0bUZKZFNsa01Kd01hVnJnWkw2Rm9PQWNkblBNRjBHa3lHYmRsZEpmcVZneWY5VklYWkdiUzQ2a3luRXorT1dmS0xXTmU2WDhHOC9EeEFRPT0K"
+      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.12/Cafezin_0.1.12_aarch64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UEZUc1g1VjZVbWRrZXhHajZoWVJWYzQ0dGtXeFF6UlBNRWlCc0hmamhpa00yTzVXNG9udnE4dExaeGNkcDNsWCtmcVFJY3ZmREJCVmpRdjAvb3F1Z0FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0OTE5OTM5CWZpbGU6Q2FmZXppbi5hcHAudGFyLmd6CklxNnhUaDRvTU0xbk94eWJ5cGZaNGIvdWVjZGgxVW10V093STJWNGtBWVlBRENtOGpYYVJCQksxbHQwTG1iOHJwL1RuYTNtZisrRU1hTFJIOUtiYkFRPT0K"
     },
     "windows-x86_64": {
       "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.11/Cafezin_setup.exe",
