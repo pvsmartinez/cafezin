@@ -1,6 +1,6 @@
 {
   "version": "0.1.11",
-  "notes": "This update introduces a new feedback system, improved AI model selection, and enhanced workspace synchronization features for a smoother user experience.",
+  "notes": "Cafezin 0.1.12 introduces smarter AI session tracking and compression improvements, ensuring better context retention and coherence during extended writing sessions.",
   "pub_date": "2026-03-30T03:59:07Z",
   "min_versions": {
     "release": "0.1.7",

@@ -1,13 +1,13 @@
-# Cafezin 0.1.11
+# Cafezin 0.1.12
 
-This update introduces a new feedback system, improved AI model selection, and enhanced workspace synchronization features for a smoother user experience.
+Cafezin 0.1.12 introduces smarter AI session tracking and compression improvements, ensuring better context retention and coherence during extended writing sessions.
 
 ## Highlights
 
-- Added a feedback nudge that prompts users to share their thoughts after a certain number of sessions.
-- Improved AI model selection by introducing support for Cafezin-specific models, ensuring better compatibility and performance.
-- Enhanced workspace synchronization on mobile with clearer synced workspace management options.
-- Updated the pricing page layout to ensure proper display in a four-column format.
+- Session goal anchoring: The app now retains the user's initial message as an anchor throughout the session, helping the AI stay focused on the user's intent even during long interactions.
+- File read cache: Cafezin tracks files read during a session, enabling the AI to avoid redundant re-reads and prioritize fresh or changed files for improved efficiency.
+- Enhanced context compression: Mixed messages (e.g., user and assistant) are now preserved during compression, ensuring better coherence and avoiding loss of critical information.
+- Sliding window improvements: Groups of related messages, such as tool results and their parent assistant messages, are kept intact during token budget enforcement, preventing unintended drops and maintaining context consistency.
 
 ## Downloads
 
@@ -16,4 +16,4 @@ This update introduces a new feedback system, improved AI model selection, and e
 
 ## Full release
 
-https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.11
+https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.12
