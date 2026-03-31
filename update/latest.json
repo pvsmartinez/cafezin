@@ -1,7 +1,7 @@
 {
   "version": "0.1.12",
   "notes": "Cafezin 0.1.12 introduces smarter AI session tracking and compression improvements, ensuring better context retention and coherence during extended writing sessions.",
-  "pub_date": "2026-03-31T01:20:03Z",
+  "pub_date": "2026-03-31T01:25:58Z",
   "min_versions": {
     "release": "0.1.7",
     "dev": "0.1.7",
@@ -14,8 +14,8 @@
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UEZUc1g1VjZVbWRrZXhHajZoWVJWYzQ0dGtXeFF6UlBNRWlCc0hmamhpa00yTzVXNG9udnE4dExaeGNkcDNsWCtmcVFJY3ZmREJCVmpRdjAvb3F1Z0FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0OTE5OTM5CWZpbGU6Q2FmZXppbi5hcHAudGFyLmd6CklxNnhUaDRvTU0xbk94eWJ5cGZaNGIvdWVjZGgxVW10V093STJWNGtBWVlBRENtOGpYYVJCQksxbHQwTG1iOHJwL1RuYTNtZisrRU1hTFJIOUtiYkFRPT0K"
     },
     "windows-x86_64": {
-      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.11/Cafezin_setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UElCUG9BZUpmRzQ2U0VNM2FGQmtScVVuVk5kMURtUkpvbXVUb2pzd2kyN004cnJQcGJ3ODNLQm5TbllnS1plWnJDR3U2R1o5MUVQUTlTcVJ2Tis4YVFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0ODQzMTIzCWZpbGU6Q2FmZXppbl8wLjEuMTFfeDY0LXNldHVwLmV4ZQpuNExkWDVvRElqRXlaeVkxVEdGbXNDTDdLMUVTTTZMNG5QU1laWGUxTVdwQTBEUFZjRFd4MUZJbUplM2dxQ2pCa2U0YUlqTTRNelYxTktiV3llWHNDQT09Cg=="
+      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.12/Cafezin_setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UEhLQ1ZRSUNWRUVaRTk0NVIycVArRVJuWldodThRTXFzTE9zd1dXSnV1WXN6RUJWRHcvQWtxU0FtL1BqYSs1czBMYkNLK3pHcDJvd3JXcUpqWjZLRHdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0OTIwMzM1CWZpbGU6Q2FmZXppbl8wLjEuMTJfeDY0LXNldHVwLmV4ZQp3MGdSc0tFMkVQRnVMNy83bWlLWWFnOG1NeUhaOVJyZndRRzdZbjdpOTNhaTJ5SVo2OWpCNWlQOFlubFd3QmZTSXdOZmpzZDQ1T0dUbmRlN0pDYVpBZz09Cg=="
     }
   }
 }
