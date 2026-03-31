@@ -109,7 +109,11 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         'Ideal as a first step when localising relevant files: it ranks by query relevance, recency, and structure. ' +
         'After finding candidate files, read their full content with read_workspace_file, or use search_workspace for full-text grep. ' +
         '• Omit query to get the top files ranked by recency and active file. ' +
-        '• Supply natural-language keywords or a file name fragment to find relevant files. ' +
+        '• Supply keywords or a file name fragment to find relevant files. ' +
+        'IMPORTANT: this index only covers file paths and structural outlines (headings, function names, type names, etc.), ' +
+        'NOT the full body text of files. It is keyword matching, NOT semantic/AI search — ' +
+        'paraphrasing or using synonyms will NOT find anything. Use the actual words you expect to appear in headings or file names. ' +
+        'To locate text inside a document body, use search_workspace (grep) instead. ' +
         'Returns up to 15 results with their outline (headings, exports, word count, etc.).',
       parameters: {
         type: 'object',
@@ -117,8 +121,9 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
           query: {
             type: 'string',
             description:
-              'Natural-language query or keywords. Matched against file paths and structural outlines. ' +
-              'E.g. "chapter introduction", "authentication hook", or "the file that handles checkout". Omit to get top-ranked files by recency.',
+              'Keywords or a file name fragment to match against file paths and structural outlines (headings, function/type names). ' +
+              'Use words that would actually appear in headings or file names — NOT paraphrases or synonyms. ' +
+              'E.g. "cobra effect", "authentication hook", "chapter 3". Omit to get top-ranked files by recency.',
           },
         },
         required: [],
@@ -245,13 +250,20 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         'Returns up to 60 matches with file path, line number and matched line content. ' +
         'Supports plain text (case-insensitive) or a regex when query starts and ends with /. ' +
         'Searches: .md, .mdx, .txt, .ts, .tsx, .js, .jsx, .json, .css, .html, .rs, .toml, .yaml, .yml, .sh, .py, .sql. ' +
-        'Use this to find literal strings or patterns; use search_workspace_index first when you want ranked files by topic.',
+        'IMPORTANT: this is a LITERAL grep — the query must match the actual text in the file verbatim (case-insensitive). ' +
+        'It is NOT semantic search. Do NOT paraphrase or use synonyms — if you do not know the exact phrasing, ' +
+        'use a short key term (e.g. "cobra effect" not "snake bounty farming"). ' +
+        'If a simple keyword returns no results, try a shorter fragment rather than rephrasing. ' +
+        'Use search_workspace_index first when you want ranked files by topic.',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
-            description: 'The text to search for (case-insensitive). Can be a word, phrase, or sentence fragment.',
+            description:
+              'The exact text to search for (case-insensitive). Must match the actual words in the file verbatim. ' +
+              'Do NOT paraphrase — use the key term as it would appear in the document (e.g. "Cobra Effect", not "snake breeding incentive problem"). ' +
+              'Can be a single word, a short phrase, or a regex pattern (wrap in / ... / for regex).',
           },
         },
         required: ['query'],
