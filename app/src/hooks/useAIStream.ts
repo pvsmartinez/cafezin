@@ -12,6 +12,7 @@ import { runProviderAgent } from '../services/ai/runProviderAgent';
 import { appendLogEntry } from '../services/copilotLog';
 import { getWorkspaceTools, buildToolExecutor } from '../utils/workspaceTools';
 import type { ToolExecutor } from '../utils/workspaceTools';
+import { initMcpServers, loadMcpServerConfigs } from '../services/mcpClient';
 import { applyRiskGate } from '../utils/riskGate';
 import type { RiskLevel } from '../utils/toolRisk';
 import { canvasToDataUrl, compressDataUrl } from '../utils/canvasAI';
@@ -619,6 +620,10 @@ export function useAIStream({
       };
 
       const isMobilePlatform    = import.meta.env.VITE_TAURI_MOBILE === 'true';
+      // Ensure any enabled MCP servers are running before building the tool list
+      if (!isMobilePlatform) {
+        await initMcpServers(loadMcpServerConfigs());
+      }
       const activeTools = getWorkspaceTools(workspace, workspaceExportConfig).filter((t) => {
         if (isMobilePlatform && t.function.name === 'run_command') return false;
         return true;

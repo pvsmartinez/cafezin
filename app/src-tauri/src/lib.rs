@@ -3,11 +3,15 @@ use std::collections::HashMap;
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 use std::fs::{self, File};
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
+use std::io::{BufRead, BufReader, BufWriter, Write};
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
 use std::path::PathBuf;
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 use std::process::Command;
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+use std::sync::atomic::{AtomicU64, Ordering};
 // Stdio is only needed by update_app which is desktop-only
 #[cfg(not(target_os = "ios"))]
 use std::process::Stdio;
@@ -32,6 +36,61 @@ struct ManagedShellProcess {
     stdout_path: PathBuf,
     stderr_path: PathBuf,
 }
+
+// ── MCP (Model Context Protocol) process management ─────────────────────────
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+struct McpProcess {
+    stdin: Mutex<BufWriter<std::process::ChildStdin>>,
+    receiver: Mutex<std::sync::mpsc::Receiver<serde_json::Value>>,
+    next_id: AtomicU64,
+    // Keep child alive — dropping it would kill the process
+    _child: Mutex<std::process::Child>,
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+impl McpProcess {
+    fn send_request(&self, method: &str, params: Option<serde_json::Value>, id: Option<u64>) -> Result<(), String> {
+        let mut msg = serde_json::json!({ "jsonrpc": "2.0", "method": method });
+        if let Some(id) = id { msg["id"] = serde_json::json!(id); }
+        if let Some(p) = params { msg["params"] = p; }
+        let mut stdin = self.stdin.lock().map_err(|_| "stdin lock poisoned".to_string())?;
+        writeln!(stdin, "{}", msg).map_err(|e| e.to_string())?;
+        stdin.flush().map_err(|e| e.to_string())
+    }
+
+    fn recv_response(&self, expected_id: u64, timeout_secs: u64) -> Result<serde_json::Value, String> {
+        let receiver = self.receiver.lock().map_err(|_| "receiver lock poisoned".to_string())?;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
+        loop {
+            if std::time::Instant::now() >= deadline {
+                return Err(format!("MCP timeout waiting for response id={expected_id}"));
+            }
+            match receiver.recv_timeout(std::time::Duration::from_millis(50)) {
+                Ok(val) => {
+                    if val.get("id") == Some(&serde_json::json!(expected_id)) {
+                        if let Some(err) = val.get("error") {
+                            return Err(format!("MCP error: {err}"));
+                        }
+                        return Ok(val);
+                    }
+                    // Notification or different ID — skip silently
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    return Err("MCP server stdout closed unexpectedly".to_string());
+                }
+            }
+        }
+    }
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[derive(Default)]
+struct McpProcessRegistry {
+    processes: Mutex<HashMap<String, Arc<McpProcess>>>,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 fn ensure_shell_cwd_allowed(cwd: &str) -> Result<(), String> {
@@ -236,6 +295,175 @@ fn shell_run_kill(
         "stdout": cap_text_output(stdout),
         "stderr": cap_text_output(stderr),
     }))
+}
+
+// ── MCP Tauri commands — desktop (non-MAS, non-iOS) ─────────────────────────
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn mcp_start_server(
+    server_id: String,
+    command: String,
+    args: Vec<String>,
+    env_json: String,
+    registry: State<'_, McpProcessRegistry>,
+) -> Result<serde_json::Value, String> {
+    // Stop any existing server with the same ID first
+    {
+        let mut guard = registry.processes.lock().map_err(|_| "registry lock".to_string())?;
+        if let Some(old) = guard.remove(&server_id) {
+            let _ = old.send_request("notifications/cancelled", None, None);
+            if let Ok(mut child) = old._child.lock() { let _ = child.kill(); let _ = child.wait(); }
+        }
+    }
+
+    let env_map: HashMap<String, String> = if env_json.trim().is_empty() || env_json == "{}" {
+        HashMap::new()
+    } else {
+        serde_json::from_str(&env_json).map_err(|e| format!("env_json parse error: {e}"))?
+    };
+
+    // Extend PATH so common runtimes (node, npx, uv, python3, etc.) are reachable
+    let base_path = std::env::var("PATH").unwrap_or_default();
+    let extended = format!("{base_path}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin");
+
+    let mut cmd = Command::new(&command);
+    cmd.args(&args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env("PATH", &extended);
+    for (k, v) in &env_map {
+        cmd.env(k, v);
+    }
+
+    let mut child = cmd.spawn().map_err(|e| format!("Failed to start '{command}': {e}"))?;
+    let child_stdin = child.stdin.take().ok_or("No stdin handle")?;
+    let child_stdout = child.stdout.take().ok_or("No stdout handle")?;
+
+    // Spawn background reader thread that forwards JSON-RPC messages to a channel
+    let (tx, rx) = std::sync::mpsc::channel::<serde_json::Value>();
+    std::thread::spawn(move || {
+        let reader = BufReader::new(child_stdout);
+        for line in reader.lines() {
+            let Ok(line) = line else { break };
+            let line = line.trim().to_string();
+            if line.is_empty() { continue; }
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
+                if tx.send(val).is_err() { break; }
+            }
+        }
+    });
+
+    let process = Arc::new(McpProcess {
+        stdin: Mutex::new(BufWriter::new(child_stdin)),
+        receiver: Mutex::new(rx),
+        next_id: AtomicU64::new(1),
+        _child: Mutex::new(child),
+    });
+
+    // MCP handshake: initialize
+    let init_id = process.next_id.fetch_add(1, Ordering::SeqCst);
+    process.send_request("initialize", Some(serde_json::json!({
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": { "name": "cafezin", "version": "1.0" }
+    })), Some(init_id))?;
+    process.recv_response(init_id, 15)?;
+
+    // Send initialized notification (no id)
+    process.send_request("notifications/initialized", None, None)?;
+
+    // Fetch tool list
+    let list_id = process.next_id.fetch_add(1, Ordering::SeqCst);
+    process.send_request("tools/list", None, Some(list_id))?;
+    let list_resp = process.recv_response(list_id, 15)?;
+    let tools = list_resp.get("result")
+        .and_then(|r| r.get("tools"))
+        .cloned()
+        .unwrap_or(serde_json::json!([]));
+
+    {
+        let mut guard = registry.processes.lock().map_err(|_| "registry lock".to_string())?;
+        guard.insert(server_id, process);
+    }
+
+    Ok(serde_json::json!({ "tools": tools }))
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn mcp_call(
+    server_id: String,
+    tool_name: String,
+    args_json: String,
+    registry: State<'_, McpProcessRegistry>,
+) -> Result<String, String> {
+    let process = {
+        let guard = registry.processes.lock().map_err(|_| "registry lock".to_string())?;
+        guard.get(&server_id).cloned()
+            .ok_or_else(|| format!("MCP server '{server_id}' is not running"))?  
+    };
+    let args: serde_json::Value = serde_json::from_str(&args_json).unwrap_or(serde_json::json!({}));
+    let call_id = process.next_id.fetch_add(1, Ordering::SeqCst);
+    process.send_request("tools/call", Some(serde_json::json!({
+        "name": tool_name,
+        "arguments": args
+    })), Some(call_id))?;
+    let resp = process.recv_response(call_id, 30)?;
+    Ok(resp.to_string())
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn mcp_stop_server(
+    server_id: String,
+    registry: State<'_, McpProcessRegistry>,
+) -> Result<(), String> {
+    let mut guard = registry.processes.lock().map_err(|_| "registry lock".to_string())?;
+    if let Some(proc) = guard.remove(&server_id) {
+        let _ = proc.send_request("notifications/cancelled", None, None);
+        if let Ok(mut child) = proc._child.lock() { let _ = child.kill(); let _ = child.wait(); }
+    }
+    Ok(())
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn mcp_list_tools(
+    server_id: String,
+    registry: State<'_, McpProcessRegistry>,
+) -> Result<serde_json::Value, String> {
+    let process = {
+        let guard = registry.processes.lock().map_err(|_| "registry lock".to_string())?;
+        guard.get(&server_id).cloned()
+            .ok_or_else(|| format!("MCP server '{server_id}' is not running"))?  
+    };
+    let list_id = process.next_id.fetch_add(1, Ordering::SeqCst);
+    process.send_request("tools/list", None, Some(list_id))?;
+    let resp = process.recv_response(list_id, 15)?;
+    Ok(resp.get("result").and_then(|r| r.get("tools")).cloned().unwrap_or(serde_json::json!([])))
+}
+
+// MCP stubs — App Store / iOS builds (no arbitrary process spawning)
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn mcp_start_server(_server_id: String, _command: String, _args: Vec<String>, _env_json: String) -> Result<serde_json::Value, String> {
+    Err("MCP is not available in App Store / iOS builds".into())
+}
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn mcp_call(_server_id: String, _tool_name: String, _args_json: String) -> Result<String, String> {
+    Err("MCP is not available in App Store / iOS builds".into())
+}
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn mcp_stop_server(_server_id: String) -> Result<(), String> {
+    Err("MCP is not available in App Store / iOS builds".into())
+}
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn mcp_list_tools(_server_id: String) -> Result<serde_json::Value, String> {
+    Err("MCP is not available in App Store / iOS builds".into())
 }
 
 // Store/sandbox variant: App Sandbox and iOS do not allow arbitrary shell execution
@@ -1613,6 +1841,8 @@ pub fn run() {
     let builder = tauri::Builder::default();
     #[cfg(not(any(feature = "mas", target_os = "ios")))]
     let builder = builder.manage(ShellProcessRegistry::default());
+    #[cfg(not(any(feature = "mas", target_os = "ios")))]
+    let builder = builder.manage(McpProcessRegistry::default());
 
     builder
         .setup(|app| {            // ── Deep link handler — OAuth callback (cafezin://auth/callback) ────
@@ -1750,7 +1980,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_apply_patch, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo])
+        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_apply_patch, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo, mcp_start_server, mcp_call, mcp_stop_server, mcp_list_tools])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

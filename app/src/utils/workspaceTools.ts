@@ -7,6 +7,7 @@
  *   utils/tools/webTools.ts     - web_search, search_images, fetch_url, run_command, publish_vercel
  *   utils/tools/configTools.ts  - export_workspace, configure_export_targets, configure_workspace, remember, ask_user
  *   utils/tools/skillTools.ts   - read_skill (on-demand protocol and best-practice guides)
+ *   utils/tools/mcpTools.ts     - mcp__<server>__<tool> — dynamic tools from connected MCP servers
  *
  * Public API is unchanged: WORKSPACE_TOOLS, getWorkspaceTools, buildToolExecutor, ToolDefinition, ToolExecutor, AgentToolContext.
  */
@@ -17,6 +18,8 @@ import { WEB_TOOL_DEFS, executeWebTools } from './tools/webTools';
 import { CONFIG_TOOL_DEFS, executeConfigTools } from './tools/configTools';
 import { TASK_TOOL_DEFS, executeTaskTools } from './tools/taskTools';
 import { SKILL_TOOL_DEFS, executeSkillTools } from './tools/skillTools';
+import { executeMcpTools } from './tools/mcpTools';
+import { getMcpToolDefs } from '../services/mcpClient';
 import type { Workspace, WorkspaceExportConfig } from '../types';
 import { isToolEnabledByWorkspace } from './agentCapabilities';
 
@@ -43,11 +46,13 @@ export function getWorkspaceTools(
   workspace?: Pick<Workspace, 'config' | 'fileTree'> | null,
   _workspaceExportConfig?: WorkspaceExportConfig,
 ) {
-  return WORKSPACE_TOOLS.filter((tool) => {
+  const staticTools = WORKSPACE_TOOLS.filter((tool) => {
     if (tool.function.name === 'publish_vercel') return false;
     if (!isToolEnabledByWorkspace(tool.function.name, workspace ?? undefined)) return false;
     return true;
   });
+  // Append dynamic MCP tool defs from all connected MCP servers
+  return [...staticTools, ...getMcpToolDefs()];
 }
 
 /**
@@ -67,7 +72,7 @@ export function getWorkspaceTools(
  * });
  */
 export function buildToolExecutor(ctx: import('./tools/shared').ToolContext) {
-  const domains = [executeFileTools, executeCanvasTools, executeWebTools, executeConfigTools, executeTaskTools, executeSkillTools];
+  const domains = [executeFileTools, executeCanvasTools, executeWebTools, executeConfigTools, executeTaskTools, executeSkillTools, executeMcpTools];
 
   return async (name: string, args: Record<string, unknown>): Promise<string> => {
     for (const domain of domains) {

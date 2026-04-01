@@ -48,6 +48,7 @@ import { AITab } from './settings/AITab';
 import { WorkspaceTab } from './settings/WorkspaceTab';
 import { AgentTab } from './settings/AgentTab';
 import type { CapabilityOverrideMode } from './settings/AgentTab';
+import { McpTab } from './settings/McpTab';
 import { SyncTab } from './settings/SyncTab';
 import { AccountTab } from './settings/AccountTab';
 import './SettingsModal.css';
@@ -65,7 +66,7 @@ interface SettingsModalProps {
   initialTab?: Tab;
 }
 
-type Tab = 'general' | 'shortcuts' | 'ai' | 'workspace' | 'agent' | 'sync' | 'account';
+type Tab = 'general' | 'shortcuts' | 'ai' | 'workspace' | 'agent' | 'mcp' | 'sync' | 'account';
 
 export default function SettingsModal({
   open,
@@ -791,6 +792,10 @@ export default function SettingsModal({
             disabled={!workspace}
           >Agente</button>
           <button
+            className={`sm-tab ${tab === 'mcp' ? 'active' : ''}`}
+            onClick={() => setTab('mcp')}
+          >MCP</button>
+          <button
             className={`sm-tab ${tab === 'sync' ? 'active' : ''}`}
             onClick={() => setTab('sync')}
           >{t('settings.tabSync')}</button>
@@ -928,6 +933,9 @@ export default function SettingsModal({
               onWsSave={handleWsSave}
             />
           )}
+
+          {/* ── MCP tab ── */}
+          {tab === 'mcp' && <McpTab />}
 
           {/* ── Sync tab ── */}
           {tab === 'sync' && (

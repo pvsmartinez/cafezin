@@ -1674,6 +1674,174 @@ body {
   margin-top: 2px;
 }
 
+/* ── System requirements (hero) ─────────────────────────────────────────── */
+.hero-sysreq {
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+  margin-bottom: 48px;
+  margin-top: -20px;
+}
+.hero-sysreq-sep {
+  margin: 0 7px;
+  opacity: 0.5;
+}
+
+/* ── How it works ────────────────────────────────────────────────────────── */
+.how-it-works {
+  padding: var(--section-pad);
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.how-it-works .section-title {
+  margin-bottom: 48px;
+}
+.steps-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: 0 20px;
+  align-items: start;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.step {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 32px 28px;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+.step:hover {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25), 0 0 20px rgba(var(--accent-rgb), 0.06);
+}
+.step-number {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+  font-family: var(--font-serif);
+  margin-bottom: 16px;
+}
+.step-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+.step-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+.step-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 22px;
+  margin-top: 48px;
+  user-select: none;
+}
+
+/* ── FAQ accordion (homepage) ───────────────────────────────────────────── */
+.faq-section {
+  padding: var(--section-pad);
+  border-top: 1px solid var(--border);
+}
+.faq-section .section-title {
+  text-align: center;
+  margin-bottom: 40px;
+}
+.faq-section .section-label {
+  display: flex;
+  justify-content: center;
+}
+.faq-accordion {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.faq-accordion details {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.18s ease;
+}
+.faq-accordion details[open] {
+  border-color: rgba(var(--accent-rgb), 0.35);
+}
+.faq-accordion summary {
+  padding: 20px 24px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+.faq-accordion summary::-webkit-details-marker { display: none; }
+.faq-accordion summary::after {
+  content: '+';
+  color: var(--accent);
+  font-size: 24px;
+  font-weight: 300;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  line-height: 1;
+}
+.faq-accordion details[open] summary::after {
+  transform: rotate(45deg);
+}
+.faq-accordion summary:hover {
+  color: var(--accent);
+}
+.faq-accordion-body {
+  padding: 0 24px 20px;
+  font-size: 15px;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+.faq-accordion-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Mobile CTA swap ─────────────────────────────────────────────────────── */
+.mobile-cta-note {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+.mobile-cta-sub {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+.mobile-cta-sub strong {
+  color: var(--accent);
+}
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .nav-link { display: none; }
@@ -1779,5 +1947,23 @@ body {
   }
   .testimonials-grid {
     grid-template-columns: 1fr;
+  }
+  .steps-grid {
+    grid-template-columns: 1fr;
+    max-width: 440px;
+    margin: 0 auto;
+    gap: 12px;
+  }
+  .step-connector {
+    transform: rotate(90deg);
+    margin: 0 auto;
+  }
+  .faq-accordion summary {
+    font-size: 15px;
+    padding: 16px 18px;
+  }
+  .faq-accordion-body {
+    padding: 0 18px 16px;
+    font-size: 14px;
   }
 }

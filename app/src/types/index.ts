@@ -379,6 +379,31 @@ export interface GitHubOAuthWorkspaceConfig {
   clientId?: string;
 }
 
+/**
+ * Configuration for a single Model Context Protocol (MCP) server.
+ * Stored in localStorage (global) or WorkspaceConfig.mcpServers (workspace-scoped).
+ */
+export interface McpServerConfig {
+  /** Unique identifier (auto-generated UUID). */
+  id: string;
+  /** Display name, e.g. "Filesystem", "SQLite DB". */
+  name: string;
+  /** Executable to run, e.g. "npx", "node", "/usr/local/bin/mcp-server". */
+  command: string;
+  /** Arguments to pass to the executable, e.g. ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]. */
+  args: string[];
+  /** Optional environment variables to inject into the server process. */
+  env?: Record<string, string>;
+  /** Whether this server should be auto-started. */
+  enabled: boolean;
+  /**
+   * Scope:
+   * - 'global' — available in all workspaces (stored in localStorage)
+   * - 'workspace' — only active when a workspace is open (stored in WorkspaceConfig)
+   */
+  scope: 'global' | 'workspace';
+}
+
 /** Optional per-workspace capabilities that enhance built-in file types. */
 export interface WorkspaceFeatureConfig {
   /** Markdown-specific render features such as Mermaid diagrams. Undefined = automatic based on workspace files. */
@@ -457,6 +482,11 @@ export interface WorkspaceConfig {
    * Shown on WorkspaceHome to guide the AI and surface relevant document types.
    */
   workspaceType?: string;
+  /**
+   * MCP servers scoped only to this workspace.
+   * Global MCP servers are stored in localStorage (SK.MCP_SERVERS).
+   */
+  mcpServers?: McpServerConfig[];
 }
 
 /** A span of text inserted by the AI and not yet reviewed by the human. */

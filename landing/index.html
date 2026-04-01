@@ -186,6 +186,9 @@
         <span class="proof-pill"><span class="proof-check">✓</span> Files stay local</span>
         <span class="proof-pill"><span class="proof-check">✓</span> No credit card</span>
       </div>
+      <p class="hero-sysreq">
+        macOS 13 Ventura+<span class="hero-sysreq-sep">·</span>Apple Silicon &amp; Intel<span class="hero-sysreq-sep">·</span>~68 MB<span class="hero-sysreq-sep">·</span>Notarized by Apple
+      </p>
     </div>
 
     <div class="hero-peek">
@@ -297,6 +300,32 @@
         });
       })();
     </script>
+  </section>
+
+  <section class="how-it-works">
+    <div class="section-inner">
+      <div class="section-label">Getting started</div>
+      <h2 class="section-title">Up and writing in 3 steps</h2>
+      <div class="steps-grid">
+        <div class="step">
+          <div class="step-number">1</div>
+          <h3 class="step-title">Download free for Mac</h3>
+          <p class="step-desc">One-click install, ~68 MB. Runs natively on Apple Silicon and Intel Macs with macOS 13+. No account required.</p>
+        </div>
+        <div class="step-connector" aria-hidden="true">→</div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <h3 class="step-title">Open your workspace</h3>
+          <p class="step-desc">Create a new project or open any folder of existing Markdown files. Everything stays on your device — no sync, no cloud.</p>
+        </div>
+        <div class="step-connector" aria-hidden="true">→</div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <h3 class="step-title">Write with AI at your side</h3>
+          <p class="step-desc">Use the editor, canvas, and AI panel to draft, plan, and create — reviewing every AI suggestion before accepting it.</p>
+        </div>
+      </div>
+    </div>
   </section>
 
   <section class="features" id="features">
@@ -508,6 +537,41 @@
     </div>
   </section>
 
+  <section class="faq-section">
+    <div class="section-inner">
+      <div class="section-label">Questions</div>
+      <h2 class="section-title">Frequently asked</h2>
+      <div class="faq-accordion">
+
+        <details>
+          <summary>Is Cafezin really free?</summary>
+          <div class="faq-accordion-body">Yes. The full Markdown editor, visual canvas, slides, and local file system are free forever — no credit card, no time limit. AI features (drafting, revising, summarising with AI) require a paid plan starting at $5/month, or you can bring your own API key from OpenAI, Anthropic, or GitHub Copilot at no extra charge.</div>
+        </details>
+
+        <details>
+          <summary>Do my files go to the cloud?</summary>
+          <div class="faq-accordion-body">No. Cafezin is local-first — all your documents live on your device as plain Markdown files. There's no mandatory cloud sync and no vendor lock-in. Your files remain fully readable in any text editor, forever.</div>
+        </details>
+
+        <details>
+          <summary>Which AI models does it support?</summary>
+          <div class="faq-accordion-body">Cafezin works with GitHub Copilot, OpenAI (GPT-4o, o3), Anthropic Claude, Google Gemini, and Groq. Paid plans include managed Cafezin AI credits so you don't need your own API key. BYOK (Bring Your Own Key) is always available on any plan.</div>
+        </details>
+
+        <details>
+          <summary>Does it work offline?</summary>
+          <div class="faq-accordion-body">The editor, canvas, version history, and all local-file features work fully offline. AI features require an internet connection to reach the model provider. Your files are never uploaded unless you explicitly send them to AI.</div>
+        </details>
+
+        <details>
+          <summary>What Mac do I need?</summary>
+          <div class="faq-accordion-body">Cafezin requires macOS 13 Ventura or later and runs natively on both Apple Silicon (M1/M2/M3/M4) and Intel Macs. A Windows version is also available on the <a href="/download">downloads page</a>.</div>
+        </details>
+
+      </div>
+    </div>
+  </section>
+
   <section class="cta-section">
     <div class="cta-inner">
       <div class="cta-glow"></div>
@@ -567,5 +631,25 @@
   </footer>
 
   <script src="/landing-analytics.js"></script>
+
+  <script>
+    // On mobile devices, replace the download CTA with a desktop redirect message.
+    // Cafezin is a Mac/Windows desktop app — downloads don't work on mobile.
+    (function () {
+      var isMobile = /Android|iPhone|iPad|iPod|IEMobile/i.test(navigator.userAgent);
+      if (!isMobile) return;
+      document.addEventListener('DOMContentLoaded', function () {
+        var cta = document.querySelector('.hero-cta');
+        if (!cta) return;
+        var pageUrl = encodeURIComponent('https://cafezin.pmatz.com/download');
+        var subject = encodeURIComponent('Download Cafezin — free AI writing app for Mac');
+        var body = encodeURIComponent('Hey! I was checking out Cafezin — an AI writing app for Mac and Windows. Download it free at: https://cafezin.pmatz.com/download');
+        cta.innerHTML =
+          '<p class="mobile-cta-note">Cafezin is a desktop app.</p>' +
+          '<p class="mobile-cta-sub">Open <strong>cafezin.pmatz.com</strong> on your Mac or Windows PC to download for free.</p>' +
+          '<a href="mailto:?subject=' + subject + '&body=' + body + '" class="btn btn-primary" style="margin-top:8px;">📩 Email this page to myself</a>';
+      });
+    })();
+  </script>
 </body>
 </html>

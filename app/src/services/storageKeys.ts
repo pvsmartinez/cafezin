@@ -61,7 +61,9 @@ export const SK = {
 
   // ── Mobile ────────────────────────────────────────────────────────────────
   MOBILE_LAST_WS: 'mobile-last-workspace-path',
-
+  // ── MCP (Model Context Protocol) ────────────────────────────────────────────
+  /** JSON array of McpServerConfig objects (global, all workspaces). */
+  MCP_SERVERS: 'cafezin-mcp-servers',
   // ── UI state ──────────────────────────────────────────────────────────────
   EXPORT_MODAL_AI_HELPER: 'cafezin:em:aihelper',
 } as const;
