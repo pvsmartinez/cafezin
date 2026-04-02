@@ -76,7 +76,8 @@
     if (/\/download\/windows(?:$|[?#/])/i.test(href)) return "windows";
     if (/\.dmg/i.test(href)) return "mac";
     if (/\.exe|setup|\.msix/i.test(href)) return "windows";
-    if (/microsoft\.com\/store|apps\.microsoft\.com/i.test(href)) return "windows";
+    if (/microsoft\.com\/store|apps\.microsoft\.com/i.test(href))
+      return "windows";
     if (/testflight|apps\.apple/i.test(href)) return "ios";
     if (/play\.google|\.apk/i.test(href)) return "android";
     return "unknown";

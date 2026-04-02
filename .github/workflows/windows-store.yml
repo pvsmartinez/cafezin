@@ -57,19 +57,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
-      # Build the React/Vite frontend so cargo can embed it into the binary.
-      - name: Build frontend
-        run: npm run build
+      # Build the Rust binary via the Tauri CLI (not cargo directly).
+      # Using "tauri build --no-bundle" ensures the CLI sets the correct
+      # production-mode env vars (TAURI_ENV_DEBUG=false, TAURI_ENV_PLATFORM, etc.)
+      # so tauri-build embeds the frontend assets properly.
+      # The CLI also runs "npm run build" (beforeBuildCommand) internally,
+      # so no separate frontend build step is needed here.
+      - name: Build Cafezin binary
+        run: npx tauri build --no-bundle
         working-directory: app
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-
-      # Compile the Rust binary directly — no Tauri bundler, no MSI/NSIS overhead.
-      # The frontend dist is embedded at compile time via tauri-build.
-      - name: Build Cafezin binary
-        run: cargo build --release
-        working-directory: app/src-tauri
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
       # Convert the semver tag (v0.2.0) into a 4-part MSIX version (0.2.0.0).
       - name: Parse version

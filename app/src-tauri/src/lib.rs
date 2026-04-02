@@ -324,6 +324,9 @@ fn mcp_start_server(
 
     // Extend PATH so common runtimes (node, npx, uv, python3, etc.) are reachable
     let base_path = std::env::var("PATH").unwrap_or_default();
+    #[cfg(target_os = "windows")]
+    let extended = format!("{base_path};%APPDATA%\\npm;%USERPROFILE%\\.cargo\\bin");
+    #[cfg(not(target_os = "windows"))]
     let extended = format!("{base_path}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin");
 
     let mut cmd = Command::new(&command);
@@ -1654,12 +1657,19 @@ async fn update_app(_app: tauri::AppHandle, _project_root: String) -> Result<(),
     Err("update_app is not available on iOS — updates come through the App Store".into())
 }
 
+/// Stub for Windows/Linux — update_app only makes sense on macOS (builds .app bundles).
+#[cfg(all(not(target_os = "macos"), not(target_os = "ios")))]
+#[tauri::command]
+async fn update_app(_app: tauri::AppHandle, _project_root: String) -> Result<(), String> {
+    Err("update_app is only available on macOS".into())
+}
+
 /// Build the app from source, streaming every output line to the frontend,
 /// then copy to ~/Applications and relaunch. Events emitted:
 ///   update:log     { line: String }
 ///   update:success ()
 ///   update:error   { message: String }
-#[cfg(not(target_os = "ios"))]
+#[cfg(target_os = "macos")]
 #[tauri::command]
 async fn update_app(app: tauri::AppHandle, project_root: String) -> Result<(), String> {
     let emit_log = |line: &str| { let _ = app.emit("update:log", line.to_string()); };
