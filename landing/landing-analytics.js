@@ -1,7 +1,7 @@
 (function () {
   var TRACK_ENDPOINT =
     "https://dxxwlnvemqgpdrnkzrcr.supabase.co/functions/v1/track-landing";
-  var WIN_URL = "/download/windows";
+  var WIN_URL = "https://apps.microsoft.com/store/detail/9PKJ83V2S357";
   var MAC_URL = "/download/mac";
 
   function locale() {
@@ -23,6 +23,9 @@
         href,
       )
     ) {
+      return WIN_URL;
+    }
+    if (/\/download\/windows(?:$|[?#/])/i.test(href)) {
       return WIN_URL;
     }
     return href;
@@ -72,7 +75,8 @@
     if (/\/download\/mac(?:$|[?#/])/i.test(href)) return "mac";
     if (/\/download\/windows(?:$|[?#/])/i.test(href)) return "windows";
     if (/\.dmg/i.test(href)) return "mac";
-    if (/\.exe|setup/i.test(href)) return "windows";
+    if (/\.exe|setup|\.msix/i.test(href)) return "windows";
+    if (/microsoft\.com\/store|apps\.microsoft\.com/i.test(href)) return "windows";
     if (/testflight|apps\.apple/i.test(href)) return "ios";
     if (/play\.google|\.apk/i.test(href)) return "android";
     return "unknown";
