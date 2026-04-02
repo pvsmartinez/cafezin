@@ -171,6 +171,39 @@
     swap("js-cta-primary", WIN_URL, "windows");
     swap("js-cta-alt", MAC_URL, "mac");
     swap("js-pricing-free", WIN_URL, "windows");
+    // LP-specific buttons
+    swap("js-lp-primary", WIN_URL, "windows");
+    swap("js-lp-final", WIN_URL, "windows");
+
+    // Swap nav-cta buttons (e.g. "Download now" in top nav) that hardcode /download/mac.
+    document
+      .querySelectorAll(
+        'a[href="/download/mac"], a[href="/br/../download/mac"]',
+      )
+      .forEach(function (el) {
+        el.href = WIN_URL;
+        var winLabel = el.getAttribute("data-win-label");
+        if (winLabel) el.textContent = winLabel;
+      });
+
+    // Promote Windows button to primary and demote Mac button — works on pages that
+    // explicitly list both platforms (e.g. download.html) so Windows users see Windows first.
+    document
+      .querySelectorAll("a.btn-download[data-platform='mac']")
+      .forEach(function (el) {
+        if (el.classList.contains("btn-primary")) {
+          el.classList.remove("btn-primary");
+          el.classList.add("btn-outline");
+        }
+      });
+    document
+      .querySelectorAll("a.btn-download[data-platform='windows']")
+      .forEach(function (el) {
+        if (el.classList.contains("btn-outline")) {
+          el.classList.remove("btn-outline");
+          el.classList.add("btn-primary");
+        }
+      });
 
     var hasExplicitWin = !!document.querySelector(
       'a[href*="/download/windows"], a[href*="Cafezin_setup.exe"]',
@@ -192,8 +225,37 @@
     }
   }
 
+  // Generic platform content adaptation.
+  // Elements with data-win-content get their innerHTML replaced on Windows.
+  // Elements with data-win-text get their textContent replaced on Windows.
+  // Elements with class platform-mac are hidden on Windows.
+  // Elements with class platform-win are shown on Windows.
+  function adaptPlatformContent() {
+    var ua = navigator.userAgent || "";
+    var plat = navigator.platform || "";
+    if (!/Win/i.test(plat) && !/Windows NT/i.test(ua)) return;
+
+    document.querySelectorAll("[data-win-content]").forEach(function (el) {
+      el.innerHTML = el.getAttribute("data-win-content");
+    });
+
+    document.querySelectorAll("[data-win-text]").forEach(function (el) {
+      el.textContent = el.getAttribute("data-win-text");
+    });
+
+    document.querySelectorAll(".platform-mac").forEach(function (el) {
+      el.style.display = "none";
+    });
+
+    document.querySelectorAll(".platform-win").forEach(function (el) {
+      el.removeAttribute("hidden");
+      el.style.display = "";
+    });
+  }
+
   bindDownloadClicks();
   adaptHeroCta();
+  adaptPlatformContent();
 
   var pageEvent = document.body.getAttribute("data-track-page-event");
   if (pageEvent) {

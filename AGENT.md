@@ -10,7 +10,7 @@
 **Owner:** Pedro Martinez (pvsmartinez@gmail.com)  
 **Repo:** https://github.com/pvsmartinez/cafezin  
 **Started:** February 2026  
-**Last major session:** February 23, 2026
+**Last major session:** May 2026
 
 ---
 
@@ -27,12 +27,12 @@ A general-purpose AI-assisted productivity tool, inspired by how Pedro uses VS C
 
 ## Target Platforms
 
-| Platform           | Priority  | Notes                            |
-| ------------------ | --------- | -------------------------------- |
-| macOS (native app) | Primary   | Pedro's daily driver             |
-| PC / Windows       | Secondary | Cross-platform Tauri             |
-| Web app            | Planned   | Broader accessibility            |
-| iPhone / Android   | Future    | View-only + voice only (Phase 3) |
+| Platform           | Priority  | Notes                                                                          |
+| ------------------ | --------- | ------------------------------------------------------------------------------ |
+| macOS (native app) | Primary   | Pedro's daily driver                                                           |
+| PC / Windows       | Secondary | Cross-platform Tauri                                                           |
+| Web app            | Planned   | Broader accessibility                                                          |
+| iPhone / Android   | Active    | Full mobile app — MobileCopilot, file browser, voice memo, AI chat, onboarding |
 
 ---
 
@@ -41,9 +41,15 @@ A general-purpose AI-assisted productivity tool, inspired by how Pedro uses VS C
 - **Framework:** Tauri v2 (Rust backend) + React 19 / TypeScript frontend (Vite)
 - **Editor:** CodeMirror 6 (`@uiw/react-codemirror`) with Markdown language support
 - **Canvas:** tldraw v4 — `.tldr.json` files; Frames = slides; full AI tool-calling integration
-- **AI:** GitHub Copilot API (`https://api.githubcopilot.com`) — OpenAI-compatible, streamed via SSE
-  - Auth: device flow OAuth — `startDeviceFlow()` / `getStoredOAuthToken()` in `copilot.ts`
-  - Models fetched dynamically from `/models`; `FALLBACK_MODELS` used as fallback
+- **AI providers:** Multi-provider BYOK (`aiProvider.ts`) — `services/copilot/` + `services/ai/` subfolders:
+  - **Cafezin IA** — default for new users; managed credits via `accountService.ts`; no API key needed
+  - **GitHub Copilot** — device flow OAuth; `startDeviceFlow()` / `getStoredOAuthToken()` in `services/copilot/auth.ts`
+  - **OpenAI, Anthropic, Groq, Google Gemini** — API key; stored encrypted in Supabase via `apiSecrets.ts`
+  - **Custom / Local** — any OpenAI-compatible endpoint (Ollama, LM Studio, OpenRouter); URL + model in localStorage only (privacy)
+  - Models fetched dynamically per provider; Copilot uses `FALLBACK_MODELS` if fetch fails
+- **MCP (Model Context Protocol):** `mcpClient.ts` manages external tool servers via Tauri process spawn;
+  tools namespaced as `mcp__<serverId>__<toolName>`; configured in Settings → MCP tab
+- **Ghost text:** `ghostText.ts` — CodeMirror 6 inline completion extension; 650ms debounce; Tab=accept, Esc=dismiss
 - **Sync / Auth:** Supabase (`dxxwlnvemqgpdrnkzrcr`, São Paulo region)
   - Only Auth + `synced_workspaces` table — no content stored, only workspace metadata (name + git URL)
   - Auth methods: email+password, Google OAuth, Apple Sign In (requires providers enabled in Supabase dashboard)
@@ -65,6 +71,16 @@ A general-purpose AI-assisted productivity tool, inspired by how Pedro uses VS C
   - Vision: canvas screenshot merged into user message for vision-capable models
   - Vision gating: `modelSupportsVision(id)` returns false for o-series models (`/^o\d/`)
 - **Documents:** Markdown + YAML frontmatter (git-friendly, exportable)
+- **Prose editor:** `ProseEditor.tsx` — Tiptap WYSIWYG mode for `.md`/`.txt`; Grammarly-compatible
+- **File viewers:** `SpreadsheetViewer.tsx` (.xlsx/.csv), `DocxInfoPanel.tsx` (.docx), `PptxInfoPanel.tsx` (.pptx), `RtfViewer.tsx` (.rtf), `WebPreview.tsx` (HTML pages)
+- **Backlinks:** `BacklinksPanel.tsx` + `hooks/useBacklinks.ts` — wiki-style backlinks/outlinks strip below editor
+- **Risk Gate:** `riskGate.ts` intercepts tool calls; `toolRisk.ts` classifies each tool (low/medium/high); permissions stored in session or `WorkspaceConfig.riskPermissions`
+- **Workspace index:** `workspaceIndex.ts` — async per-file metadata + outline cache at `.cafezin/workspace-index.json`; agent uses ranked index for fast retrieval (max 300 files)
+- **Task service:** `taskService.ts` — per-agent task list at `.cafezin/tasks.json`; scoped by `agentId`
+- **Windowing:** `windowing.ts` — open additional Tauri `WebviewWindow` per workspace
+- **Vercel publish:** `publishVercel.ts` — deploy local folder to Vercel via REST API from within the agent
+- **Account service:** `accountService.ts` — entitlement cache from Supabase RPC; free-user TTL 30min, premium grace 5 days (tolerates offline)
+- **Terminal / bottom panel:** `BottomPanel.tsx` — embedded shell + file-stat status strip (word count, lines, TS errors)
 - **Version control:** git per workspace, auto-init via Rust `git_init` command
 - **In-app update:** `./scripts/update-app.sh` — incremental Cargo+Vite build → replaces `~/Applications/Cafezin.app`
 - **Voice:** Web Speech API (`webkitSpeechRecognition`) — flat SVG mic/stop buttons in AIPanel footer
@@ -81,59 +97,185 @@ A general-purpose AI-assisted productivity tool, inspired by how Pedro uses VS C
 
 ```
 cafezin/
-├── app/                          # Tauri v2 app root
+├── app/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Editor.tsx/css             # CodeMirror 6 Markdown editor with AI mark highlights
-│   │   │   ├── CanvasEditor.tsx/css       # tldraw v4 — frames=slides, strip, drag-drop, context menu, format panel
-│   │   │   ├── AIPanel.tsx/css            # Right-side Copilot chat panel (⌘K) — agent mode + vision
-│   │   │   ├── AIMarkOverlay.tsx/css      # Floating chips over AI-marked text regions
-│   │   │   ├── AIReviewPanel.tsx/css      # Modal listing pending AI edit marks per file
-│   │   │   ├── Sidebar.tsx/css            # Left file-tree explorer; AI mark count badge; context menus
-│   │   │   ├── TabBar.tsx/css             # Open-file tabs (⌘W to close, ⌃Tab to switch)
-│   │   │   ├── FindReplaceBar.tsx/css     # In-editor find/replace (⌘F)
-│   │   │   ├── ProjectSearchPanel.tsx/css # Workspace-wide text search + replace
-│   │   │   ├── MarkdownPreview.tsx/css    # Rendered MD viewer (marked)
-│   │   │   ├── PDFViewer.tsx/css          # Native PDF embed via Tauri asset://
-│   │   │   ├── MediaViewer.tsx/css        # Image/video viewer — binary Tauri fs read
-│   │   │   ├── ImageSearchPanel.tsx/css   # Pexels stock photo search → workspace/images/
-│   │   │   ├── SettingsModal.tsx/css      # App settings + keyboard shortcuts table
-│   │   │   ├── SyncModal.tsx/css          # Git commit + push modal
-│   │   │   ├── WorkspacePicker.tsx/css    # First-run workspace selection screen
-│   │   │   ├── WorkspaceHome.tsx/css      # Dashboard shown when no file is open
-│   │   │   └── UpdateModal.tsx/css        # In-app update progress modal
+│   │   │   ├── app/
+│   │   │   │   ├── AppEditorArea.tsx/css      # Main content area (editor + bottom panel layout)
+│   │   │   │   ├── AppHeader.tsx/css           # Top header bar (workspace name, actions)
+│   │   │   │   └── AppOverlays.tsx             # App-level overlay/modal collection
+│   │   │   ├── ai/
+│   │   │   │   ├── AIAuthScreen.tsx            # GitHub Copilot device-flow OAuth screen
+│   │   │   │   ├── AICodeBlock.tsx             # Syntax-highlighted code block in AI chat
+│   │   │   │   ├── AIMarkdownText.tsx          # Rich markdown renderer for AI responses
+│   │   │   │   ├── AIModelPicker.tsx           # Model selector (per-provider)
+│   │   │   │   ├── AIToolProcess.tsx           # Live tool-call progress display in chat
+│   │   │   │   ├── ManagedAIQuotaModal.tsx/css # Quota modal for Cafezin IA credits
+│   │   │   │   └── PremiumGate.tsx/css         # Paywall gate for premium-only features
+│   │   │   ├── canvas/
+│   │   │   │   ├── CanvasAIContext.tsx         # Canvas AI context provider
+│   │   │   │   ├── canvasAssets.ts             # Static asset definitions
+│   │   │   │   ├── canvasConstants.ts          # SLIDE_W/H/GAP + other constants
+│   │   │   │   ├── CanvasContextMenus.tsx      # Right-click context menus
+│   │   │   │   ├── canvasFontOverrides.ts      # Font registration for tldraw
+│   │   │   │   ├── CanvasFormatPanel.tsx       # Shape format panel (rotation, opacity, align…)
+│   │   │   │   ├── CanvasImageDialog.tsx       # Image insert dialog
+│   │   │   │   ├── CanvasOverlays.tsx          # Canvas overlays (AI marks, etc.)
+│   │   │   │   ├── CanvasPresentOverlay.tsx    # Presentation mode overlay
+│   │   │   │   ├── CanvasSlideStrip.tsx        # Bottom slide thumbnail strip
+│   │   │   │   ├── canvasTheme.ts              # tldraw theme config
+│   │   │   │   ├── canvasTypes.ts              # Canvas-specific type helpers
+│   │   │   │   └── hooks/                      # Canvas-specific hooks
+│   │   │   ├── mobile/
+│   │   │   │   ├── MobileCopilot.tsx           # Mobile AI chat panel
+│   │   │   │   ├── MobileFileBrowser.tsx       # Mobile workspace file browser
+│   │   │   │   ├── MobileOnboarding.tsx        # Mobile first-run onboarding
+│   │   │   │   ├── MobilePreview.tsx           # Mobile document preview
+│   │   │   │   ├── MobileSettingsSheet.tsx     # Mobile settings bottom sheet
+│   │   │   │   ├── MobileVoiceMemo.tsx         # Voice memo recorder
+│   │   │   │   └── ToastList.tsx               # Mobile toast notification list
+│   │   │   ├── settings/
+│   │   │   │   ├── AccountTab.tsx              # Account + subscription info
+│   │   │   │   ├── AgentTab.tsx                # Agent prefs + risk permissions
+│   │   │   │   ├── AITab.tsx                   # AI provider/model selection + API keys
+│   │   │   │   ├── GeneralTab.tsx              # General prefs (theme, font, etc.)
+│   │   │   │   ├── McpTab.tsx                  # MCP server configuration
+│   │   │   │   ├── ShortcutsTab.tsx            # Keyboard shortcuts table
+│   │   │   │   ├── SyncTab.tsx                 # Git sync + Supabase accounts
+│   │   │   │   └── WorkspaceTab.tsx            # Workspace-level settings + Vercel config
+│   │   │   │   # — Root-level components —
+│   │   │   ├── Editor.tsx/css                  # CodeMirror 6 Markdown editor + ghost text + AI marks
+│   │   │   ├── ProseEditor.tsx/css             # Tiptap WYSIWYG editor (Grammarly-compatible)
+│   │   │   ├── CanvasEditor.tsx/css            # tldraw v4 canvas (uses canvas/ subfolder)
+│   │   │   ├── AIPanel.tsx/css                 # Right-side AI chat outer container
+│   │   │   ├── AgentSession.tsx                # Single agent instance (messages, input, tools)
+│   │   │   ├── AIMarkOverlay.tsx/css           # Floating chips over AI-marked text
+│   │   │   ├── AIReviewPanel.tsx/css           # Modal: pending AI edit marks per file
+│   │   │   ├── BacklinksPanel.tsx/css          # Backlinks + outlinks strip below editor
+│   │   │   ├── BottomPanel.tsx/css             # Embedded terminal + file-stat status strip
+│   │   │   ├── ContactDialog.tsx/css           # In-app contact form
+│   │   │   ├── DesktopOnboardingModal.tsx/css  # First-run desktop onboarding
+│   │   │   ├── DocxInfoPanel.tsx/css           # .docx info + extract view
+│   │   │   ├── EditorErrorBoundary.tsx         # Error boundary for editor crashes
+│   │   │   ├── ExportModal.tsx/css             # Export workspace/file (PDF, ZIP…)
+│   │   │   ├── FeedbackNudge.tsx/css           # Contextual feedback prompt
+│   │   │   ├── FindReplaceBar.tsx/css          # In-editor find/replace (⌘F)
+│   │   │   ├── ForceUpdateModal.tsx/css        # Mandatory update blocker modal
+│   │   │   ├── ImageSearchPanel.tsx/css        # Pexels stock photo search
+│   │   │   ├── MarkdownPreview.tsx/css         # Read-only MD rendered HTML (marked)
+│   │   │   ├── MediaViewer.tsx/css             # Image/video inline viewer
+│   │   │   ├── MobilePendingModal.tsx/css      # Mobile: cross-device pending tasks
+│   │   │   ├── NudgeToast.tsx/css              # Contextual nudge toast notifications
+│   │   │   ├── PDFViewer.tsx/css               # Native PDF embed (Tauri asset://)
+│   │   │   ├── PptxInfoPanel.tsx/css           # .pptx info + slide count
+│   │   │   ├── ProjectSearchPanel.tsx/css      # Workspace-wide search + replace
+│   │   │   ├── RtfViewer.tsx/css               # RTF → plain text viewer
+│   │   │   ├── SettingsModal.tsx/css           # Settings (tabs: General/AI/Agent/Sync/MCP/Account/Workspace/Shortcuts)
+│   │   │   ├── Sidebar.tsx/css                 # Left file-tree explorer; context menus
+│   │   │   ├── SpreadsheetViewer.tsx/css       # .xlsx/.csv spreadsheet viewer
+│   │   │   ├── SplashScreen.tsx/css            # App loading splash screen
+│   │   │   ├── SyncModal.tsx/css               # Git commit + push
+│   │   │   ├── TabBar.tsx/css                  # Open-file tabs
+│   │   │   ├── UpdateReleaseModal.tsx/css      # Release notes shown on update
+│   │   │   ├── WebPreview.tsx/css              # Embedded web page preview
+│   │   │   ├── WorkspaceHome.tsx/css           # Dashboard when no file is open
+│   │   │   └── WorkspacePicker.tsx/css         # First-run workspace selection
 │   │   ├── services/
-│   │   │   ├── copilot.ts    # streamCopilotChat(), runCopilotAgent(), fetchCopilotModels(),
-│   │   │   │                 #   modelSupportsVision(), startDeviceFlow(), getStoredOAuthToken()
-│   │   │   ├── supabase.ts   # Supabase client singleton (project: dxxwlnvemqgpdrnkzrcr)
-│   │   │   ├── syncConfig.ts # Auth (signIn/signUp/signOut/getSession) + listSyncedWorkspaces,
-│   │   │   │                 #   registerWorkspace, unregisterWorkspace + git account device flow
-│   │   │   ├── aiMarks.ts    # loadMarks(), addMark(), markReviewed() — .cafezin/ai-marks.json
-│   │   │   ├── copilotLog.ts # appendLogEntry() — session log in .cafezin/copilot-log.jsonl
-│   │   │   └── workspace.ts  # loadWorkspace(), readFile(), writeFile(), buildFileTree(), createCanvasFile()
-│   │   ├── types/
-│   │   │   └── index.ts      # All shared TS interfaces: CopilotModelInfo (supportsVision), AIEditMark, etc.
+│   │   │   ├── copilot/                        # GitHub Copilot service
+│   │   │   │   ├── index.ts                    # Re-exports: streamCopilotChat, runCopilotAgent, fetchCopilotModels
+│   │   │   │   ├── auth.ts                     # Device flow OAuth + token storage
+│   │   │   │   ├── compression.ts              # Context compression + summarization
+│   │   │   │   ├── constants.ts                # API URLs, model IDs, limits
+│   │   │   │   ├── diagnostics.ts              # Last request dump for debugging
+│   │   │   │   ├── messages.ts                 # Message formatting + context management
+│   │   │   │   ├── models.ts                   # Model fetching + FALLBACK_MODELS
+│   │   │   │   ├── streaming.ts                # SSE streaming
+│   │   │   │   ├── tokenBudget.ts              # Token estimation + summarization trigger
+│   │   │   │   └── toolParsing.ts              # Tool-call extraction
+│   │   │   ├── ai/                             # Multi-provider AI helpers
+│   │   │   │   ├── diagnostics.ts              # Last request dump per provider
+│   │   │   │   ├── messageConverter.ts         # Message format adapters per provider
+│   │   │   │   ├── providerModels.ts           # Model catalog per provider
+│   │   │   │   ├── runProviderAgent.ts         # Provider-generic agent loop
+│   │   │   │   └── tools-adapter.ts            # Tool definition format adapters
+│   │   │   ├── accountService.ts               # Account state / entitlement cache (Supabase RPC)
+│   │   │   ├── aiProvider.ts                   # Multi-provider dispatcher (BYOK)
+│   │   │   ├── aiSessionHistory.ts             # Per-session message history persistence
+│   │   │   ├── aiMarks.ts                      # AI mark tracking (.cafezin/ai-marks.json)
+│   │   │   ├── apiSecrets.ts                   # Encrypted API key storage (localStorage + Supabase)
+│   │   │   ├── config.ts                       # App + workspace config paths/constants
+│   │   │   ├── copilotLock.ts                  # Prevents concurrent Copilot requests
+│   │   │   ├── copilotLog.ts                   # Session log (copilot-log.jsonl)
+│   │   │   ├── fs.ts                           # File system wrappers (@tauri-apps/plugin-fs)
+│   │   │   ├── mcpClient.ts                    # MCP server lifecycle + tool exposure
+│   │   │   ├── memoryMetadata.ts               # Workspace memory file helpers
+│   │   │   ├── mobilePendingTasks.ts           # Cross-device pending task queue
+│   │   │   ├── publishVercel.ts                # Deploy local folder to Vercel via REST API
+│   │   │   ├── spreadsheet.ts                  # Spreadsheet file parsing
+│   │   │   ├── storageKeys.ts                  # SK constant map for localStorage keys
+│   │   │   ├── supabase.ts                     # Supabase client singleton
+│   │   │   ├── syncConfig.ts                   # Auth + workspace sync (Supabase)
+│   │   │   ├── taskService.ts                  # Per-agent task list in .cafezin/tasks.json
+│   │   │   ├── terminalBus.ts                  # Event bus for BottomPanel terminal I/O
+│   │   │   ├── windowing.ts                    # Multi-window via Tauri WebviewWindow
+│   │   │   ├── workspace.ts                    # loadWorkspace, readFile, writeFile, buildFileTree
+│   │   │   ├── workspaceIndex.ts               # File index + outline cache (.cafezin/workspace-index.json)
+│   │   │   └── workspaceSession.ts             # Active workspace session state
 │   │   ├── utils/
-│   │   │   ├── canvasAI.ts       # summarizeCanvas() (hierarchical), canvasToDataUrl(), executeCanvasCommands()
-│   │   │   ├── workspaceTools.ts # WORKSPACE_TOOLS (OpenAI format) + buildToolExecutor() for agent
-│   │   │   └── fileType.ts       # getFileTypeInfo() — maps extension → kind/mode/language
-│   │   ├── App.tsx           # Root: tabs + sidebar + editor/viewer + AI panel + all modals
+│   │   │   ├── tools/                          # Agent tool implementations
+│   │   │   │   ├── canvasTools.ts              # Canvas manipulation tools
+│   │   │   │   ├── configTools.ts              # Config read/write tools
+│   │   │   │   ├── fileTools.ts                # File CRUD tools
+│   │   │   │   ├── mcpTools.ts                 # MCP tool bridge
+│   │   │   │   ├── shared.ts                   # ToolDefinition / ToolExecutor types
+│   │   │   │   ├── skillTools.ts               # Skill/memory tools
+│   │   │   │   ├── taskTools.ts                # Task CRUD tools
+│   │   │   │   └── webTools.ts                 # Web search/fetch tools
+│   │   │   ├── agentCapabilities.ts            # Tool capability flags per context
+│   │   │   ├── agentPromptContext.ts           # System prompt builder
+│   │   │   ├── aiMarkMatch.ts / aiMarkRevert.ts # AI mark diff/revert helpers
+│   │   │   ├── appUtils.ts                     # General app utilities
+│   │   │   ├── assistantFileLinks.ts           # Parse/render file links in AI responses
+│   │   │   ├── canvasAI.ts                     # Canvas AI commands + summarization
+│   │   │   ├── canvasAICommands/Snapshot/Summary.ts  # Canvas AI sub-utilities
+│   │   │   ├── canvasRegistry.ts               # Canvas shape type registry
+│   │   │   ├── exportPDF.ts / exportWorkspace.ts  # Export utilities
+│   │   │   ├── fileType.ts                     # Extension → kind/mode/language
+│   │   │   ├── ghostText.ts                    # CodeMirror 6 inline completion extension
+│   │   │   ├── htmlPreview.ts                  # HTML preview rendering
+│   │   │   ├── livePreview.ts                  # Live preview sync helpers
+│   │   │   ├── markdownRender.ts               # Markdown → HTML (safe mode)
+│   │   │   ├── mathPreprocess.ts               # KaTeX/MathJax preprocessing
+│   │   │   ├── mime.ts                         # MIME type helpers
+│   │   │   ├── readPdfText.ts                  # PDF text extraction
+│   │   │   ├── riskGate.ts                     # Tool-call risk interception + permission prompts
+│   │   │   ├── rtfToText.ts                    # RTF → plain text converter
+│   │   │   ├── slidePreviews.ts                # Canvas slide thumbnail generation
+│   │   │   ├── toolRisk.ts                     # Risk level classification per tool
+│   │   │   ├── voiceLanguage.ts                # Voice input language detection
+│   │   │   ├── workspaceRoutines.ts            # Workspace type detection + agent routines
+│   │   │   ├── workspaceTools.ts               # WORKSPACE_TOOLS + buildToolExecutor()
+│   │   │   └── workspaceTypes.ts               # Workspace type classification
+│   │   ├── hooks/                              # React hooks (useBacklinks, useWorkspace, etc.)
+│   │   ├── types/
+│   │   │   └── index.ts                        # All shared TS interfaces + enums
+│   │   ├── App.tsx                             # Root: tabs, sidebar, editor routing, modals, multi-window
 │   │   └── App.css
 │   ├── src-tauri/
 │   │   ├── src/
-│   │   │   ├── lib.rs        # Tauri commands: git_init, git_sync, update_app + native menu
+│   │   │   ├── lib.rs           # Tauri commands: git_*, update_app, terminal, MCP process mgmt
 │   │   │   └── main.rs
-│   │   ├── capabilities/default.json  # FS + HTTP permissions — $HOME/**, pexels + images.pexels.com
+│   │   ├── capabilities/default.json  # FS + HTTP permissions
 │   │   └── tauri.conf.json
-│   ├── .env                  # VITE_GITHUB_TOKEN=... (gitignored, optional — OAuth preferred)
+│   ├── .env                     # VITE_GITHUB_TOKEN=... (gitignored, optional)
 │   └── .env.example
 ├── docs/
-│   └── brainstorm.md
+├── landing/                     # Static HTML landing pages (Vercel output)
 ├── scripts/
-│   ├── build-mac.sh          # Full Tauri build + install to ~/Applications (~5-8 min first time)
-│   ├── update-app.sh         # Incremental rebuild + reinstall (~15-120s)
-│   └── sync.sh               # git add -A + commit + push
-├── AGENT.md                  # ← you are here
+│   ├── build-mac.sh
+│   ├── update-app.sh
+│   └── sync.sh
+├── AGENT.md
 └── README.md
 ```
 
@@ -251,23 +393,32 @@ All three open the same **inline creator panel** in the sidebar footer:
 
 ## Editor / Viewer Modes
 
-| File type          | Mode           | Toggle shown         | Notes                                                                                              |
-| ------------------ | -------------- | -------------------- | -------------------------------------------------------------------------------------------------- |
-| `.md` / `.mdx`     | Edit (default) | Yes — Edit / Preview | Preview uses `marked` (GFM)                                                                        |
-| `.pdf`             | Preview only   | No                   | `convertFileSrc` → WebKit embed                                                                    |
-| `.tldr.json`       | Canvas only    | No                   | tldraw v4; JSON snapshot stored on disk; git-tracked; grid+snap on by default; **Frames = slides** |
-| `.ts`, `.js`, code | Edit only      | No                   | CodeMirror, no syntax HL yet (extension not loaded)                                                |
-| unknown            | Edit only      | No                   | Plain text fallback                                                                                |
+| File type          | Mode           | Toggle shown                 | Notes                                                                                          |
+| ------------------ | -------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `.md` / `.mdx`     | Edit (default) | Yes — Edit / Preview / Prose | Edit = CodeMirror 6 + ghost text; Preview = `marked` (GFM); Prose = Tiptap WYSIWYG (Grammarly) |
+| `.txt`             | Edit (default) | Yes — Edit / Prose           | Prose mode available for plain-text files too                                                  |
+| `.pdf`             | Preview only   | No                           | `convertFileSrc` → WebKit embed                                                                |
+| `.tldr.json`       | Canvas only    | No                           | tldraw v4; JSON snapshot stored on disk; Frames = slides                                       |
+| `.xlsx` / `.csv`   | Spreadsheet    | No                           | `SpreadsheetViewer.tsx` — table render with filtering                                          |
+| `.docx`            | Info panel     | No                           | `DocxInfoPanel.tsx` — metadata + text extraction                                               |
+| `.pptx`            | Info panel     | No                           | `PptxInfoPanel.tsx` — slide count + metadata                                                   |
+| `.rtf`             | Plain text     | No                           | `RtfViewer.tsx` — RTF → plain text for reading                                                 |
+| `.html`            | Web preview    | No                           | `WebPreview.tsx` — embedded browser view                                                       |
+| `.ts`, `.js`, code | Edit only      | No                           | CodeMirror, syntax HL via CM6 language extensions                                              |
+| image/video        | Media viewer   | No                           | `MediaViewer.tsx` — binary Tauri fs read → object URL                                          |
+| unknown            | Edit only      | No                           | Plain text fallback                                                                            |
 
 ---
 
 ## AI Model Picker
 
-- Dropdown in AIPanel header shows live models from `/models`
-- Rate badges: **free** (green, 0×), **standard** (blue, 1×), **premium** (yellow, >1×)
-- `isPremium` = `multiplier > 1`
-- `supportsVision: boolean` on `CopilotModelInfo` — false for o-series reasoning models
+- Provider tabs in `AITab` (Settings): Cafezin IA, GitHub Copilot, OpenAI, Anthropic, Groq, Google, Custom/Local
+- `AIModelPicker.tsx` shows models available for the active provider
+- Cafezin IA: default provider for new users; uses managed credits; `ManagedAIQuotaModal` shown on quota exhaustion
+- Copilot rate badges: **free** (green, 0×), **standard** (blue, 1×), **premium** (yellow, >1×)
+- `modelSupportsVision(id)` — false for o-series models (`/^o\d/`)
 - `FALLBACK_MODELS`: gpt-4o-mini (free, vision ✓), gpt-4o (1×, vision ✓), claude-sonnet-4-5 (1×, vision ✓), o3-mini (1×, vision ✗)
+- Custom endpoint URL + model ID are **localStorage-only** (never synced, for privacy)
 
 ---
 
@@ -307,12 +458,13 @@ All three open the same **inline creator panel** in the sidebar footer:
 
 ---
 
-## Known Limitations / Next Up
+## Known Limitations / Notes
 
-- **No syntax highlighting** for non-Markdown files (CodeMirror language extensions not loaded)
+- **Ghost text** only works with providers that support fast completions (Copilot, OpenAI, Groq); disabled for Anthropic that doesn't have a `/completions` endpoint
 - **`git_sync`** — best-effort push to `origin HEAD`; no remote = silently OK
-- **Image save (Pexels):** Requires Tauri app rebuild after `capabilities/default.json` change (`images.pexels.com` domain added); run `./scripts/update-app.sh`
-- **AI mark jump on canvas:** Zooms to shape bounds; text-file jump uses `editorRef.jumpToText()`
+- **Risk gate UX:** medium/high-risk tools show a confirm dialog; granted permissions stored per-session or permanently in `WorkspaceConfig.riskPermissions`
+- **Workspace index** rebuilds incrementally on file change; max 300 files tracked
+- **MCP servers** start/stop as child processes via Tauri commands; each tool prefixed `mcp__<serverId>__<toolName>`
 
 ---
 
@@ -333,6 +485,116 @@ CREATE POLICY "example" ON my_table
 ```
 
 Corrigido em março/2026 via `supabase/migrations/0003_fix_rls_auth_init_plan.sql`.
+
+---
+
+## Landing Pages
+
+**Location:** `cafezin/landing/` (EN) and `cafezin/landing/br/` (PT-BR)  
+**Deploy:** Static files served by Vercel — `outputDirectory: "landing"`, `cleanUrls: true`  
+**Design system:** `style.css` (dark `#111110`, amber accent `#D4A853`, Newsreader serif + Manrope UI)  
+**Analytics:** `landing-analytics.js` + gtag `G-0PNRME8PLH`
+
+### ⚠️ REGRA CRÍTICA — Adaptação de plataforma (Mac ↔ Windows)
+
+Cafezin roda em **Mac E Windows**. Toda landing page deve adaptar o conteúdo para a plataforma do visitante.
+O mecanismo é implementado em `landing-analytics.js` e chamado automaticamente via `adaptHeroCta()` + `adaptPlatformContent()`.
+
+**Nunca escreva copy Mac-only nas landings.** Sempre use os mecanismos abaixo:
+
+#### Mecanismo 1 — IDs de botão para herós (tratados em `adaptHeroCta()`)
+
+| ID                | Windows recebe                                         |
+| ----------------- | ------------------------------------------------------ |
+| `js-hero-primary` | href → `/download/windows`, label via `data-win-label` |
+| `js-hero-alt`     | href → `/download/mac` (inverte)                       |
+| `js-cta-primary`  | href → `/download/windows`, label via `data-win-label` |
+| `js-cta-alt`      | href → `/download/mac`                                 |
+| `js-pricing-free` | href → `/download/windows`, label via `data-win-label` |
+| `js-lp-primary`   | href → `/download/windows` (LP dedicada)               |
+| `js-lp-final`     | href → `/download/windows` (LP dedicada)               |
+
+Botão principal sempre usa `id` acima + `data-win-label="Download free for Windows →"`.  
+Botão secundário usa `id` acima + `data-win-label="Mac"` (ou texto equivalente).
+
+#### Mecanismo 2 — Texto/HTML genérico (tratados em `adaptPlatformContent()`)
+
+```html
+<!-- Troca innerHTML inteiro no Windows -->
+<p data-win-content="Windows 10+·64-bit·~90 MB·Code-signed">
+  macOS 13+·~68 MB·Notarized by Apple
+</p>
+
+<!-- Troca só o texto no Windows -->
+<span data-win-text="Windows">Mac</span>
+
+<!-- Esconde no Windows -->
+<span class="platform-mac">Apple Silicon</span>
+
+<!-- Mostra só no Windows (hidden por padrão) -->
+<span class="platform-win" hidden>64-bit installer</span>
+```
+
+#### Mecanismo 3 — Destaque de botão em páginas com ambas plataformas
+
+Em páginas que listam Mac E Windows lado a lado (ex: `download.html`), `adaptHeroCta()` troca as classes:
+
+- `a[data-platform='mac'].btn-primary` → vira `btn-outline`
+- `a[data-platform='windows'].btn-outline` → vira `btn-primary`
+
+Assim o botão Windows aparece como destaque para visitantes Windows.
+
+#### Specs por plataforma
+
+|                | macOS                     | Windows                       |
+| -------------- | ------------------------- | ----------------------------- |
+| Requisitos     | macOS 13 Ventura+         | Windows 10+                   |
+| Arquitetura    | Apple Silicon & Intel     | 64-bit                        |
+| Tamanho        | ~68 MB                    | ~90 MB                        |
+| Assinatura     | Notarized by Apple        | Code-signed                   |
+| Texto do botão | `Download free for Mac →` | `Download free for Windows →` |
+| Href           | `/download/mac`           | `/download/windows`           |
+
+### Páginas existentes (EN)
+
+| Arquivo                                                                                                               | Tipo          | Status plataforma              |
+| --------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------ |
+| `index.html`                                                                                                          | Homepage      | ✅ adaptado                    |
+| `pricing.html`                                                                                                        | Pricing       | ✅ adaptado                    |
+| `download.html`                                                                                                       | Downloads     | ✅ adaptado (destaque inverte) |
+| `about.html`                                                                                                          | About         | ✅ adaptado                    |
+| `writers.html`, `educators.html`, `copywriters.html`, `students.html`, `content-creators.html`, `knowledge-work.html` | Niche         | ✅ (fallback genérico)         |
+| `compare-*.html`                                                                                                      | Comparações   | ✅ (fallback genérico)         |
+| `lp/markdown-editor-mac.html`                                                                                         | Google Ads LP | ✅ adaptado                    |
+
+### Estrutura padrão de uma nova landing (CTA hero)
+
+```html
+<a
+  href="/download/mac"
+  id="js-hero-primary"
+  class="btn btn-primary btn-download"
+  data-platform="mac"
+  data-win-label="Download free for Windows →"
+>
+  <svg data-icon="mac" ...></svg>
+  <svg data-icon="win" ... style="display:none"></svg>
+  <span data-cta-label>Download free for Mac →</span>
+</a>
+<a
+  href="/download/windows"
+  id="js-hero-alt"
+  class="btn btn-outline btn-download hero-link"
+  data-platform="windows"
+  data-win-label="Also on Mac"
+  >Also on Windows</a
+>
+
+<!-- Sysreq — adapta no Windows via data-win-content -->
+<p class="hero-sysreq" data-win-content="Windows 10+·64-bit·~90 MB·Code-signed">
+  macOS 13 Ventura+·Apple Silicon & Intel·~68 MB·Notarized by Apple
+</p>
+```
 
 ---
 
@@ -365,3 +627,4 @@ cd app && npx tsc --noEmit
 - **2026-02-23** — Canvas AI hardening → slide strip UX overhaul → image save fix → AI review panel wired → context summarization → slide sync & theme hardening → theme bg fix → slide layouts → format panel v1+v2 (rotation, opacity, align, lock, corner radius, shadow, geo picker, dimensions, layer order, group/ungroup, flip) → AI error recovery.
 - **2026-02-28** — Export system v2: added 5 new PDF target capabilities: (1) **Custom CSS** (`pdfCssFile`) — workspace-relative `.css` appended after default styles; (2) **Title page** (`titlePage`) — title/subtitle/author/version page prepended to PDF; (3) **TOC** (`toc: true`) — auto-generates H1/H2 table of contents for merged PDFs; (4) **Output versioning** (`versionOutput: 'timestamp'|'counter'`) — date-stamped or auto-incremented filenames; (5) **Pre-export transformations** (`preProcess`) — strip YAML frontmatter, `### Draft` sections, `<details>` blocks before rendering.
 - **2026-03-02** — Agent capability improvements: (1) **`multi_patch` tool** — applies an array of `{path, search, replace, occurrence}` patches across multiple files in one round-trip; files are read once, all patches applied in memory, then written once per file; (2) **Context depth increased** — AGENT.md 3000→8000 chars, documentContext 6000→15000 chars, memory 4000→6000 chars; (3) **Test-aware system prompt** — agent now instructed to run tests (`npm test`, `pytest`, `tsc --noEmit`) after edits in code workspaces and iterate on failures; (4) **Multi/surgical edit guidance** — system prompt now explicitly teaches when to use `patch_workspace_file` vs `multi_patch` vs `write_workspace_file`. (5) **`publish_vercel` improvements** — new `setup` action scaffolds `vercel.json` + `.vercelignore` for `static`/`spa`/`demos`/`node` project types; `deploy` action gains `buildCommand` + `buildOutputDir` params for one-shot build-then-deploy; Demo Hub system prompt updated with setup workflow and vercel.json guidance.
+- **2026-05 (this session)** — AGENT.md comprehensive update: documented multi-provider BYOK (`aiProvider.ts`), MCP integration (`mcpClient.ts`), ghost text (`ghostText.ts`), ProseEditor (Tiptap WYSIWYG), BacklinksPanel, BottomPanel (terminal), SpreadsheetViewer / DocxInfoPanel / PptxInfoPanel / RtfViewer / WebPreview, RiskGate + toolRisk, workspaceIndex, taskService, windowing, publishVercel, accountService, mobile app subfolder, all new component subfolders (ai/, canvas/, mobile/, settings/, app/), services/copilot/ and services/ai/ subfolders, utils/tools/ subfolder.

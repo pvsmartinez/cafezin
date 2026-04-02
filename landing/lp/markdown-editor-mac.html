@@ -426,12 +426,12 @@
     <div class="hero-glow hero-glow-1" style="opacity:0.7;"></div>
     <div class="lp-hero">
       <div class="lp-hero-text">
-        <div class="lp-kicker">Free for Mac · Local-first</div>
+        <div class="lp-kicker">Free for <span data-win-text="Windows">Mac</span> · Local-first</div>
 
         <h1 class="lp-h1">
           The Markdown Editor<br/>
           &amp; AI Canvas<br/>
-          <em>for Mac.</em>
+          <em>for <span data-win-text="Windows">Mac</span>.</em>
         </h1>
 
         <p class="lp-sub">
@@ -453,7 +453,8 @@
             </svg>
             <span data-cta-label>Download free for Mac →</span>
           </a>
-          <p class="lp-sysreq">
+          <p class="lp-sysreq"
+             data-win-content="Windows 10+<span class='lp-sysreq-sep'>·</span>64-bit<span class='lp-sysreq-sep'>·</span>~90 MB<span class='lp-sysreq-sep'>·</span>Code-signed<span class='lp-sysreq-sep'>·</span>No account required">
             macOS 13 Ventura+<span class="lp-sysreq-sep">·</span>Apple Silicon &amp; Intel<span class="lp-sysreq-sep">·</span>~68 MB<span class="lp-sysreq-sep">·</span>Notarized by Apple<span class="lp-sysreq-sep">·</span>No account required
           </p>
         </div>
@@ -497,7 +498,7 @@
       <span><span class="lp-proof-check">✓</span>No credit card</span>
       <span><span class="lp-proof-check">✓</span>Plain Markdown — no vendor lock-in</span>
       <span><span class="lp-proof-check">✓</span>Works fully offline</span>
-      <span><span class="lp-proof-check">✓</span>Notarized by Apple</span>
+      <span><span class="lp-proof-check">✓</span><span data-win-text="Code-signed and safe">Notarized by Apple</span></span>
     </div>
   </div>
 
@@ -545,7 +546,7 @@
       <div class="lp-feat winner">
         <span class="lp-feat-icon">📝</span>
         <h3 class="lp-feat-title">Plain Markdown, always yours</h3>
-        <p class="lp-feat-desc">Files live on your Mac as standard <code>.md</code> files. No proprietary format, no export step. Open them in any editor — today and in ten years.</p>
+        <p class="lp-feat-desc">Files live on your device as standard <code>.md</code> files. No proprietary format, no export step. Open them in any editor — today and in ten years.</p>
       </div>
 
       <div class="lp-feat winner">
@@ -652,7 +653,10 @@
           </svg>
           <span data-cta-label>Download free for Mac →</span>
         </a>
-        <p class="lp-sysreq">macOS 13+<span class="lp-sysreq-sep">·</span>~68 MB<span class="lp-sysreq-sep">·</span>Notarized by Apple<span class="lp-sysreq-sep">·</span>Cancel anytime</p>
+        <p class="lp-sysreq"
+           data-win-content="Windows 10+<span class='lp-sysreq-sep'>·</span>~90 MB<span class='lp-sysreq-sep'>·</span>Code-signed<span class='lp-sysreq-sep'>·</span>Cancel anytime">
+          macOS 13+<span class="lp-sysreq-sep">·</span>~68 MB<span class="lp-sysreq-sep">·</span>Notarized by Apple<span class="lp-sysreq-sep">·</span>Cancel anytime
+        </p>
       </div>
     </div>
   </section>
@@ -672,41 +676,19 @@
   <script src="/landing-analytics.js"></script>
 
   <script>
-    // Platform-aware CTA (Mac vs Windows detection)
+    // Mobile: replace download CTAs with email-to-myself link.
+    // Windows button/text swaps are handled by landing-analytics.js (adaptHeroCta + adaptPlatformContent).
     (function () {
-      var isWin = /Windows/i.test(navigator.userAgent);
-      var isMobile = /Android|iPhone|iPad|iPod|IEMobile/i.test(navigator.userAgent);
-
-      // Mobile: swap to email-to-myself
-      if (isMobile) {
-        document.addEventListener('DOMContentLoaded', function () {
-          ['js-lp-primary', 'js-lp-final'].forEach(function (id) {
-            var el = document.getElementById(id);
-            if (!el) return;
-            var subject = encodeURIComponent('Download Cafezin — Markdown editor for Mac');
-            var body = encodeURIComponent('Download free at: https://cafezin.pmatz.com/download');
-            el.outerHTML = '<a href="mailto:?subject=' + subject + '&body=' + body + '" class="btn btn-primary">📩 Email download link to myself</a>';
-          });
+      if (!/Android|iPhone|iPad|iPod|IEMobile/i.test(navigator.userAgent)) return;
+      document.addEventListener('DOMContentLoaded', function () {
+        var subject = encodeURIComponent('Download Cafezin — Markdown editor for Mac & Windows');
+        var body = encodeURIComponent('Download free at: https://cafezin.pmatz.com/download');
+        ['js-lp-primary', 'js-lp-final'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.outerHTML = '<a href="mailto:?subject=' + subject + '&body=' + body + '" class="btn btn-primary">📩 Email download link to myself</a>';
         });
-        return;
-      }
-
-      // Windows: swap label and href
-      if (isWin) {
-        document.querySelectorAll('[data-platform]').forEach(function (el) {
-          var winLabel = el.getAttribute('data-win-label');
-          if (winLabel) {
-            var labelEl = el.querySelector('[data-cta-label]');
-            if (labelEl) labelEl.textContent = winLabel;
-          }
-          el.setAttribute('href', '/download/windows');
-          el.setAttribute('data-platform', 'windows');
-          var macIcon = el.querySelector('[data-icon="mac"]');
-          var winIcon = el.querySelector('[data-icon="win"]');
-          if (macIcon) macIcon.style.display = 'none';
-          if (winIcon) winIcon.style.display = '';
-        });
-      }
+      });
     })();
   </script>
 
