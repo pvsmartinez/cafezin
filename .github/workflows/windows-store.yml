@@ -166,8 +166,8 @@ jobs:
           & $signtool sign /fd sha256 /sha1 "${{ steps.cert.outputs.thumbprint }}" Cafezin.msix
 
       - name: Checksum
-        shell: bash
-        run: shasum -a 256 Cafezin.msix > Cafezin.msix.sha256
+        shell: pwsh
+        run: (Get-FileHash Cafezin.msix -Algorithm SHA256).Hash.ToLower() + "  Cafezin.msix" | Set-Content Cafezin.msix.sha256
 
       - name: Upload MSIX artifact
         uses: actions/upload-artifact@v4
