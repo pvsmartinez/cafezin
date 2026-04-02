@@ -465,44 +465,77 @@
   <section class="pricing-preview">
     <div class="section-inner">
       <div class="section-label">Pricing</div>
-      <h2 class="section-title">Simple, honest pricing</h2>
+      <h2 class="section-title">Start free. Unlock AI when you need it.</h2>
 
-      <div class="plan-grid">
-        <div class="plan-card">
-          <h3 class="plan-name">Free</h3>
-          <p class="plan-price">$0 <span>forever</span></p>
-          <p class="plan-desc">Everything you need to write, plan, and think clearly.</p>
-          <ul class="plan-features">
-            <li>Full Markdown editor</li>
-            <li>Visual canvas + slides</li>
-            <li>Local files — no cloud sync required</li>
-            <li>Upgrade to unlock AI when you need it</li>
+      <div class="pricing-grid" style="margin-bottom:32px;">
+
+        <div class="pricing-card">
+          <div class="pricing-plan">Free</div>
+          <div class="pricing-price">
+            <span class="pricing-amount">$0</span>
+            <span class="pricing-period">forever</span>
+          </div>
+          <p class="pricing-desc">Full editor, canvas, slides, and local files. No time limit.</p>
+          <ul class="pricing-features">
+            <li class="pricing-feature"><span class="pf-check">✓</span> Markdown editor + canvas + slides</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> Local files — no cloud required</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> Built-in version history</li>
+            <li class="pricing-feature"><span class="pf-no">—</span> <span class="pf-disabled">AI features</span></li>
           </ul>
-           <a href="/download/mac"
-             id="js-pricing-free"
-             class="btn btn-outline btn-download"
-             data-platform="mac"
-             data-win-label="Download free for Windows">
+          <a href="/download/mac" id="js-pricing-free" class="btn pricing-btn pricing-btn-ghost btn-download" data-platform="mac" data-win-label="Download free for Windows">
             Download free
           </a>
         </div>
 
-        <div class="plan-card featured">
-          <div class="plan-badge">Most popular</div>
-          <h3 class="plan-name">Paid plans</h3>
-          <p class="plan-price">from $5 <span>/month</span></p>
-          <p class="plan-desc">Basic, Standard, and Pro for AI workflows with managed credits or BYOK.</p>
-          <ul class="plan-features">
-            <li>All paid plans unlock AI in Cafezin</li>
-            <li>Managed Cafezin AI included: $2, $15, or $40 monthly</li>
-            <li>BYOK still available with Copilot, OpenAI, Anthropic, and more</li>
-            <li>Choose the tier that matches your usage</li>
-            <li>Manage or cancel on the web anytime</li>
+        <div class="pricing-card">
+          <div class="pricing-plan">Basic</div>
+          <div class="pricing-price">
+            <span class="pricing-amount">$5</span>
+            <span class="pricing-period">/month</span>
+          </div>
+          <p class="pricing-desc">Unlock AI with a light budget. Great for occasional use.</p>
+          <ul class="pricing-features">
+            <li class="pricing-feature"><span class="pf-check">✓</span> Everything in Free</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> AI drafting, chat &amp; review</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> $2/mo managed AI included</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> BYOK (Copilot, OpenAI, Claude…)</li>
           </ul>
-          <a href="/pricing" class="btn btn-primary" style="justify-content:center;">
-            See full pricing →
-          </a>
+          <a href="/premium?tier=basic" class="btn pricing-btn pricing-btn-accent">Start Basic</a>
         </div>
+
+        <div class="pricing-card pricing-card-featured">
+          <div class="pricing-badge">Most popular</div>
+          <div class="pricing-plan">Standard</div>
+          <div class="pricing-price">
+            <span class="pricing-amount">$20</span>
+            <span class="pricing-period">/month</span>
+          </div>
+          <p class="pricing-desc">Daily AI writing with a generous included budget.</p>
+          <ul class="pricing-features">
+            <li class="pricing-feature"><span class="pf-check">✓</span> Everything in Basic</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> $15/mo managed AI included</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> Best for longer drafting sessions</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> Priority email support</li>
+          </ul>
+          <a href="/premium?tier=standard" class="btn pricing-btn pricing-btn-accent">Start Standard</a>
+        </div>
+
+        <div class="pricing-card">
+          <div class="pricing-plan">Pro</div>
+          <div class="pricing-price">
+            <span class="pricing-amount">$50</span>
+            <span class="pricing-period">/month</span>
+          </div>
+          <p class="pricing-desc">Power users and heavy AI workflows.</p>
+          <ul class="pricing-features">
+            <li class="pricing-feature"><span class="pf-check">✓</span> Everything in Standard</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> $40/mo managed AI included</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> Highest managed AI budget</li>
+            <li class="pricing-feature"><span class="pf-check">✓</span> Priority billing support</li>
+          </ul>
+          <a href="/premium?tier=pro" class="btn pricing-btn pricing-btn-accent">Start Pro</a>
+        </div>
+
       </div>
 
       <p class="pricing-note">
@@ -555,7 +588,7 @@
 
         <details>
           <summary>Which AI models does it support?</summary>
-          <div class="faq-accordion-body">Cafezin works with GitHub Copilot, OpenAI (GPT-4o, o3), Anthropic Claude, Google Gemini, and Groq. Paid plans include managed Cafezin AI credits so you don't need your own API key. BYOK (Bring Your Own Key) is always available on any plan.</div>
+          <div class="faq-accordion-body">Cafezin works with GitHub Copilot, OpenAI's latest models, Anthropic Claude, Google Gemini, and Groq. Paid plans include managed Cafezin AI credits so you don't need your own API key. BYOK (Bring Your Own Key) is always available on any plan.</div>
         </details>
 
         <details>
