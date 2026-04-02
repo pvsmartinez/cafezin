@@ -567,6 +567,30 @@ Assim o botão Windows aparece como destaque para visitantes Windows.
 | `compare-*.html`                                                                                                      | Comparações   | ✅ (fallback genérico)         |
 | `lp/markdown-editor-mac.html`                                                                                         | Google Ads LP | ✅ adaptado                    |
 
+### ⚠️ REGRA CRÍTICA — Tracking de conversão (Google Ads / GA4)
+
+**TODA landing page DEVE ter rastreamento correto nos CTAs. Sem isso o Google Ads não sabe o que converter.**
+
+Checklist obrigatório para qualquer botão de download/CTA principal:
+
+1. **Classe `btn-download`** — obrigatória em **todos** os `<a>` que levam a `/download/mac` ou `/download/windows`.
+   Sem essa classe o `landing-analytics.js` **não dispara** o evento `file_download`.
+
+2. **O evento `file_download`** é disparado automaticamente pelo `landing-analytics.js` em todo elemento `.btn-download`.
+   Ele usa `gtagSendEvent()` que aguarda o callback do GA4 antes de navegar — garantindo que o hit seja enviado.
+
+3. **Nunca criar um CTA de download sem `btn-download`** — nem em LPs novas, nem ao duplicar botões existentes.
+
+4. **Verificação rápida após criar/editar uma LP:**
+
+   ```bash
+   grep -n 'btn-download' cafezin/landing/caminho/para/pagina.html
+   # Deve aparecer em TODOS os links de /download/mac e /download/windows
+   ```
+
+5. **Configuração no Google Ads:** o evento `file_download` deve estar marcado como conversão no
+   GA4 → Administrador → Eventos → Marcar como conversão. O Google Ads importa automaticamente.
+
 ### Estrutura padrão de uma nova landing (CTA hero)
 
 ```html
