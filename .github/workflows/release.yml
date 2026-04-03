@@ -189,3 +189,18 @@ jobs:
           git diff --staged --quiet || git commit -m "chore: update latest.json for ${{ inputs.tag }} [skip ci]"
           git pull --rebase
           git push
+
+  # ── Windows Store MSIX (parallel, no dependency on release job) ─────────
+  # Builds the MSIX for Partner Center. Artifact is available in the Actions
+  # run for ~90 days. After CI, download it and submit in Partner Center.
+  build-msix:
+    name: Windows Store MSIX
+    uses: ./.github/workflows/windows-store.yml
+    with:
+      tag: ${{ inputs.tag }}
+      identity_name: PmatzSolutions.Cafezin
+      publisher_cn: CN=A18A6B2B-9CDD-4D86-822D-3131CE1CC3EE
+    secrets:
+      GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}

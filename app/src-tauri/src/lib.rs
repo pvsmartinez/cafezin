@@ -1606,6 +1606,7 @@ async fn github_create_repo(repo_name: String, private_repo: bool, token: String
 fn build_channel() -> &'static str {
     if cfg!(target_os = "ios") { "ios" }
     else if cfg!(feature = "mas") { "mas" }
+    else if cfg!(feature = "msix") { "msix" }
     else if cfg!(debug_assertions) { "dev" }
     else { "release" }
 }

@@ -43,3 +43,9 @@ git2 = { version = "0.19", features = ["vendored-libgit2", "vendored-openssl"] }
 # Enable native-Rust git (no git CLI) for Mac App Store and iOS builds.
 # Build with: cargo build --features mas
 mas = ["dep:git2"]
+
+# Windows Store / MSIX distribution.
+# Makes build_channel() return "msix" so the in-app Tauri updater is skipped;
+# the Microsoft Store handles updates instead.
+# Build with: npx tauri build --no-bundle --features msix
+msix = []

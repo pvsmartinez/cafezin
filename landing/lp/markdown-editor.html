@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0PNRME8PLH"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-0PNRME8PLH');
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Markdown Editor & AI Canvas — Cafezin</title>
+  <meta name="description" content="Cafezin is a Markdown editor and AI canvas for Mac and Windows. Your files stay local, no cloud sync, no lock-in. Free download." />
+  <meta name="robots" content="noindex, nofollow" />
+
+  <link rel="canonical" href="https://cafezin.pmatz.com/lp/markdown-editor" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icon.png" />
+  <link rel="apple-touch-icon" href="/icon.png" />
+  <meta name="theme-color" content="#1c1610" />
+
+  <!-- OG (for social previews if shared) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://cafezin.pmatz.com/lp/markdown-editor" />
+  <meta property="og:title" content="Markdown Editor & AI Canvas — Cafezin" />
+  <meta property="og:description" content="Your files stay local. Markdown + visual canvas + AI that works inside your own documents. Free for Mac and Windows." />
+  <meta property="og:image" content="https://cafezin.pmatz.com/screen-editor.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,600;1,6..72,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+
+  <style>
+    /* ── LP-specific overrides ─────────────────────────────────────────── */
+    /* No nav — zero escape links */
+    .lp-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .lp-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-bright);
+      font-weight: 700;
+      font-size: 18px;
+      font-family: var(--font-serif);
+    }
+    .lp-logo img {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+    }
+
+    /* Hero — left/right split on desktop */
+    .lp-hero {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 72px 24px 80px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 56px;
+      align-items: center;
+    }
+    .lp-hero-text {}
+    .lp-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent-dim);
+      border: 1px solid rgba(var(--accent-rgb), 0.3);
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .lp-h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(34px, 4.5vw, 58px);
+      font-weight: 700;
+      color: var(--text-bright);
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+    .lp-h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+    .lp-sub {
+      font-size: clamp(16px, 1.8vw, 18px);
+      color: var(--text-muted);
+      line-height: 1.65;
+      margin-bottom: 32px;
+      max-width: 480px;
+    }
+    .lp-cta-group {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .lp-sysreq {
+      font-size: 12px;
+      color: var(--text-dim);
+      letter-spacing: 0.02em;
+    }
+    .lp-sysreq-sep { margin: 0 6px; opacity: 0.5; }
+
+    /* Benefits strip */
+    .lp-benefits {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 28px;
+      padding-top: 28px;
+      border-top: 1px solid var(--border);
+    }
+    .lp-benefit {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .lp-benefit-icon {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 15px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .lp-benefit strong {
+      color: var(--text-bright);
+    }
+
+    /* Hero screenshot */
+    .lp-hero-visual {
+      position: relative;
+    }
+    .lp-screenshot-wrap {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(var(--accent-rgb), 0.25);
+      box-shadow:
+        0 0 0 1px rgba(var(--accent-rgb), 0.08),
+        0 32px 80px rgba(0,0,0,0.55),
+        0 0 50px rgba(var(--accent-rgb), 0.08);
+    }
+    .lp-screenshot-wrap img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .lp-visual-caption {
+      font-size: 12px;
+      color: var(--text-dim);
+      text-align: center;
+      margin-top: 10px;
+      letter-spacing: 0.02em;
+    }
+
+    /* Social proof bar */
+    .lp-proof-bar {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      padding: 16px 24px;
+    }
+    .lp-proof-bar-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 6px 20px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .lp-proof-check { color: var(--accent); font-weight: 700; margin-right: 4px; }
+
+    /* Features — 3 col */
+    .lp-features {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 80px 24px;
+    }
+    .lp-features-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .lp-features-label::before {
+      content: '';
+      display: block;
+      width: 20px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+    .lp-features-title {
+      font-family: var(--font-serif);
+      font-size: clamp(24px, 3vw, 36px);
+      font-weight: 700;
+      color: var(--text-bright);
+      margin-bottom: 40px;
+      line-height: 1.2;
+      letter-spacing: -0.015em;
+    }
+    .lp-features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .lp-feat {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      padding: 24px 22px;
+    }
+    .lp-feat-icon { font-size: 26px; margin-bottom: 12px; display: block; }
+    .lp-feat-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-bright);
+      margin-bottom: 8px;
+    }
+    .lp-feat-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+    .lp-feat.winner {
+      border-color: rgba(var(--accent-rgb), 0.3);
+      background: linear-gradient(135deg, rgba(212, 168, 83, 0.06), var(--surface));
+    }
+
+    /* Testimonials — horizontal 3 */
+    .lp-testimonials {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 64px 24px;
+    }
+    .lp-testimonials-inner {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .lp-testimonials-title {
+      font-family: var(--font-serif);
+      font-size: clamp(22px, 2.5vw, 32px);
+      font-weight: 700;
+      color: var(--text-bright);
+      margin-bottom: 32px;
+      text-align: center;
+      letter-spacing: -0.015em;
+    }
+    .lp-tgrid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .lp-tcard {
+      background: var(--bg);
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .lp-tcard-stars { color: var(--accent); font-size: 13px; letter-spacing: 2px; }
+    .lp-tcard-text {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.75;
+      font-style: italic;
+      flex: 1;
+    }
+    .lp-tcard-author {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .lp-tcard-author img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid rgba(var(--accent-rgb), 0.3);
+      flex-shrink: 0;
+    }
+    .lp-tcard-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+    .lp-tcard-role {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Final CTA */
+    .lp-final-cta {
+      text-align: center;
+      padding: 80px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .lp-final-cta-glow {
+      position: absolute;
+      width: 500px;
+      height: 300px;
+      background: radial-gradient(ellipse, rgba(var(--accent-rgb), 0.08) 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .lp-final-cta-inner {
+      max-width: 580px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+    .lp-final-cta-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      margin: 0 auto 20px;
+      display: block;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 24px rgba(var(--accent-rgb), 0.15);
+    }
+    .lp-final-cta-title {
+      font-family: var(--font-serif);
+      font-size: clamp(26px, 3.5vw, 42px);
+      font-weight: 700;
+      color: var(--text-bright);
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
+    }
+    .lp-final-cta-sub {
+      font-size: 16px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 36px;
+    }
+    .lp-final-cta-sub strong { color: var(--accent); }
+
+    /* Simple footer */
+    .lp-footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 24px;
+      text-align: center;
+    }
+    .lp-footer-links {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .lp-footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    .lp-footer-links a:hover { color: var(--accent); }
+    .lp-footer-copy {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* ── Responsive ──────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .lp-hero {
+        grid-template-columns: 1fr;
+        padding: 48px 20px 56px;
+        gap: 40px;
+      }
+      .lp-cta-group { align-items: center; }
+      .lp-sub { max-width: 100%; text-align: center; }
+      .lp-kicker { margin: 0 auto 20px; }
+      .lp-h1 { text-align: center; }
+      .lp-benefits { align-items: flex-start; }
+      .lp-features-grid { grid-template-columns: 1fr; }
+      .lp-tgrid { grid-template-columns: 1fr; }
+      .lp-sysreq { text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Minimal header — logo only, no nav links -->
+  <header class="lp-header">
+    <a class="lp-logo" href="https://cafezin.pmatz.com/">
+      <img src="/coffe.png" alt="Cafezin" />
+      Cafezin
+    </a>
+  </header>
+
+  <!-- ── Hero ─────────────────────────────────────────────────────────── -->
+  <section style="background: var(--bg); position: relative; overflow: hidden;">
+    <div class="hero-glow hero-glow-1" style="opacity:0.7;"></div>
+    <div class="lp-hero">
+      <div class="lp-hero-text">
+        <div class="lp-kicker">Free for <span data-win-text="Windows">Mac</span> · Local-first</div>
+
+        <h1 class="lp-h1">
+          The Markdown Editor<br/>
+          &amp; AI Canvas<br/>
+          <em>for <span data-win-text="Windows">Mac</span>.</em>
+        </h1>
+
+        <p class="lp-sub">
+          Your files stay local — no cloud, no lock-in. Write in Markdown, plan on a visual canvas, and use AI that works inside your own documents.
+        </p>
+
+        <div class="lp-cta-group">
+          <a href="/download/mac"
+             id="js-lp-primary"
+             class="btn btn-primary btn-download"
+             data-platform="mac"
+             data-win-label="Get on Microsoft Store →"
+             onclick="document.cookie='cafezin_locale=en; Path=/; Max-Age=31536000; SameSite=Lax'">
+            <svg data-icon="mac" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+            </svg>
+            <svg data-icon="win" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="display:none">
+              <path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/>
+            </svg>
+            <span data-cta-label>Download free for Mac →</span>
+          </a>
+          <p class="lp-sysreq"
+             data-win-content="Windows 10+<span class='lp-sysreq-sep'>·</span>64-bit<span class='lp-sysreq-sep'>·</span>~90 MB<span class='lp-sysreq-sep'>·</span>Code-signed<span class='lp-sysreq-sep'>·</span>No account required">
+            macOS 13 Ventura+<span class="lp-sysreq-sep">·</span>Apple Silicon &amp; Intel<span class="lp-sysreq-sep">·</span>~68 MB<span class="lp-sysreq-sep">·</span>Notarized by Apple<span class="lp-sysreq-sep">·</span>No account required
+          </p>
+        </div>
+
+        <div class="lp-benefits">
+          <div class="lp-benefit">
+            <span class="lp-benefit-icon">✓</span>
+            <span><strong>Files stay on your device.</strong> Plain Markdown — readable in any editor, forever.</span>
+          </div>
+          <div class="lp-benefit">
+            <span class="lp-benefit-icon">✓</span>
+            <span><strong>Visual canvas + slides built in.</strong> Plan ideas, create slide frames, no extra tools.</span>
+          </div>
+          <div class="lp-benefit">
+            <span class="lp-benefit-icon">✓</span>
+            <span><strong>AI that reads your open documents.</strong> Not a blank chat box — grounded in your actual work.</span>
+          </div>
+          <div class="lp-benefit">
+            <span class="lp-benefit-icon">✓</span>
+            <span><strong>Free forever.</strong> Editor, canvas, and local files at no cost. AI unlocks from $5/mo.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="lp-hero-visual">
+        <div class="lp-screenshot-wrap">
+          <img src="/screen-editor.png"
+               alt="Cafezin Markdown editor with AI review panel"
+               width="600" loading="eager"
+               onerror="this.closest('.lp-screenshot-wrap').style.display='none'" />
+        </div>
+        <p class="lp-visual-caption">Markdown editor · AI review panel · local-first</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Proof bar ──────────────────────────────────────────────────────── -->
+  <div class="lp-proof-bar">
+    <div class="lp-proof-bar-inner">
+      <span><span class="lp-proof-check">✓</span>No cloud sync required</span>
+      <span><span class="lp-proof-check">✓</span>No credit card</span>
+      <span><span class="lp-proof-check">✓</span>Plain Markdown — no vendor lock-in</span>
+      <span><span class="lp-proof-check">✓</span>Works fully offline</span>
+      <span><span class="lp-proof-check">✓</span><span data-win-text="Code-signed and safe">Notarized by Apple</span></span>
+    </div>
+  </div>
+
+  <!-- ── Screenshot tabs (reused from homepage) ────────────────────────── -->
+  <div style="padding: 64px 24px 0; background: var(--bg);">
+    <div class="screenshots-inner" style="max-width:900px; margin:0 auto;">
+      <div class="screens-tabs">
+        <button class="screen-tab active" data-target="lp-screen-editor">✍️ Markdown Editor</button>
+        <button class="screen-tab" data-target="lp-screen-canvas">🎞 Canvas &amp; Slides</button>
+        <button class="screen-tab" data-target="lp-screen-settings">🤖 AI Models</button>
+      </div>
+      <div class="screens-viewer">
+        <div class="screen-panel active" id="lp-screen-editor">
+          <img src="/screen-editor.png" alt="Cafezin Markdown editor with AI suggestions" class="screenshot-img" width="900" loading="lazy" onerror="this.style.display='none'" />
+        </div>
+        <div class="screen-panel" id="lp-screen-canvas">
+          <img src="/screen-canvas.png" alt="Cafezin canvas with slide frames" class="screenshot-img" width="900" loading="lazy" onerror="this.style.display='none'" />
+        </div>
+        <div class="screen-panel" id="lp-screen-settings">
+          <img src="/screen-settings.png" alt="Cafezin AI model selection: Copilot, OpenAI, Claude, Gemini" class="screenshot-img" width="900" loading="lazy" onerror="this.style.display='none'" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var tabs = document.querySelectorAll('.screens-tabs .screen-tab');
+      tabs.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          tabs.forEach(function (b) { b.classList.remove('active'); });
+          document.querySelectorAll('.screens-viewer .screen-panel').forEach(function (p) { p.classList.remove('active'); });
+          btn.classList.add('active');
+          document.getElementById(btn.dataset.target).classList.add('active');
+        });
+      });
+    })();
+  </script>
+
+  <!-- ── Features ──────────────────────────────────────────────────────── -->
+  <section class="lp-features">
+    <div class="lp-features-label">What makes it different</div>
+    <h2 class="lp-features-title">Built for writers who take ownership of their files</h2>
+    <div class="lp-features-grid">
+
+      <div class="lp-feat winner">
+        <span class="lp-feat-icon">📝</span>
+        <h3 class="lp-feat-title">Plain Markdown, always yours</h3>
+        <p class="lp-feat-desc">Files live on your device as standard <code>.md</code> files. No proprietary format, no export step. Open them in any editor — today and in ten years.</p>
+      </div>
+
+      <div class="lp-feat winner">
+        <span class="lp-feat-icon">🎨</span>
+        <h3 class="lp-feat-title">Visual canvas + slides</h3>
+        <p class="lp-feat-desc">Drag ideas onto an infinite canvas, connect them visually, and turn frames into slides — without leaving the workspace or switching tools.</p>
+      </div>
+
+      <div class="lp-feat winner">
+        <span class="lp-feat-icon">🔒</span>
+        <h3 class="lp-feat-title">Local-first, fully offline</h3>
+        <p class="lp-feat-desc">No mandatory cloud account. No sync that breaks. Your documents are on your device — Cafezin opens and saves them directly.</p>
+      </div>
+
+      <div class="lp-feat">
+        <span class="lp-feat-icon">🤖</span>
+        <h3 class="lp-feat-title">AI with real context</h3>
+        <p class="lp-feat-desc">Ask the AI to draft, revise, or summarize using the documents you have open — not a blank chat box disconnected from your actual work.</p>
+      </div>
+
+      <div class="lp-feat">
+        <span class="lp-feat-icon">👁️</span>
+        <h3 class="lp-feat-title">Reviewable AI edits</h3>
+        <p class="lp-feat-desc">AI suggestions are highlighted and reviewable. Accept or reject each change. Your voice and final approval stay intact.</p>
+      </div>
+
+      <div class="lp-feat">
+        <span class="lp-feat-icon">🕹️</span>
+        <h3 class="lp-feat-title">Version history built in</h3>
+        <p class="lp-feat-desc">Every workspace can preserve your evolution — drafts, experiments, revisions. No Git knowledge required.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Testimonials ───────────────────────────────────────────────────── -->
+  <section class="lp-testimonials">
+    <div class="lp-testimonials-inner">
+      <h2 class="lp-testimonials-title">Writers, educators, and creators who switched</h2>
+      <div class="lp-tgrid">
+
+        <div class="lp-tcard">
+          <div class="lp-tcard-stars">★★★★★</div>
+          <p class="lp-tcard-text">"I've tried every AI writing tool out there. What pulled me in with Cafezin was being able to see exactly what the AI changed — it marks the edits and I accept or reject each one. Finished two chapters in a week without losing my voice."</p>
+          <div class="lp-tcard-author">
+            <img src="/avatar-carlos.png" alt="Carlos F." />
+            <div>
+              <div class="lp-tcard-name">Carlos F.</div>
+              <div class="lp-tcard-role">Novelist, 3 published books</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lp-tcard">
+          <div class="lp-tcard-stars">★★★★★</div>
+          <p class="lp-tcard-text">"I prep my lectures using notes I've been building for years. Now I open them inside Cafezin, ask the AI to structure an outline and turn it into slides — and it actually reads the documents I have open. Saves me two hours of prep per class."</p>
+          <div class="lp-tcard-author">
+            <img src="/avatar-ana.png" alt="Ana S." />
+            <div>
+              <div class="lp-tcard-name">Ana S.</div>
+              <div class="lp-tcard-role">University professor, Computer Science</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lp-tcard">
+          <div class="lp-tcard-stars">★★★★★</div>
+          <p class="lp-tcard-text">"I was using four different tools: one for notes, one for outlines, one for AI, one for slides. Cafezin replaced all of them. My whole research project in one place, with AI that knows what I'm working on."</p>
+          <div class="lp-tcard-author">
+            <img src="/avatar-arjun.png" alt="Arjun M." />
+            <div>
+              <div class="lp-tcard-name">Arjun M.</div>
+              <div class="lp-tcard-role">PhD student, Linguistics</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Final CTA ──────────────────────────────────────────────────────── -->
+  <section class="lp-final-cta">
+    <div class="lp-final-cta-glow"></div>
+    <div class="lp-final-cta-inner">
+      <img src="/coffe.png" alt="Cafezin" class="lp-final-cta-icon" />
+      <h2 class="lp-final-cta-title">Your Markdown. Your files.<br/>Your AI.</h2>
+      <p class="lp-final-cta-sub">
+        Free forever on Mac and Windows.<br/>
+        <strong>Your files never leave your device.</strong> No account required.
+      </p>
+
+      <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+        <a href="/download/mac"
+           id="js-lp-final"
+           class="btn btn-primary btn-download"
+           data-platform="mac"
+           data-win-label="Get on Microsoft Store →">
+          <svg data-icon="mac" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+          </svg>
+          <svg data-icon="win" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="display:none">
+            <path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/>
+          </svg>
+          <span data-cta-label>Download free for Mac →</span>
+        </a>
+        <p class="lp-sysreq"
+           data-win-content="Windows 10+<span class='lp-sysreq-sep'>·</span>~90 MB<span class='lp-sysreq-sep'>·</span>Code-signed<span class='lp-sysreq-sep'>·</span>Cancel anytime">
+          macOS 13+<span class="lp-sysreq-sep">·</span>~68 MB<span class="lp-sysreq-sep">·</span>Notarized by Apple<span class="lp-sysreq-sep">·</span>Cancel anytime
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Minimal footer ─────────────────────────────────────────────────── -->
+  <footer class="lp-footer">
+    <div class="lp-footer-links">
+      <a href="/pricing">Pricing</a>
+      <a href="/privacy-policy">Privacy</a>
+      <a href="/terms-of-service">Terms</a>
+      <a href="/contact">Contact</a>
+      <a href="/">Cafezin home</a>
+    </div>
+    <p class="lp-footer-copy">© 2026 Pedro Martinez · Built with coffee in Brazil.</p>
+  </footer>
+
+  <script src="/landing-analytics.js"></script>
+
+  <script>
+    // Mobile: replace download CTAs with email-to-myself link.
+    // Windows button/text swaps are handled by landing-analytics.js (adaptHeroCta + adaptPlatformContent).
+    (function () {
+      if (!/Android|iPhone|iPad|iPod|IEMobile/i.test(navigator.userAgent)) return;
+      document.addEventListener('DOMContentLoaded', function () {
+        var subject = encodeURIComponent('Download Cafezin — Markdown editor for Mac & Windows');
+        var body = encodeURIComponent('Download free at: https://cafezin.pmatz.com/download');
+        ['js-lp-primary', 'js-lp-final'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.outerHTML = '<a href="mailto:?subject=' + subject + '&body=' + body + '" class="btn btn-primary">📩 Email download link to myself</a>';
+        });
+      });
+    })();
+  </script>
+
+</body>
+</html>

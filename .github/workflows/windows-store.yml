@@ -6,8 +6,19 @@ name: Windows Store MSIX
 #   - Microsoft re-signs the package when you submit via Partner Center.
 #   - End users install from the Store, which carries Microsoft's signature.
 #
-# After registering on Partner Center, update identity_name and publisher_cn
-# with the exact values shown in your Partner Center app page.
+# Partner Center identity values (Store ID: 9PKJ83V2S357):
+#   identity_name : PmatzSolutions.Cafezin
+#   publisher_cn  : CN=A18A6B2B-9CDD-4D86-822D-3131CE1CC3EE
+#
+# Called automatically by release.yml via workflow_call, or manually via
+# workflow_dispatch.
+#
+# auto_submit (default: false):
+#   When true, submits the MSIX directly to Partner Center after building.
+#   Requires these GitHub secrets to be set:
+#     MS_STORE_TENANT_ID, MS_STORE_CLIENT_ID, MS_STORE_CLIENT_SECRET,
+#     MS_STORE_SELLER_ID, MS_STORE_APP_ID
+#   See pedrin/scripts/submit-windows-store.py for one-time setup instructions.
 on:
   workflow_dispatch:
     inputs:
@@ -15,13 +26,54 @@ on:
         description: "Version tag (e.g. v0.2.0)"
         required: true
       identity_name:
-        description: "Package Identity Name from Partner Center (e.g. PedroMartinez.Cafezin)"
+        description: "Package Identity Name from Partner Center"
         required: false
-        default: "PedroMartinez.Cafezin"
+        default: "PmatzSolutions.Cafezin"
       publisher_cn:
-        description: "Publisher value from Partner Center (e.g. CN=Pedro Martinez)"
+        description: "Publisher CN from Partner Center"
         required: false
-        default: "CN=Pedro Martinez"
+        default: "CN=A18A6B2B-9CDD-4D86-822D-3131CE1CC3EE"
+      auto_submit:
+        description: "Submit to Partner Center after building? (requires MS_STORE_* secrets)"
+        type: boolean
+        required: false
+        default: false
+  workflow_call:
+    inputs:
+      tag:
+        description: "Version tag (e.g. v0.2.0)"
+        required: true
+        type: string
+      identity_name:
+        required: false
+        type: string
+        default: "PmatzSolutions.Cafezin"
+      publisher_cn:
+        required: false
+        type: string
+        default: "CN=A18A6B2B-9CDD-4D86-822D-3131CE1CC3EE"
+      auto_submit:
+        description: "Submit to Partner Center after building?"
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      GH_PACKAGES_TOKEN:
+        required: true
+      VITE_SUPABASE_URL:
+        required: true
+      VITE_SUPABASE_ANON_KEY:
+        required: true
+      MS_STORE_TENANT_ID:
+        required: false
+      MS_STORE_CLIENT_ID:
+        required: false
+      MS_STORE_CLIENT_SECRET:
+        required: false
+      MS_STORE_SELLER_ID:
+        required: false
+      MS_STORE_APP_ID:
+        required: false
 
 env:
   APP_NAME: Cafezin
@@ -63,8 +115,10 @@ jobs:
       # so tauri-build embeds the frontend assets properly.
       # The CLI also runs "npm run build" (beforeBuildCommand) internally,
       # so no separate frontend build step is needed here.
+      # --features msix makes build_channel() return "msix", disabling the
+      # in-app GitHub updater (Microsoft Store handles updates for MSIX installs).
       - name: Build Cafezin binary
-        run: npx tauri build --no-bundle
+        run: npx tauri build --no-bundle --features msix
         working-directory: app
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -177,3 +231,76 @@ jobs:
             Cafezin.msix
             Cafezin.msix.sha256
           if-no-files-found: error
+
+      # ── Optional auto-submit ─────────────────────────────────────────────
+      # Submits the MSIX directly to Partner Center via the Submission API.
+      # Enable by setting auto_submit: true + adding the MS_STORE_* secrets.
+      - name: Submit to Microsoft Store
+        if: ${{ inputs.auto_submit == true }}
+        shell: pwsh
+        env:
+          MS_STORE_TENANT_ID: ${{ secrets.MS_STORE_TENANT_ID }}
+          MS_STORE_CLIENT_ID: ${{ secrets.MS_STORE_CLIENT_ID }}
+          MS_STORE_CLIENT_SECRET: ${{ secrets.MS_STORE_CLIENT_SECRET }}
+          MS_STORE_SELLER_ID: ${{ secrets.MS_STORE_SELLER_ID }}
+          MS_STORE_APP_ID: ${{ secrets.MS_STORE_APP_ID }}
+        run: |
+          python -m pip install --quiet requests 2>$null
+          python - <<'PYEOF'
+          import json, os, sys, time, urllib.error, urllib.parse, urllib.request, zipfile, tempfile
+
+          API_BASE  = "https://manage.devcenter.microsoft.com/v1.0/my"
+          TOKEN_URL = "https://login.microsoftonline.com/{}/oauth2/v2.0/token"
+          SCOPE     = "https://manage.devcenter.microsoft.com/.default"
+
+          def require(name):
+              val = os.environ.get(name)
+              if not val: sys.exit(f"Missing secret: {name}")
+              return val
+
+          def get_token(tid, cid, csec):
+              data = urllib.parse.urlencode({"grant_type":"client_credentials","client_id":cid,"client_secret":csec,"scope":SCOPE}).encode()
+              req = urllib.request.Request(TOKEN_URL.format(tid), data=data, method="POST")
+              with urllib.request.urlopen(req, timeout=30) as r: return json.load(r)["access_token"]
+
+          def api(method, path, token, body=None):
+              req = urllib.request.Request(f"{API_BASE}{path}", data=json.dumps(body).encode() if body else None, method=method)
+              req.add_header("Authorization", f"Bearer {token}")
+              req.add_header("Content-Type", "application/json")
+              with urllib.request.urlopen(req, timeout=60) as r: return json.loads(r.read() or b"{}")
+
+          token = get_token(require("MS_STORE_TENANT_ID"), require("MS_STORE_CLIENT_ID"), require("MS_STORE_CLIENT_SECRET"))
+          app_id = require("MS_STORE_APP_ID")
+
+          app = api("GET", f"/applications/{app_id}", token)
+          pending = app.get("pendingApplicationSubmission", {})
+          if pending.get("id"):
+              print(f"Deleting pending submission {pending['id']}")
+              api("DELETE", f"/applications/{app_id}/submissions/{pending['id']}", token)
+
+          print("Creating submission...")
+          sub = api("POST", f"/applications/{app_id}/submissions", token)
+          sub_id, sas_url = sub["id"], sub["fileUploadUrl"]
+          print(f"Submission ID: {sub_id}")
+
+          pkgs = sub.get("applicationPackages", [])
+          pkgs = [p for p in pkgs if not p.get("fileName","").lower().endswith(".msix")]
+          pkgs.append({"fileName": "Cafezin.msix", "fileStatus": "PendingUpload"})
+          sub["applicationPackages"] = pkgs
+          api("PUT", f"/applications/{app_id}/submissions/{sub_id}", token, body=sub)
+
+          tmp = tempfile.mktemp(suffix=".zip")
+          with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf: zf.write("Cafezin.msix", "Cafezin.msix")
+          size = os.path.getsize(tmp)
+          print(f"Uploading {size/1024/1024:.1f} MB...")
+          with open(tmp, "rb") as f:
+              req = urllib.request.Request(sas_url, data=f, method="PUT")
+              req.add_header("x-ms-blob-type", "BlockBlob")
+              req.add_header("Content-Length", str(size))
+              with urllib.request.urlopen(req, timeout=600) as r: print(f"Upload: {r.status}")
+          os.unlink(tmp)
+
+          api("POST", f"/applications/{app_id}/submissions/{sub_id}/commit", token)
+          print(f"\n✅ Submitted! ID: {sub_id}")
+          print(f"Track: https://partner.microsoft.com/en-us/dashboard/products/{app_id}/submissions/{sub_id}")
+          PYEOF
