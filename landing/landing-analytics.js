@@ -179,6 +179,9 @@
     // LP-specific buttons
     swap("js-lp-primary", WIN_URL, "windows");
     swap("js-lp-final", WIN_URL, "windows");
+    // Mid-page + sticky bar CTA buttons
+    swap("js-mid-cta", WIN_URL, "windows");
+    swap("js-sticky-primary", WIN_URL, "windows");
 
     // Swap nav-cta buttons (e.g. "Download now" in top nav) that hardcode /download/mac.
     document

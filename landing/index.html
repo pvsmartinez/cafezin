@@ -388,6 +388,13 @@
     </div>
   </section>
 
+  <div class="mid-cta-strip">
+    <a href="/download/mac" id="js-mid-cta" class="btn btn-primary btn-download" data-platform="mac" data-win-label="Get on Microsoft Store →">
+      <span data-cta-label>Download free for Mac →</span>
+    </a>
+    <p class="mid-cta-hint">No account required &nbsp;·&nbsp; Free forever &nbsp;·&nbsp; macOS 13+</p>
+  </div>
+
   <section class="features" id="features">
     <div class="section-inner">
       <div class="section-label">Why Cafezin</div>
@@ -722,6 +729,38 @@
       <p class="footer-copy">© 2026 Pedro Martinez. Built with coffee in Brazil.</p>
     </div>
   </footer>
+
+  <!-- Sticky bottom CTA bar — appears after scrolling past hero -->
+  <div class="sticky-bar" id="js-sticky-bar" aria-hidden="true">
+    <div class="sticky-bar-inner">
+      <div class="sticky-bar-product">
+        <img src="coffe.png" alt="" width="20" height="20" loading="lazy" />
+        <strong>Cafezin</strong>
+        <span class="sticky-bar-tagline">AI writing for Mac · Free to start</span>
+      </div>
+      <a href="/download/mac"
+         id="js-sticky-primary"
+         class="btn btn-primary btn-download sticky-bar-btn"
+         data-platform="mac"
+         data-win-label="Get on Microsoft Store →">
+        <span data-cta-label>Download free for Mac →</span>
+      </a>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var bar = document.getElementById('js-sticky-bar');
+    if (!bar) return;
+    var shown = false;
+    window.addEventListener('scroll', function () {
+      if (!shown && (window.scrollY || window.pageYOffset) > 700) {
+        shown = true;
+        bar.classList.add('visible');
+        bar.removeAttribute('aria-hidden');
+      }
+    }, { passive: true });
+  })();
+  </script>
 
   <script src="/landing-analytics.js"></script>
 

@@ -286,7 +286,12 @@
       </div>
     </div>
   </section>
-
+  <div class="mid-cta-strip">
+    <a href="/download/mac" id="js-mid-cta" class="btn btn-primary btn-download" data-platform="mac" data-win-label="Baixar na Microsoft Store →">
+      <span data-cta-label>Baixar grátis para Mac →</span>
+    </a>
+    <p class="mid-cta-hint">Sem cadastro &nbsp;·&nbsp; Grátis para sempre &nbsp;·&nbsp; macOS 13+</p>
+  </div>
   <!-- ── Screenshots ──────────────────────────────────────────────────────── -->
   <section class="screenshots-section">
     <div class="screenshots-inner">
@@ -579,6 +584,38 @@
       <p class="footer-copy">© 2026 Pedro Martinez. Feito com ☕ no Brasil.</p>
     </div>
   </footer>
+
+  <!-- Sticky bottom CTA bar — aparece ao scrollar -->
+  <div class="sticky-bar" id="js-sticky-bar" aria-hidden="true">
+    <div class="sticky-bar-inner">
+      <div class="sticky-bar-product">
+        <img src="../coffe.png" alt="" width="20" height="20" loading="lazy" />
+        <strong>Cafezin</strong>
+        <span class="sticky-bar-tagline">Escrita com IA · Grátis</span>
+      </div>
+      <a href="/download/mac"
+         id="js-sticky-primary"
+         class="btn btn-primary btn-download sticky-bar-btn"
+         data-platform="mac"
+         data-win-label="Baixar na Microsoft Store →">
+        <span data-cta-label>Baixar grátis para Mac →</span>
+      </a>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var bar = document.getElementById('js-sticky-bar');
+    if (!bar) return;
+    var shown = false;
+    window.addEventListener('scroll', function () {
+      if (!shown && (window.scrollY || window.pageYOffset) > 700) {
+        shown = true;
+        bar.classList.add('visible');
+        bar.removeAttribute('aria-hidden');
+      }
+    }, { passive: true });
+  })();
+  </script>
 
   <script src="/landing-analytics.js"></script>
 </body>

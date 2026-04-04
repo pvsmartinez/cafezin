@@ -2052,3 +2052,77 @@ body {
     font-size: 14px;
   }
 }
+
+/* ── Mid-page CTA strip ───────────────────────────────────────────────────── */
+.mid-cta-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 24px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.mid-cta-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0;
+  opacity: 0.75;
+}
+
+/* ── Sticky CTA bar ───────────────────────────────────────────────────────── */
+.sticky-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 900;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 12px 24px;
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sticky-bar.visible {
+  transform: translateY(0);
+}
+.sticky-bar-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sticky-bar-product {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.sticky-bar-product img {
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.sticky-bar-product strong {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.sticky-bar-tagline {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.sticky-bar-btn {
+  flex-shrink: 0;
+  padding: 10px 20px !important;
+  font-size: 0.9rem !important;
+}
+@media (max-width: 480px) {
+  /* Hide sticky bar on mobile — users can't download a desktop app from phone */
+  .sticky-bar { display: none; }
+}
+@media (max-width: 680px) {
+  .sticky-bar-tagline { display: none; }
+}
