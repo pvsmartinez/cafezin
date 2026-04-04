@@ -183,7 +183,6 @@ async function listAnalytics(): Promise<{
     .from('landing_events')
     .select('created_at, event_name, page_path, platform, metadata')
     .gte('created_at', since30d.toISOString())
-    .neq('event_name', 'page_view')
     .order('created_at', { ascending: false })
     .limit(2000)
 

@@ -95,7 +95,7 @@
           "</a>" +
           '<a href="' +
           (isPt ? "/br/download" : "/download") +
-          '">' +
+          '" class="btn-download">' +
           copy.downloads +
           "</a>" +
           "</div>" +
