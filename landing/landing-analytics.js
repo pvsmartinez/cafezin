@@ -286,7 +286,10 @@
     // Scroll trigger — 25% of page height.
     var scrollThreshold = 0;
     function onScroll() {
-      if (fired) { window.removeEventListener("scroll", onScroll); return; }
+      if (fired) {
+        window.removeEventListener("scroll", onScroll);
+        return;
+      }
       var doc = document.documentElement;
       var scrollTop = window.pageYOffset || doc.scrollTop;
       var total = doc.scrollHeight - doc.clientHeight;
