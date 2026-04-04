@@ -267,4 +267,35 @@
     track(pageEvent);
     if (pageEvent === "premium_checkout_success") ga4("purchase", {});
   }
+
+  // Signal engagement to GA4 so sessions with reading/scrolling are not counted
+  // as bounces. GA4 marks a session as "engaged" when it receives a
+  // user_engagement event (or when 10s of active time elapses automatically).
+  // We fire it explicitly on: 25% page scroll OR 8 seconds on page.
+  (function () {
+    var fired = false;
+    function signalEngagement() {
+      if (fired) return;
+      fired = true;
+      ga4("user_engagement", { engagement_time_msec: 1000 });
+    }
+
+    // Scroll trigger — 25% of page height.
+    var scrollThreshold = 0;
+    function onScroll() {
+      if (fired) { window.removeEventListener("scroll", onScroll); return; }
+      var doc = document.documentElement;
+      var scrollTop = window.pageYOffset || doc.scrollTop;
+      var total = doc.scrollHeight - doc.clientHeight;
+      if (!scrollThreshold) scrollThreshold = total * 0.25;
+      if (total > 0 && scrollTop >= scrollThreshold) {
+        window.removeEventListener("scroll", onScroll);
+        signalEngagement();
+      }
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    // Time trigger — 8 seconds on page.
+    setTimeout(signalEngagement, 8000);
+  })();
 })();

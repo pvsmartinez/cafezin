@@ -187,6 +187,64 @@
     <div class="hero-glow hero-glow-2"></div>
   </section>
 
+  <!-- ── Hero video ─────────────────────────────────────────── -->
+  <section class="hero-video-section" id="como-funciona">
+    <div class="hero-video-inner">
+      <div class="section-label" style="text-align:center;margin-bottom:12px">Veja como funciona</div>
+      <h2 class="hero-video-title">IA que trabalha dentro do seu projeto real</h2>
+      <p class="hero-video-sub">Para escritores, educadores e estudantes — o Cafezin amplifica o que você já faz.</p>
+      <div class="hero-video-wrap" id="js-video-wrap-br">
+        <video
+          id="js-hero-video-br"
+          class="hero-video"
+          src="../persona-hero-ptbr.web.mp4"
+          poster="../screen-editor.png"
+          playsinline
+          muted
+          loop
+          preload="metadata"
+          aria-label="Vídeo demonstrativo do Cafezin para escritores, educadores e estudantes"
+        ></video>
+        <button class="video-play-btn" id="js-video-play-br" aria-label="Reproduzir vídeo">
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+            <circle cx="28" cy="28" r="28" fill="rgba(0,0,0,0.55)"/>
+            <polygon points="22,18 42,28 22,38" fill="white"/>
+          </svg>
+        </button>
+        <button class="video-mute-btn" id="js-video-mute-br" aria-label="Ativar/silenciar áudio" style="display:none">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+        </button>
+      </div>
+      <p class="hero-video-cta-hint">Sem cadastro &nbsp;·&nbsp; Grátis para baixar &nbsp;·&nbsp; macOS 14+</p>
+    </div>
+  </section>
+  <script>
+  (function () {
+    var vid   = document.getElementById('js-hero-video-br');
+    var btn   = document.getElementById('js-video-play-br');
+    var mute  = document.getElementById('js-video-mute-br');
+    if (!vid) return;
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { vid.play().catch(function(){}); btn.style.display = 'none'; mute.style.display = 'flex'; }
+        else { vid.pause(); }
+      });
+    }, { threshold: 0.25 });
+    obs.observe(vid);
+    btn.addEventListener('click', function () {
+      vid.play().catch(function(){});
+      btn.style.display = 'none';
+      mute.style.display = 'flex';
+    });
+    mute.addEventListener('click', function () {
+      vid.muted = !vid.muted;
+      mute.innerHTML = vid.muted
+        ? '<svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>'
+        : '<svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>';
+    });
+  })();
+  </script>
+
   <section class="features">
     <div class="section-inner">
       <div class="section-label">O que é o Cafezin</div>
