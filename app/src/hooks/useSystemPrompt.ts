@@ -93,7 +93,7 @@ function buildToolUsageProtocol(): string {
 • Use tools whenever the user asks about files, documents, structure, or edits. Read first — never guess file contents.
 • Discovery: start with outline_workspace or search_workspace_index, then refine with search_workspace (exact words, identifiers, or /regex/ patterns).
 • Freshness: injected document context may lag behind unsaved edits. If content may have changed, read_workspace_file for the live version.
-• SESSION STALENESS: earlier messages reflect the workspace at the time they were written. Schemas, rules, and data structures can change between sessions. The file wins over any old session message.
+• SESSION STALENESS: earlier messages reflect the workspace at the time they were written. Schemas, rules, and data structures can change between sessions. The file wins over any old session message. EXCEPTION: if the user's current message is a direct response to options or a plan you just presented (e.g. "do option 2", "go with B and C", "yes proceed"), trust the conversation — do NOT re-read files or re-run discovery. Use the context already in the conversation and proceed immediately.
 • Edits: patch_workspace_file for one surgical change; multi_patch for coordinated multi-file edits; write_workspace_file only for full rewrites or new files.
 • On large files, avoid full rewrites — they are harder to verify and increase error surface.
 • Tool arguments must be strict JSON objects — no partial JSON, comments, or prose.
@@ -122,6 +122,7 @@ function buildBookProtocol(): string {
 function buildTaskProtocol(): string {
   return `Task protocol:
 • For goals with 3+ ordered steps, create ONE tracked task. Skip for one-shot edits or Q&A.
+• After creating the task, start implementing step 1 in the SAME response — do NOT stop to present the plan or ask for confirmation unless the user explicitly asked for a plan review first.
 • Mark a step [in-progress] BEFORE starting, [done] IMMEDIATELY after. Never batch updates.
 • When a tracked task exists, check its step list first. Never recreate a task that already exists — it survives context summarization.
 • Before reporting done, reconcile every step (none should remain [pending] or [in-progress]).

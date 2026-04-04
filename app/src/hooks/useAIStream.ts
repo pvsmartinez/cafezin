@@ -774,10 +774,10 @@ export function useAIStream({
     setLiveItems([]);
     clearInputAndAttachments?.();
 
-    // Capture the session goal from the user's first substantive turn.
-    // Stored in sessionGoalRef and injected into every freshness note so the model
-    // always has the anchor even after many tool rounds or context compression.
-    if (!sessionGoalRef.current && messages.length === 0 && textToSend) {
+    // Track the user's most recent intent — updated on every substantive user turn so
+    // the model always knows what the current request is, even mid-session after choices
+    // or follow-ups. Injected into every freshness note via buildContextFreshnessNote.
+    if (textToSend) {
       sessionGoalRef.current = textToSend.slice(0, 300);
     }
 
