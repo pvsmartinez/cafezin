@@ -108,7 +108,8 @@ function buildMemoryProtocol(): string {
 • remember(scope="user") for cross-workspace preferences and corrections. remember(scope="workspace") for project facts not obvious from files.
 • Before saving, check the digest — if the fact is already there, skip it. Duplicates are the #1 memory problem.
 • Do NOT save: transient notes, derivable facts, obvious context, unconfirmed guesses, or step plans (use tasks for those).
-• For deeper memory management rules, call read_skill("memory").`;
+• ROUTINES vs MEMORY: if the session revealed a repeatable workflow the user will want to run again (e.g. "revisar capítulo", "sintetizar semana"), save it as a routine pill — configure_workspace(action="add_routine", label="...", prompt="...") — NOT as a memory entry.
+• For deeper memory management rules and the memory vs. routine decision guide, call read_skill("memory").`;
 }
 
 function buildVerifyProtocol(): string {
@@ -345,7 +346,11 @@ export function useSystemPrompt({
       workspaceFileList ? `\nWorkspace files:\n${workspaceFileList}` : '',
       summarizedUserProfile ? `\nUser profile digest:\n${summarizedUserProfile}` : '',
       summarizedMemory ? `\nWorkspace memory digest:\n${summarizedMemory}` : '',
-      workspaceGuidance ? `\nWorkspace guidance:\n${workspaceGuidance}` : '',
+      workspaceGuidance
+        ? `\nWorkspace guidance:\n${workspaceGuidance}`
+        : hasTools
+          ? `\nAGENT.md: No AGENT.md found in this workspace yet.\nBefore answering the user's first request, create one now:\n• Call write_workspace_file("AGENT.md", content) with a concise AGENT.md (15–20 lines).\n• Infer the project name, type, purpose, and key conventions from the workspace name, file tree, and the user's message.\n• After creating it, say one sentence to the user (e.g. "Criei um AGENT.md com o contexto do projeto — pode editá-lo quando quiser.") then answer normally.\n• Skip this instruction on follow-up turns once the file exists.`
+          : '',
       truncatedDocumentContext ? `\nCurrent document context:\n${truncatedDocumentContext}` : '',
 
       // ── HTML / interactive demo guidance ──────────────────────

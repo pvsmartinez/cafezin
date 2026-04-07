@@ -58,6 +58,15 @@ export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile
       .catch(() => setSync({ loading: false, changedCount: 0, error: true }));
   }, [workspace.path]);
 
+  // Auto-open getting-started.md when workspace is brand new (no files opened yet)
+  useEffect(() => {
+    const hasGettingStarted = workspace.fileTree.some(n => !n.isDirectory && n.name === 'getting-started.md');
+    if (hasGettingStarted && (workspace.config.recentFiles ?? []).length === 0) {
+      onOpenFile('getting-started.md');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.path]);
+
   const { config } = workspace;
   const recentFiles = config.recentFiles ?? [];
   const lastEditedAt = config.lastEditedAt;

@@ -26,10 +26,11 @@ interface PremiumGateProps {
   account: AccountState;
   loading: boolean;
   style?: React.CSSProperties;
+  isOverlay?: boolean;
   onRefresh: () => Promise<void>;
 }
 
-export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateProps) {
+export function PremiumGate({ account, loading, style, isOverlay, onRefresh }: PremiumGateProps) {
   const notLoggedIn = !account.authenticated;
   const locale = navigator.language.startsWith('pt') ? 'pt-BR' : 'en';
 
@@ -46,6 +47,76 @@ export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateP
     openUrl(url).catch(() => window.open(url, '_blank'));
   }
 
+  const gateContent = (
+    <div className="premium-gate">
+      <div className="premium-gate-icon">
+        <Star weight="thin" size={48} />
+      </div>
+
+      <div className="premium-gate-title">
+        {notLoggedIn ? 'Libere a IA com o plano Basic' : 'Recurso do plano Basic ou superior'}
+      </div>
+
+      <p className="premium-gate-desc">
+        {notLoggedIn
+          ? 'Assine o plano Basic, Standard ou Pro para usar a IA no Cafezin. Você escolhe o provider — Cafezin IA gerenciada ou sua própria chave de API.'
+          : 'Seu plano atual não inclui IA. Faça upgrade para Basic ou superior e escolha entre Cafezin IA gerenciada ou seu próprio provider com BYOK.'}
+      </p>
+
+      <button
+        className="ai-auth-btn premium-gate-cta"
+        onClick={() => void openUpgrade()}
+      >
+        {notLoggedIn ? 'Ver planos e assinar ↗' : 'Escolher plano na web ↗'}
+        <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />
+      </button>
+
+      {notLoggedIn && (
+        <p className="premium-gate-login-hint">
+          Já tem conta?{' '}
+          <button
+            className="premium-gate-login-link"
+            onClick={() => window.dispatchEvent(new CustomEvent('cafezin:open-settings', { detail: 'account' }))}
+          >
+            Entrar em Configurações → Conta
+          </button>
+        </p>
+      )}
+
+      <div className="premium-gate-byok">
+        <div className="premium-gate-byok-title">Como funciona</div>
+        <p className="premium-gate-byok-desc">
+          Com o plano Basic ou superior, você libera a IA no app. Depois disso, pode usar a
+          <strong> Cafezin IA</strong> com cota mensal incluída ou sua <strong>própria chave de API</strong>
+          no provider que preferir.
+        </p>
+        <div className="premium-gate-byok-links">
+          {BYOK_PROVIDERS.map((p) => (
+            <button
+              key={p.name}
+              className="premium-gate-byok-link"
+              onClick={() => openProviderLink(p.url)}
+            >
+              {p.name} ↗
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        className="premium-gate-refresh"
+        onClick={() => void onRefresh()}
+        disabled={loading}
+        title="Já assinei — verificar status"
+      >
+        <ArrowClockwise size={13} className={loading ? 'premium-gate-spin' : ''} />
+        {loading ? 'Verificando…' : 'Já assinei — atualizar'}
+      </button>
+    </div>
+  );
+
+  if (isOverlay) return gateContent;
+
   return (
     <div className="ai-panel" data-panel="ai" style={style}>
       <div className="ai-panel-header">
@@ -53,79 +124,7 @@ export function PremiumGate({ account, loading, style, onRefresh }: PremiumGateP
           <Star weight="thin" size={14} /> Copilot
         </span>
       </div>
-
-      <div className="premium-gate">
-        <div className="premium-gate-icon">
-          <Star weight="thin" size={48} />
-        </div>
-
-        <div className="premium-gate-title">
-          {notLoggedIn ? 'IA disponível no plano Basic' : 'Recurso do plano Basic ou superior'}
-        </div>
-
-        <p className="premium-gate-desc">
-          {notLoggedIn
-            ? 'Para usar a IA no Cafezin, faça login na sua conta ou assine um plano Basic, Standard ou Pro.'
-            : 'Seu plano atual não inclui IA. Faça upgrade para Basic ou superior e escolha entre Cafezin IA gerenciada ou seu próprio provider com BYOK.'}
-        </p>
-
-        {notLoggedIn ? (
-          <>
-            <button
-              className="ai-auth-btn premium-gate-cta"
-              onClick={() => window.dispatchEvent(new CustomEvent('cafezin:open-settings', { detail: 'account' }))}
-            >
-              Fazer login na minha conta
-            </button>
-            <button
-              className="ai-auth-btn premium-gate-cta"
-              onClick={() => void openUpgrade()}
-              style={{ marginTop: 6, opacity: 0.75 }}
-            >
-              Criar conta e ver planos ↗
-              <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />
-            </button>
-          </>
-        ) : (
-          <button
-            className="ai-auth-btn premium-gate-cta"
-            onClick={() => void openUpgrade()}
-          >
-            Escolher plano na web ↗
-            <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />
-          </button>
-        )}
-
-        <div className="premium-gate-byok">
-          <div className="premium-gate-byok-title">Como funciona</div>
-          <p className="premium-gate-byok-desc">
-            Com o plano Basic ou superior, você libera a IA no app. Depois disso, pode usar a
-            <strong> Cafezin IA</strong> com cota mensal incluída ou sua <strong>própria chave de API</strong>
-            no provider que preferir.
-          </p>
-          <div className="premium-gate-byok-links">
-            {BYOK_PROVIDERS.map((p) => (
-              <button
-                key={p.name}
-                className="premium-gate-byok-link"
-                onClick={() => openProviderLink(p.url)}
-              >
-                {p.name} ↗
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <button
-          className="premium-gate-refresh"
-          onClick={() => void onRefresh()}
-          disabled={loading}
-          title="Já assinei — verificar status"
-        >
-          <ArrowClockwise size={13} className={loading ? 'premium-gate-spin' : ''} />
-          {loading ? 'Verificando…' : 'Já assinei — atualizar'}
-        </button>
-      </div>
+      {gateContent}
     </div>
   );
 }

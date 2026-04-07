@@ -239,7 +239,27 @@ Skip tests and lint silently. Only run tsc if TypeScript is present in package.j
 - \`scope="workspace"\` — facts about THIS workspace (stored in \`.cafezin/memory.md\`).
 - \`scope="user"\` — facts about the USER across all workspaces (stored in \`~/.cafezin/user-profile.md\`).
 
-## When to save
+## Memory vs. Routines — choosing the right tool
+
+Before saving, ask: **is this a fact, or a reusable workflow?**
+
+| It's a fact/preference → use \`remember\` | It's a repeatable action → use \`add_routine\` |
+|---|---|
+| Character name, writing style, tech stack | "Revisar capítulo" → prompt that the user runs monthly |
+| Plot decision, world-building rule | "Sintetizar notas da semana" → weekly summarise workflow |
+| User preference ("prefer concise answers") | "Planejar próxima aula" → classroom prep routine |
+| Coding convention, API endpoint | "Deploy para produção" → multi-step deploy prompt |
+
+**Rule of thumb:** if the user will type roughly the same thing again next session, make it a routine pill. If it's a fact the agent needs to recall, save it to memory.
+
+### Creating a routine
+\`\`\`
+configure_workspace(action="add_routine", label="Revisar capítulo", prompt="Revise o arquivo aberto...")
+\`\`\`
+The routine appears as a clickable pill in the agent panel. Custom routines are shown first, before the workspace-type defaults.
+
+## When to save to memory
+
 Save to memory when you learn something DURABLE that won't be obvious by reading the files:
 - workspace: character decisions, plot choices, world rules, coding conventions, key decisions made in chat.
 - user: working style preferences, corrections to AI mistakes, cross-workspace patterns.
@@ -250,6 +270,14 @@ Save to memory when you learn something DURABLE that won't be obvious by reading
 - Obvious context (current date, file names visible in the sidebar).
 - Unconfirmed guesses or assumptions.
 - Step-by-step plans — use \`create_task\` for those.
+- Repeatable workflows — use \`add_routine\` for those.
+
+## End-of-session review
+After a session with significant discoveries, briefly consider:
+1. Did the user express a preference or correction? → \`remember(scope="user")\`
+2. Did you learn a durable workspace fact? → \`remember(scope="workspace")\`
+3. Did the session reveal a workflow the user will repeat? → \`configure_workspace(action="add_routine")\`
+4. Check existing memory first — if the fact is already there, skip it.
 
 ## Checking before saving
 The memory digest is injected in the system prompt. Check it before calling \`remember\` — if the fact is already there, DO NOT save again. Duplicate entries are the #1 memory problem.
@@ -267,7 +295,8 @@ When schemas, file formats, rules, or data structures change, update workspace m
 
 ## API
 - \`remember(content, heading, scope)\` — append a fact under a heading.
-- \`manage_memory(action="read"|"rewrite"|"delete_entry")\` — inspect and clean up memory.`,
+- \`manage_memory(action="read"|"rewrite"|"delete_entry")\` — inspect and clean up memory.
+- \`configure_workspace(action="add_routine"|"update_routine"|"remove_routine")\` — manage reusable workflow pills.`,
 
   tasks: `# Task Skill — Multi-Step Task Tracking
 

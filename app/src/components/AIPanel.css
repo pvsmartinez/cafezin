@@ -1177,6 +1177,27 @@ body.theme-light .ai-session-stat-chip {
 }
 
 /* Groq key setup overlay */
+.ai-gate-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal, 900);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.ai-gate-overlay .ai-auth-screen,
+.ai-gate-overlay .premium-gate {
+  width: 100%;
+  max-width: 280px;
+  padding: 0;
+}
+
 .ai-groq-overlay {
   position: absolute;
   inset: 0;

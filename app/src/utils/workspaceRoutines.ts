@@ -1,12 +1,5 @@
+import type { WorkspaceRoutine } from '../types';
 import type { WorkspaceType } from './workspaceTypes';
-
-export interface WorkspaceRoutine {
-  id: string;
-  /** Short label shown on the pill */
-  label: string;
-  /** Full prompt sent to the agent when clicked */
-  prompt: string;
-}
 
 const ROUTINES: Record<WorkspaceType, WorkspaceRoutine[]> = {
   book: [
@@ -115,9 +108,10 @@ const DEFAULT_ROUTINES: WorkspaceRoutine[] = [
   },
 ];
 
-export function getRoutinesForWorkspaceType(type?: string): WorkspaceRoutine[] {
-  if (type && type in ROUTINES) {
-    return ROUTINES[type as WorkspaceType];
-  }
-  return DEFAULT_ROUTINES;
+export function getRoutinesForWorkspaceType(type?: string, customRoutines?: WorkspaceRoutine[]): WorkspaceRoutine[] {
+  const defaults: WorkspaceRoutine[] = type && type in ROUTINES
+    ? ROUTINES[type as WorkspaceType]
+    : DEFAULT_ROUTINES;
+  if (!customRoutines || customRoutines.length === 0) return defaults;
+  return [...customRoutines, ...defaults];
 }

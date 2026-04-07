@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { ErrorBoundary } from "@pvsmartinez/shared";
+import { trackAppOpen } from "./services/analytics";
 
 /* ── Bundled fonts (no network required in Tauri) ── */
 import '@fontsource-variable/nunito';          /* UI: 300–900, wght axis */
@@ -105,6 +106,9 @@ const isMobile =
   platform === 'android' ||
   import.meta.env.VITE_TAURI_MOBILE === 'true' ||
   (typeof window !== 'undefined' && window.innerWidth <= 600 && 'ontouchstart' in window);
+
+// Fire-and-forget — analytics failures must never block the app from rendering
+trackAppOpen().catch(() => {});
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

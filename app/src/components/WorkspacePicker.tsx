@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { AuthScreen } from '@pvsmartinez/shared';
 import { supabase } from '../services/supabase';
-import { mkdir } from '../services/fs';
+import { mkdir, writeTextFile } from '../services/fs';
 import { pickWorkspaceFolder, loadWorkspace, getRecents, removeRecent } from '../services/workspace';
 import {
   createGitHubRepo,
@@ -20,6 +20,77 @@ import type { Workspace, RecentWorkspace } from '../types';
 import { SK } from '../services/storageKeys';
 import './WorkspacePicker.css';
 import { timeAgo } from '../utils/timeAgo';
+
+// ── Getting Started content injected into new workspaces ─────────────────────
+const GETTING_STARTED_EN = `# Welcome to Cafezin ✦
+
+This is your first workspace — a local folder where all your files live.
+
+## Get started
+
+**1. Write here**
+This editor supports Markdown. Try \`**bold**\`, \`*italic*\`, \`## headings\`, \`- lists\`.
+
+**2. Create files**
+Click **+ New file** in the sidebar, or press \`Cmd+N\`.
+
+**3. Activate AI (optional)**
+Press \`Cmd+K\` to open the AI panel. Connect OpenAI, Claude, Groq, GitHub Copilot, or a local model (Ollama).
+You bring your own API key — Cafezin never stores it.
+
+**4. Open the canvas**
+Create a \`.canvas\` file for a visual whiteboard. Great for diagrams and mind maps.
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| \`Cmd+K\` | Open AI panel |
+| \`Cmd+N\` | New file |
+| \`Cmd+F\` | Search in file |
+| \`Cmd+Shift+F\` | Search workspace |
+| \`Cmd+,\` | Settings |
+| \`Cmd+Shift+P\` | Toggle preview |
+
+---
+
+*You can delete this file whenever you're ready.*
+`;
+
+const GETTING_STARTED_PT = `# Bem-vindo ao Cafezin ✦
+
+Este é o seu primeiro workspace — uma pasta local onde todos os seus arquivos ficam.
+
+## Primeiros passos
+
+**1. Escreva aqui**
+Este editor usa Markdown. Experimente \`**negrito**\`, \`*itálico*\`, \`## títulos\`, \`- listas\`.
+
+**2. Crie arquivos**
+Clique em **+ Novo arquivo** na barra lateral, ou pressione \`Cmd+N\`.
+
+**3. Ative a IA (opcional)**
+Pressione \`Cmd+K\` para abrir o painel de IA. Conecte OpenAI, Claude, Groq, GitHub Copilot ou modelo local (Ollama).
+Você traz sua própria chave de API — o Cafezin nunca a armazena.
+
+**4. Abra o canvas**
+Crie um arquivo \`.canvas\` para um quadro visual. Ótimo para diagramas e mapas mentais.
+
+## Atalhos
+
+| Atalho | Ação |
+|---|---|
+| \`Cmd+K\` | Abrir painel de IA |
+| \`Cmd+N\` | Novo arquivo |
+| \`Cmd+F\` | Buscar no arquivo |
+| \`Cmd+Shift+F\` | Buscar no workspace |
+| \`Cmd+,\` | Configurações |
+| \`Cmd+Shift+P\` | Alternar preview |
+
+---
+
+*Delete este arquivo quando quiser.*
+`;
 
 const DEFAULT_GIT_ACCOUNT_LABEL = 'personal';
 
@@ -90,6 +161,7 @@ interface WorkspacePickerProps {
 }
 
 export default function WorkspacePicker({ onOpen, externalError = null }: WorkspacePickerProps) {
+  const isPt = navigator.language.startsWith('pt');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recents, setRecents] = useState<RecentWorkspace[]>(getRecents);
@@ -143,6 +215,7 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
       if (!parent) { setCreateBusy(false); return; }
       const dest = `${parent}/${name}`;
       await mkdir(dest, { recursive: true });
+      await writeTextFile(`${dest}/getting-started.md`, isPt ? GETTING_STARTED_PT : GETTING_STARTED_EN);
       const workspace = await loadWorkspace(dest);
       onOpen(workspace);
     } catch (err) {
@@ -393,15 +466,21 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
             <div className="wp-concept-item">
               <span className="wp-concept-icon">📁</span>
               <div>
-                <strong>Workspace = pasta de projeto</strong>
-                <span>Aponte para qualquer pasta do seu computador. Todos os arquivos dentro dela ficam visíveis e organizáveis aqui.</span>
+                <strong>{isPt ? 'Workspace = uma pasta do seu computador' : 'Workspace = a folder on your computer'}</strong>
+                <span>{isPt
+                  ? 'É isso — aponte para qualquer pasta. A IA vai ler tudo o que estiver dentro dela e te ajudar com o contexto do projeto.'
+                  : 'Just point to any folder. The AI will read everything inside it and help you with real project context.'
+                }</span>
               </div>
             </div>
             <div className="wp-concept-item">
               <span className="wp-concept-icon">✨</span>
               <div>
-                <strong>IA é opcional — e usa a sua própria chave</strong>
-                <span>O Cafezin funciona 100% sem IA. Se quiser ativá-la, basta colocar uma chave de API sua (OpenAI, Claude, Groq, Copilot ou modelo local). O custo é direto com o provedor, não entra no plano.</span>
+                <strong>{isPt ? 'IA é opcional — e usa a sua própria chave' : 'AI is optional — use your own key'}</strong>
+                <span>{isPt
+                  ? 'O Cafezin funciona 100% sem IA. Se quiser ativá-la, basta colocar uma chave de API sua (OpenAI, Claude, Groq, Copilot ou modelo local). O custo é direto com o provedor, não entra no plano.'
+                  : 'Cafezin works 100% without AI. To enable it, add your own API key (OpenAI, Claude, Groq, Copilot, or local model). Cost goes directly to the provider.'
+                }</span>
               </div>
             </div>
           </div>
@@ -437,7 +516,7 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
               }}
               autoFocus
             />
-            <p className="wp-create-hint">Escolha onde salvar na próxima etapa.</p>
+            <p className="wp-create-hint">Escolha onde salvar na próxima etapa. A IA vai conhecer tudo o que estiver dentro dessa pasta.</p>
             {createError && <div className="wp-auth-error">{createError}</div>}
             <button
               className="wp-btn-action wp-btn-action--primary"

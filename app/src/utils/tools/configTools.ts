@@ -28,6 +28,7 @@ import {
   type ExportFormat,
   type WorkspaceExportConfig,
   type SidebarButton,
+  type WorkspaceRoutine,
 } from '../../types';
 
 function buildExportCapabilityPayload(targets: ExportTarget[]) {
@@ -275,14 +276,14 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
       name: 'configure_workspace',
       description:
         'Read or update workspace-level settings: preferred AI model, preferred AI language, voice-dump inbox file, ' +
-        'and custom sidebar quick-action buttons. ' +
-        'Actions: list | set_model | set_language | set_inbox | add_button | update_button | remove_button.',
+        'custom sidebar quick-action buttons, and custom agent skill/routine pills shown in the agent panel. ' +
+        'Actions: list | set_model | set_language | set_inbox | add_button | update_button | remove_button | add_routine | update_routine | remove_routine.',
       parameters: {
         type: 'object',
         properties: {
           action: {
             type: 'string',
-            enum: ['list', 'set_model', 'set_language', 'set_inbox', 'add_button', 'update_button', 'remove_button'],
+            enum: ['list', 'set_model', 'set_language', 'set_inbox', 'add_button', 'update_button', 'remove_button', 'add_routine', 'update_routine', 'remove_routine'],
             description: 'Operation to perform.',
           },
           model: {
@@ -305,22 +306,28 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
           },
           id: {
             type: 'string',
-            description: 'Button id — required for update_button and remove_button.',
+            description: 'Button or routine id — required for update_button, remove_button, update_routine, and remove_routine.',
           },
           label: {
             type: 'string',
             description:
-              'Short label shown on the sidebar button, e.g. "⊡ Export" ' +
-              '(required for add_button; optional for update_button).',
+              'Short label shown on the sidebar button or routine pill (required for add_button and add_routine; optional for update variants). '
+              + 'E.g. "⊡ Export" for a button, "Revisar capítulo" for a routine.',
           },
           command: {
             type: 'string',
             description:
               'Shell command executed with the workspace root as cwd (required for add_button, optional for update_button).',
           },
+          prompt: {
+            type: 'string',
+            description:
+              'Full prompt sent to the agent when a routine pill is clicked (required for add_routine; optional for update_routine). '
+              + 'Write it as a complete, standalone instruction — it runs without any extra context from the user.',
+          },
           description: {
             type: 'string',
-            description: 'Optional tooltip / description for the button.',
+            description: 'Optional tooltip / description for the button or routine.',
           },
         },
         required: ['action'],
@@ -805,6 +812,7 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
           preferredLanguage: workspaceConfig?.preferredLanguage ?? 'pt-BR',
           inboxFile: workspaceConfig?.inboxFile ?? '00_Inbox/raw_transcripts.md',
           sidebarButtons: currentButtons,
+          customRoutines: workspaceConfig?.customRoutines ?? [],
         }, null, 2);
       }
 
@@ -877,7 +885,49 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
         return `Removed sidebar button "${match.label}".`;
       }
 
-      return `Unknown action: ${action}. Use list, set_model, set_language, set_inbox, add_button, update_button, or remove_button.`;
+      // ── Routine actions ────────────────────────────────────────────────
+      const currentRoutines: WorkspaceRoutine[] = workspaceConfig?.customRoutines ?? [];
+
+      if (action === 'add_routine') {
+        if (!args.label)  return 'Error: label is required for add_routine.';
+        if (!args.prompt) return 'Error: prompt is required for add_routine.';
+        const MAX_ROUTINES = 10;
+        if (currentRoutines.length >= MAX_ROUTINES) {
+          return `Error: maximum of ${MAX_ROUTINES} custom routines. Remove one first using remove_routine.`;
+        }
+        const newRoutine: WorkspaceRoutine = {
+          id:    Math.random().toString(36).slice(2, 9),
+          label: String(args.label).trim(),
+          prompt: String(args.prompt).trim(),
+        };
+        onWorkspaceConfigChange({ customRoutines: [...currentRoutines, newRoutine] });
+        return `Added routine "${newRoutine.label}" (id: ${newRoutine.id}). It will appear as a pill in the agent panel.`;
+      }
+
+      if (action === 'update_routine') {
+        const match = currentRoutines.find((r) =>
+          (args.id && r.id === args.id) || (args.label && r.label === String(args.label))
+        );
+        if (!match) return `Routine not found: ${args.id ?? args.label}. Use configure_workspace(action="list") to see current routines.`;
+        const updated: WorkspaceRoutine = {
+          ...match,
+          ...(args.label  !== undefined ? { label:  String(args.label).trim()  } : {}),
+          ...(args.prompt !== undefined ? { prompt: String(args.prompt).trim() } : {}),
+        };
+        onWorkspaceConfigChange({ customRoutines: currentRoutines.map((r) => r.id === match.id ? updated : r) });
+        return `Updated routine "${updated.label}".`;
+      }
+
+      if (action === 'remove_routine') {
+        const match = currentRoutines.find((r) =>
+          (args.id && r.id === args.id) || (args.label && r.label === String(args.label))
+        );
+        if (!match) return `Routine not found: ${args.id ?? args.label}. Use configure_workspace(action="list") to see current routines.`;
+        onWorkspaceConfigChange({ customRoutines: currentRoutines.filter((r) => r.id !== match.id) });
+        return `Removed routine "${match.label}".`;
+      }
+
+      return `Unknown action: ${action}. Use list, set_model, set_language, set_inbox, add_button, update_button, remove_button, add_routine, update_routine, or remove_routine.`;
     }
 
     // ── save_desktop_task ──────────────────────────────────────────────────

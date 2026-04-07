@@ -46,6 +46,7 @@ import { PremiumGate } from './ai/PremiumGate';
 import AgentSession from './AgentSession';
 import type { AgentSessionHandle } from './AgentSession';
 import { useAccountState } from '../hooks/useAccountState';
+import { isTrialUsed, markTrialUsed } from '../services/aiTrial';
 
 import './AIPanel.css';
 
@@ -439,6 +440,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
   // Track previous status per tab so we can detect thinking→idle transition
   const prevStatusRef = useRef<Map<string, AgentStatus>>(new Map());
+  const [trialUsed, setTrialUsed] = useState(() => isTrialUsed());
 
   // Track whether the native window is focused (for dock bounce)
   const windowFocusedRef = useRef(true);
@@ -593,33 +595,13 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
   // ── Early returns ─────────────────────────────────────────────────────────
   if (!isOpen) return null;
-
-  // Premium gate: block AI access for free/unauthenticated Cafezin accounts.
-  // Shown before the provider-auth check so all AI routes are gated uniformly.
-  if (!accountLoading && !account.canUseAI) {
-    return (
-      <PremiumGate
-        account={account}
-        loading={accountLoading}
-        style={style}
-        onRefresh={refreshAccount}
-      />
-    );
-  }
-
-  if (authStatus === 'unauthenticated' || authStatus === 'connecting') {
-    return (
-      <AIAuthScreen
-        authStatus={authStatus}
-        deviceFlow={deviceFlow}
-        error={authError}
-        style={style}
-        onSignIn={handleSignIn}
-      />
-    );
-  }
-
   if (authStatus === 'checking') return null;
+
+  // ── Gate overlay state (shown as overlay on top of panel instead of replacing it) ──
+  // Free users get 1 trial response (device-scoped). Gate opens only after trial is used.
+  const canAccessAI = account.canUseAI || !trialUsed;
+  const isGated = (!accountLoading && !canAccessAI) ||
+    authStatus === 'unauthenticated' || authStatus === 'connecting';
 
   // ── Collapsed icon strip ─────────────────────────────────────────────────
   if (collapsed) {
@@ -807,6 +789,12 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           onStatusChange={(status) => {
             const prevStatus = prevStatusRef.current.get(tab.id) ?? 'idle';
             prevStatusRef.current.set(tab.id, status);
+            // Mark trial used after first successful response
+            const justDone = status === 'idle' && prevStatus === 'thinking';
+            if (justDone && !account.canUseAI && !trialUsed) {
+              markTrialUsed();
+              setTrialUsed(true);
+            }
             setTabs((tabs) => mapTabsIfChanged(tabs, (t) => {
               if (t.id !== tab.id) return t;
               // Mark unread when a background tab finishes a response
@@ -835,6 +823,28 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           selectionContext={selectionContext}
         />
       ))}
+
+      {/* Gate overlay — shown when auth/premium is required */}
+      {isGated && (
+        <div className="ai-gate-overlay">
+          {!accountLoading && !canAccessAI ? (
+            <PremiumGate
+              account={account}
+              loading={accountLoading}
+              onRefresh={refreshAccount}
+              isOverlay
+            />
+          ) : (
+            <AIAuthScreen
+              authStatus={authStatus as 'unauthenticated' | 'connecting'}
+              deviceFlow={deviceFlow}
+              error={authError}
+              onSignIn={handleSignIn}
+              isOverlay
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 });

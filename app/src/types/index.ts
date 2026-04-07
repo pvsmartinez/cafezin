@@ -440,6 +440,15 @@ export interface SidebarButton {
   description?: string;
 }
 
+/** A quick-action skill/routine shown as a clickable pill in the agent panel empty state. */
+export interface WorkspaceRoutine {
+  id: string;
+  /** Short label shown on the pill, e.g. "Revisar capítulo" */
+  label: string;
+  /** Full prompt sent to the agent when clicked */
+  prompt: string;
+}
+
 export interface WorkspaceConfig {
   name: string;
   lastOpenedFile?: string;
@@ -487,6 +496,11 @@ export interface WorkspaceConfig {
    * Global MCP servers are stored in localStorage (SK.MCP_SERVERS).
    */
   mcpServers?: McpServerConfig[];
+  /**
+   * Custom skill/routine pills shown in the agent panel empty state.
+   * Created by the agent via configure_workspace(action="add_routine").
+   */
+  customRoutines?: WorkspaceRoutine[];
 }
 
 /** A span of text inserted by the AI and not yet reviewed by the human. */

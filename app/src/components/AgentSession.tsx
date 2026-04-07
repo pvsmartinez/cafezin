@@ -866,7 +866,10 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
             {/* Routine pills */}
             {workspacePath && (() => {
-              const routines = getRoutinesForWorkspaceType(workspaceConfig?.workspaceType);
+              const routines = getRoutinesForWorkspaceType(
+                workspaceConfig?.workspaceType,
+                workspaceConfig?.customRoutines,
+              );
               return (
                 <div className="ai-routines">
                   <div className="ai-routines-label">Rotinas</div>

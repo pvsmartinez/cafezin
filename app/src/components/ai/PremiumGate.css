@@ -91,6 +91,27 @@
 
 /* ── Refresh button ───────────────────────────────────────────────────────── */
 
+.premium-gate-login-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin: 4px 0 0;
+  text-align: center;
+}
+
+.premium-gate-login-link {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.premium-gate-login-link:hover {
+  color: var(--accent);
+}
+
 .premium-gate-refresh {
   display: inline-flex;
   align-items: center;
