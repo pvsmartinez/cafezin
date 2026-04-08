@@ -58,7 +58,7 @@ export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
 
 export const PROVIDER_DEFAULT_MODELS: Record<AIProviderType, string> = {
   copilot:   DEFAULT_MODEL,
-  cafezin:   'google/gemini-2.0-flash', // cheapest model — available on all tiers
+  cafezin:   'google/gemma-4-31b-it', // default para managed AI
   openai:    'gpt-4.1',
   anthropic: 'claude-sonnet-4-5',
   groq:      'llama-3.3-70b-versatile',
@@ -88,6 +88,7 @@ export interface CafezinManagedModel {
 
 export const CAFEZIN_MANAGED_MODELS: CafezinManagedModel[] = [
   // ── Basic tier models (budget-friendly) ────────────────────────────────
+  { id: 'google/gemma-4-31b-it',                name: 'Gemma 4 31B',             vendor: 'Google',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
   { id: 'google/gemini-2.0-flash',              name: 'Gemini 2.0 Flash',        vendor: 'Google',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
   { id: 'google/gemini-2.5-flash',              name: 'Gemini 2.5 Flash',        vendor: 'Google',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
   { id: 'meta-llama/llama-3.3-70b-instruct',    name: 'Llama 3.3 70B',           vendor: 'Meta',      supportsVision: false, consumptionRate: 0.5,  minTier: 'basic'    },

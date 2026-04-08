@@ -384,6 +384,12 @@ version  = '$VERSION'
 
 data['version']  = version
 data['pub_date'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+notes_file = '$ROOT_DIR/landing/release-notes-latest.md'
+if os.path.exists(notes_file):
+    with open(notes_file, 'r') as nf:
+        data['notes'] = nf.read().strip()
+
 data.setdefault('platforms', {})
 data['platforms'][platform] = {
     'url':       f'{base}/$TARGZ_DEST',

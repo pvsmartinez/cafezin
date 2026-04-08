@@ -1,7 +1,12 @@
 {
   "version": "0.1.13",
+<<<<<<< HEAD
   "notes": "Cafezin 0.1.12 introduces smarter AI session tracking and compression improvements, ensuring better context retention and coherence during extended writing sessions.",
   "pub_date": "2026-04-07T02:32:43Z",
+=======
+    "notes": "Cafezin 0.1.13 improves the first-run experience: new workspaces now open with a Getting Started guide, onboarding is bilingual (EN/PT), and the app reports install events to improve the funnel.",
+  "pub_date": "2026-04-07T02:25:11Z",
+>>>>>>> 0c36920 (chore: sync)
   "min_versions": {
     "release": "0.1.7",
     "dev": "0.1.7",

@@ -45,13 +45,12 @@ const TIER_LIMITS_MC: Record<string, number> = {
 };
 
 /**
- * Models available to each tier on OpenRouter.
- * 'basic' tier gets only budget models; 'standard'/'pro' get all.
- *
- * multiplier here represents the consumption rate shown in the UI
- * (1× = ~200 prompts in standard budget; 0.5× = twice as many, etc.)
+ * Fallback list used only if the ai_config table is unreachable.
+ * The canonical list lives in: public.ai_config WHERE key = 'basic_tier_models'
+ * Update it via SQL — no redeploy needed.
  */
-const BASIC_TIER_MODELS: string[] = [
+const BASIC_TIER_MODELS_FALLBACK: string[] = [
+  'google/gemma-4-31b-it',
   'google/gemini-2.0-flash',
   'google/gemini-2.5-flash',
   'google/gemini-flash-1.5',
@@ -62,9 +61,36 @@ const BASIC_TIER_MODELS: string[] = [
   'deepseek/deepseek-r1-0528-qwen3-8b',
 ];
 
-function isModelAllowedForTier(model: string, tier: string): boolean {
+// Module-level cache — shared across requests within the same isolate lifetime.
+let _basicTierModelsCache: string[] | null = null;
+let _basicTierCachedAt = 0;
+const BASIC_TIER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function getBasicTierModels(supabase: ReturnType<typeof createClient>): Promise<string[]> {
+  const now = Date.now();
+  if (_basicTierModelsCache && now - _basicTierCachedAt < BASIC_TIER_CACHE_TTL_MS) {
+    return _basicTierModelsCache;
+  }
+
+  const { data, error } = await supabase
+    .from('ai_config')
+    .select('value')
+    .eq('key', 'basic_tier_models')
+    .single();
+
+  if (error || !data?.value || !Array.isArray(data.value)) {
+    console.warn('[ai-proxy] Failed to load basic_tier_models from DB, using fallback', error?.message);
+    return BASIC_TIER_MODELS_FALLBACK;
+  }
+
+  _basicTierModelsCache = data.value as string[];
+  _basicTierCachedAt = now;
+  return _basicTierModelsCache;
+}
+
+function isModelAllowedForTier(model: string, tier: string, basicModels: string[]): boolean {
   if (tier === 'standard' || tier === 'pro') return true;
-  if (tier === 'basic') return BASIC_TIER_MODELS.includes(model);
+  if (tier === 'basic') return basicModels.includes(model);
   return false;
 }
 
@@ -191,7 +217,8 @@ Deno.serve(async (req) => {
   }
 
   // ── Model allowlist ───────────────────────────────────────────────────────
-  if (!isModelAllowedForTier(model, tier)) {
+  const basicModels = await getBasicTierModels(supabase);
+  if (!isModelAllowedForTier(model, tier, basicModels)) {
     return new Response(
       JSON.stringify({ error: 'model_not_allowed', message: `Model "${model}" is not available on the ${tier} tier` }),
       { status: 403, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },

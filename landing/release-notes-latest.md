@@ -1,13 +1,12 @@
-# Cafezin 0.1.12
+# Cafezin 0.1.13
 
-Cafezin 0.1.12 introduces smarter AI session tracking and compression improvements, ensuring better context retention and coherence during extended writing sessions.
+Cafezin 0.1.13 improves the first-run experience and adds onboarding for new workspaces.
 
 ## Highlights
 
-- Session goal anchoring: The app now retains the user's initial message as an anchor throughout the session, helping the AI stay focused on the user's intent even during long interactions.
-- File read cache: Cafezin tracks files read during a session, enabling the AI to avoid redundant re-reads and prioritize fresh or changed files for improved efficiency.
-- Enhanced context compression: Mixed messages (e.g., user and assistant) are now preserved during compression, ensuring better coherence and avoiding loss of critical information.
-- Sliding window improvements: Groups of related messages, such as tool results and their parent assistant messages, are kept intact during token budget enforcement, preventing unintended drops and maintaining context consistency.
+- Getting Started guide: Creating a new workspace now automatically generates a `getting-started.md` file with a guided introduction to the editor, AI panel, keyboard shortcuts, and canvas — opened immediately on first launch.
+- Bilingual onboarding: The new workspace screen now correctly adapts to English or Portuguese based on your system language.
+- App analytics: The app now reports first-open and session events so the team can better understand the install-to-use funnel and improve the experience over time. No personal data is collected.
 
 ## Downloads
 
@@ -16,4 +15,4 @@ Cafezin 0.1.12 introduces smarter AI session tracking and compression improvemen
 
 ## Full release
 
-https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.12
+https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.13
