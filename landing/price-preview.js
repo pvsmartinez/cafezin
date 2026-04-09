@@ -60,21 +60,59 @@
   // ── Core: apply prices for a given interval ──────────────────────────────
 
   function applyPrices(pricesData, interval, opts) {
-    const tiers = (interval === "annual"
-      ? pricesData.annual
-      : pricesData.monthly) ??
-      pricesData.tiers ?? { basic: pricesData.amountFormatted };
+    const annualRaw = pricesData.annualRawCents ?? {};
+    const useMonthlyEquiv =
+      interval === "annual" && Object.keys(annualRaw).length > 0;
 
-    for (const [tier, amount] of Object.entries(tiers)) {
-      document.querySelectorAll(`[data-price-tier="${tier}"]`).forEach((el) => {
-        el.textContent = amount;
-      });
+    if (useMonthlyEquiv) {
+      // Show annual price ÷ 12 so the displayed number feels approachable.
+      const currency = pricesData.currencyCode ?? "USD";
+      const localeMap = { BRL: "pt-BR", EUR: "de-DE", GBP: "en-GB" };
+      const locale = localeMap[currency] ?? "en-US";
+      for (const [tier, rawCents] of Object.entries(annualRaw)) {
+        const formatted = new Intl.NumberFormat(locale, {
+          style: "currency",
+          currency,
+        }).format(rawCents / 1200);
+        document
+          .querySelectorAll(`[data-price-tier="${tier}"]`)
+          .forEach((el) => {
+            el.textContent = formatted;
+          });
+      }
+    } else {
+      const tiers = (interval === "annual"
+        ? pricesData.annual
+        : pricesData.monthly) ??
+        pricesData.tiers ?? { basic: pricesData.amountFormatted };
+      for (const [tier, amount] of Object.entries(tiers)) {
+        document
+          .querySelectorAll(`[data-price-tier="${tier}"]`)
+          .forEach((el) => {
+            el.textContent = amount;
+          });
+      }
     }
 
-    // Update period text (e.g. /month vs /yr).
+    // Populate annual-total spans used in "billed X/yr" notes.
+    for (const [tier, annualFormatted] of Object.entries(
+      pricesData.annual ?? {},
+    )) {
+      document
+        .querySelectorAll(`[data-price-annual="${tier}"]`)
+        .forEach((el) => {
+          el.textContent = annualFormatted;
+        });
+    }
+
+    // Period text: /month when showing monthly equivalent, otherwise per-interval text.
     const periodMonthly = opts.periodMonthly ?? "/month";
     const periodAnnual = opts.periodAnnual ?? "/yr";
-    const periodText = interval === "annual" ? periodAnnual : periodMonthly;
+    const periodText = useMonthlyEquiv
+      ? periodMonthly
+      : interval === "annual"
+        ? periodAnnual
+        : periodMonthly;
     document.querySelectorAll("[data-price-period]").forEach((el) => {
       el.textContent = periodText;
     });
@@ -112,6 +150,7 @@
       window.cafezinPrices = {
         monthly: data.monthly ?? data.tiers ?? {},
         annual: data.annual ?? {},
+        annualRawCents: data.annualRawCents ?? {},
         currencyCode: data.currencyCode,
         countryCode: data.countryCode,
         _opts: options,
@@ -160,6 +199,8 @@
       {
         monthly: window.cafezinPrices.monthly,
         annual: window.cafezinPrices.annual,
+        annualRawCents: window.cafezinPrices.annualRawCents ?? {},
+        currencyCode: window.cafezinPrices.currencyCode,
       },
       interval,
       window.cafezinPrices._opts ?? {},

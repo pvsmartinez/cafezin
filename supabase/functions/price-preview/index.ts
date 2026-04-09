@@ -142,6 +142,7 @@ Deno.serve(async (req) => {
   const lineItems: unknown[] = data?.details?.line_items ?? data?.items ?? [];
   const monthly: Record<string, string> = {};
   const annual: Record<string, string> = {};
+  const annualRawCents: Record<string, number> = {};
 
   for (const li of lineItems) {
     const lineItem = li as Record<string, unknown>;
@@ -163,6 +164,13 @@ Deno.serve(async (req) => {
       if (entry.interval === 'monthly') monthly[entry.tier] = formatted;
       else annual[entry.tier] = formatted;
     }
+
+    if (entry.interval === 'annual') {
+      const rawStr = (lineItem?.totals as Record<string, unknown>)?.total as string | undefined;
+      if (rawStr && /^\d+$/.test(rawStr)) {
+        annualRawCents[entry.tier] = parseInt(rawStr, 10);
+      }
+    }
   }
 
   if (Object.keys(monthly).length === 0 && Object.keys(annual).length === 0) {
@@ -172,6 +180,7 @@ Deno.serve(async (req) => {
   return json({
     monthly,
     annual,
+    annualRawCents,
     // Legacy fields — keep for backwards compatibility.
     tiers: monthly,
     amountFormatted: monthly.basic ?? Object.values(monthly)[0],
