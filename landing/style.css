@@ -923,7 +923,7 @@ body {
 }
 .pricing-amount {
   font-family: var(--font-serif);
-  font-size: 48px;
+  font-size: clamp(26px, 3.2vw, 44px);
   font-weight: 700;
   color: var(--text-bright);
   line-height: 1;
@@ -2135,7 +2135,8 @@ body {
 }
 .billing-toggle {
   display: inline-flex;
-  background: var(--surface-2, #f0ede8);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
   border-radius: 99px;
   padding: 4px;
   gap: 2px;
@@ -2157,9 +2158,9 @@ body {
   white-space: nowrap;
 }
 .billing-opt--active {
-  background: #fff;
-  color: var(--text, #1a1512);
-  box-shadow: 0 1px 6px rgba(0,0,0,.10);
+  background: var(--surface3);
+  color: var(--text-bright);
+  box-shadow: 0 1px 6px rgba(0,0,0,.30);
 }
 .billing-opt:not(.billing-opt--active):hover {
   color: var(--text, #1a1512);
