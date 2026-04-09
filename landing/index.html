@@ -534,6 +534,16 @@
       <div class="section-label">Pricing</div>
       <h2 class="section-title">Start free. Unlock AI when you need it.</h2>
 
+      <!-- Billing toggle -->
+      <div class="billing-toggle-wrap">
+        <div class="billing-toggle" role="group" aria-label="Billing interval">
+          <button class="billing-opt billing-opt--active" data-billing-toggle="annual" aria-pressed="true">
+            Annual <span class="billing-badge">2 months free</span>
+          </button>
+          <button class="billing-opt" data-billing-toggle="monthly" aria-pressed="false">Monthly</button>
+        </div>
+      </div>
+
       <div class="pricing-grid" style="margin-bottom:32px;">
 
         <div class="pricing-card">
@@ -557,8 +567,8 @@
         <div class="pricing-card">
           <div class="pricing-plan">Basic</div>
           <div class="pricing-price">
-            <span class="pricing-amount">$5</span>
-            <span class="pricing-period">/month</span>
+            <span class="pricing-amount" data-price-tier="basic">$5</span>
+            <span class="pricing-period" data-price-period>/yr</span>
           </div>
           <p class="pricing-desc">Unlock AI with a light budget. Great for occasional use.</p>
           <ul class="pricing-features">
@@ -574,8 +584,8 @@
           <div class="pricing-badge">Most popular</div>
           <div class="pricing-plan">Standard</div>
           <div class="pricing-price">
-            <span class="pricing-amount">$20</span>
-            <span class="pricing-period">/month</span>
+            <span class="pricing-amount" data-price-tier="standard">$20</span>
+            <span class="pricing-period" data-price-period>/yr</span>
           </div>
           <p class="pricing-desc">Daily AI writing with a generous included budget.</p>
           <ul class="pricing-features">
@@ -590,8 +600,8 @@
         <div class="pricing-card">
           <div class="pricing-plan">Pro</div>
           <div class="pricing-price">
-            <span class="pricing-amount">$50</span>
-            <span class="pricing-period">/month</span>
+            <span class="pricing-amount" data-price-tier="pro">$50</span>
+            <span class="pricing-period" data-price-period>/yr</span>
           </div>
           <p class="pricing-desc">Power users and heavy AI workflows.</p>
           <ul class="pricing-features">
@@ -762,6 +772,8 @@
   })();
   </script>
 
+  <script src="/price-preview.js"></script>
+  <script>loadCafezinPrices({ periodMonthly: '/month', periodAnnual: '/yr' });</script>
   <script src="/landing-analytics.js"></script>
 
   <script>

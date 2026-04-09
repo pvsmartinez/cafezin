@@ -76,13 +76,19 @@ function mapStatus(paddleStatus: string): string {
 
 const PRICE_ID_TO_AI_TIER: Record<string, { tier: string; limitMicrocents: number }> = {
   // Basic plan — $5/mo — $2 OpenRouter budget
-  [Deno.env.get('PADDLE_PRICE_ID_BASIC')    ?? '']: { tier: 'basic',    limitMicrocents: 20_000  },
-  // Standard plan — $20/mo — $15 OpenRouter budget
-  [Deno.env.get('PADDLE_PRICE_ID_STANDARD') ?? '']: { tier: 'standard', limitMicrocents: 150_000 },
+  [Deno.env.get('PADDLE_PRICE_ID_BASIC')           ?? '']: { tier: 'basic',    limitMicrocents: 20_000  },
+  // Standard plan — $15/mo — $15 OpenRouter budget
+  [Deno.env.get('PADDLE_PRICE_ID_STANDARD')        ?? '']: { tier: 'standard', limitMicrocents: 150_000 },
   // Pro plan — $50/mo — $40 OpenRouter budget
-  [Deno.env.get('PADDLE_PRICE_ID_PRO')      ?? '']: { tier: 'pro',      limitMicrocents: 400_000 },
+  [Deno.env.get('PADDLE_PRICE_ID_PRO')             ?? '']: { tier: 'pro',      limitMicrocents: 400_000 },
+  // Basic annual — $50/yr
+  [Deno.env.get('PADDLE_PRICE_ID_BASIC_ANNUAL')    ?? '']: { tier: 'basic',    limitMicrocents: 20_000  },
+  // Standard annual — $150/yr
+  [Deno.env.get('PADDLE_PRICE_ID_STANDARD_ANNUAL') ?? '']: { tier: 'standard', limitMicrocents: 150_000 },
+  // Pro annual — $500/yr
+  [Deno.env.get('PADDLE_PRICE_ID_PRO_ANNUAL')      ?? '']: { tier: 'pro',      limitMicrocents: 400_000 },
   // Legacy premium price (maps to basic tier)
-  [Deno.env.get('PADDLE_PRICE_ID')          ?? '']: { tier: 'basic',    limitMicrocents: 20_000  },
+  [Deno.env.get('PADDLE_PRICE_ID')                 ?? '']: { tier: 'basic',    limitMicrocents: 20_000  },
 };
 
 function resolvePlanFromPriceId(priceId: string | null): string {
@@ -216,7 +222,10 @@ Deno.serve(async (req) => {
             credits_limit_microcents: limitMicrocents,
             // Only reset used count on new activation/renewal
             ...(isNewCycle ? { credits_used_microcents: 0, cycle_start: new Date().toISOString() } : {}),
-            reset_at:   periodEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            // ai_usage quota always resets every 30 days regardless of billing interval
+        // (annual subscriptions have no monthly Paddle renewal event, so ai-proxy
+        //  handles mid-year resets via its own auto-reset logic on reset_at)
+        reset_at:   new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'user_id' },

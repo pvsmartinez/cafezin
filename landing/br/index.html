@@ -491,6 +491,16 @@
       <div class="section-label">Preços</div>
       <h2 class="section-title">Comece grátis. Pague só quando fizer sentido.</h2>
 
+      <!-- Toggle de cobrança -->
+      <div class="billing-toggle-wrap">
+        <div class="billing-toggle" role="group" aria-label="Periodicidade">
+          <button class="billing-opt billing-opt--active" data-billing-toggle="annual" aria-pressed="true">
+            Anual <span class="billing-badge">2 meses grátis</span>
+          </button>
+          <button class="billing-opt" data-billing-toggle="monthly" aria-pressed="false">Mensal</button>
+        </div>
+      </div>
+
       <div class="plan-grid">
         <div class="plan-card">
           <div class="plan-name">Grátis</div>
@@ -507,7 +517,7 @@
         <div class="plan-card plan-card--featured">
           <div class="plan-badge">Mais popular</div>
           <div class="plan-name">Planos pagos</div>
-          <div class="plan-price">a partir de US$ 5<span>/mês</span></div>
+          <div class="plan-price">a partir de <span data-price-tier="basic">US$ 5</span><span class="plan-price-period" data-price-period>/ano</span></div>
           <ul class="plan-features">
             <li>Todos os planos pagos liberam IA no Cafezin</li>
             <li>Cafezin IA incluída: US$ 2, US$ 15 ou US$ 40 por mês</li>
@@ -617,6 +627,8 @@
   })();
   </script>
 
+  <script src="/price-preview.js"></script>
+  <script>loadCafezinPrices({ country: 'BR', currency: 'BRL', periodMonthly: '/mês', periodAnnual: '/ano' });</script>
   <script src="/landing-analytics.js"></script>
 </body>
 </html>

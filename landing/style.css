@@ -2126,3 +2126,52 @@ body {
 @media (max-width: 680px) {
   .sticky-bar-tagline { display: none; }
 }
+
+/* ── Billing interval toggle ─────────────────────────────────────────────── */
+.billing-toggle-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+.billing-toggle {
+  display: inline-flex;
+  background: var(--surface-2, #f0ede8);
+  border-radius: 99px;
+  padding: 4px;
+  gap: 2px;
+}
+.billing-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 99px;
+  background: transparent;
+  color: var(--text-muted, #7a6f66);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  white-space: nowrap;
+}
+.billing-opt--active {
+  background: #fff;
+  color: var(--text, #1a1512);
+  box-shadow: 0 1px 6px rgba(0,0,0,.10);
+}
+.billing-opt:not(.billing-opt--active):hover {
+  color: var(--text, #1a1512);
+}
+.billing-badge {
+  display: inline-block;
+  background: #16a34a;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  letter-spacing: 0.01em;
+}
+

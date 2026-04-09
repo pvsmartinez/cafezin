@@ -21,6 +21,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 type CheckoutTier = 'basic' | 'standard' | 'pro';
+type CheckoutInterval = 'monthly' | 'annual';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
@@ -38,12 +39,14 @@ Deno.serve(async (req) => {
 
   let locale = 'en';
   let tier: CheckoutTier = 'basic';
+  let interval: CheckoutInterval = 'monthly';
   try {
     const body = await req.json();
     if (body?.locale === 'pt-BR') locale = 'pt-BR';
     if (body?.tier === 'basic' || body?.tier === 'standard' || body?.tier === 'pro') {
       tier = body.tier;
     }
+    if (body?.interval === 'annual') interval = 'annual';
   } catch {
     // Body is optional; default to English route.
   }
@@ -68,12 +71,12 @@ Deno.serve(async (req) => {
 
   // ── Create Paddle checkout ────────────────────────────────────────────────
   const apiKey = Deno.env.get('PADDLE_API_KEY')!;
-  const priceIdByTier: Record<CheckoutTier, string | undefined> = {
-    basic: Deno.env.get('PADDLE_PRICE_ID_BASIC') ?? Deno.env.get('PADDLE_PRICE_ID') ?? undefined,
-    standard: Deno.env.get('PADDLE_PRICE_ID_STANDARD') ?? undefined,
-    pro: Deno.env.get('PADDLE_PRICE_ID_PRO') ?? undefined,
+  const priceIdByTier: Record<CheckoutTier, Record<CheckoutInterval, string | undefined>> = {
+    basic:    { monthly: Deno.env.get('PADDLE_PRICE_ID_BASIC')    ?? Deno.env.get('PADDLE_PRICE_ID') ?? undefined, annual: Deno.env.get('PADDLE_PRICE_ID_BASIC_ANNUAL')    ?? undefined },
+    standard: { monthly: Deno.env.get('PADDLE_PRICE_ID_STANDARD') ?? undefined,                                    annual: Deno.env.get('PADDLE_PRICE_ID_STANDARD_ANNUAL') ?? undefined },
+    pro:      { monthly: Deno.env.get('PADDLE_PRICE_ID_PRO')      ?? undefined,                                    annual: Deno.env.get('PADDLE_PRICE_ID_PRO_ANNUAL')      ?? undefined },
   };
-  const priceId = priceIdByTier[tier];
+  const priceId = priceIdByTier[tier][interval] ?? priceIdByTier[tier].monthly;
   const env = Deno.env.get('PADDLE_ENVIRONMENT') ?? 'production';
   const baseUrl = env === 'sandbox'
     ? 'https://sandbox-api.paddle.com'

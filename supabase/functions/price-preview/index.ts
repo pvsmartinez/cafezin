@@ -3,13 +3,16 @@
  *
  * GET /functions/v1/price-preview?country=BR&currency=BRL
  *
- * Uses Paddle's pricing preview API to return a localized, formatted amount
- * for the single Cafezin Premium subscription price.
+ * Uses Paddle's pricing preview API to return localized, formatted amounts
+ * for all Cafezin subscription tiers (basic, standard, pro) in a single request.
  *
  * Required secrets:
- *   PADDLE_API_KEY      — from Paddle Dashboard → Developer → Authentication
- *   PADDLE_PRICE_ID     — subscription price ID (format: pri_...)
- *   PADDLE_ENVIRONMENT  — 'sandbox' or 'production'
+ *   PADDLE_API_KEY           — from Paddle Dashboard → Developer → Authentication
+ *   PADDLE_PRICE_ID_BASIC    — Basic tier price ID (format: pri_...)
+ *   PADDLE_PRICE_ID_STANDARD — Standard tier price ID
+ *   PADDLE_PRICE_ID_PRO      — Pro tier price ID
+ *   PADDLE_PRICE_ID          — legacy fallback (used as basic if BASIC not set)
+ *   PADDLE_ENVIRONMENT       — 'sandbox' or 'production'
  */
 
 const CORS_HEADERS = {
@@ -65,11 +68,33 @@ Deno.serve(async (req) => {
   }
 
   const apiKey = Deno.env.get('PADDLE_API_KEY');
-  const priceId = Deno.env.get('PADDLE_PRICE_ID');
   const environment = Deno.env.get('PADDLE_ENVIRONMENT') ?? 'production';
 
-  if (!apiKey || !priceId) {
+  if (!apiKey) {
     return json({ error: 'Paddle pricing preview is not configured' }, 500);
+  }
+
+  // Collect monthly + annual price IDs into a unified list.
+  type PriceEntry = { tier: string; interval: 'monthly' | 'annual'; priceId: string };
+  const allPrices: PriceEntry[] = [];
+  const priceIdToEntry = new Map<string, PriceEntry>();
+
+  function addPrice(tier: string, interval: 'monthly' | 'annual', id: string | undefined) {
+    if (!id) return;
+    const entry: PriceEntry = { tier, interval, priceId: id };
+    allPrices.push(entry);
+    priceIdToEntry.set(id, entry);
+  }
+
+  addPrice('basic',    'monthly', Deno.env.get('PADDLE_PRICE_ID_BASIC')    ?? Deno.env.get('PADDLE_PRICE_ID'));
+  addPrice('standard', 'monthly', Deno.env.get('PADDLE_PRICE_ID_STANDARD'));
+  addPrice('pro',      'monthly', Deno.env.get('PADDLE_PRICE_ID_PRO'));
+  addPrice('basic',    'annual',  Deno.env.get('PADDLE_PRICE_ID_BASIC_ANNUAL'));
+  addPrice('standard', 'annual',  Deno.env.get('PADDLE_PRICE_ID_STANDARD_ANNUAL'));
+  addPrice('pro',      'annual',  Deno.env.get('PADDLE_PRICE_ID_PRO_ANNUAL'));
+
+  if (allPrices.length === 0) {
+    return json({ error: 'No Paddle price IDs configured' }, 500);
   }
 
   const baseUrl = environment === 'sandbox'
@@ -82,14 +107,11 @@ Deno.serve(async (req) => {
   const clientIp = getClientIp(req);
 
   const paddleBody: Record<string, unknown> = {
-    items: [{ price_id: priceId, quantity: 1 }],
+    items: allPrices.map((e) => ({ price_id: e.priceId, quantity: 1 })),
   };
 
   if (countryCode) {
-    paddleBody.address = {
-      country_code: countryCode,
-      postal_code: null,
-    };
+    paddleBody.address = { country_code: countryCode, postal_code: null };
   } else if (clientIp) {
     paddleBody.customer_ip_address = clientIp;
   }
@@ -115,25 +137,46 @@ Deno.serve(async (req) => {
 
   const paddleData = await paddleRes.json();
   const data = paddleData?.data ?? {};
-  const item = data?.items?.[0] ?? {};
-  const detailLineItem = data?.details?.line_items?.[0] ?? {};
-  const resolvedCurrency = data?.currency_code ?? currencyCode ?? 'BRL';
-  const amountFormatted = detailLineItem?.formatted_totals?.total
-    ?? detailLineItem?.formatted_unit_totals?.total
-    ?? item?.formatted_totals?.total
-    ?? item?.formatted_unit_totals?.total
-    ?? formatMinorUnits(detailLineItem?.totals?.total, resolvedCurrency)
-    ?? formatMinorUnits(item?.totals?.total, resolvedCurrency)
-    ?? formatMinorUnits(data?.details?.totals?.total, resolvedCurrency);
+  const resolvedCurrency = data?.currency_code ?? currencyCode ?? 'USD';
 
-  if (!amountFormatted) {
-    return json({ error: 'Paddle preview did not return a formatted amount' }, 502);
+  const lineItems: unknown[] = data?.details?.line_items ?? data?.items ?? [];
+  const monthly: Record<string, string> = {};
+  const annual: Record<string, string> = {};
+
+  for (const li of lineItems) {
+    const lineItem = li as Record<string, unknown>;
+    const priceId: string =
+      ((lineItem?.price as Record<string, unknown>)?.id as string) ??
+      ((lineItem as Record<string, unknown>)?.price_id as string) ?? '';
+    const entry = priceIdToEntry.get(priceId);
+    if (!entry) continue;
+
+    const formatted =
+      ((lineItem?.formatted_totals as Record<string, unknown>)?.total as string) ??
+      ((lineItem?.formatted_unit_totals as Record<string, unknown>)?.total as string) ??
+      formatMinorUnits(
+        (((lineItem?.totals as Record<string, unknown>)?.total as string) ?? null),
+        resolvedCurrency,
+      );
+
+    if (formatted) {
+      if (entry.interval === 'monthly') monthly[entry.tier] = formatted;
+      else annual[entry.tier] = formatted;
+    }
+  }
+
+  if (Object.keys(monthly).length === 0 && Object.keys(annual).length === 0) {
+    return json({ error: 'Paddle preview did not return formatted amounts' }, 502);
   }
 
   return json({
-    amountFormatted,
+    monthly,
+    annual,
+    // Legacy fields — keep for backwards compatibility.
+    tiers: monthly,
+    amountFormatted: monthly.basic ?? Object.values(monthly)[0],
     currencyCode: resolvedCurrency,
-    countryCode: data?.address?.country_code ?? countryCode,
+    countryCode: (data?.address as Record<string, unknown>)?.country_code ?? countryCode,
     availablePaymentMethods: data?.details?.available_payment_methods ?? [],
   });
 });

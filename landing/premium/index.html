@@ -273,11 +273,18 @@
 
       <div id="status" class="premium-status">Checking session…</div>
 
+      <div class="billing-toggle-wrap" style="margin-bottom:1.5rem">
+        <div class="billing-toggle" role="group" aria-label="Billing interval">
+          <button class="billing-opt billing-opt--active" data-billing-toggle="annual" aria-pressed="true">Annual <span class="billing-badge">2 months free</span></button>
+          <button class="billing-opt" data-billing-toggle="monthly" aria-pressed="false">Monthly</button>
+        </div>
+      </div>
+
       <div id="plan-picker" class="premium-tier-grid">
         <button class="premium-tier-card" type="button" data-tier="basic">
           <div class="premium-tier-top">
             <div class="premium-tier-name">Basic</div>
-            <div class="premium-tier-price">$5/mo</div>
+            <div class="premium-tier-price" data-price-tier="basic">$5/mo</div>
           </div>
           <div class="premium-tier-budget">$2/month of managed Cafezin AI included</div>
           <div class="premium-tier-desc">Unlock AI in Cafezin and keep BYOK available for GitHub Copilot, OpenAI, Anthropic, Groq, and more.</div>
@@ -286,7 +293,7 @@
         <button class="premium-tier-card" type="button" data-tier="standard">
           <div class="premium-tier-top">
             <div class="premium-tier-name">Standard</div>
-            <div class="premium-tier-price">$20/mo</div>
+            <div class="premium-tier-price" data-price-tier="standard">$20/mo</div>
           </div>
           <div class="premium-tier-budget">$15/month of managed Cafezin AI included</div>
           <div class="premium-tier-desc">The best fit for daily drafting, revision, and heavier AI use without reaching for your own provider first.</div>
@@ -295,7 +302,7 @@
         <button class="premium-tier-card" type="button" data-tier="pro">
           <div class="premium-tier-top">
             <div class="premium-tier-name">Pro</div>
-            <div class="premium-tier-price">$50/mo</div>
+            <div class="premium-tier-price" data-price-tier="pro">$50/mo</div>
           </div>
           <div class="premium-tier-budget">$40/month of managed Cafezin AI included</div>
           <div class="premium-tier-desc">For heavier AI workloads, bigger experiments, and people who want the most managed usage included inside the app.</div>
@@ -372,22 +379,31 @@
     const tierCards = Array.from(document.querySelectorAll('[data-tier]'));
     const locale = 'en';
     const TIER_META = {
-      basic: {
-        label: 'Basic',
-        price: '$5/mo',
-        budget: '$2 managed AI included',
-      },
-      standard: {
-        label: 'Standard',
-        price: '$20/mo',
-        budget: '$15 managed AI included',
-      },
-      pro: {
-        label: 'Pro',
-        price: '$50/mo',
-        budget: '$40 managed AI included',
-      },
+      basic:    { label: 'Basic',    price: '$5/yr',   priceMonthly: '$5/mo',   priceAnnual: '$50/yr',   budget: '$2 managed AI included' },
+      standard: { label: 'Standard', price: '$150/yr',  priceMonthly: '$15/mo',  priceAnnual: '$150/yr',  budget: '$15 managed AI included' },
+      pro:      { label: 'Pro',      price: '$500/yr',  priceMonthly: '$50/mo',  priceAnnual: '$500/yr',  budget: '$40 managed AI included' },
     };
+    let selectedInterval = 'annual';
+    // Update TIER_META prices when Paddle prices load.
+    document.addEventListener('cafezin:prices-loaded', (e) => {
+      const monthly = e.detail?.monthly ?? e.detail?.tiers ?? {};
+      const annual  = e.detail?.annual ?? {};
+      for (const tier of Object.keys(TIER_META)) {
+        if (monthly[tier]) TIER_META[tier].priceMonthly = monthly[tier];
+        if (annual[tier])  TIER_META[tier].priceAnnual  = annual[tier];
+        TIER_META[tier].price = selectedInterval === 'annual'
+          ? (TIER_META[tier].priceAnnual || TIER_META[tier].priceMonthly)
+          : TIER_META[tier].priceMonthly;
+      }
+    });
+    document.addEventListener('cafezin:interval-changed', (e) => {
+      selectedInterval = e.detail?.interval ?? 'annual';
+      for (const tier of Object.keys(TIER_META)) {
+        TIER_META[tier].price = selectedInterval === 'annual'
+          ? (TIER_META[tier].priceAnnual || TIER_META[tier].priceMonthly)
+          : TIER_META[tier].priceMonthly;
+      }
+    });
     const validTiers = Object.keys(TIER_META);
     const paidPlans = new Set(['premium', 'basic', 'standard', 'pro']);
     const queryTier = new URLSearchParams(window.location.search).get('tier');
@@ -551,7 +567,7 @@
       setBusy(checkoutBtn, 'Opening checkout…', true);
       try {
         window.cafezinTrack?.('premium_checkout_start', { locale: 'en', tier: selectedTier });
-        await callBillingFunction('create-checkout', { tier: selectedTier });
+        await callBillingFunction('create-checkout', { tier: selectedTier, interval: selectedInterval });
       } catch (error) {
         setMessage(error.message || 'Failed to open checkout.', 'error');
       } finally {
@@ -609,6 +625,8 @@
     syncTierCards();
     await render();
   </script>
+  <script src="/price-preview.js"></script>
+  <script>loadCafezinPrices({ periodMonthly: '/month', periodAnnual: '/yr' });</script>
   <script src="/landing-analytics.js"></script>
 </body>
 </html>

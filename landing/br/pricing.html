@@ -56,20 +56,20 @@
           {
             "@type": "Offer",
             "name": "Basic",
-            "price": "5",
-            "priceCurrency": "USD"
+            "price": "20",
+            "priceCurrency": "BRL"
           },
           {
             "@type": "Offer",
             "name": "Standard",
-            "price": "20",
-            "priceCurrency": "USD"
+            "price": "60",
+            "priceCurrency": "BRL"
           },
           {
             "@type": "Offer",
             "name": "Pro",
-            "price": "50",
-            "priceCurrency": "USD"
+            "price": "200",
+            "priceCurrency": "BRL"
           }
         ]
       },
@@ -166,6 +166,17 @@
   <!-- ── Pricing cards ─────────────────────────────────────────────────── -->
   <section class="pricing">
     <div class="section-inner">
+
+      <!-- Toggle de cobrança -->
+      <div class="billing-toggle-wrap">
+        <div class="billing-toggle" role="group" aria-label="Periodicidade">
+          <button class="billing-opt billing-opt--active" data-billing-toggle="annual" aria-pressed="true">
+            Anual <span class="billing-badge">2 meses grátis</span>
+          </button>
+          <button class="billing-opt" data-billing-toggle="monthly" aria-pressed="false">Mensal</button>
+        </div>
+      </div>
+
       <div class="pricing-grid">
 
         <!-- Free -->
@@ -230,8 +241,8 @@
           <div class="pricing-plan">Basic</div>
 
           <div class="pricing-price">
-            <span class="pricing-amount">US$ 5</span>
-            <span class="pricing-period">/mês</span>
+            <span class="pricing-amount" data-price-tier="basic">US$ 5</span>
+            <span class="pricing-period" data-price-period>/ano</span>
           </div>
 
           <p class="pricing-desc">
@@ -272,8 +283,8 @@
           <div class="pricing-plan">Standard</div>
 
           <div class="pricing-price">
-            <span class="pricing-amount">US$ 20</span>
-            <span class="pricing-period">/mês</span>
+            <span class="pricing-amount" data-price-tier="standard">US$ 20</span>
+            <span class="pricing-period" data-price-period>/ano</span>
           </div>
 
           <p class="pricing-desc">
@@ -313,8 +324,8 @@
           <div class="pricing-plan">Pro</div>
 
           <div class="pricing-price">
-            <span class="pricing-amount">US$ 50</span>
-            <span class="pricing-period">/mês</span>
+            <span class="pricing-amount" data-price-tier="pro">US$ 50</span>
+            <span class="pricing-period" data-price-period>/ano</span>
           </div>
 
           <p class="pricing-desc">
@@ -469,6 +480,8 @@
     </div>
   </footer>
 
+  <script src="/price-preview.js"></script>
+  <script>loadCafezinPrices({ country: 'BR', currency: 'BRL', periodMonthly: '/mês', periodAnnual: '/ano' });</script>
   <script src="/landing-analytics.js"></script>
 </body>
 </html>
