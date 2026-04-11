@@ -76,7 +76,15 @@ function parseLineSuffix(input: string): { pathCandidate: string; line?: number 
 }
 
 function normalizePathCandidate(pathCandidate: string, workspacePath?: string): string {
-  let normalized = decodeURIComponent(pathCandidate).trim().replace(/\\/g, '/');
+  let normalized = pathCandidate;
+  try {
+    normalized = decodeURIComponent(pathCandidate);
+  } catch {
+    // Keep raw text when the candidate contains malformed % sequences.
+    // Throwing here would crash markdown rendering and trigger the app ErrorBoundary.
+    normalized = pathCandidate;
+  }
+  normalized = normalized.trim().replace(/\\/g, '/');
   if (workspacePath) {
     const workspacePrefix = workspacePath.replace(/\\/g, '/').replace(/\/$/, '');
     if (normalized === workspacePrefix) return '';
