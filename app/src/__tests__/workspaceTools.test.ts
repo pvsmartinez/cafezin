@@ -16,7 +16,7 @@ const WS_PATH = '/test/workspace';
 function makeExecutor(
   editorOverride: Editor | null = null,
   callbacks: {
-    onFileWritten?: (p: string) => void;
+    onFileWritten?: (p: string, content?: string) => void;
     onMarkRecorded?: (p: string, c: string) => void;
     onCanvasModified?: (ids: string[]) => void;
     getLiveFileContent?: (path: string) => string | null;
@@ -35,7 +35,7 @@ function makeExecutor(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 // ── list_workspace_files ──────────────────────────────────────────────────────
@@ -176,7 +176,7 @@ describe('write_workspace_file', () => {
     const onFileWritten = vi.fn();
     const exec = makeExecutor(null, { onFileWritten });
     await exec('write_workspace_file', { path: 'cb.md', content: 'hello' });
-    expect(onFileWritten).toHaveBeenCalledWith('cb.md');
+    expect(onFileWritten).toHaveBeenCalledWith('cb.md', 'hello');
   });
 
   it('calls onMarkRecorded callback after a successful write', async () => {

@@ -6,7 +6,6 @@ import type { EditorHandle } from './components/Editor';
 import type { AIPanelHandle } from './components/AIPanel';
 import WorkspacePicker from './components/WorkspacePicker';
 import SplashScreen from './components/SplashScreen';
-import Sidebar from './components/Sidebar';
 import type { WebPreviewHandle } from './components/WebPreview';
 import UpdateModal from './components/UpdateModal';
 import UpdateReleaseModal from './components/UpdateReleaseModal';
@@ -14,7 +13,7 @@ import type { MobilePendingTask } from './services/mobilePendingTasks';
 import { markWorkspaceMemoryEntriesStale } from './services/memoryMetadata';
 
 
-import BottomPanel, { type FileMeta } from './components/BottomPanel';
+import type { FileMeta } from './components/BottomPanel';
 import { useDragResize } from './hooks/useDragResize';
 import { syncSecretsFromCloud, saveApiSecret } from './services/apiSecrets';
 
@@ -86,6 +85,8 @@ setupI18n(loadAppSettings().locale);
 
 const launchWorkspacePath = consumeLaunchWorkspacePath();
 const AIPanel = lazy(() => import('./components/AIPanel'));
+const Sidebar = lazy(() => import('./components/Sidebar'));
+const BottomPanel = lazy(() => import('./components/BottomPanel'));
 
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -1333,36 +1334,38 @@ export default function App() {
       <div className="app-body">
         {sidebarOpen && (
           <>
-            <Sidebar
-              workspace={workspace}
-              activeFile={activeFile}
-              dirtyFiles={dirtyFiles}
-              aiMarks={aiMarks}
-              aiNavCount={activeFileMarks.length}
-              aiNavIndex={aiNavIndex}
-              style={{ width: sidebarWidth }}
-              onFileSelect={handleOpenFile}
-              onWorkspaceChange={handleWorkspaceChange}
-              onUpdate={handleUpdate}
-              onSyncComplete={handleSyncComplete}
-              sidebarMode={sidebarMode}
-              onSidebarModeChange={setSidebarMode}
-              onReviewAllMarks={handleReviewAllMarks}
-              onOpenAIReview={handleSidebarOpenAIReview}
-              onAIPrev={handleAINavPrev}
-              onAINext={handleAINavNext}
-              onFileDeleted={handleFileDeleted}
-              onPathRenamed={handlePathRenamed}
-              onSearchFileOpen={handleSearchFileOpen}
-              onRefreshFiles={handleRefreshWorkspaceFiles}
-              lockedFiles={lockedFiles}
-              newFileRef={newFileRef}
-              onOpenTerminalAt={handleOpenTerminalAt}
-              onRunButtonCommand={handleRunButtonCommand}
-              onPublishDemoHub={handlePublishDemoHub}
-              onExportOpen={handleExportOpen}
-              onExpandSidebar={handleExpandSidebar}
-            />
+            <Suspense fallback={null}>
+              <Sidebar
+                workspace={workspace}
+                activeFile={activeFile}
+                dirtyFiles={dirtyFiles}
+                aiMarks={aiMarks}
+                aiNavCount={activeFileMarks.length}
+                aiNavIndex={aiNavIndex}
+                style={{ width: sidebarWidth }}
+                onFileSelect={handleOpenFile}
+                onWorkspaceChange={handleWorkspaceChange}
+                onUpdate={handleUpdate}
+                onSyncComplete={handleSyncComplete}
+                sidebarMode={sidebarMode}
+                onSidebarModeChange={setSidebarMode}
+                onReviewAllMarks={handleReviewAllMarks}
+                onOpenAIReview={handleSidebarOpenAIReview}
+                onAIPrev={handleAINavPrev}
+                onAINext={handleAINavNext}
+                onFileDeleted={handleFileDeleted}
+                onPathRenamed={handlePathRenamed}
+                onSearchFileOpen={handleSearchFileOpen}
+                onRefreshFiles={handleRefreshWorkspaceFiles}
+                lockedFiles={lockedFiles}
+                newFileRef={newFileRef}
+                onOpenTerminalAt={handleOpenTerminalAt}
+                onRunButtonCommand={handleRunButtonCommand}
+                onPublishDemoHub={handlePublishDemoHub}
+                onExportOpen={handleExportOpen}
+                onExpandSidebar={handleExpandSidebar}
+              />
+            </Suspense>
             {/* Sidebar resize handle */}
             <div className="resize-divider" onMouseDown={startSidebarDrag} />
           </>
@@ -1497,19 +1500,21 @@ export default function App() {
         )}
       </div> {/* end app-body */}
 
-      <BottomPanel
-        workspacePath={workspace.path}
-        open={terminalOpen}
-        height={terminalHeight}
-        onToggle={() => setTerminalOpen((v) => !v)}
-        onHeightChange={setTerminalHeight}
-        requestCd={terminalRequestCd}
-        requestRun={terminalRequestRun}
-        fileMeta={fileMeta}
-        showTerminal={appSettings.showTerminal}
-        locale={appSettings.locale ?? 'en'}
-        toggleShortcutLabel={terminalShortcutLabel}
-      />
+      <Suspense fallback={null}>
+        <BottomPanel
+          workspacePath={workspace.path}
+          open={terminalOpen}
+          height={terminalHeight}
+          onToggle={() => setTerminalOpen((v) => !v)}
+          onHeightChange={setTerminalHeight}
+          requestCd={terminalRequestCd}
+          requestRun={terminalRequestRun}
+          fileMeta={fileMeta}
+          showTerminal={appSettings.showTerminal}
+          locale={appSettings.locale ?? 'en'}
+          toggleShortcutLabel={terminalShortcutLabel}
+        />
+      </Suspense>
       </div> {/* end app-workspace */}
 
       <AppOverlays

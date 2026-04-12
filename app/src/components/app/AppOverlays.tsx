@@ -1,14 +1,10 @@
-import { type ComponentProps, memo } from 'react';
+import { lazy, Suspense, memo } from 'react';
 import type { Editor as TldrawEditor } from 'tldraw';
 import { ArrowCircleUp, X } from '@phosphor-icons/react';
 import UpdateModal from '../UpdateModal';
 import UpdateReleaseModal from '../UpdateReleaseModal';
 import ForceUpdateModal from '../ForceUpdateModal';
 import MobilePendingModal from '../MobilePendingModal';
-import SettingsModal from '../SettingsModal';
-import DesktopOnboardingModal from '../DesktopOnboardingModal';
-import ExportModal from '../ExportModal';
-import ImageSearchPanel from '../ImageSearchPanel';
 import NudgeToast from '../NudgeToast';
 import FeedbackNudge from '../FeedbackNudge';
 import { SK } from '../../services/storageKeys';
@@ -18,7 +14,12 @@ import type { AppSettings, Workspace } from '../../types';
 
 const UPDATE_TOAST_DISMISSED_KEY = SK.UPDATE_TOAST_DISMISSED;
 
-type SettingsInitialTab = ComponentProps<typeof SettingsModal>['initialTab'];
+const SettingsModal = lazy(() => import('../SettingsModal'));
+const DesktopOnboardingModal = lazy(() => import('../DesktopOnboardingModal'));
+const ExportModal = lazy(() => import('../ExportModal'));
+const ImageSearchPanel = lazy(() => import('../ImageSearchPanel'));
+
+type SettingsInitialTab = 'general' | 'shortcuts' | 'ai' | 'workspace' | 'agent' | 'mcp' | 'sync' | 'account' | undefined;
 
 export interface AppOverlaysProps {
   projectRoot: string;
@@ -143,46 +144,56 @@ const AppOverlaysInner = function AppOverlays({
       />
 
       {showSettings && (
-        <SettingsModal
-          open={showSettings}
-          appSettings={appSettings}
-          workspace={workspace}
-          onAppSettingsChange={onAppSettingsChange}
-          onWorkspaceChange={onWorkspaceChange}
-          onOpenHelp={onOpenHelp}
-          onContactUs={onContactUs}
-          onClose={onCloseSettings}
-          initialTab={settingsInitialTab}
-        />
+        <Suspense fallback={null}>
+          <SettingsModal
+            open={showSettings}
+            appSettings={appSettings}
+            workspace={workspace}
+            onAppSettingsChange={onAppSettingsChange}
+            onWorkspaceChange={onWorkspaceChange}
+            onOpenHelp={onOpenHelp}
+            onContactUs={onContactUs}
+            onClose={onCloseSettings}
+            initialTab={settingsInitialTab}
+          />
+        </Suspense>
       )}
 
-      <DesktopOnboardingModal
-        open={showDesktopOnboarding}
-        locale={appSettings.locale ?? 'en'}
-        firstRun={!desktopOnboardingSeen}
-        onClose={onCloseDesktopOnboarding}
-      />
+      {showDesktopOnboarding && (
+        <Suspense fallback={null}>
+          <DesktopOnboardingModal
+            open={showDesktopOnboarding}
+            locale={appSettings.locale ?? 'en'}
+            firstRun={!desktopOnboardingSeen}
+            onClose={onCloseDesktopOnboarding}
+          />
+        </Suspense>
+      )}
 
       {exportModalOpen && (
-        <ExportModal
-          workspace={workspace}
-          onWorkspaceChange={onWorkspaceChange}
-          canvasEditorRef={canvasEditorRef}
-          activeCanvasRel={activeFile?.endsWith('.tldr.json') ? activeFile : null}
-          onOpenFileForExport={onOpenFileForExport}
-          onRestoreAfterExport={onRestoreAfterExport}
-          onClose={onCloseExportModal}
-          onOpenAI={onOpenAIFromExport}
-          onExportLockStateChange={onExportLockStateChange}
-        />
+        <Suspense fallback={null}>
+          <ExportModal
+            workspace={workspace}
+            onWorkspaceChange={onWorkspaceChange}
+            canvasEditorRef={canvasEditorRef}
+            activeCanvasRel={activeFile?.endsWith('.tldr.json') ? activeFile : null}
+            onOpenFileForExport={onOpenFileForExport}
+            onRestoreAfterExport={onRestoreAfterExport}
+            onClose={onCloseExportModal}
+            onOpenAI={onOpenAIFromExport}
+            onExportLockStateChange={onExportLockStateChange}
+          />
+        </Suspense>
       )}
 
       {imgSearchOpen && (
-        <ImageSearchPanel
-          workspace={workspace}
-          canvasEditorRef={canvasEditorRef}
-          onClose={onCloseImageSearch}
-        />
+        <Suspense fallback={null}>
+          <ImageSearchPanel
+            workspace={workspace}
+            canvasEditorRef={canvasEditorRef}
+            onClose={onCloseImageSearch}
+          />
+        </Suspense>
       )}
 
       {copilotOverlayActive && (

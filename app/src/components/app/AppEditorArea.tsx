@@ -2,7 +2,6 @@ import { lazy, memo, Suspense, type ComponentProps, type MutableRefObject, type 
 import type { Editor as TldrawEditor } from 'tldraw';
 import Editor from '../Editor';
 import type { EditorHandle } from '../Editor';
-import ProseEditor from '../ProseEditor';
 import { CanvasErrorBoundary } from '../CanvasErrorBoundary';
 import { EditorErrorBoundary } from '../EditorErrorBoundary';
 import WorkspaceHome from '../WorkspaceHome';
@@ -15,6 +14,7 @@ import type { AIEditMark, AISelectionContext, AppSettings, Workspace } from '../
 import type { FileTypeInfo } from '../../utils/fileType';
 
 const CanvasEditor = lazy(() => import('../CanvasEditor'));
+const ProseEditor = lazy(() => import('../ProseEditor'));
 const MarkdownPreview = lazy(() => import('../MarkdownPreview'));
 const WebPreview = lazy(() => import('../WebPreview'));
 const PDFViewer = lazy(() => import('../PDFViewer'));

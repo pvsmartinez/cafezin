@@ -2,6 +2,48 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { vi } from 'vitest';
 
+class DOMMatrixMock {
+  a = 1;
+  b = 0;
+  c = 0;
+  d = 1;
+  e = 0;
+  f = 0;
+  m11 = 1;
+  m12 = 0;
+  m13 = 0;
+  m14 = 0;
+  m21 = 0;
+  m22 = 1;
+  m23 = 0;
+  m24 = 0;
+  m31 = 0;
+  m32 = 0;
+  m33 = 1;
+  m34 = 0;
+  m41 = 0;
+  m42 = 0;
+  m43 = 0;
+  m44 = 1;
+
+  multiplySelf() { return this; }
+  preMultiplySelf() { return this; }
+  translateSelf() { return this; }
+  scaleSelf() { return this; }
+  rotateSelf() { return this; }
+  invertSelf() { return this; }
+}
+
+Object.defineProperty(globalThis, 'DOMMatrix', {
+  value: DOMMatrixMock,
+  configurable: true,
+});
+
+Object.defineProperty(globalThis, 'Path2D', {
+  value: class Path2DMock {},
+  configurable: true,
+});
+
 // ── Mock Tauri plugin-fs ────────────────────────────────────────────────────
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readTextFile: vi.fn(),
@@ -37,6 +79,16 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
 // ── Mock Tauri core (invoke) ─────────────────────────────────────────────────
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
+}));
+
+vi.mock('pdfjs-dist', () => ({
+  getDocument: vi.fn(() => ({
+    promise: Promise.resolve({
+      numPages: 0,
+      getPage: vi.fn(),
+    }),
+  })),
+  GlobalWorkerOptions: { workerSrc: '' },
 }));
 
 // ── Mock tldraw ──────────────────────────────────────────────────────────────

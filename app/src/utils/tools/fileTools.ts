@@ -1054,7 +1054,12 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       const dir = abs.split('/').slice(0, -1).join('/');
       let previousText = '';
       if (await exists(abs)) {
-        try { ({ text: previousText } = await readWorkspaceText(workspacePath, relPath, ctx)); } catch { previousText = ''; }
+        try {
+          const previous = await readWorkspaceText(workspacePath, relPath, ctx);
+          previousText = previous.text ?? '';
+        } catch {
+          previousText = '';
+        }
       }
       const lwWrite = await waitForUnlock(relPath, ctx.agentId);
       if (lwWrite.timedOut) {
@@ -1108,6 +1113,14 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         }
       }
 
+      const needle = query.toLowerCase();
+      const matchLine = jsRegex
+        ? (line: string) => {
+          jsRegex!.lastIndex = 0;
+          return jsRegex!.test(line);
+        }
+        : (line: string) => line.toLowerCase().includes(needle);
+
       // ── 1. Grep all files on disk (fast, native) ─────────────────────
       interface GrepHit { path: string; line: number; content: string }
       let grepHits: GrepHit[] = [];
@@ -1125,6 +1138,35 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         }
       }
 
+      if (grepHits.length === 0) {
+        const candidateFiles = (await walkFilesFlat(workspacePath))
+          .filter((relPath) => {
+            if (relPath.endsWith('.tldr.json')) return false;
+            const ext = relPath.split('.').pop()?.toLowerCase() ?? '';
+            return TEXT_EXTS.has(ext);
+          })
+          .sort();
+
+        for (const relPath of candidateFiles) {
+          try {
+            const { text } = await readWorkspaceText(workspacePath, relPath, ctx);
+            const lines = text.split('\n');
+            for (let index = 0; index < lines.length; index++) {
+              if (!matchLine(lines[index])) continue;
+              grepHits.push({
+                path: relPath,
+                line: index + 1,
+                content: lines[index].trim(),
+              });
+              if (grepHits.length >= 60) break;
+            }
+            if (grepHits.length >= 60) break;
+          } catch {
+            // Ignore unreadable files in the fallback search.
+          }
+        }
+      }
+
       // ── 2. Override with live buffer for open/dirty files ─────────────
       // Get the set of files that have a live buffer (open tabs, possibly unsaved).
       const liveFiles = new Set<string>();
@@ -1136,10 +1178,6 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
 
       // For files with live buffers, run JS search on the live text
       const liveHits: string[] = [];
-      const needle = query.toLowerCase();
-      const matchLine = jsRegex
-        ? (line: string) => jsRegex!.test(line)
-        : (line: string) => line.toLowerCase().includes(needle);
 
       for (const rel of liveFiles) {
         const live = getLiveTextOverride(rel, ctx);

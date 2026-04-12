@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import type { Workspace, WorkspaceFeatureConfig } from '../types';
 import { preprocessMath } from './mathPreprocess';
@@ -12,6 +13,13 @@ interface RenderMarkdownOptions {
 const MERMAID_BLOCK_REGEX = /(^|\n)```mermaid(?:\s|\n)/;
 const RAW_URL_REGEX = /\b((?:https?:\/\/)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?::\d+)?(?:\/[^^\s<]*)?)/gi;
 const TRAILING_URL_PUNCTUATION_REGEX = /[),.;!?]+$/;
+const SAFE_URI_REGEX = /^(?:(?:https?|mailto|tel|sms|cafezin):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+
+const SANITIZE_OPTIONS = {
+  USE_PROFILES: { html: true, svg: true, svgFilters: true },
+  ADD_ATTR: ['target', 'rel', 'data-file-path', 'data-line', 'aria-label'],
+  ALLOWED_URI_REGEXP: SAFE_URI_REGEX,
+};
 
 type MermaidAPI = {
   render: (id: string, code: string) => Promise<{
@@ -21,6 +29,10 @@ type MermaidAPI = {
 };
 
 let mermaidApiPromise: Promise<MermaidAPI> | null = null;
+
+function sanitizeRenderedHtml(html: string): string {
+  return DOMPurify.sanitize(html, SANITIZE_OPTIONS);
+}
 
 export function hasMermaidCodeBlocks(content: string): boolean {
   return MERMAID_BLOCK_REGEX.test(content);
@@ -32,9 +44,9 @@ export function isMermaidRenderingEnabled(features?: WorkspaceFeatureConfig): bo
 
 export function renderMarkdownBaseHtml(content: string): string {
   try {
-    return marked.parse(preprocessMath(content)) as string;
+    return sanitizeRenderedHtml(marked.parse(preprocessMath(content)) as string);
   } catch {
-    return '<p style="color:#c97570">Failed to render markdown.</p>';
+    return '<p>Failed to render markdown.</p>';
   }
 }
 
@@ -110,7 +122,7 @@ export function linkifyPlainUrlsInHtml(html: string): string {
   }
 
   textNodes.forEach(replacePlainUrlsInTextNode);
-  return container.innerHTML;
+  return sanitizeRenderedHtml(container.innerHTML);
 }
 
 export function renderAssistantMarkdownHtml(content: string): string {
@@ -185,7 +197,7 @@ async function renderMermaidBlocks(html: string): Promise<string> {
     pre.replaceWith(host);
   }
 
-  return container.innerHTML;
+  return sanitizeRenderedHtml(container.innerHTML);
 }
 
 export async function renderMarkdownToHtml(

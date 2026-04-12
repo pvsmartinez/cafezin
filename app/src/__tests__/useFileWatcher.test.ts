@@ -27,7 +27,7 @@ describe('isInternalWatchPath', () => {
 
   it('still ignores known legacy internal files only', () => {
     expect(isInternalWatchPath(
-      '/home/user/my-workspace/copilot-log.jsonl',
+      '/home/user/my-workspace/cafezin/copilot-log.jsonl',
       workspacePath,
     )).toBe(true);
 

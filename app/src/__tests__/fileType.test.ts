@@ -136,10 +136,11 @@ describe('getFileTypeInfo — html', () => {
 
 // ── Plain text / misc ─────────────────────────────────────────────────────────
 describe('getFileTypeInfo — plain text', () => {
-  it('identifies .txt files as code kind with empty language', () => {
+  it('identifies .txt files as markdown kind without preview toggle', () => {
     const info = getFileTypeInfo('readme.txt');
-    expect(info.kind).toBe('code');
-    expect(info.language).toBe('');
+    expect(info.kind).toBe('markdown');
+    expect(info.language).toBe('markdown');
+    expect(info.supportsPreview).toBe(false);
   });
 
   it('identifies .log files', () => {

@@ -164,6 +164,21 @@ describe('MarkdownPreview — error recovery', () => {
     ).not.toThrow();
   });
 
+  it('sanitizes inline HTML and scriptable links', () => {
+    const { container } = render(
+      <MarkdownPreview
+        content={'<img src="x" onerror="alert(1)"><a href="javascript:alert(1)">bad</a><script>alert(1)</script>'}
+      />,
+    );
+
+    const img = container.querySelector('img');
+    const link = container.querySelector('a');
+    expect(img).toBeInTheDocument();
+    expect(img).not.toHaveAttribute('onerror');
+    expect(link).not.toHaveAttribute('href', 'javascript:alert(1)');
+    expect(container.querySelector('script')).not.toBeInTheDocument();
+  });
+
   it('memoises the rendered HTML — does not re-render on same content', () => {
     const { rerender, container } = render(
       <MarkdownPreview content="# Same" />,

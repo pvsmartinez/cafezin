@@ -331,12 +331,12 @@ describe('getCompressionAnchorUserText', () => {
     expect(getCompressionAnchorUserText(msgs)).toBe('real request');
   });
 
-  it('falls back when no plain-text user request is available', () => {
+  it('falls back to multipart text when a user message only has structured parts', () => {
     const msgs: ChatMessage[] = [
       { role: 'assistant', content: 'hello' },
       { role: 'user', content: [{ type: 'text', text: 'image context' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } }] as any },
     ];
-    expect(getCompressionAnchorUserText(msgs)).toContain('not recoverable');
+    expect(getCompressionAnchorUserText(msgs)).toBe('image context');
   });
 });
 
