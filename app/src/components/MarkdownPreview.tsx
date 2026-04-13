@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import 'katex/dist/katex.min.css';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { WorkspaceFeatureConfig } from '../types';
+import { ensureKatexCss } from '../utils/ensureKatexCss';
 import {
   hasMermaidCodeBlocks,
   isMermaidRenderingEnabled,
@@ -23,6 +23,10 @@ interface MarkdownPreviewProps {
 
 export default function MarkdownPreview({ content, onNavigate, currentFilePath, features }: MarkdownPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void ensureKatexCss();
+  }, []);
 
   const baseHtml = useMemo(() => renderMarkdownBaseHtml(content), [content]);
   const [html, setHtml] = useState(baseHtml);

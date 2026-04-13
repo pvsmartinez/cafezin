@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Workspace } from '../../types';
+import { ensureKatexCss } from '../../utils/ensureKatexCss';
 import { renderAssistantMarkdownHtmlWithWorkspace } from '../../utils/markdownRender';
 import { resolveWorkspaceFileReference } from '../../utils/assistantFileLinks';
-import 'katex/dist/katex.min.css';
 import '../MarkdownPreview.css';
 
 interface AIMarkdownTextProps {
@@ -20,6 +20,10 @@ export function AIMarkdownText({
   onOpenSettings,
 }: AIMarkdownTextProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void ensureKatexCss();
+  }, []);
 
   const html = useMemo(() => {
     return renderAssistantMarkdownHtmlWithWorkspace(content, workspace);

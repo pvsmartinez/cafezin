@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { Editor as TldrawEditor } from 'tldraw';
-import { exportMarkdownToPDF } from '../utils/exportPDF';
 import { saveWorkspaceConfig } from '../services/workspace';
 import {
   normalizeWorkspaceExportConfig,
@@ -105,6 +104,7 @@ export function useExport({
     setPandocError(null);
     setPandocStatus({ detail: `Starting PDF export for ${activeFile}…`, cancelRequested: false });
     try {
+      const { exportMarkdownToPDF } = await import('../utils/exportPDF');
       await exportMarkdownToPDF(content, outAbsPath, workspace.path, {
         features: workspace.config.features,
         hooks: {

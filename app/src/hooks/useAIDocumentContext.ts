@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import type { Editor as TldrawEditor } from 'tldraw';
-import { canvasAIContext } from '../utils/canvasAISummary';
 
 interface UseAIDocumentContextParams {
   activeFile: string | null;
@@ -37,19 +36,35 @@ export function useAIDocumentContext({
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    let cancelled = false;
+
     if (fileTypeKind === 'canvas') {
       if (!canvasEditorRef.current) {
         setAiDocumentContext(`Canvas file: ${activeFile ?? ''} (loading\u2026)`);
-        return;
+        return () => {
+          cancelled = true;
+        };
       }
       const editor = canvasEditorRef.current;
-      const file   = activeFile ?? '';
-      if (canvasEditorRef.current === editor) {
-        setAiDocumentContext(canvasAIContext(editor, file));
-      }
+      const file = activeFile ?? '';
+      void import('../utils/canvasAISummary')
+        .then(({ canvasAIContext }) => {
+          if (!cancelled && canvasEditorRef.current === editor) {
+            setAiDocumentContext(canvasAIContext(editor, file));
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setAiDocumentContext(`Canvas file: ${file} (summary unavailable)`);
+          }
+        });
     } else {
       setAiDocumentContext(content);
     }
+
+    return () => {
+      cancelled = true;
+    };
   // Only snapshot when file identity changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFile, fileTypeKind]);

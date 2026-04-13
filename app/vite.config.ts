@@ -33,6 +33,16 @@ export default defineConfig(async () => ({
   },
 
   build: {
+    modulePreload: {
+      resolveDependencies(_filename, deps, context) {
+        if (context.hostType !== 'html') return deps;
+        return deps.filter((dep) =>
+          !dep.includes('vendor-tldraw') &&
+          !dep.includes('vendor-export') &&
+          !dep.includes('vendor-katex')
+        );
+      },
+    },
     // Tauri desktop app — chunks load from disk, not network.
     // tldraw and codemirror are monolithic libs; 2 MB is a reasonable ceiling.
     chunkSizeWarningLimit: 2000,

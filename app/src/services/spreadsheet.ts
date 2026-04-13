@@ -7,7 +7,7 @@
  * XLSX editing should be exported to CSV via `serializeSheetToCSV`.
  */
 
-import { readFile as tauriReadFile, readTextFile } from './fs';
+import { readFile as tauriReadFile, readTextFile, stat } from './fs';
 
 export interface SheetTab {
   name: string;
@@ -37,6 +37,34 @@ export interface SheetData {
 /** Extensions that are binary — must be read with readFile, not readTextFile. */
 const BINARY_EXTS = new Set(['xlsx', 'xls', 'ods', 'xlsm', 'xlsb']);
 
+/**
+ * Binary spreadsheet formats are parsed by the legacy SheetJS package.
+ * Keep a hard size cap so untrusted files do not trigger pathological parsing
+ * work or memory spikes inside that parser.
+ */
+export const MAX_BINARY_SPREADSHEET_BYTES = 10 * 1024 * 1024;
+
+export function isBinarySpreadsheetExt(ext: string): boolean {
+  return BINARY_EXTS.has(ext.toLowerCase());
+}
+
+export function getBinarySpreadsheetGuard(sizeBytes: number): {
+  blocked: boolean;
+  message: string;
+} {
+  if (sizeBytes > MAX_BINARY_SPREADSHEET_BYTES) {
+    return {
+      blocked: true,
+      message: `This spreadsheet is ${(sizeBytes / (1024 * 1024)).toFixed(1)} MB. Cafezin blocks binary spreadsheet previews above ${(MAX_BINARY_SPREADSHEET_BYTES / (1024 * 1024)).toFixed(0)} MB to reduce parser risk. Convert it to CSV/TSV to inspect it safely.`,
+    };
+  }
+
+  return {
+    blocked: false,
+    message: 'Binary spreadsheets use a legacy read-only parser. Open only files you trust and prefer CSV/TSV when possible.',
+  };
+}
+
 /** Lazily-loaded SheetJS module (singleton). */
 let xlsxModule: typeof import('xlsx') | null = null;
 async function getXlsx() {
@@ -51,17 +79,27 @@ async function getXlsx() {
  */
 export async function parseSpreadsheetFile(absPath: string, ext: string): Promise<SheetData> {
   const filename = absPath.split('/').pop() ?? absPath;
-  const XLSX = await getXlsx();
+  const normalizedExt = ext.toLowerCase();
 
+  let XLSX: Awaited<ReturnType<typeof getXlsx>>;
   let workbook: import('xlsx').WorkBook;
 
-  if (BINARY_EXTS.has(ext)) {
+  if (isBinarySpreadsheetExt(normalizedExt)) {
+    const info = await stat(absPath);
+    const sizeBytes = Number(info.size ?? 0);
+    const guard = getBinarySpreadsheetGuard(sizeBytes);
+    if (guard.blocked) {
+      throw new Error(guard.message);
+    }
+
+    XLSX = await getXlsx();
     const bytes = await tauriReadFile(absPath);
     workbook = XLSX.read(bytes, { type: 'array', cellText: true, cellDates: true });
   } else {
+    XLSX = await getXlsx();
     // CSV / TSV — plain text
     const text = await readTextFile(absPath);
-    const delimiter = ext === 'tsv' ? '\t' : ',';
+    const delimiter = normalizedExt === 'tsv' ? '\t' : ',';
     workbook = XLSX.read(text, { type: 'string', FS: delimiter, cellText: true });
   }
 
@@ -75,7 +113,7 @@ export async function parseSpreadsheetFile(absPath: string, ext: string): Promis
     }
 
     const headers = (raw[0] ?? []).map(String);
-    const rows = raw.slice(1).map((row) => {
+    const rows = raw.slice(1).map((row: string[]) => {
       // Pad or trim each row to match header count
       const cells = row.map(String);
       while (cells.length < headers.length) cells.push('');

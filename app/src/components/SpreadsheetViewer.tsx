@@ -1,8 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Table, Plus, Minus, ArrowDown, ArrowRight, FloppyDisk, Warning, Spinner } from '@phosphor-icons/react';
-import { parseSpreadsheetFile, serializeSheetToCSV, serializeSheetToTSV } from '../services/spreadsheet';
+import {
+  getBinarySpreadsheetGuard,
+  isBinarySpreadsheetExt,
+  parseSpreadsheetFile,
+  serializeSheetToCSV,
+  serializeSheetToTSV,
+} from '../services/spreadsheet';
 import type { SheetTab } from '../services/spreadsheet';
-import { writeTextFile } from '../services/fs';
+import { stat, writeTextFile } from '../services/fs';
 import type { AIEditMark, AISpreadsheetTarget, AISelectionContext } from '../types';
 import './SpreadsheetViewer.css';
 
@@ -23,6 +29,13 @@ interface SpreadsheetViewerProps {
 
 const LARGE_ROW_THRESHOLD = 1000;
 const MAX_INITIAL_ROWS = 1000;
+
+interface BinarySpreadsheetGate {
+  sizeBytes: number;
+  blocked: boolean;
+  confirmed: boolean;
+  message: string;
+}
 
 type CellPos = { row: number; col: number };
 type SheetSelection =
@@ -46,6 +59,7 @@ export default function SpreadsheetViewer({
 }: SpreadsheetViewerProps) {
   const ext = filename.split('.').pop()?.toLowerCase() ?? 'csv';
   const isText = ext === 'csv' || ext === 'tsv';
+  const isBinarySpreadsheet = isBinarySpreadsheetExt(ext);
 
   const [sheets, setSheets] = useState<SheetTab[]>([]);
   const [activeSheetIdx, setActiveSheetIdx] = useState(0);
@@ -54,6 +68,7 @@ export default function SpreadsheetViewer({
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showAllRows, setShowAllRows] = useState(false);
+  const [binaryGate, setBinaryGate] = useState<BinarySpreadsheetGate | null>(null);
 
   // Cell editing state
   const [editingCell, setEditingCell] = useState<CellPos | null>(null);
@@ -82,7 +97,8 @@ export default function SpreadsheetViewer({
     setActiveSheetIdx(0);
     setShowAllRows(false);
 
-    parseSpreadsheetFile(absPath, ext)
+    const loadSpreadsheet = () => {
+      parseSpreadsheetFile(absPath, ext)
       .then((data) => {
         if (cancelled) return;
         setSheets(data.sheets);
@@ -97,9 +113,61 @@ export default function SpreadsheetViewer({
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    };
+
+    if (isBinarySpreadsheet) {
+      stat(absPath)
+        .then((info) => {
+          if (cancelled) return;
+          const sizeBytes = Number(info.size ?? 0);
+          const guard = getBinarySpreadsheetGuard(sizeBytes);
+          setBinaryGate({
+            sizeBytes,
+            blocked: guard.blocked,
+            confirmed: false,
+            message: guard.message,
+          });
+          setLoading(false);
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            setError(String((err as Error)?.message ?? err));
+            setLoading(false);
+          }
+        });
+    } else {
+      setBinaryGate(null);
+      loadSpreadsheet();
+    }
 
     return () => { cancelled = true; };
-  }, [absPath, ext]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [absPath, ext, isBinarySpreadsheet]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isBinarySpreadsheet || !binaryGate?.confirmed || binaryGate.blocked) return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    parseSpreadsheetFile(absPath, ext)
+      .then((data) => {
+        if (cancelled) return;
+        setSheets(data.sheets);
+        if (onStat && data.sheets[0]) {
+          const totalRows = data.sheets.reduce((sum, sheet) => sum + sheet.rows.length, 0);
+          onStat(`${totalRows.toLocaleString()} linhas`);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(String((err as Error)?.message ?? err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [absPath, binaryGate?.blocked, binaryGate?.confirmed, ext, isBinarySpreadsheet, onStat]);
 
   // ── Persist modified sheet ─────────────────────────────────────────────────
   const saveCurrentSheet = useCallback(async (sheet: SheetTab, immediate = false) => {
@@ -525,6 +593,34 @@ export default function SpreadsheetViewer({
       <div className="ss-error">
         <Warning size={20} />
         <span>Erro ao abrir planilha: {error}</span>
+      </div>
+    );
+  }
+
+  if (binaryGate && !binaryGate.confirmed) {
+    const sizeLabel = binaryGate.sizeBytes > 0
+      ? `${(binaryGate.sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+      : 'size unavailable';
+
+    return (
+      <div className="ss-gate">
+        <div className="ss-gate-card">
+          <Warning size={22} />
+          <div className="ss-gate-copy">
+            <h3>Open binary spreadsheet?</h3>
+            <p>{binaryGate.message}</p>
+            <p className="ss-gate-meta">File: {filename} · {sizeLabel} · Read-only preview</p>
+          </div>
+          <div className="ss-gate-actions">
+            <button
+              className="ss-btn ss-btn--save"
+              onClick={() => setBinaryGate((current) => current ? { ...current, confirmed: true } : current)}
+              disabled={binaryGate.blocked}
+            >
+              Open read-only
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

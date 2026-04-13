@@ -16,8 +16,8 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { writeFile } from '../services/fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import 'katex/dist/katex.min.css';
 import type { WorkspaceFeatureConfig } from '../types';
+import { ensureKatexCss } from './ensureKatexCss';
 import { renderMarkdownToHtml } from './markdownRender';
 
 interface ExportPDFHooks {
@@ -258,6 +258,7 @@ export async function exportMarkdownToPDF(
 ): Promise<void> {
   const hooks = options?.hooks;
   throwIfCancelled(hooks?.shouldCancel);
+  await ensureKatexCss();
   hooks?.onProgress?.('render-markdown', 'Rendering markdown…');
   // ── 1. Render markdown with optional workspace capabilities ───────────────
   const rawHtml = await renderMarkdownToHtml(content, { features: options?.features });
