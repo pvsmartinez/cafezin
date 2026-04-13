@@ -1060,8 +1060,8 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
         ...(codeMode ? [indentWithTab] : []),
       ]),
       fontCompartmentRef.current.of(makeEditorTheme(fontSize, codeMode, isDark)),
-      // Prose wraps; code does not
-      ...(codeMode ? [] : [EditorView.lineWrapping]),
+      // Both prose and code wrap visually (no horizontal scroll)
+      EditorView.lineWrapping,
       // Custom cursor rendering with blink disabled — the default drawSelection()
       // uses `animation: steps(1) cm-blink 1.2s infinite` which keeps the GPU
       // compositor and WindowServer busy even at idle. Setting cursorBlinkRate
