@@ -66,4 +66,8 @@ export const SK = {
   MCP_SERVERS: 'cafezin-mcp-servers',
   // ── UI state ──────────────────────────────────────────────────────────────
   EXPORT_MODAL_AI_HELPER: 'cafezin:em:aihelper',
+
+  // ── Anonymous trial ───────────────────────────────────────────────────────
+  /** Stable device UUID sent as X-Trial-Token to the ai-proxy edge function. */
+  TRIAL_DEVICE_ID: 'cafezin-trial-device-id',
 } as const;

@@ -10,7 +10,6 @@ const DESKTOP_ONBOARDING_KEY = SK.DESKTOP_ONBOARDING;
 const LEGACY_SYNC_PROMPT_KEY = SK.LEGACY_SYNC_PROMPT;
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-type SettingsTab = 'general' | 'ai' | 'workspace' | 'agent' | 'sync' | 'account';
 
 export interface DesktopPromptsState {
   showUpdateReleaseModal: boolean;
@@ -30,7 +29,6 @@ interface UseDesktopPromptsOptions {
   splash: boolean;
   forceUpdateOpen: boolean;
   appLocale: 'en' | 'pt-BR' | undefined;
-  openSettings: (tab?: SettingsTab) => void;
   compareVersions: (currentVersion: string, nextVersion: string) => number;
 }
 
@@ -38,7 +36,6 @@ export function useDesktopPrompts({
   splash,
   forceUpdateOpen,
   appLocale,
-  openSettings,
   compareVersions,
 }: UseDesktopPromptsOptions): DesktopPromptsState {
   const [showUpdateReleaseModal, setShowUpdateReleaseModal] = useState(false);
@@ -122,16 +119,6 @@ export function useDesktopPrompts({
       listeners.forEach((listener) => listener.then((fn) => fn()).catch(() => {}));
     };
   }, [handleContactUs, handleOpenDesktopHelp]);
-
-  useEffect(() => {
-    const alreadySkipped = localStorage.getItem(LEGACY_SYNC_PROMPT_KEY);
-    const alreadyConnected = localStorage.getItem(SK.SYNC_ACCOUNT_TOKEN);
-    if (!desktopOnboardingSeen) return;
-    if (!alreadySkipped && !alreadyConnected) {
-      localStorage.setItem(LEGACY_SYNC_PROMPT_KEY, '1');
-      openSettings('sync');
-    }
-  }, [desktopOnboardingSeen, openSettings]);
 
   return {
     showUpdateReleaseModal,

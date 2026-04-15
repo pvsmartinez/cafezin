@@ -449,6 +449,96 @@
 
 /* ── Custom / Local provider section ────────────── */
 
+/* ── Cafezin IA primary card ────────────────────── */
+
+.sm-cafezin-ia-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  margin-top: 10px;
+  transition: border-color var(--transition-base), background var(--transition-base);
+}
+
+.sm-cafezin-ia-card.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--surface2) 75%, var(--accent) 25%);
+}
+
+.sm-cafezin-ia-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sm-cafezin-ia-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sm-cafezin-ia-card-name {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.sm-cafezin-ia-card-tag {
+  font-size: var(--font-size-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.sm-cafezin-ia-card-body {
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ── Advanced BYOK toggle ───────────────────────── */
+
+.sm-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  text-align: left;
+  margin-top: 10px;
+  transition: color var(--transition-base);
+}
+
+.sm-advanced-toggle:hover {
+  color: var(--text);
+}
+
+.sm-advanced-toggle-arrow {
+  font-size: var(--font-size-2xs);
+  line-height: 1;
+}
+
+.sm-advanced-toggle-badge {
+  margin-left: auto;
+  font-size: var(--font-size-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--surface2) 60%, var(--accent) 40%);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
 .sm-custom-section {
   display: flex;
   flex-direction: column;

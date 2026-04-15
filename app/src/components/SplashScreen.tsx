@@ -10,7 +10,6 @@ export default function SplashScreen({ visible }: Props) {
     <div className={`splash ${visible ? 'splash--visible' : 'splash--hidden'}`}>
       <img src={iconPng} alt="Cafezin" className="splash-icon" />
       <h1 className="splash-title">Cafezin</h1>
-      <p className="splash-tagline">Just Chilling</p>
     </div>
   );
 }

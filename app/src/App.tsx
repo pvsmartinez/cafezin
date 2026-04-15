@@ -299,7 +299,6 @@ export default function App() {
     splash,
     forceUpdateOpen,
     appLocale: appSettings.locale,
-    openSettings,
     compareVersions,
   });
 

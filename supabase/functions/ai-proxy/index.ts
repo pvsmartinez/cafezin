@@ -120,6 +120,87 @@ Deno.serve(async (req) => {
   // ── Auth ──────────────────────────────────────────────────────────────────
   const authHeader = req.headers.get('Authorization') ?? '';
   const token      = authHeader.replace('Bearer ', '').trim();
+  const trialToken = req.headers.get('X-Trial-Token') ?? '';
+
+  // ── Anonymous trial path ──────────────────────────────────────────────────
+  // No account required. Client-side localStorage caps at 3 uses; server just
+  // validates the token is a valid UUID and forwards to OpenRouter with the
+  // cheapest available model. No quota is debited.
+  if (!token && trialToken) {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(trialToken)) {
+      return new Response(JSON.stringify({ error: 'Invalid trial token' }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+
+    let trialBody: { model?: string; messages?: unknown[]; max_tokens?: number; temperature?: number };
+    try {
+      trialBody = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+        status: 422,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!Array.isArray(trialBody.messages) || trialBody.messages.length === 0) {
+      return new Response(JSON.stringify({ error: 'messages are required' }), {
+        status: 422,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Always use the cheapest basic-tier model regardless of what client requests
+    const trialModel = BASIC_TIER_MODELS_FALLBACK[0]; // 'google/gemma-4-31b-it'
+
+    const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
+    if (!openRouterKey) {
+      return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+        status: 500,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const orTrialRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization':  `Bearer ${openRouterKey}`,
+        'Content-Type':   'application/json',
+        'HTTP-Referer':   'https://cafezin.pmatz.com',
+        'X-Title':        'Cafezin',
+      },
+      body: JSON.stringify({
+        model:       trialModel,
+        messages:    trialBody.messages,
+        max_tokens:  trialBody.max_tokens ?? 4096,
+        temperature: trialBody.temperature ?? 0.7,
+        stream:      true,
+      }),
+    });
+
+    if (!orTrialRes.ok || !orTrialRes.body) {
+      const errText = await orTrialRes.text().catch(() => '(no body)');
+      console.error('[ai-proxy] trial OpenRouter error', orTrialRes.status, errText);
+      return new Response(
+        JSON.stringify({ error: 'upstream_error', message: `OpenRouter ${orTrialRes.status}` }),
+        { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    return new Response(orTrialRes.body, {
+      status: 200,
+      headers: {
+        ...CORS_HEADERS,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
+      },
+    });
+  }
+
+  // ── Authenticated (paid plan) path ────────────────────────────────────────
   if (!token) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,

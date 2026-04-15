@@ -21,6 +21,7 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { fetchGhostCompletion, resolveCopilotModelForChatCompletions, streamCopilotChat } from './copilot';
 import type { CopilotModel } from '../types';
 import { supabase } from './supabase';
+import { isTrialUsed, markTrialUsed, getDeviceTrialToken } from './aiTrial';
 
 // ── Provider types ────────────────────────────────────────────────────────────
 
@@ -142,7 +143,7 @@ export function getCustomModelId(): string {
 // ── Accessors ─────────────────────────────────────────────────────────────────
 
 export function getActiveProvider(): AIProviderType {
-  return (localStorage.getItem(PROVIDER_STORAGE_KEY) as AIProviderType) ?? 'copilot';
+  return (localStorage.getItem(PROVIDER_STORAGE_KEY) as AIProviderType) ?? 'cafezin';
 }
 
 export function setActiveProvider(p: AIProviderType): void {
@@ -354,13 +355,51 @@ async function streamCafezinManagedAI(
   try {
     const { data: { session } } = await supabase.auth.getSession();
 
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const proxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
+
+    // ── Anonymous trial path (no account needed) ──────────────────────────
     if (!session?.access_token) {
-      onError(new Error('Sessão expirada. Faça login novamente para usar a Cafezin IA.'));
+      if (isTrialUsed()) {
+        onError(new Error('Suas 3 respostas grátis já foram usadas. Crie uma conta ou ative um plano para continuar.'));
+        return;
+      }
+      const deviceToken = getDeviceTrialToken();
+      const response = await fetch(proxyUrl, {
+        method: 'POST',
+        headers: {
+          'X-Trial-Token': deviceToken,
+          'Content-Type': 'application/json',
+        },
+        signal,
+        body: JSON.stringify({ model, messages, stream: true }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        let parsed: { error?: string; message?: string } = {};
+        try { parsed = JSON.parse(body); } catch { /* raw error */ }
+        onError(new Error(parsed.message ?? `Erro ${response.status} no servidor de IA.`));
+        return;
+      }
+
+      const text = await response.text();
+      for (const line of text.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') break;
+        try {
+          const chunk = JSON.parse(raw) as { choices?: Array<{ delta?: { content?: string } }> };
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) onChunk(content);
+        } catch { /* skip malformed SSE line */ }
+      }
+      markTrialUsed();
+      onDone();
       return;
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-    const proxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
+    // ── Authenticated path (paid plan) ────────────────────────────────────
 
     const response = await fetch(proxyUrl, {
       method: 'POST',

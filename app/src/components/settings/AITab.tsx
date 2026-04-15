@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   PROVIDER_LABELS,
@@ -93,6 +94,7 @@ export function AITab({
   premiumPageUrl,
 }: AITabProps) {
   const { t } = useTranslation();
+  const [showAdvanced, setShowAdvanced] = useState(aiProvider !== 'cafezin');
 
   function setApp<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
     onAppSettingsChange({ ...appSettings, [key]: value });
@@ -121,214 +123,231 @@ export function AITab({
       </section>
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Providers</h3>
-        <p className="sm-section-desc">
-          Você pode deixar mais de um provider configurado e trocar qual fica ativo no chat.
-        </p>
+        <h3 className="sm-section-title">Provedor de IA</h3>
 
-        <div className="sm-provider-grid">
-          {(Object.keys(PROVIDER_LABELS) as AIProviderType[]).map((provider) => (
-            <button
-              key={provider}
-              type="button"
-              className={`sm-provider-card ${aiProvider === provider ? 'active' : ''}`}
-              onClick={() => onAIProviderChange(provider)}
-            >
-              <span className="sm-provider-card-title">{PROVIDER_LABELS[provider]}</span>
-              <span className={`sm-provider-card-status ${providerConfigured[provider] ? 'is-ready' : ''}`}>
-                {provider === 'copilot'
-                  ? providerConfigured[provider] ? 'Conectado' : 'Entrar pelo chat'
-                  : provider === 'cafezin'
-                  ? providerConfigured[provider] ? `${MANAGED_TIER_LABELS[account.aiTier]} ativo` : 'Basic ou superior'
-                  : provider === 'custom'
-                  ? providerConfigured[provider] ? 'Configurado' : 'Configurar'
-                  : providerConfigured[provider] ? 'Chave salva' : 'Sem chave'}
+        {/* ── Cafezin IA — primary option ── */}
+        <div className={`sm-cafezin-ia-card${aiProvider === 'cafezin' ? ' active' : ''}`}>
+          <div className="sm-cafezin-ia-card-header">
+            <div className="sm-cafezin-ia-card-info">
+              <span className="sm-cafezin-ia-card-name">Cafezin IA</span>
+              <span className="sm-cafezin-ia-card-tag">
+                {account.aiTier === 'none' ? '3 respostas grátis' : `Plano ${MANAGED_TIER_LABELS[account.aiTier]} ativo`}
               </span>
-              {aiProvider === provider && (
-                <span className="sm-provider-card-active">Em uso</span>
-              )}
+            </div>
+            <button
+              type="button"
+              className={`sm-save-btn${aiProvider === 'cafezin' ? ' saved' : ''}`}
+              onClick={() => { onAIProviderChange('cafezin'); setShowAdvanced(false); }}
+            >
+              {aiProvider === 'cafezin' ? 'Em uso ✓' : 'Usar'}
             </button>
-          ))}
+          </div>
+          {aiProvider === 'cafezin' && (
+            <div className="sm-cafezin-ia-card-body">
+              <p className="sm-row-desc">
+                {account.aiTier === 'none'
+                  ? 'Funciona direto — sem configurar chaves. Depois das 3 respostas grátis, ative um plano para continuar.'
+                  : `Plano ${MANAGED_TIER_LABELS[account.aiTier]}: os modelos disponíveis no chat se ajustam ao seu tier.`}
+              </p>
+              {account.aiTier === 'none' && (
+                <a
+                  className="sm-save-btn"
+                  href={premiumPageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: 'inline-block', textDecoration: 'none', marginTop: 8 }}
+                >
+                  Ver planos →
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Standard providers: API key field */}
-        {aiProvider === 'cafezin' && (
-          <div className="sm-custom-section">
-            <div className="sm-custom-notice">
-              A <strong>Cafezin IA</strong> usa o proxy gerenciado do app. Para usar qualquer IA no Cafezin,
-              sua conta precisa estar no plano <strong>Basic ou superior</strong>.
+        {/* ── Advanced: BYOK providers ── */}
+        <button
+          type="button"
+          className="sm-advanced-toggle"
+          onClick={() => setShowAdvanced((v) => !v)}
+        >
+          <span className="sm-advanced-toggle-arrow">{showAdvanced ? '▾' : '▸'}</span>
+          Usar minha própria chave de API
+          {aiProvider !== 'cafezin' && (
+            <span className="sm-advanced-toggle-badge">Em uso: {PROVIDER_LABELS[aiProvider]}</span>
+          )}
+        </button>
+
+        {showAdvanced && (
+          <>
+            <p className="sm-section-desc" style={{ marginTop: 4 }}>
+              Para usuários avançados: conecte seu próprio provider. Você paga direto ao serviço escolhido.
+            </p>
+
+            <div className="sm-provider-grid">
+              {(Object.keys(PROVIDER_LABELS) as AIProviderType[]).filter((p) => p !== 'cafezin').map((provider) => (
+                <button
+                  key={provider}
+                  type="button"
+                  className={`sm-provider-card ${aiProvider === provider ? 'active' : ''}`}
+                  onClick={() => onAIProviderChange(provider)}
+                >
+                  <span className="sm-provider-card-title">{PROVIDER_LABELS[provider]}</span>
+                  <span className={`sm-provider-card-status ${providerConfigured[provider] ? 'is-ready' : ''}`}>
+                    {provider === 'copilot'
+                      ? providerConfigured[provider] ? 'Conectado' : 'Entrar pelo chat'
+                      : provider === 'custom'
+                      ? providerConfigured[provider] ? 'Configurado' : 'Configurar'
+                      : providerConfigured[provider] ? 'Chave salva' : 'Sem chave'}
+                  </span>
+                  {aiProvider === provider && (
+                    <span className="sm-provider-card-active">Em uso</span>
+                  )}
+                </button>
+              ))}
             </div>
 
-            <div className="sm-row sm-row--col">
-              <label className="sm-label">Status da conta</label>
-              <span className="sm-row-desc">
-                {account.aiTier === 'none'
-                  ? 'Sua conta atual ainda não tem acesso a Cafezin IA.'
-                  : `Plano ${MANAGED_TIER_LABELS[account.aiTier]} ativo. Os modelos disponíveis abaixo seguem seu tier.`}
-              </span>
-            </div>
-
-            <div className="sm-row sm-row--col">
-              <label className="sm-label">Como funciona</label>
-              <div className="sm-custom-limitations">
-                O Cafezin autentica pela sua conta, aplica sua cota mensal e libera os modelos compatíveis com o seu plano.
-                Se a sua cota acabar, você pode fazer upgrade na web ou trocar para outro provider com BYOK.
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-              <a
-                className="sm-save-btn"
-                href={premiumPageUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{ display: 'inline-block', textDecoration: 'none' }}
-              >
-                Ver planos na web ↗
-              </a>
-            </div>
-          </div>
-        )}
-
-        {aiProvider !== 'copilot' && aiProvider !== 'custom' && aiProvider !== 'cafezin' && (
-          <div className="sm-row sm-row--col">
-            <label className="sm-label">
-              {t('settings.apiKeyLabel')}
-              {aiProvider === 'openai' && (
-                <span className="sm-row-desc"> —{' '}
-                  <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">platform.openai.com/api-keys</a>
-                </span>
-              )}
-              {aiProvider === 'anthropic' && (
-                <span className="sm-row-desc"> —{' '}
-                  <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>
-                </span>
-              )}
-              {aiProvider === 'groq' && (
-                <span className="sm-row-desc"> —{' '}
-                  <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>
-                </span>
-              )}
-              {aiProvider === 'google' && (
-                <span className="sm-row-desc"> —{' '}
-                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">aistudio.google.com</a>
-                </span>
-              )}
-            </label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                className="sm-input"
-                type="password"
-                value={aiProviderKey}
-                onChange={(e) => setAIProviderKey(e.target.value)}
-                placeholder={aiProvider === 'openai' ? 'sk-...' : aiProvider === 'anthropic' ? 'sk-ant-...' : aiProvider === 'google' ? 'AIza...' : 'gsk_...'}
-                style={{ flex: 1 }}
-              />
-              <button
-                className={`sm-save-btn ${aiKeySaved ? 'saved' : ''}`}
-                onClick={onSaveAIKey}
-              >
-                {aiKeySaved ? t('settings.saved') : t('settings.save')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Custom / Local provider: endpoint + model ID + diagnostic */}
-        {aiProvider === 'custom' && (
-          <div className="sm-custom-section">
-            <div className="sm-custom-notice">
-              Compatível com qualquer servidor <strong>OpenAI-compatible</strong>: Ollama, LM Studio, Jan, vLLM, OpenRouter, ou seu próprio proxy.
-            </div>
-
-            <div className="sm-row sm-row--col">
-              <label className="sm-label">
-                URL do servidor <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
-                <span className="sm-row-desc"> — deve apontar para a raiz da API (ex: /v1)</span>
-              </label>
-              <input
-                className="sm-input"
-                type="text"
-                value={customEndpointDraft}
-                onChange={(e) => { setCustomEndpointDraft(e.target.value); onClearCustomDiagnostic(); }}
-                placeholder="http://localhost:11434/v1"
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </div>
-
-            <div className="sm-row sm-row--col">
-              <label className="sm-label">
-                Chave da API
-                <span className="sm-row-desc"> — opcional; não obrigatório para Ollama / LM Studio</span>
-              </label>
-              <input
-                className="sm-input"
-                type="password"
-                value={aiProviderKey}
-                onChange={(e) => { setAIProviderKey(e.target.value); onClearCustomDiagnostic(); }}
-                placeholder="sk-... (deixe em branco se não houver)"
-              />
-            </div>
-
-            <div className="sm-row sm-row--col">
-              <label className="sm-label">
-                ID do modelo <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
-                <span className="sm-row-desc"> — exatamente como listado no servidor (ex: llama3.2, mistral)</span>
-              </label>
-              <input
-                className="sm-input"
-                type="text"
-                value={aiModel}
-                onChange={(e) => { setAIModel(e.target.value); onClearCustomDiagnostic(); }}
-                placeholder="llama3.2"
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <button
-                className={`sm-save-btn ${aiKeySaved ? 'saved' : ''}`}
-                onClick={onSaveCustomConfig}
-                disabled={!customEndpointDraft.trim() || !aiModel.trim()}
-              >
-                {aiKeySaved ? t('settings.saved') : t('settings.save')}
-              </button>
-              <button
-                className="sm-custom-test-btn"
-                onClick={() => onTestCustomEndpoint()}
-                disabled={!customEndpointDraft.trim() || !aiModel.trim() || customDiagnosticLoading}
-              >
-                {customDiagnosticLoading ? 'Testando…' : 'Testar conexão'}
-              </button>
-            </div>
-
-            {customDiagnostic && (
-              <div className={`sm-custom-diagnostic ${customDiagnostic.ok ? 'ok' : 'error'}`}>
-                {customDiagnostic.ok
-                  ? `✓ Servidor respondeu em ${customDiagnostic.latencyMs}ms — tudo certo!`
-                  : `✗ ${customDiagnostic.error} — ${customDiagnostic.hint}`}
+            {/* Key config for selected BYOK provider */}
+            {aiProvider !== 'cafezin' && aiProvider !== 'copilot' && aiProvider !== 'custom' && (
+              <div className="sm-row sm-row--col">
+                <label className="sm-label">
+                  {t('settings.apiKeyLabel')}
+                  {aiProvider === 'openai' && (
+                    <span className="sm-row-desc"> —{' '}
+                      <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">platform.openai.com/api-keys</a>
+                    </span>
+                  )}
+                  {aiProvider === 'anthropic' && (
+                    <span className="sm-row-desc"> —{' '}
+                      <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>
+                    </span>
+                  )}
+                  {aiProvider === 'groq' && (
+                    <span className="sm-row-desc"> —{' '}
+                      <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>
+                    </span>
+                  )}
+                  {aiProvider === 'google' && (
+                    <span className="sm-row-desc"> —{' '}
+                      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">aistudio.google.com</a>
+                    </span>
+                  )}
+                </label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="sm-input"
+                    type="password"
+                    value={aiProviderKey}
+                    onChange={(e) => setAIProviderKey(e.target.value)}
+                    placeholder={aiProvider === 'openai' ? 'sk-...' : aiProvider === 'anthropic' ? 'sk-ant-...' : aiProvider === 'google' ? 'AIza...' : 'gsk_...'}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    className={`sm-save-btn ${aiKeySaved ? 'saved' : ''}`}
+                    onClick={onSaveAIKey}
+                  >
+                    {aiKeySaved ? t('settings.saved') : t('settings.save')}
+                  </button>
+                </div>
               </div>
             )}
 
-            <div className="sm-custom-limitations">
-              <strong>Limitações:</strong> análise de imagens / canvas visual não disponível.
-              O modelo precisa suportar a API <code>/v1/chat/completions</code>.
-              O endpoint e o ID do modelo ficam salvos apenas neste dispositivo.
-            </div>
-          </div>
-        )}
+            {/* Custom / Local provider: endpoint + model ID + diagnostic */}
+            {aiProvider === 'custom' && (
+              <div className="sm-custom-section">
+                <div className="sm-custom-notice">
+                  Compatível com qualquer servidor <strong>OpenAI-compatible</strong>: Ollama, LM Studio, Jan, vLLM, OpenRouter, ou seu próprio proxy.
+                </div>
 
-        {aiProvider === 'copilot' && (
-          <div className="sm-row sm-row--col">
-            <label className="sm-label">GitHub Copilot</label>
-            <span className="sm-row-desc">
-              {hasCopilotAuth
-                ? 'Conta do Copilot pronta. Se quiser trocar, faça logout e login pelo painel do chat.'
-                : t('settings.copilotLoginDesc')}
-            </span>
-          </div>
+                <div className="sm-row sm-row--col">
+                  <label className="sm-label">
+                    URL do servidor <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
+                    <span className="sm-row-desc"> — deve apontar para a raiz da API (ex: /v1)</span>
+                  </label>
+                  <input
+                    className="sm-input"
+                    type="text"
+                    value={customEndpointDraft}
+                    onChange={(e) => { setCustomEndpointDraft(e.target.value); onClearCustomDiagnostic(); }}
+                    placeholder="http://localhost:11434/v1"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </div>
+
+                <div className="sm-row sm-row--col">
+                  <label className="sm-label">
+                    Chave da API
+                    <span className="sm-row-desc"> — opcional; não obrigatório para Ollama / LM Studio</span>
+                  </label>
+                  <input
+                    className="sm-input"
+                    type="password"
+                    value={aiProviderKey}
+                    onChange={(e) => { setAIProviderKey(e.target.value); onClearCustomDiagnostic(); }}
+                    placeholder="sk-... (deixe em branco se não houver)"
+                  />
+                </div>
+
+                <div className="sm-row sm-row--col">
+                  <label className="sm-label">
+                    ID do modelo <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
+                    <span className="sm-row-desc"> — exatamente como listado no servidor (ex: llama3.2, mistral)</span>
+                  </label>
+                  <input
+                    className="sm-input"
+                    type="text"
+                    value={aiModel}
+                    onChange={(e) => { setAIModel(e.target.value); onClearCustomDiagnostic(); }}
+                    placeholder="llama3.2"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button
+                    className={`sm-save-btn ${aiKeySaved ? 'saved' : ''}`}
+                    onClick={onSaveCustomConfig}
+                    disabled={!customEndpointDraft.trim() || !aiModel.trim()}
+                  >
+                    {aiKeySaved ? t('settings.saved') : t('settings.save')}
+                  </button>
+                  <button
+                    className="sm-custom-test-btn"
+                    onClick={() => onTestCustomEndpoint()}
+                    disabled={!customEndpointDraft.trim() || !aiModel.trim() || customDiagnosticLoading}
+                  >
+                    {customDiagnosticLoading ? 'Testando…' : 'Testar conexão'}
+                  </button>
+                </div>
+
+                {customDiagnostic && (
+                  <div className={`sm-custom-diagnostic ${customDiagnostic.ok ? 'ok' : 'error'}`}>
+                    {customDiagnostic.ok
+                      ? `✓ Servidor respondeu em ${customDiagnostic.latencyMs}ms — tudo certo!`
+                      : `✗ ${customDiagnostic.error} — ${customDiagnostic.hint}`}
+                  </div>
+                )}
+
+                <div className="sm-custom-limitations">
+                  <strong>Limitações:</strong> análise de imagens / canvas visual não disponível.
+                  O modelo precisa suportar a API <code>/v1/chat/completions</code>.
+                  O endpoint e o ID do modelo ficam salvos apenas neste dispositivo.
+                </div>
+              </div>
+            )}
+
+            {aiProvider === 'copilot' && (
+              <div className="sm-row sm-row--col">
+                <label className="sm-label">GitHub Copilot</label>
+                <span className="sm-row-desc">
+                  {hasCopilotAuth
+                    ? 'Conta do Copilot pronta. Se quiser trocar, faça logout e login pelo painel do chat.'
+                    : t('settings.copilotLoginDesc')}
+                </span>
+              </div>
+            )}
+          </>
         )}
       </section>
 

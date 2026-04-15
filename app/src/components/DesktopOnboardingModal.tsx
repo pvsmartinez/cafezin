@@ -36,10 +36,10 @@ const SLIDES: Record<Locale, HelpSlide[]> = {
     },
     {
       eyebrow: 'Inteligência Artificial',
-      title: 'A IA é opcional e usa a sua própria chave',
-      body: 'O Cafezin funciona 100% sem IA. Se quiser ativá-la, você coloca a sua própria chave de API — o custo vai direto pro provedor, não entra no plano.',
+      title: 'A IA trabalha com o contexto real do seu projeto',
+      body: 'Abra o painel de IA para revisar textos, estruturar ideias, transformar rascunhos em material finalizado e usar ferramentas direto na pasta.',
       accent: 'Cmd+K para abrir o painel de IA',
-      bullets: ['OpenAI, Claude, Groq, GitHub Copilot, Gemini ou modelo local (Ollama)', 'A IA vê e edita todos os arquivos da pasta do workspace', 'Chave criptografada e sincronizada entre seus dispositivos'],
+      bullets: ['Use qualquer modelo — OpenAI, Claude, Groq, GitHub Copilot ou local', 'Pergunte sobre o arquivo atual ou crie e edite arquivos com ferramentas', 'A IA vê o projeto inteiro, não só o arquivo aberto'],
       Icon: RocketLaunch,
     },
     {

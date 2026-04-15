@@ -28,11 +28,13 @@ interface PremiumGateProps {
   style?: React.CSSProperties;
   isOverlay?: boolean;
   onRefresh: () => Promise<void>;
+  trialRemaining?: number;
 }
 
-export function PremiumGate({ account, loading, style, isOverlay, onRefresh }: PremiumGateProps) {
+export function PremiumGate({ account, loading, style, isOverlay, onRefresh, trialRemaining = 0 }: PremiumGateProps) {
   const notLoggedIn = !account.authenticated;
   const locale = navigator.language.startsWith('pt') ? 'pt-BR' : 'en';
+  const trialDone = trialRemaining === 0;
 
   async function openUpgrade() {
     // Upgrades now always go through the web account page so the user can
@@ -62,6 +64,12 @@ export function PremiumGate({ account, loading, style, isOverlay, onRefresh }: P
           ? 'Assine o plano Basic, Standard ou Pro para usar a IA no Cafezin. Você escolhe o provider — Cafezin IA gerenciada ou sua própria chave de API.'
           : 'Seu plano atual não inclui IA. Faça upgrade para Basic ou superior e escolha entre Cafezin IA gerenciada ou seu próprio provider com BYOK.'}
       </p>
+
+      {!trialDone && (
+        <p className="premium-gate-trial-hint">
+          💡 Você ainda tem {trialRemaining} resposta{trialRemaining !== 1 ? 's' : ''} grátis. Basta fechar este aviso e continuar.
+        </p>
+      )}
 
       <button
         className="ai-auth-btn premium-gate-cta"

@@ -46,7 +46,7 @@ import { PremiumGate } from './ai/PremiumGate';
 import AgentSession from './AgentSession';
 import type { AgentSessionHandle } from './AgentSession';
 import { useAccountState } from '../hooks/useAccountState';
-import { isTrialUsed, markTrialUsed } from '../services/aiTrial';
+import { isTrialUsed, markTrialUsed, getTrialRemaining } from '../services/aiTrial';
 
 import './AIPanel.css';
 
@@ -598,10 +598,12 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   if (authStatus === 'checking') return null;
 
   // ── Gate overlay state (shown as overlay on top of panel instead of replacing it) ──
-  // Free users get 1 trial response (device-scoped). Gate opens only after trial is used.
+  // Free users get 3 trial responses (device-scoped). Gate opens only after trial is used.
   const canAccessAI = account.canUseAI || !trialUsed;
-  const isGated = (!accountLoading && !canAccessAI) ||
-    authStatus === 'unauthenticated' || authStatus === 'connecting';
+  // Copilot auth is only required when the active provider IS Copilot.
+  // Non-Copilot providers (OpenAI, Claude, Groq, custom) authenticate via API key — no OAuth.
+  const needsCopilotAuth = activeProvider === 'copilot' && (authStatus === 'unauthenticated' || authStatus === 'connecting');
+  const isGated = (!accountLoading && !canAccessAI) || needsCopilotAuth;
 
   // ── Collapsed icon strip ─────────────────────────────────────────────────
   if (collapsed) {
@@ -833,6 +835,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
               loading={accountLoading}
               onRefresh={refreshAccount}
               isOverlay
+              trialRemaining={getTrialRemaining()}
             />
           ) : (
             <AIAuthScreen

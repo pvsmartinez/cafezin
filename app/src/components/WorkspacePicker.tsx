@@ -22,74 +22,68 @@ import './WorkspacePicker.css';
 import { timeAgo } from '../utils/timeAgo';
 
 // ── Getting Started content injected into new workspaces ─────────────────────
-const GETTING_STARTED_EN = `# Welcome to Cafezin ✦
+const GETTING_STARTED_EN = `# Hello ✦
 
-This is your first workspace — a local folder where all your files live.
+You're in Cafezin. This file is in your folder — everything here is local, nothing goes to the cloud unless you set that up.
 
-## Get started
+## Try it now
 
-**1. Write here**
-This editor supports Markdown. Try \`**bold**\`, \`*italic*\`, \`## headings\`, \`- lists\`.
-
-**2. Create files**
-Click **+ New file** in the sidebar, or press \`Cmd+N\`.
-
-**3. Activate AI (optional)**
-Press \`Cmd+K\` to open the AI panel. Connect OpenAI, Claude, Groq, GitHub Copilot, or a local model (Ollama).
-You bring your own API key — Cafezin never stores it.
-
-**4. Open the canvas**
-Create a \`.canvas\` file for a visual whiteboard. Great for diagrams and mind maps.
-
-## Keyboard shortcuts
-
-| Shortcut | Action |
-|---|---|
-| \`Cmd+K\` | Open AI panel |
-| \`Cmd+N\` | New file |
-| \`Cmd+F\` | Search in file |
-| \`Cmd+Shift+F\` | Search workspace |
-| \`Cmd+,\` | Settings |
-| \`Cmd+Shift+P\` | Toggle preview |
+Delete everything below this line and start writing. That's all you need to do.
 
 ---
 
-*You can delete this file whenever you're ready.*
+**Want the AI to help?** Press \`Cmd+K\`.
+
+You'll get 3 free responses to try it out. After that, you can connect your own API key (OpenAI, Claude, Groq — you pay the provider directly) or subscribe to a Cafezin plan.
+
+---
+
+**Some things you can ask the AI:**
+
+- "Summarize what I wrote above"
+- "Continue this paragraph"
+- "Turn this into a bullet list"
+- "What's missing from this draft?"
+
+---
+
+**Create a new file:** \`Cmd+N\`
+**Search everything:** \`Cmd+Shift+F\`
+**Settings:** \`Cmd+,\`
+
+*Delete this file whenever you're ready.*
 `;
 
-const GETTING_STARTED_PT = `# Bem-vindo ao Cafezin ✦
+const GETTING_STARTED_PT = `# Olá ✦
 
-Este é o seu primeiro workspace — uma pasta local onde todos os seus arquivos ficam.
+Você está no Cafezin. Este arquivo está na sua pasta — tudo aqui é local, nada vai para a nuvem a não ser que você configure isso.
 
-## Primeiros passos
+## Experimente agora
 
-**1. Escreva aqui**
-Este editor usa Markdown. Experimente \`**negrito**\`, \`*itálico*\`, \`## títulos\`, \`- listas\`.
-
-**2. Crie arquivos**
-Clique em **+ Novo arquivo** na barra lateral, ou pressione \`Cmd+N\`.
-
-**3. Ative a IA (opcional)**
-Pressione \`Cmd+K\` para abrir o painel de IA. Conecte OpenAI, Claude, Groq, GitHub Copilot ou modelo local (Ollama).
-Você traz sua própria chave de API — o Cafezin nunca a armazena.
-
-**4. Abra o canvas**
-Crie um arquivo \`.canvas\` para um quadro visual. Ótimo para diagramas e mapas mentais.
-
-## Atalhos
-
-| Atalho | Ação |
-|---|---|
-| \`Cmd+K\` | Abrir painel de IA |
-| \`Cmd+N\` | Novo arquivo |
-| \`Cmd+F\` | Buscar no arquivo |
-| \`Cmd+Shift+F\` | Buscar no workspace |
-| \`Cmd+,\` | Configurações |
-| \`Cmd+Shift+P\` | Alternar preview |
+Apague tudo abaixo desta linha e comece a escrever. Só isso.
 
 ---
 
-*Delete este arquivo quando quiser.*
+**Quer que a IA ajude?** Pressione \`Cmd+K\`.
+
+Você tem 3 respostas grátis para experimentar. Depois disso, pode conectar sua própria chave de API (OpenAI, Claude, Groq — você paga o provedor diretamente) ou assinar um plano Cafezin.
+
+---
+
+**Algumas coisas que você pode pedir à IA:**
+
+- "Resuma o que escrevi acima"
+- "Continue este parágrafo"
+- "Transforme isso em uma lista"
+- "O que está faltando neste rascunho?"
+
+---
+
+**Criar arquivo:** \`Cmd+N\`
+**Buscar em tudo:** \`Cmd+Shift+F\`
+**Configurações:** \`Cmd+,\`
+
+*Apague este arquivo quando quiser.*
 `;
 
 const DEFAULT_GIT_ACCOUNT_LABEL = 'personal';
@@ -457,7 +451,7 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
         <div className="wp-header">
           <div className="wp-logo">✦</div>
           <h1 className="wp-title">Cafezin</h1>
-          <p className="wp-tagline">Just Chilling</p>
+          <p className="wp-tagline">{isPt ? 'Escreva, ensine, publique' : 'Write, teach, publish'}</p>
         </div>
 
         {/* ── First-run concept explainer (shown when no workspaces exist) ── */}
@@ -498,7 +492,7 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
             disabled={loading || createBusy}
           >
             <Plus weight="thin" size={16} />
-            <span>Novo workspace</span>
+            <span>{isPt ? 'Nova pasta' : 'New folder'}</span>
           </button>
         </div>
 
@@ -507,7 +501,7 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
           <div className="wp-create-form">
             <input
               className="wp-auth-input"
-              placeholder="Nome do workspace"
+              placeholder={isPt ? 'Nome da pasta' : 'Folder name'}
               value={createName}
               onChange={(e) => setCreateName(e.target.value)}
               onKeyDown={(e) => {
@@ -679,7 +673,7 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
             <div className="wp-recents-label">
               {userEmail
                 ? <><Cloud weight="thin" size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />Workspaces</>
-                : 'Recent workspaces'}
+                : 'Recent folders'}
             </div>
 
             {cloudLoading && <div className="wp-cloud-empty">Loading…</div>}
