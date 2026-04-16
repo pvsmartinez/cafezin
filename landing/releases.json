@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "version": "0.1.15",
+      "tag": "v0.1.15",
+      "title": "Cafezin 0.1.15",
+      "publishedAt": "2026-04-16T01:53:35.793Z",
+      "summary": "This update refines the user experience with improved search descriptions, better session handling, and a smoother installation process for Windows users.",
+      "highlights": [
+        "Windows users are now directed to the Microsoft Store for app installation, ensuring a more secure and streamlined experience.",
+        "Search tool descriptions have been clarified to emphasize literal grep-style behavior, avoiding confusion with semantic search.",
+        "Session goals now benefit from a new anchor system, file read caching, and structured compression for better performance and reliability.",
+        "Text from mixed messages is preserved during summarization compression, ensuring no loss of important content.",
+        "User vision messages are no longer pruned unless replaced with a canvas screenshot, maintaining context integrity."
+      ],
+      "links": {
+        "githubRelease": "https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.15"
+      }
+    },
+    {
       "version": "0.1.14",
       "tag": "v0.1.14",
       "title": "Cafezin 0.1.14",

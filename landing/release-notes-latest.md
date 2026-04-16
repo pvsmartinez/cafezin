@@ -1,12 +1,14 @@
-# Cafezin 0.1.14
+# Cafezin 0.1.15
 
-This update includes security improvements for Markdown rendering and performance optimizations for the app's interface.
+This update refines the user experience with improved search descriptions, better session handling, and a smoother installation process for Windows users.
 
 ## Highlights
 
-- Improved security by sanitizing inline HTML and scriptable links in Markdown previews to prevent potential vulnerabilities.
-- Optimized app performance by lazily loading the Sidebar and BottomPanel components, reducing initial load times.
-- Fixed an issue where user messages with structured parts in the AI assistant would not properly display fallback text.
+- Windows users are now directed to the Microsoft Store for app installation, ensuring a more secure and streamlined experience.
+- Search tool descriptions have been clarified to emphasize literal grep-style behavior, avoiding confusion with semantic search.
+- Session goals now benefit from a new anchor system, file read caching, and structured compression for better performance and reliability.
+- Text from mixed messages is preserved during summarization compression, ensuring no loss of important content.
+- User vision messages are no longer pruned unless replaced with a canvas screenshot, maintaining context integrity.
 
 ## Downloads
 
@@ -15,4 +17,4 @@ This update includes security improvements for Markdown rendering and performanc
 
 ## Full release
 
-https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.14
+https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.15

@@ -1,6 +1,6 @@
 {
   "version": "0.1.13",
-  "notes": "Cafezin 0.1.13 improves the first-run experience: new workspaces now open with a Getting Started guide, onboarding is bilingual (EN/PT), and the app reports install events to improve the funnel.",
+  "notes": "This update refines the user experience with improved search descriptions, better session handling, and a smoother installation process for Windows users.",
   "pub_date": "2026-04-07T02:32:43Z",
   "min_versions": {
     "release": "0.1.7",
