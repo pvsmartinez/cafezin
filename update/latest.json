@@ -1,7 +1,7 @@
 {
   "version": "0.1.15",
   "notes": "# Cafezin 0.1.15\n\nThis update refines the user experience with improved search descriptions, better session handling, and a smoother installation process for Windows users.\n\n## Highlights\n\n- Windows users are now directed to the Microsoft Store for app installation, ensuring a more secure and streamlined experience.\n- Search tool descriptions have been clarified to emphasize literal grep-style behavior, avoiding confusion with semantic search.\n- Session goals now benefit from a new anchor system, file read caching, and structured compression for better performance and reliability.\n- Text from mixed messages is preserved during summarization compression, ensuring no loss of important content.\n- User vision messages are no longer pruned unless replaced with a canvas screenshot, maintaining context integrity.\n\n## Downloads\n\n- macOS: https://cafezin.pmatz.com/download/mac\n- Windows: https://cafezin.pmatz.com/download/windows\n\n## Full release\n\nhttps://github.com/pvsmartinez/cafezin/releases/tag/v0.1.15",
-  "pub_date": "2026-04-16T01:57:05Z",
+  "pub_date": "2026-04-16T02:08:28Z",
   "min_versions": {
     "release": "0.1.7",
     "dev": "0.1.7",
@@ -14,8 +14,8 @@
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UEUwRGRVdWRxVXdMUHYwVUVtd0xrRUxGNTJYRVpCWUZTTEh3Z21kaDArYnB1M3NueisxS1AydEdXeThRNzVtbEc5SER5Wlg1SjlneVlzMWlqQ0IxN0F3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2MzA0NTYzCWZpbGU6Q2FmZXppbi5hcHAudGFyLmd6Ci85VmpNYVJVWmhGSGdkWFZhNjJWT3M1L05Ja2tRMCs2WVZpczlhcU5FUW55TTNxdFVJUzBMOWxuQWNGaXdpMzB3cTFXSnpvaU9tcDlXK3MvUTJ2RUNnPT0K"
     },
     "windows-x86_64": {
-      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.13/Cafezin_setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UEpkZWhJTFgrelFiclkwZm54by81bktRSzcrQ2tzSEMrejZUOGMwQkY1L1Y1NGNXWENkV25weXZoMFUxL1BUYllLajhsOEV3RksvRSt5NzkzUGcxN0FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1NTI5MTA1CWZpbGU6Q2FmZXppbl8wLjEuMTJfeDY0LXNldHVwLmV4ZQpxbWRvWU13NUszeEJVaXl0R0pOUjBoTnlIVzJIUnZ2c04yaUJ4M3I2OFptUjdvK2VZazBzTlpOZHpTYXZURm1aVEhsTlkzTGpJQUFEWUtqNXBEYWhDQT09Cg=="
+      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.15/Cafezin_setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UE1FQjh4eFN6bnJJeXNRNGlsZThMYTJHZGxHaWNDd0I1NmhPNXVVNVRwVWF5N1pDVGVJVTB4aVgzbUZiVEN2Q3FJMjJYeGo5UFZEaU5BWGZLa0pSMGd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2MzA1MjM1CWZpbGU6Q2FmZXppbl8wLjEuMTVfeDY0LXNldHVwLmV4ZQpBT1cwc3BhaGtybXZRdko5Z2laeVIrUDM3MUhwTmREaGg5UkJWUzVkUXcrb0hXU3F6d1FtRHA1dFFEUkJCR3NkNCt0MlQxSGxiWjkwZFE1UEV6ZXZEUT09Cg=="
     }
   }
 }
