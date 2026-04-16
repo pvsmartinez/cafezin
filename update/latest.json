@@ -1,7 +1,7 @@
 {
-  "version": "0.1.13",
-  "notes": "This update refines the user experience with improved search descriptions, better session handling, and a smoother installation process for Windows users.",
-  "pub_date": "2026-04-07T02:32:43Z",
+  "version": "0.1.15",
+  "notes": "# Cafezin 0.1.15\n\nThis update refines the user experience with improved search descriptions, better session handling, and a smoother installation process for Windows users.\n\n## Highlights\n\n- Windows users are now directed to the Microsoft Store for app installation, ensuring a more secure and streamlined experience.\n- Search tool descriptions have been clarified to emphasize literal grep-style behavior, avoiding confusion with semantic search.\n- Session goals now benefit from a new anchor system, file read caching, and structured compression for better performance and reliability.\n- Text from mixed messages is preserved during summarization compression, ensuring no loss of important content.\n- User vision messages are no longer pruned unless replaced with a canvas screenshot, maintaining context integrity.\n\n## Downloads\n\n- macOS: https://cafezin.pmatz.com/download/mac\n- Windows: https://cafezin.pmatz.com/download/windows\n\n## Full release\n\nhttps://github.com/pvsmartinez/cafezin/releases/tag/v0.1.15",
+  "pub_date": "2026-04-16T01:57:05Z",
   "min_versions": {
     "release": "0.1.7",
     "dev": "0.1.7",
@@ -10,8 +10,8 @@
   },
   "platforms": {
     "darwin-aarch64": {
-      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.13/Cafezin_0.1.13_aarch64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UENXWEF0bGlNNHhDdUc1dTBlWUFPWVAwWHNPQjNTVXNpbFFqU2VURG9qQk1xZnBFd0xUME11SmxackZqdVZFWnlTSEdCNUdNcjczUmhYSkVwTVBvT3drPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1NTI4NjUxCWZpbGU6Q2FmZXppbi5hcHAudGFyLmd6Cm8zUzVjSkJKT0lpZGFaSldlWk55Ukp4REl2dGRId1M2TkZDaUNGZytzWHp0M3lmcHVjODNsR055aTlkWnFpYzZ0a1ZwaEJtMmFhL1RaSzZtZWhkRkFRPT0K"
+      "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.15/Cafezin_0.1.15_aarch64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUek8xUXprWi94UEUwRGRVdWRxVXdMUHYwVUVtd0xrRUxGNTJYRVpCWUZTTEh3Z21kaDArYnB1M3NueisxS1AydEdXeThRNzVtbEc5SER5Wlg1SjlneVlzMWlqQ0IxN0F3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2MzA0NTYzCWZpbGU6Q2FmZXppbi5hcHAudGFyLmd6Ci85VmpNYVJVWmhGSGdkWFZhNjJWT3M1L05Ja2tRMCs2WVZpczlhcU5FUW55TTNxdFVJUzBMOWxuQWNGaXdpMzB3cTFXSnpvaU9tcDlXK3MvUTJ2RUNnPT0K"
     },
     "windows-x86_64": {
       "url": "https://github.com/pvsmartinez/cafezin/releases/download/v0.1.13/Cafezin_setup.exe",
