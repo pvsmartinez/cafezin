@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "0.1.14",
+      "tag": "v0.1.14",
+      "title": "Cafezin 0.1.14",
+      "publishedAt": "2026-04-16T01:52:32.263Z",
+      "summary": "This update includes security improvements for Markdown rendering and performance optimizations for the app's interface.",
+      "highlights": [
+        "Improved security by sanitizing inline HTML and scriptable links in Markdown previews to prevent potential vulnerabilities.",
+        "Optimized app performance by lazily loading the Sidebar and BottomPanel components, reducing initial load times.",
+        "Fixed an issue where user messages with structured parts in the AI assistant would not properly display fallback text."
+      ],
+      "links": {
+        "githubRelease": "https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.14"
+      }
+    },
+    {
       "version": "0.1.12",
       "tag": "v0.1.12",
       "title": "Cafezin 0.1.12",

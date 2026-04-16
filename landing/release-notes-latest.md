@@ -1,12 +1,12 @@
-# Cafezin 0.1.13
+# Cafezin 0.1.14
 
-Cafezin 0.1.13 improves the first-run experience and adds onboarding for new workspaces.
+This update includes security improvements for Markdown rendering and performance optimizations for the app's interface.
 
 ## Highlights
 
-- Getting Started guide: Creating a new workspace now automatically generates a `getting-started.md` file with a guided introduction to the editor, AI panel, keyboard shortcuts, and canvas — opened immediately on first launch.
-- Bilingual onboarding: The new workspace screen now correctly adapts to English or Portuguese based on your system language.
-- App analytics: The app now reports first-open and session events so the team can better understand the install-to-use funnel and improve the experience over time. No personal data is collected.
+- Improved security by sanitizing inline HTML and scriptable links in Markdown previews to prevent potential vulnerabilities.
+- Optimized app performance by lazily loading the Sidebar and BottomPanel components, reducing initial load times.
+- Fixed an issue where user messages with structured parts in the AI assistant would not properly display fallback text.
 
 ## Downloads
 
@@ -15,4 +15,4 @@ Cafezin 0.1.13 improves the first-run experience and adds onboarding for new wor
 
 ## Full release
 
-https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.13
+https://github.com/pvsmartinez/cafezin/releases/tag/v0.1.14
