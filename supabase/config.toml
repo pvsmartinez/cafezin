@@ -61,3 +61,6 @@ verify_jwt = false
 
 [functions.track-landing]
 verify_jwt = false
+
+[functions.fodin-admin]
+verify_jwt = false
