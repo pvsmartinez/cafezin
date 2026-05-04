@@ -14,6 +14,7 @@
  */
 
 import { supabase } from './supabase';
+import { getSupabaseSession, invokeSupabaseFunction } from '@pvsmartinez/shared';
 import type { AccountState } from '../types';
 import { FREE_ACCOUNT_STATE } from '../types';
 
@@ -97,7 +98,7 @@ export async function fetchAccountState(options?: { force?: boolean }): Promise<
 
   const request = (async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSupabaseSession(supabase.auth);
 
       if (!session) {
         clearAccountCache();
@@ -152,11 +153,10 @@ export async function createCheckoutUrl(
   locale: 'en' | 'pt-BR' = 'en',
   tier: 'basic' | 'standard' | 'pro' = 'basic'
 ): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('create-checkout', {
+  const data = await invokeSupabaseFunction<{ url?: string }>(supabase, 'create-checkout', {
     method: 'POST',
     body: { locale, tier },
   });
-  if (error) throw error;
   if (!data?.url) throw new Error('No checkout URL returned');
   return data.url as string;
 }
@@ -167,10 +167,9 @@ export async function createCheckoutUrl(
  * Throws if the user is not authenticated, not premium, or the request fails.
  */
 export async function createCustomerPortalUrl(): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('create-customer-portal', {
+  const data = await invokeSupabaseFunction<{ url?: string }>(supabase, 'create-customer-portal', {
     method: 'POST',
   });
-  if (error) throw error;
   if (!data?.url) throw new Error('No customer portal URL returned');
   return data.url as string;
 }

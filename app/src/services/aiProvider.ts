@@ -18,6 +18,7 @@
 import type { ChatMessage } from '../types';
 import { DEFAULT_MODEL } from '../types';
 import { fetch } from '@tauri-apps/plugin-http';
+import { getSupabaseSession } from '@pvsmartinez/shared';
 import { fetchGhostCompletion, resolveCopilotModelForChatCompletions, streamCopilotChat } from './copilot';
 import type { CopilotModel } from '../types';
 import { supabase } from './supabase';
@@ -353,7 +354,7 @@ async function streamCafezinManagedAI(
   signal?: AbortSignal,
 ): Promise<void> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getSupabaseSession(supabase.auth);
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
     const proxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;

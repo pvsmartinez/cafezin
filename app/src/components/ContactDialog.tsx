@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { fetch } from '@tauri-apps/plugin-http';
+import { readSupabaseFunctionResponseError } from '@pvsmartinez/shared';
 import { supabase } from '../services/supabase';
 import './ContactDialog.css';
 
@@ -68,8 +69,7 @@ export default function ContactDialog({ open, locale, onClose }: Props) {
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(body.error ?? 'Falha ao enviar.');
+        throw await readSupabaseFunctionResponseError(res, 'Falha ao enviar.');
       }
 
       setStatus('ok');

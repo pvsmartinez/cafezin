@@ -462,12 +462,69 @@
       return data;
     }
 
+    function getStructuredFunctionMessage(payload, fallback) {
+      if (typeof payload === 'string') {
+        const trimmed = payload.trim();
+        if (!trimmed) return fallback;
+        try {
+          return getStructuredFunctionMessage(JSON.parse(trimmed), trimmed);
+        } catch {
+          return trimmed;
+        }
+      }
+
+      if (!payload || typeof payload !== 'object') return fallback;
+
+      const directKeys = ['error', 'message', 'details', 'hint', 'description'];
+      for (const key of directKeys) {
+        const candidate = payload[key];
+        if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+      }
+
+      for (const candidate of Object.values(payload)) {
+        if (Array.isArray(candidate)) {
+          for (const item of candidate) {
+            const nested = getStructuredFunctionMessage(item, '');
+            if (nested) return nested;
+          }
+        }
+      }
+
+      for (const key of directKeys) {
+        const candidate = payload[key];
+        if (candidate && typeof candidate === 'object') {
+          const nested = getStructuredFunctionMessage(candidate, '');
+          if (nested) return nested;
+        }
+      }
+
+      return fallback;
+    }
+
+    async function getBillingFunctionError(error, fallback) {
+      if (error?.context?.json) {
+        try {
+          const payload = await error.context.json();
+          return getStructuredFunctionMessage(payload, fallback);
+        } catch {}
+      }
+
+      if (error?.context?.text) {
+        try {
+          const payload = await error.context.text();
+          return getStructuredFunctionMessage(payload, fallback);
+        } catch {}
+      }
+
+      return getStructuredFunctionMessage(error?.message ?? error, fallback);
+    }
+
     async function callBillingFunction(name, extraBody = {}) {
       const { data, error } = await supabase.functions.invoke(name, {
         method: 'POST',
         body: { locale, ...extraBody },
       });
-      if (error) throw error;
+      if (error) throw new Error(await getBillingFunctionError(error, 'Unable to open billing flow.'));
       if (!data?.url) throw new Error('No URL returned');
       window.location.href = data.url;
     }

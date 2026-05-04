@@ -19,6 +19,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { documentDir } from '@tauri-apps/api/path'
+import { getSupabaseSession } from '@pvsmartinez/shared'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
@@ -61,8 +62,7 @@ export interface GitHubCreatedRepo {
 // ── Auth ───────────────────────────────────────────────────────────────────────
 
 export async function getSession(): Promise<Session | null> {
-  const { data } = await supabase.auth.getSession()
-  return data.session
+  return getSupabaseSession(supabase.auth)
 }
 
 export async function getUser(): Promise<User | null> {
