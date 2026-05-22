@@ -10,10 +10,19 @@
  */
 import { useEffect } from 'react';
 import { fetch } from '@tauri-apps/plugin-http';
+import { createPublicAnalyticsClient, type SupabaseFunctionFetchLike } from '@pvsmartinez/shared';
 import { getSession } from '../services/syncConfig';
 
 const DEVICE_ID_KEY    = 'cafezin_device_id';
 const LAST_SESSION_KEY = 'cafezin_last_session_date';
+const TRACK_ENDPOINT = `${(import.meta.env as Record<string, string>).VITE_SUPABASE_URL}/functions/v1/track-landing`;
+
+const analytics = createPublicAnalyticsClient<'app_session'>({
+  endpoint: TRACK_ENDPOINT,
+  fetcher: fetch as unknown as SupabaseFunctionFetchLike,
+  preferBeacon: false,
+  sessionStorageKey: 'cafezin-public-session',
+});
 
 function getOrCreateDeviceId(): string {
   let id = localStorage.getItem(DEVICE_ID_KEY);
@@ -40,8 +49,7 @@ async function logAppSession(): Promise<void> {
   const today = todayISO();
   if (localStorage.getItem(LAST_SESSION_KEY) === today) return;
 
-  const supabaseUrl = (import.meta.env as Record<string, string>).VITE_SUPABASE_URL;
-  if (!supabaseUrl) return;
+  if (!TRACK_ENDPOINT) return;
 
   const deviceId = getOrCreateDeviceId();
   const platform = detectPlatform();
@@ -49,16 +57,13 @@ async function logAppSession(): Promise<void> {
   const userId   = session?.user?.id ?? null;
 
   try {
-    await fetch(`${supabaseUrl}/functions/v1/track-landing`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        eventName: 'app_session',
-        pagePath:  '/app',
+    await analytics.trackEvent('app_session', {
+      pagePath: '/app',
+      metadata: {
         platform,
         device_id: deviceId,
-        user_id:   userId,
-      }),
+        user_id: userId,
+      },
     });
     localStorage.setItem(LAST_SESSION_KEY, today);
   } catch {

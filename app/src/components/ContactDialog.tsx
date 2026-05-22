@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { fetch } from '@tauri-apps/plugin-http';
-import { readSupabaseFunctionResponseError } from '@pvsmartinez/shared';
+import {
+  submitSupabaseContactForm,
+  type SupabaseFunctionFetchLike,
+} from '@pvsmartinez/shared';
 import { supabase } from '../services/supabase';
 import './ContactDialog.css';
 
@@ -62,15 +65,12 @@ export default function ContactDialog({ open, locale, onClose }: Props) {
     };
 
     try {
-      const res = await fetch(CONTACT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      await submitSupabaseContactForm({
+        body: payload,
+        fallbackMessage: 'Falha ao enviar.',
+        fetcher: fetch as unknown as SupabaseFunctionFetchLike,
+        url: CONTACT_URL,
       });
-
-      if (!res.ok) {
-        throw await readSupabaseFunctionResponseError(res, 'Falha ao enviar.');
-      }
 
       setStatus('ok');
       setMessage('');
