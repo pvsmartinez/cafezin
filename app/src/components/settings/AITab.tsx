@@ -9,8 +9,7 @@ import type { ProviderModelInfo } from '../../services/ai/providerModels';
 import { setFavoriteModelIds } from '../../services/ai/providerModels';
 import type { AccountState, AppSettings } from '../../types';
 
-const MANAGED_TIER_LABELS: Record<AccountState['aiTier'], string> = {
-  none: 'Sem plano',
+const MANAGED_TIER_NAMES: Record<Exclude<AccountState['aiTier'], 'none'>, string> = {
   basic: 'Basic',
   standard: 'Standard',
   pro: 'Pro',
@@ -100,11 +99,13 @@ export function AITab({
     onAppSettingsChange({ ...appSettings, [key]: value });
   }
 
+  const tierLabel = account.aiTier === 'none' ? t('settings.aiTierNone') : MANAGED_TIER_NAMES[account.aiTier];
+
   return (
     <div className="sm-section-list">
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Comportamento da IA</h3>
+        <h3 className="sm-section-title">{t('settings.aiBehaviorSectionTitle')}</h3>
 
         <div className="sm-row">
           <div className="sm-row-label">
@@ -123,7 +124,7 @@ export function AITab({
       </section>
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Provedor de IA</h3>
+        <h3 className="sm-section-title">{t('settings.aiProviderSectionTitle')}</h3>
 
         {/* ── Cafezin IA — primary option ── */}
         <div className={`sm-cafezin-ia-card${aiProvider === 'cafezin' ? ' active' : ''}`}>
@@ -131,7 +132,7 @@ export function AITab({
             <div className="sm-cafezin-ia-card-info">
               <span className="sm-cafezin-ia-card-name">Cafezin IA</span>
               <span className="sm-cafezin-ia-card-tag">
-                {account.aiTier === 'none' ? '3 respostas grátis' : `Plano ${MANAGED_TIER_LABELS[account.aiTier]} ativo`}
+                {account.aiTier === 'none' ? t('settings.aiFreeResponses') : t('settings.aiPlanActive', { plan: tierLabel })}
               </span>
             </div>
             <button
@@ -139,15 +140,15 @@ export function AITab({
               className={`sm-save-btn${aiProvider === 'cafezin' ? ' saved' : ''}`}
               onClick={() => { onAIProviderChange('cafezin'); setShowAdvanced(false); }}
             >
-              {aiProvider === 'cafezin' ? 'Em uso ✓' : 'Usar'}
+              {aiProvider === 'cafezin' ? `${t('settings.inUse')} ✓` : t('settings.useProvider')}
             </button>
           </div>
           {aiProvider === 'cafezin' && (
             <div className="sm-cafezin-ia-card-body">
               <p className="sm-row-desc">
                 {account.aiTier === 'none'
-                  ? 'Funciona direto — sem configurar chaves. Depois das 3 respostas grátis, ative um plano para continuar.'
-                  : `Plano ${MANAGED_TIER_LABELS[account.aiTier]}: os modelos disponíveis no chat se ajustam ao seu tier.`}
+                  ? t('settings.aiCafezinFreeDesc')
+                  : t('settings.aiCafezinPlanDesc', { plan: tierLabel })}
               </p>
               {account.aiTier === 'none' && (
                 <a
@@ -157,7 +158,7 @@ export function AITab({
                   rel="noreferrer"
                   style={{ display: 'inline-block', textDecoration: 'none', marginTop: 8 }}
                 >
-                  Ver planos →
+                  {t('settings.viewPlans')}
                 </a>
               )}
             </div>
@@ -171,16 +172,16 @@ export function AITab({
           onClick={() => setShowAdvanced((v) => !v)}
         >
           <span className="sm-advanced-toggle-arrow">{showAdvanced ? '▾' : '▸'}</span>
-          Usar minha própria chave de API
+          {t('settings.useOwnApiKey')}
           {aiProvider !== 'cafezin' && (
-            <span className="sm-advanced-toggle-badge">Em uso: {PROVIDER_LABELS[aiProvider]}</span>
+            <span className="sm-advanced-toggle-badge">{t('settings.inUseWith', { provider: PROVIDER_LABELS[aiProvider] })}</span>
           )}
         </button>
 
         {showAdvanced && (
           <>
             <p className="sm-section-desc" style={{ marginTop: 4 }}>
-              Para usuários avançados: conecte seu próprio provider. Você paga direto ao serviço escolhido.
+              {t('settings.advancedProviderDesc')}
             </p>
 
             <div className="sm-provider-grid">
@@ -194,13 +195,13 @@ export function AITab({
                   <span className="sm-provider-card-title">{PROVIDER_LABELS[provider]}</span>
                   <span className={`sm-provider-card-status ${providerConfigured[provider] ? 'is-ready' : ''}`}>
                     {provider === 'copilot'
-                      ? providerConfigured[provider] ? 'Conectado' : 'Entrar pelo chat'
+                      ? providerConfigured[provider] ? t('settings.connected') : t('settings.copilotLoginViaChat')
                       : provider === 'custom'
-                      ? providerConfigured[provider] ? 'Configurado' : 'Configurar'
-                      : providerConfigured[provider] ? 'Chave salva' : 'Sem chave'}
+                      ? providerConfigured[provider] ? t('settings.configured') : t('settings.configureAction')
+                      : providerConfigured[provider] ? t('settings.keySaved') : t('settings.noKey')}
                   </span>
                   {aiProvider === provider && (
-                    <span className="sm-provider-card-active">Em uso</span>
+                    <span className="sm-provider-card-active">{t('settings.inUse')}</span>
                   )}
                 </button>
               ))}
@@ -255,13 +256,13 @@ export function AITab({
             {aiProvider === 'custom' && (
               <div className="sm-custom-section">
                 <div className="sm-custom-notice">
-                  Compatível com qualquer servidor <strong>OpenAI-compatible</strong>: Ollama, LM Studio, Jan, vLLM, OpenRouter, ou seu próprio proxy.
+                  {t('settings.customCompatiblePrefix')} <strong>OpenAI-compatible</strong> {t('settings.customCompatibleSuffix')}
                 </div>
 
                 <div className="sm-row sm-row--col">
                   <label className="sm-label">
-                    URL do servidor <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
-                    <span className="sm-row-desc"> — deve apontar para a raiz da API (ex: /v1)</span>
+                    {t('settings.serverUrlLabel')} <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
+                    <span className="sm-row-desc"> — {t('settings.serverUrlHint')}</span>
                   </label>
                   <input
                     className="sm-input"
@@ -276,22 +277,22 @@ export function AITab({
 
                 <div className="sm-row sm-row--col">
                   <label className="sm-label">
-                    Chave da API
-                    <span className="sm-row-desc"> — opcional; não obrigatório para Ollama / LM Studio</span>
+                    {t('settings.customApiKeyLabel')}
+                    <span className="sm-row-desc"> — {t('settings.customApiKeyHint')}</span>
                   </label>
                   <input
                     className="sm-input"
                     type="password"
                     value={aiProviderKey}
                     onChange={(e) => { setAIProviderKey(e.target.value); onClearCustomDiagnostic(); }}
-                    placeholder="sk-... (deixe em branco se não houver)"
+                    placeholder={t('settings.customApiKeyPlaceholder') ?? ''}
                   />
                 </div>
 
                 <div className="sm-row sm-row--col">
                   <label className="sm-label">
-                    ID do modelo <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
-                    <span className="sm-row-desc"> — exatamente como listado no servidor (ex: llama3.2, mistral)</span>
+                    {t('settings.modelIdLabel')} <span style={{ color: 'var(--red, #e53e3e)' }}>*</span>
+                    <span className="sm-row-desc"> — {t('settings.modelIdHint')}</span>
                   </label>
                   <input
                     className="sm-input"
@@ -317,22 +318,22 @@ export function AITab({
                     onClick={() => onTestCustomEndpoint()}
                     disabled={!customEndpointDraft.trim() || !aiModel.trim() || customDiagnosticLoading}
                   >
-                    {customDiagnosticLoading ? 'Testando…' : 'Testar conexão'}
+                    {customDiagnosticLoading ? t('settings.testingConnection') : t('settings.testConnection')}
                   </button>
                 </div>
 
                 {customDiagnostic && (
                   <div className={`sm-custom-diagnostic ${customDiagnostic.ok ? 'ok' : 'error'}`}>
                     {customDiagnostic.ok
-                      ? `✓ Servidor respondeu em ${customDiagnostic.latencyMs}ms — tudo certo!`
-                      : `✗ ${customDiagnostic.error} — ${customDiagnostic.hint}`}
+                      ? t('settings.customDiagnosticOk', { ms: customDiagnostic.latencyMs })
+                      : t('settings.customDiagnosticError', { error: customDiagnostic.error, hint: customDiagnostic.hint })}
                   </div>
                 )}
 
                 <div className="sm-custom-limitations">
-                  <strong>Limitações:</strong> análise de imagens / canvas visual não disponível.
-                  O modelo precisa suportar a API <code>/v1/chat/completions</code>.
-                  O endpoint e o ID do modelo ficam salvos apenas neste dispositivo.
+                  <strong>{t('settings.limitationsLabel')}</strong> {t('settings.limitationNoVision')}
+                  {t('settings.limitationApiSupportPrefix')} <code>/v1/chat/completions</code>{t('settings.limitationApiSupportSuffix')}
+                  {t('settings.limitationLocalOnly')}
                 </div>
               </div>
             )}
@@ -342,7 +343,7 @@ export function AITab({
                 <label className="sm-label">GitHub Copilot</label>
                 <span className="sm-row-desc">
                   {hasCopilotAuth
-                    ? 'Conta do Copilot pronta. Se quiser trocar, faça logout e login pelo painel do chat.'
+                    ? t('settings.copilotReadyDesc')
                     : t('settings.copilotLoginDesc')}
                 </span>
               </div>
@@ -354,31 +355,31 @@ export function AITab({
       {/* Default model — hidden for custom (model is set in the provider section above) */}
       {aiProvider !== 'custom' && (
       <section className="sm-section">
-        <h3 className="sm-section-title">Modelo padrão</h3>
+        <h3 className="sm-section-title">{t('settings.defaultModelSectionTitle')}</h3>
         <p className="sm-section-desc">
-          Defina qual modelo este provider usa por padrão no painel de chat.
+          {t('settings.defaultModelSectionDesc')}
         </p>
 
         <div className="sm-row sm-row--col">
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
             <span className="sm-row-desc">
               {aiProvider === 'copilot'
-                ? 'A lista do Copilot vem ao vivo da sua conta.'
+                ? t('settings.modelListCopilotDesc')
                 : aiProvider === 'cafezin'
-                ? 'A lista da Cafezin IA é gerenciada pelo seu plano atual.'
-                : 'Atualize a lista direto do provider ativo para evitar catálogo defasado.'}
+                ? t('settings.modelListCafezinDesc')
+                : t('settings.modelListRefreshDesc')}
             </span>
             <button
               className="sm-save-btn"
               onClick={onRefreshProviderModels}
               disabled={!canRefreshProviderModels || aiProviderModelsLoading}
             >
-              {aiProviderModelsLoading ? 'Atualizando…' : 'Atualizar lista'}
+              {aiProviderModelsLoading ? t('settings.updatingList') : t('settings.refreshList')}
             </button>
           </div>
           {aiProviderModelsUpdatedAt && (
             <span className="sm-row-desc">
-              Última atualização: {new Date(aiProviderModelsUpdatedAt).toLocaleString()}
+              {t('settings.lastUpdatedPrefix')} {new Date(aiProviderModelsUpdatedAt).toLocaleString()}
             </span>
           )}
           {aiProviderModelsError && (
@@ -391,7 +392,7 @@ export function AITab({
         <div className="sm-row sm-row--col">
           <label className="sm-label">{t('settings.defaultModelLabel')}</label>
           {aiProvider === 'copilot' && aiCopilotModelsLoading && (
-            <span className="sm-row-desc">Carregando modelos do Copilot…</span>
+            <span className="sm-row-desc">{t('settings.loadingCopilotModels')}</span>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
             <select
@@ -420,8 +421,8 @@ export function AITab({
           return (
             <div className="sm-row sm-row--col">
               <label className="sm-label">
-                Modelos visíveis no seletor
-                <span className="sm-row-desc"> — escolha os que devem aparecer no chat</span>
+                {t('settings.visibleModelsLabel')}
+                <span className="sm-row-desc"> — {t('settings.visibleModelsHint')}</span>
               </label>
               <div className="sm-model-list">
                 {catalog.map((m) => (
@@ -439,7 +440,7 @@ export function AITab({
                     />
                     <span>{m.name}</span>
                     <span className="sm-model-item-meta">
-                      {m.supportsVision ? 'Visão' : 'Texto'}
+                      {m.supportsVision ? t('settings.visionShort') : t('settings.textShort')}
                     </span>
                   </label>
                 ))}
@@ -455,7 +456,7 @@ export function AITab({
                       }}
                     />
                     <span>{id}</span>
-                    <span className="sm-model-item-meta">Custom</span>
+                    <span className="sm-model-item-meta">{t('settings.customLabel')}</span>
                   </label>
                 ))}
               </div>
@@ -463,7 +464,7 @@ export function AITab({
                 <input
                   className="sm-input"
                   type="text"
-                  placeholder="ID do modelo custom"
+                  placeholder={t('settings.customModelIdPlaceholder') ?? ''}
                   value={customModelInput}
                   onChange={(e) => setCustomModelInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') onAddCustomModel(); }}
@@ -474,7 +475,7 @@ export function AITab({
                   onClick={onAddCustomModel}
                   disabled={!customModelInput.trim()}
                 >
-                  + Adicionar
+                  + {t('settings.addModel')}
                 </button>
               </div>
             </div>

@@ -15,6 +15,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { Extension } from '@tiptap/core';
 import Underline from '@tiptap/extension-underline';
 import { Markdown } from 'tiptap-markdown';
+import { useTranslation } from 'react-i18next';
 import {
   TextB, TextItalic, TextUnderline, TextStrikethrough,
   TextHOne, TextHTwo, TextHThree,
@@ -47,6 +48,7 @@ interface ToolBtn {
 }
 
 function ProseToolbar({ editor }: { editor: TiptapEditor }) {
+  const { t } = useTranslation();
   // Re-render whenever selection/marks change so active states stay in sync
   const [, forceUpdate] = useState(0);
   useEffect(() => {
@@ -62,7 +64,7 @@ function ProseToolbar({ editor }: { editor: TiptapEditor }) {
   function setLink() {
     const prev = editor.getAttributes('link').href ?? '';
     // eslint-disable-next-line no-alert
-    const url = window.prompt('URL do link:', prev);
+    const url = window.prompt(t('editor.linkUrlPrompt'), prev);
     if (url === null) return; // cancelled
     if (url === '') {
       editor.chain().focus().unsetMark('link').run();
@@ -73,33 +75,33 @@ function ProseToolbar({ editor }: { editor: TiptapEditor }) {
 
   const groups: ToolBtn[][] = [
     [
-      { title: 'Negrito (⌘B)',           icon: <TextB size={15} weight="bold" />,              action: () => editor.chain().focus().toggleBold().run(),       isActive: editor.isActive('bold') },
-      { title: 'Itálico (⌘I)',           icon: <TextItalic size={15} />,                        action: () => editor.chain().focus().toggleItalic().run(),     isActive: editor.isActive('italic') },
-      { title: 'Sublinhado (⌘U)',        icon: <TextUnderline size={15} />,                     action: () => editor.chain().focus().toggleUnderline().run(),   isActive: editor.isActive('underline') },
-      { title: 'Tachado',               icon: <TextStrikethrough size={15} />,                 action: () => editor.chain().focus().toggleStrike().run(),     isActive: editor.isActive('strike') },
+      { title: t('editor.bold'),           icon: <TextB size={15} weight="bold" />,              action: () => editor.chain().focus().toggleBold().run(),       isActive: editor.isActive('bold') },
+      { title: t('editor.italic'),         icon: <TextItalic size={15} />,                        action: () => editor.chain().focus().toggleItalic().run(),     isActive: editor.isActive('italic') },
+      { title: t('editor.underline'),      icon: <TextUnderline size={15} />,                     action: () => editor.chain().focus().toggleUnderline().run(),   isActive: editor.isActive('underline') },
+      { title: t('editor.strikethrough'),  icon: <TextStrikethrough size={15} />,                 action: () => editor.chain().focus().toggleStrike().run(),     isActive: editor.isActive('strike') },
     ],
     [
-      { title: 'Título 1',              icon: <TextHOne size={15} />,                           action: () => editor.chain().focus().toggleHeading({ level: 1 }).run(), isActive: editor.isActive('heading', { level: 1 }) },
-      { title: 'Título 2',              icon: <TextHTwo size={15} />,                           action: () => editor.chain().focus().toggleHeading({ level: 2 }).run(), isActive: editor.isActive('heading', { level: 2 }) },
-      { title: 'Título 3',              icon: <TextHThree size={15} />,                         action: () => editor.chain().focus().toggleHeading({ level: 3 }).run(), isActive: editor.isActive('heading', { level: 3 }) },
+      { title: t('editor.heading1Short'),  icon: <TextHOne size={15} />,                           action: () => editor.chain().focus().toggleHeading({ level: 1 }).run(), isActive: editor.isActive('heading', { level: 1 }) },
+      { title: t('editor.heading2Short'),  icon: <TextHTwo size={15} />,                           action: () => editor.chain().focus().toggleHeading({ level: 2 }).run(), isActive: editor.isActive('heading', { level: 2 }) },
+      { title: t('editor.heading3Short'),  icon: <TextHThree size={15} />,                         action: () => editor.chain().focus().toggleHeading({ level: 3 }).run(), isActive: editor.isActive('heading', { level: 3 }) },
     ],
     [
-      { title: 'Lista com marcadores',  icon: <ListBullets size={15} />,                       action: () => editor.chain().focus().toggleBulletList().run(), isActive: editor.isActive('bulletList') },
-      { title: 'Lista numerada',        icon: <ListNumbers size={15} />,                       action: () => editor.chain().focus().toggleOrderedList().run(), isActive: editor.isActive('orderedList') },
+      { title: t('editor.bulletList'),     icon: <ListBullets size={15} />,                       action: () => editor.chain().focus().toggleBulletList().run(), isActive: editor.isActive('bulletList') },
+      { title: t('editor.numberedList'),   icon: <ListNumbers size={15} />,                       action: () => editor.chain().focus().toggleOrderedList().run(), isActive: editor.isActive('orderedList') },
     ],
     [
-      { title: 'Citação',               icon: <Quotes size={15} />,                            action: () => editor.chain().focus().toggleBlockquote().run(), isActive: editor.isActive('blockquote') },
-      { title: 'Código inline',         icon: <Code size={15} />,                              action: () => editor.chain().focus().toggleCode().run(),       isActive: editor.isActive('code') },
-      { title: 'Bloco de código',       icon: <Terminal size={15} />,                          action: () => editor.chain().focus().toggleCodeBlock().run(),  isActive: editor.isActive('codeBlock') },
+      { title: t('editor.blockquote'),     icon: <Quotes size={15} />,                            action: () => editor.chain().focus().toggleBlockquote().run(), isActive: editor.isActive('blockquote') },
+      { title: t('editor.inlineCode'),     icon: <Code size={15} />,                              action: () => editor.chain().focus().toggleCode().run(),       isActive: editor.isActive('code') },
+      { title: t('editor.codeBlock'),      icon: <Terminal size={15} />,                          action: () => editor.chain().focus().toggleCodeBlock().run(),  isActive: editor.isActive('codeBlock') },
     ],
     [
-      { title: 'Linha horizontal',      icon: <Minus size={15} />,                             action: () => editor.chain().focus().setHorizontalRule().run(), isActive: false },
-      { title: 'Link',                  icon: <LinkSimple size={15} />,                        action: setLink,                                               isActive: editor.isActive('link') },
+      { title: t('editor.horizontalDivider'), icon: <Minus size={15} />,                          action: () => editor.chain().focus().setHorizontalRule().run(), isActive: false },
+      { title: t('editor.link'),           icon: <LinkSimple size={15} />,                        action: setLink,                                               isActive: editor.isActive('link') },
     ],
   ];
 
   return (
-    <div className="prose-toolbar" role="toolbar" aria-label="Formatação">
+    <div className="prose-toolbar" role="toolbar" aria-label={t('editor.proseToolbarLabel')}>
       {groups.map((group, gi) => (
         <div key={gi} className="prose-toolbar-group">
           {group.map((btn) => (

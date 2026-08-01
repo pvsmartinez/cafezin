@@ -137,7 +137,7 @@ function inferCopilotToolIntent(messages: ChatMessage[]) {
     isSearchOrResearch:
       /\b(search|find|look for|buscar|procura|onde|where|consisten|cross[- ]reference|compare|compare with|pesquis)\b/i.test(prompt),
     isExport:
-      /\b(export|publish|deploy|build|gerar pdf|pdf|subir|publicar)\b/i.test(prompt),
+      /\b(export|publish|deploy|build|gerar pdf|subir|publicar)\b/i.test(prompt),
     isMemory:
       /\b(remember|memory|memor|lembra|lembre|perfil|preference|preferencia)\b/i.test(prompt),
     isSettings:
@@ -483,6 +483,40 @@ export async function runCopilotAgent(
         loop.splice(0, loop.length, ...clean);
       }
 
+      // ── Payload guard ────────────────────────────────────────────────────
+      // The API rejects bodies over ~6 MB. Token estimates cap base64 image
+      // weight, so a screenshot-heavy session can still blow past the HTTP
+      // limit before the compression budget fires. Drop stale vision messages,
+      // then force compression if the body is still too large.
+      const MAX_PAYLOAD_BYTES = 6 * 1024 * 1024;
+      let payloadBytes = JSON.stringify(loop).length;
+      if (payloadBytes > MAX_PAYLOAD_BYTES) {
+        const visionIdxs = loop.reduce<number[]>((acc, m, i) => {
+          if (m.role === 'user' && Array.isArray(m.content) &&
+              (m.content as any[]).some((p: any) => p.type === 'image_url')) acc.push(i);
+          return acc;
+        }, []);
+        if (visionIdxs.length > 1) {
+          for (let i = visionIdxs.length - 2; i >= 0; i--) {
+            loop.splice(visionIdxs[i], 1);
+          }
+          payloadBytes = JSON.stringify(loop).length;
+        }
+        if (payloadBytes > MAX_PAYLOAD_BYTES) {
+          console.warn(`[agent] payload ${(payloadBytes / 1024 / 1024).toFixed(1)} MB exceeds limit — forcing context compression`);
+          onChunk('\n\n_[Context approaching limit — summarizing prior session and continuing...]_\n\n');
+          const compressed = await summarizeAndCompress(
+            loop,
+            buildCopilotHeaders(sessionToken, requestContext, 'agent'),
+            resolvedModel,
+            workspacePath,
+            sessionId ?? 's_unknown',
+            round,
+          );
+          loop.splice(0, loop.length, ...compressed);
+        }
+      }
+
       let res: Awaited<ReturnType<typeof fetch>> | null = null;
       let lastFetchError: Error | null = null;
       let loopForRequest = loop as typeof loop;
@@ -796,8 +830,31 @@ export async function runCopilotAgent(
         onChunk('\n\n');
       }
 
-      const toolResultsOrdered = await Promise.all(
-        allToolCalls.map(async (tc) => {
+      // Tools that touch the SAME target file must run sequentially — parallel
+      // read-modify-write races silently lose edits. Independent calls still run
+      // in parallel for latency.
+      const targetKeyOf = (tc: { function: { name: string; arguments: string } }): string => {
+        const parsed = parseToolArguments(tc.function.arguments);
+        if (!parsed.ok || typeof parsed.value !== 'object' || parsed.value === null) return '';
+        const v = parsed.value as Record<string, unknown>;
+        if (typeof v.path === 'string') return `file:${v.path}`;
+        if (typeof v.expected_file === 'string') return `canvas:${v.expected_file}`;
+        return '';
+      };
+      const executionGroups: typeof allToolCalls[] = [];
+      for (const tc of allToolCalls) {
+        const key = targetKeyOf(tc);
+        const lastGroup = executionGroups[executionGroups.length - 1];
+        if (key && lastGroup && lastGroup.length > 0 && targetKeyOf(lastGroup[0]) === key) {
+          lastGroup.push(tc);
+        } else {
+          executionGroups.push([tc]);
+        }
+      }
+
+      const runGroup = async (group: typeof allToolCalls) => {
+        const results: Array<{ tc: (typeof group)[number]; result: string }> = [];
+        for (const tc of group) {
           const parsedArgs = parseToolArguments(tc.function.arguments);
           const args = parsedArgs.ok
             ? parsedArgs.value
@@ -835,9 +892,13 @@ export async function runCopilotAgent(
             activity.error = result;
           }
           onToolActivity({ ...activity, result, error: activity.error });
-          return { tc, result };
-        }),
-      );
+          results.push({ tc, result });
+        }
+        return results;
+      };
+
+      const groupedResults = await Promise.all(executionGroups.map(runGroup));
+      const toolResultsOrdered = groupedResults.flat();
 
       for (const { tc, result } of toolResultsOrdered) {
         const MAX_TOOL_RESULT = 32_000;

@@ -189,6 +189,17 @@ if [[ -f "$PROJECT_YML" ]]; then
       - sdk: libz.tbd
 ' "$PROJECT_YML"
   fi
+  # xcodegen puts a bare `- framework: libapp.a` into the "Embed Frameworks"
+  # build phase (fileRef resolved against the Frameworks group → gen/apple/
+  # root), and the Copy phase fails because newer tauri CLIs only produce
+  # Externals/<arch>/<config>/libapp.a. `embed: false` keeps it a plain
+  # linked static lib — no embed phase, no missing-file Copy failure.
+  if grep -q '^[[:space:]]*- framework: libapp\.a$' "$PROJECT_YML"; then
+    sed -i '' '/^[[:space:]]*- framework: libapp\.a$/a\
+        embed: false
+' "$PROJECT_YML"
+    echo "✓ project.yml: libapp.a marked embed: false"
+  fi
   # Add a post-build script that removes bundled .a files BEFORE Xcode signs
   # the app. Xcode copies libapp.a into the app bundle (despite embed: false)
   # because the Externals/ folder is listed as a source group. Removing it

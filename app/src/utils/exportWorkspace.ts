@@ -15,9 +15,10 @@
 
 import { readTextFile, writeFile, mkdir, exists, readDir, readFile as readBinaryFile } from '../services/fs';
 import { invoke } from '@tauri-apps/api/core';
-import jsPDF from 'jspdf';
-import JSZip from 'jszip';
-import { exportMarkdownToPDF } from './exportPDF';
+// NOTE: jsPDF / JSZip / exportPDF are intentionally NOT imported at module
+// level — they are loaded lazily inside the targets that use them so the
+// ~700 kB export stack never blocks app startup. Type-only imports are free.
+import type { default as jsPDF } from 'jspdf';
 import {
   CUSTOM_EXPORT_PROTOCOL,
   getCustomExportConfig,
@@ -575,6 +576,9 @@ async function exportPDF(
     return { targetId: target.id, outputs: [], errors: ['No files matched this target. Check the include extensions or pinned file list.'], elapsed: Date.now() - t0 };
   }
 
+  // Lazy — keeps jspdf/html2canvas out of the startup bundle.
+  const { exportMarkdownToPDF } = await import('./exportPDF');
+
   // ── Load optional custom CSS ──────────────────────────────────────────────
   let customCss: string | undefined;
   if (target.pdfCssFile?.trim()) {
@@ -845,6 +849,9 @@ async function exportCanvasPDF(
   await ensureDir(absOutDir);
   throwIfCancelled(opts);
 
+  // Lazy — jsPDF only loads when a canvas PDF target actually runs.
+  const { default: jsPDF } = await import('jspdf');
+
   const liveEditor = () => opts.canvasEditorRef?.current ?? opts.canvasEditor ?? null;
   let mergePdf: jsPDF | null = null;
   const mergedRelPath = `${target.outputDir}/${target.mergeName?.trim() || 'merged'}.pdf`;
@@ -1027,6 +1034,9 @@ async function exportZip(
   if (files.length === 0) {
     return { targetId: target.id, outputs: [], errors: ['No files matched this target. Check the include extensions or pinned file list.'], elapsed: Date.now() - t0 };
   }
+
+  // Lazy — JSZip only loads when a zip target actually runs.
+  const { default: JSZip } = await import('jszip');
 
   const zip = new JSZip();
   let addedCount = 0;

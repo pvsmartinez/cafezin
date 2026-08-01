@@ -14,7 +14,7 @@
  * sidebar — from the user's perspective they are just "viewing the canvas file".
  */
 
-import { writeFile, mkdir, exists, readDir } from '../services/fs';
+import { writeFile, mkdir, exists, readDir, stat } from '../services/fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { getSvgAsImage } from '@tldraw/editor';
 import type { Editor, TLShapeId } from 'tldraw';
@@ -94,11 +94,16 @@ export async function generateSlidePreviews(
 
 /**
  * Load slide preview URLs for a canvas file from existing files on disk.
- * Returns an empty array if no previews have been generated yet.
+ * Returns an empty array if no previews have been generated yet, or if the
+ * existing sidecars are stale:
+ *   - the PNG count no longer matches the live frame count, or
+ *   - the canvas file was saved after the newest preview PNG (edits since
+ *     the last generation would not be reflected).
  */
 export async function loadSlidePreviews(
   workspacePath: string,
   canvasRelPath: string,
+  expectedFrameCount?: number,
 ): Promise<string[]> {
   const previewDir = previewDirPath(workspacePath, canvasRelPath);
   if (!(await exists(previewDir))) return [];
@@ -108,6 +113,23 @@ export async function loadSlidePreviews(
       .filter((e) => e.name?.endsWith('.png'))
       .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
     if (pngFiles.length === 0) return [];
+    if (expectedFrameCount !== undefined && pngFiles.length !== expectedFrameCount) return [];
+
+    // Stale check: canvas saved after the newest preview → regenerate.
+    const canvasAbs = `${workspacePath}/${canvasRelPath}`;
+    if (await exists(canvasAbs)) {
+      try {
+        const canvasStat = await stat(canvasAbs);
+        let newestPreview = 0;
+        for (const e of pngFiles) {
+          try { newestPreview = Math.max(newestPreview, (await stat(`${previewDir}/${e.name}`)).mtime?.getTime() ?? 0); }
+          catch { /* unreadable file — ignore */ }
+        }
+        if ((canvasStat.mtime?.getTime() ?? 0) > newestPreview) return [];
+      } catch {
+        // stat failed — assume previews are fine rather than blocking present.
+      }
+    }
     return pngFiles.map((e) => convertFileSrc(`${previewDir}/${e.name}`));
   } catch {
     return [];

@@ -10,7 +10,11 @@ import { tool, jsonSchema } from 'ai';
 import type { ToolDefinition, ToolExecutor } from '../../utils/tools/shared';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function toVercelToolSet(defs: ToolDefinition[], execute: ToolExecutor): Record<string, any> {
+export function toVercelToolSet(
+  defs: ToolDefinition[],
+  execute: ToolExecutor,
+  cacheForAnthropic = false,
+): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {};
 
@@ -22,6 +26,9 @@ export function toVercelToolSet(defs: ToolDefinition[], execute: ToolExecutor): 
       inputSchema: jsonSchema<Record<string, unknown>>(
         def.function.parameters as Parameters<typeof jsonSchema>[0],
       ),
+      ...(cacheForAnthropic
+        ? { providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
+        : {}),
       execute: async (args) => {
         try {
           return await execute(name, args as Record<string, unknown>);

@@ -25,7 +25,7 @@
  * "id" / "slide" values match the last-10-characters of a shape ID.
  */
 
-import type { Editor, TLRichText, TLShapeId } from 'tldraw';
+import type { Editor, TLShapeId } from 'tldraw';
 import { createShapeId, toRichText } from 'tldraw';
 import type {
   TLNoteShape, TLGeoShape, TLTextShape, TLGeoShapeGeoStyle,
@@ -857,103 +857,31 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
     const last = frames[frames.length - 1];
     const newX = last.x + (last.props.w ?? SLIDE_W) + SLIDE_GAP;
     const newY = Math.min(...frames.map((f) => f.y));
+    const newName = String(cmd.name ?? srcFrame.props.name ?? `Slide ${frames.length + 1}`);
 
     const fw = (srcFrame.props as { w: number }).w ?? SLIDE_W;
     const fh = (srcFrame.props as { h: number }).h ?? SLIDE_H;
-    const newName = String(cmd.name ?? srcFrame.props.name ?? `Slide ${frames.length + 1}`);
-    const newFrameId = createShapeId();
-    editor.createShapes<TLFrameShape>([{
-      id: newFrameId, type: 'frame', x: newX, y: newY,
-      props: { w: fw, h: fh, name: newName },
-    }]);
-
     const children = existing.filter((s) => s.parentId === srcFrame.id);
-    const bgChildren      = children.filter((s) =>  isBgShape(s, fw, fh));
-    const contentChildren = children.filter((s) => !isBgShape(s, fw, fh));
 
-    let copied = 0;
+    // Native full duplication preserves ALL formatting (font, size, alignment,
+    // arrows, fills, z-order, assets) — hand-copying per-shape props was losing
+    // font/size/textAlign and drifting from the source.
+    editor.duplicateShapes([srcFrame.id as TLShapeId], {
+      x: newX - srcFrame.x,
+      y: newY - srcFrame.y,
+    });
 
-    const copyChild = (child: typeof children[0]) => {
-      const cp = child.props as Record<string, unknown>;
-      if (child.type === 'note') {
-        editor.createShapes<TLNoteShape>([{
-          id: createShapeId(), type: 'note',
-          parentId: newFrameId, x: child.x, y: child.y,
-          props: {
-            richText: cp.richText as TLRichText ?? toRichText(''),
-            color: (cp.color as TLColor) ?? 'yellow',
-          },
-        }]);
-        copied++;
-      } else if (child.type === 'text') {
-        editor.createShapes<TLTextShape>([{
-          id: createShapeId(), type: 'text',
-          parentId: newFrameId, x: child.x, y: child.y,
-          props: {
-            richText: cp.richText as TLRichText ?? toRichText(''),
-            color: (cp.color as TLColor) ?? 'black',
-            autoSize: (cp.autoSize as boolean) ?? true,
-            w: safeCoord(cp.w, 200),
-            scale: safeCoord(cp.scale, 1),
-          },
-        }]);
-        copied++;
-      } else if (child.type === 'geo') {
-        const childIsBg = isBgShape(child, fw, fh);
-        const geoId = createShapeId();
-        editor.createShapes<TLGeoShape>([{
-          id: geoId, type: 'geo',
-          meta: childIsBg ? { isBg: true } : {},
-          parentId: newFrameId, x: child.x, y: child.y,
-          props: {
-            geo: (cp.geo as TLGeoShapeGeoStyle) ?? 'rectangle',
-            w: safeCoord(cp.w, 200), h: safeCoord(cp.h, 120),
-            richText: cp.richText as TLRichText ?? toRichText(''),
-            color: (cp.color as TLColor) ?? 'blue',
-            fill: mapFill(cp.fill),
-            scale: 1,
-          },
-        }]);
-        if (childIsBg) { try { editor.sendToBack([geoId as TLShapeId]); } catch { /* older tldraw */ } }
-        copied++;
-      } else if (child.type === 'arrow') {
-        const ap = cp as { start?: { x: number; y: number }; end?: { x: number; y: number }; richText?: TLRichText; color?: string; arrowheadEnd?: string; arrowheadStart?: string };
-        editor.createShapes<TLArrowShape>([{
-          id: createShapeId(), type: 'arrow',
-          parentId: newFrameId, x: child.x, y: child.y,
-          props: {
-            start: ap.start ?? { x: 0, y: 0 },
-            end: ap.end   ?? { x: 200, y: 0 },
-            richText: ap.richText ?? toRichText(''),
-            color: mapColor(ap.color, 'grey'),
-            arrowheadEnd: (ap.arrowheadEnd as TLArrowShape['props']['arrowheadEnd'])   ?? 'arrow',
-            arrowheadStart: (ap.arrowheadStart as TLArrowShape['props']['arrowheadStart']) ?? 'none',
-          } as TLArrowShape['props'],
-        }]);
-        copied++;
-      } else if (child.type === 'image') {
-        const imgP = cp as { assetId?: string; w?: number; h?: number };
-        let srcUrl = '';
-        if (imgP.assetId) {
-          try {
-            const asset = editor.getAsset(imgP.assetId as Parameters<Editor['getAsset']>[0]) as { props?: { src?: string } } | undefined;
-            srcUrl = asset?.props?.src ?? '';
-          } catch { /* ignore */ }
-        }
-        if (srcUrl) {
-          const imgW = safeCoord(imgP.w, fw);
-          const imgH = safeCoord(imgP.h, fh);
-          const childIsBg = isBgShape(child, fw, fh);
-          const imgName = srcUrl.split('/').pop()?.split('?')[0] ?? 'image';
-          const imgId = _createImageShape(editor, srcUrl, imgName, child.x, child.y, imgW, imgH, newFrameId, childIsBg);
-          if (childIsBg) { try { editor.sendToBack([imgId as TLShapeId]); } catch { /* older tldraw */ } }
-          copied++;
-        }
-      }
-    };
-
-    for (const bg      of bgChildren)      { try { copyChild(bg);      } catch { /* skip */ } }
-    for (const content of contentChildren) { try { copyChild(content); } catch { /* skip */ } }
+    // The copy is appended after the last slide, so its position is unique.
+    const newFrame = editor.getCurrentPageShapes().find(
+      (s): s is TLFrameShape =>
+        s.type === 'frame' &&
+        s.id !== srcFrame.id &&
+        Math.abs((s as TLFrameShape).x - newX) < 1 &&
+        Math.abs(s.y - newY) < 1,
+    );
+    if (!newFrame) throw new Error('duplicate_slide: could not locate duplicated frame.');
+    const newFrameId = newFrame.id;
+    editor.updateShapes<TLFrameShape>([{ id: newFrameId, type: 'frame', props: { name: newName } }]);
 
     // Final z-order fix: ensure ALL bg shapes in the new frame are behind content.
     const newBgs = editor.getCurrentPageShapes().filter(
@@ -961,7 +889,7 @@ function runCommand(editor: Editor, cmd: Record<string, unknown>): CommandResult
     );
     for (const bg of newBgs) { _sendBgToBack(editor, bg.id, newFrameId); }
 
-    return { count: 1 + copied, shapeId: newFrameId };
+    return { count: 1 + children.length, shapeId: newFrameId };
   }
 
   return { count: 0, shapeId: null };

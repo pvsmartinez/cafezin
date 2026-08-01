@@ -640,6 +640,41 @@ cd app && npx tsc --noEmit
 
 ---
 
+## Release / Distribution Notes (Mac + Windows + Mobile)
+
+- **Version bump:** `app/package.json` + `app/src-tauri/Cargo.toml` must match.
+- **macOS builds:** notarization is **manual** and only done in release builds by the
+  release scripts. Credentials (Apple ID, app-specific password, signing identity)
+  live in `pedrin/.env` (`APPLE_*` vars) and are loaded by the scripts — never
+  hardcode them. `./scripts/build-mac.sh` produces the DMG; test on a clean machine
+  before shipping.
+- **Windows SmartScreen:** the binary is **not Authenticode-signed**, so first
+  installs show a SmartScreen warning. Two mitigations exist:
+  - **Microsoft Store** (recommended): `npx tauri:windows-store` builds the MSIX
+    via `src-tauri/tauri.microsoftstore.conf.json` (Store ID `9PKJ83V2S357`). The
+    MSIX build sets the `msix` feature so `build_channel()` disables the in-app
+    updater (Store handles updates).
+  - **Direct download:** expect the warning; document "More info → Run anyway" in
+    the landing page FAQ.
+- **In-app updater:** served from GitHub releases (minisign pubkey in
+  `tauri.conf.json`); requires the release script to push `latest.json` +
+  signed bundles. Skip for Store/MSIX builds (handled by Store).
+- **Git dependency:** desktop builds use the **system `git` binary**. If it's
+  missing, the app now surfaces a warning on the workspace picker
+  (`git_available` Tauri command). Mobile/MAS builds use bundled libgit2
+  (`mas` feature) — no system dependency.
+- **Android (mobile):** run `ANDROID_HOME=~/Library/Android/sdk JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home npx tauri android build --debug --apk`
+  (requires NDK `27.1.12297006` + `platforms;android-36` installed via
+  `sdkmanager`). First build needs the toolchain env vars
+  (`CC_aarch64_linux_android`/`AR_...`/`CARGO_TARGET_..._LINKER` pointing at
+  `$ANDROID_HOME/ndk/<ver>/toolchains/llvm/prebuilt/darwin-x86_64/bin`).
+  `reqwest`/`tauri-plugin-http` are pinned to `rustls-tls` so no OpenSSL
+  cross-compile is needed.
+- **Browser build:** `npm run build:web` → `dist-web/` (static site, OPFS-backed
+  filesystem, no git/cloud sync/MCP — feature-gated via `src/web/` shims).
+
+---
+
 ## Session Notes
 
 > Full history moved to [`docs/session-log.md`](docs/session-log.md) to keep this file lean.

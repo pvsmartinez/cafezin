@@ -87,6 +87,7 @@ const launchWorkspacePath = consumeLaunchWorkspacePath();
 const AIPanel = lazy(() => import('./components/AIPanel'));
 const Sidebar = lazy(() => import('./components/Sidebar'));
 const BottomPanel = lazy(() => import('./components/BottomPanel'));
+const DesktopOnboardingModal = lazy(() => import('./components/DesktopOnboardingModal'));
 
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -556,6 +557,13 @@ export default function App() {
       const token = localStorage.getItem('copilot-github-oauth-token');
       if (token) void saveApiSecret('copilot-github-oauth-token', token);
     });
+  }, []);
+
+  // Open the AI panel from anywhere (e.g. the empty-canvas hint).
+  useEffect(() => {
+    const openAI = () => { setAiInitialPrompt(''); setAiOpen(true); };
+    window.addEventListener('cafezin:open-ai', openAI);
+    return () => window.removeEventListener('cafezin:open-ai', openAI);
   }, []);
 
   // Apply/remove light theme class on body
@@ -1268,6 +1276,18 @@ export default function App() {
           open={showUpdateReleaseModal}
           onClose={() => setShowUpdateReleaseModal(false)}
         />
+        {/* First-run onboarding — shown BEFORE the user picks a folder, so the
+            "what is a workspace" concept is explained before the hard step. */}
+        {showDesktopOnboarding && (
+          <Suspense fallback={null}>
+            <DesktopOnboardingModal
+              open={showDesktopOnboarding}
+              locale={appSettings.locale ?? 'en'}
+              firstRun={!desktopOnboardingSeen}
+              onClose={handleCloseDesktopOnboarding}
+            />
+          </Suspense>
+        )}
       </>
     );
   }

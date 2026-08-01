@@ -1,19 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import type { AppSettings } from '../../types';
 
-const FONT_OPTIONS = [
-  { label: 'Pequena (13px)', value: 13 },
-  { label: 'Média (14px)', value: 14 },
-  { label: 'Grande (15px)', value: 15 },
-  { label: 'Extra grande (16px)', value: 16 },
-];
-
-const AUTOSAVE_OPTIONS = [
-  { label: 'Rápido (500ms)', value: 500 },
-  { label: 'Normal (1s)', value: 1000 },
-  { label: 'Lento (2s)', value: 2000 },
-  { label: 'Manual (desligado)', value: 0 },
-];
+const FONT_SIZES = [13, 14, 15, 16];
+const AUTOSAVE_DELAYS = [500, 1000, 2000, 0];
 
 export interface GeneralTabProps {
   appSettings: AppSettings;
@@ -47,6 +36,13 @@ export function GeneralTab({
     1000: t('settings.autosaveNormal'),
     2000: t('settings.autosaveSlow'),
     0:    t('settings.autosaveManual'),
+  };
+
+  const fontSizeLabels: Record<number, string> = {
+    13: t('settings.fontSizeSmall'),
+    14: t('settings.fontSizeMedium'),
+    15: t('settings.fontSizeLarge'),
+    16: t('settings.fontSizeXLarge'),
   };
 
   return (
@@ -92,8 +88,8 @@ export function GeneralTab({
             value={appSettings.editorFontSize}
             onChange={(e) => setApp('editorFontSize', Number(e.target.value))}
           >
-            {FONT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+            {FONT_SIZES.map((size) => (
+              <option key={size} value={size}>{fontSizeLabels[size]}</option>
             ))}
           </select>
         </div>
@@ -112,8 +108,8 @@ export function GeneralTab({
             value={appSettings.autosaveDelay}
             onChange={(e) => setApp('autosaveDelay', Number(e.target.value))}
           >
-            {AUTOSAVE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{autosaveLabels[o.value] ?? o.label}</option>
+            {AUTOSAVE_DELAYS.map((delay) => (
+              <option key={delay} value={delay}>{autosaveLabels[delay]}</option>
             ))}
           </select>
         </div>
@@ -228,12 +224,12 @@ export function GeneralTab({
       </section>
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Inteligência artificial</h3>
+        <h3 className="sm-section-title">{t('settings.aiSectionTitle')}</h3>
 
         <div className="sm-row">
           <div className="sm-row-label">
-            <span>Sugestões proativas</span>
-            <span className="sm-row-desc">O assistente sugere ajuda automaticamente após um período de escrita</span>
+            <span>{t('settings.proactiveNudgeLabel')}</span>
+            <span className="sm-row-desc">{t('settings.proactiveNudgeDesc')}</span>
           </div>
           <label className="sm-toggle">
             <input

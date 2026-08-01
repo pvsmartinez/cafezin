@@ -1,7 +1,7 @@
-import { lazy, Suspense, useState, useEffect } from 'react';
-import { readTextFile, readFile } from '../../services/fs';
+import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { readTextFile, readFile, writeTextFile } from '../../services/fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { CaretLeft, SpeakerSimpleHigh } from '@phosphor-icons/react';
+import { CaretLeft, SpeakerSimpleHigh, Pen, Eye } from '@phosphor-icons/react';
 import { getFileTypeInfo } from '../../utils/fileType';
 import { loadSlidePreviews } from '../../utils/slidePreviews';
 import type { WorkspaceFeatureConfig } from '../../types';
@@ -93,28 +93,118 @@ function HtmlViewer({ absPath }: { absPath: string }) {
   );
 }
 
-// ── Markdown viewer ──────────────────────────────────────────────────────
+// ── Markdown viewer (editable) ───────────────────────────────────────────
 
 function MarkdownViewer({ absPath, features }: { absPath: string; features?: WorkspaceFeatureConfig }) {
+  return <EditableTextViewer absPath={absPath} features={features} mode="markdown" />;
+}
+
+// ── Editable text viewer (markdown + code) ───────────────────────────────
+
+/**
+ * Mobile manual editing: preview-first with an Editar/Visualizar toggle and
+ * debounced autosave (writes straight back to the workspace file through the
+ * platform fs wrapper). No editor library — a plain textarea keeps the mobile
+ * bundle small; markdown rendering reuses the desktop MarkdownPreview.
+ */
+function EditableTextViewer({
+  absPath,
+  features,
+  mode,
+}: {
+  absPath: string;
+  features?: WorkspaceFeatureConfig;
+  mode: 'markdown' | 'code';
+}) {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'dirty' | 'error'>('saved');
+  const savedRef = useRef(content);
 
   useEffect(() => {
     setLoading(true);
     readTextFile(absPath)
-      .then(text => { setContent(text); setLoading(false); })
+      .then(text => { setContent(text); savedRef.current = text; setLoading(false); })
       .catch(() => { setContent('*Error reading file.*'); setLoading(false); });
   }, [absPath]);
+
+  // Debounced autosave while editing
+  useEffect(() => {
+    if (!editing) return;
+    if (draft === savedRef.current) { setSaveState('saved'); return; }
+    setSaveState('dirty');
+    const t = setTimeout(() => {
+      setSaveState('saving');
+      writeTextFile(absPath, draft)
+        .then(() => { savedRef.current = draft; setSaveState('saved'); })
+        .catch(() => setSaveState('error'));
+    }, 800);
+    return () => clearTimeout(t);
+  }, [draft, editing, absPath]);
+
+  const startEditing = useCallback(() => {
+    setDraft(savedRef.current);
+    setEditing(true);
+  }, []);
+
+  const stopEditing = useCallback(() => {
+    // Flush pending save immediately
+    writeTextFile(absPath, draft)
+      .then(() => { savedRef.current = draft; setContent(draft); })
+      .catch(() => setSaveState('error'));
+    setEditing(false);
+  }, [draft, absPath]);
 
   if (loading) {
     return <div className="flex justify-center p-8"><div className="spinner" /></div>;
   }
 
+  if (editing) {
+    const showSave = saveState === 'saving' || saveState === 'error';
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center gap-3 px-4 pt-3 pb-2 border-b border-app-border bg-surface">
+          <button
+            className="mb-edit-toggle"
+            onClick={stopEditing}
+            title="Visualizar"
+          >
+            <Eye weight="bold" size={15} /> Visualizar
+          </button>
+          <span className={`ml-auto text-[12px] ${saveState === 'error' ? 'text-[#dc2626]' : 'text-muted'}`}>
+            {saveState === 'error' ? 'Falha ao salvar' : showSave ? 'Salvando…' : 'Salvo ✓'}
+          </span>
+        </div>
+        <textarea
+          className="mb-edit-textarea"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          autoFocus
+          spellCheck={false}
+          placeholder={mode === 'markdown' ? 'Escreva em Markdown…' : 'Escreva o código…'}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="px-5 pt-5 pb-10">
-      <Suspense fallback={<div className="flex justify-center p-8"><div className="spinner" /></div>}>
-        <MarkdownPreview content={content} features={features} />
-      </Suspense>
+    <div className="flex flex-col h-full">
+      <div className="flex justify-end px-4 pt-3">
+        <button className="mb-edit-toggle" onClick={startEditing} title="Editar arquivo">
+          <Pen weight="bold" size={15} /> Editar
+        </button>
+      </div>
+      <div className="px-5 pt-1 pb-10 overflow-y-auto">
+        {mode === 'markdown' ? (
+          <Suspense fallback={<div className="flex justify-center p-8"><div className="spinner" /></div>}>
+            <MarkdownPreview content={content} features={features} />
+          </Suspense>
+        ) : (
+          <pre className="m-0 text-xs font-mono text-app-text whitespace-pre-wrap break-all leading-[1.6] overflow-wrap-anywhere">{content}</pre>
+        )}
+      </div>
     </div>
   );
 }
@@ -212,19 +302,10 @@ function PDFViewer({ absPath }: { absPath: string }) {
   );
 }
 
-// ── Text / code viewer ────────────────────────────────────────────────────
+// ── Text / code viewer (editable) ────────────────────────────────────────
 
 function TextViewer({ absPath }: { absPath: string }) {
-  const [text, setText] = useState<string | null>(null);
-
-  useEffect(() => {
-    readTextFile(absPath)
-      .then(t => setText(t))
-      .catch(() => setText('(Could not read file)'));
-  }, [absPath]);
-
-  if (text === null) return <div className="flex justify-center p-8"><div className="spinner" /></div>;
-  return <pre className="m-0 px-[18px] py-4 pb-10 text-xs font-mono text-app-text whitespace-pre-wrap break-all leading-[1.6] overflow-wrap-anywhere">{text}</pre>;
+  return <EditableTextViewer absPath={absPath} mode="code" />;
 }
 
 // ── Main preview ──────────────────────────────────────────────────────────

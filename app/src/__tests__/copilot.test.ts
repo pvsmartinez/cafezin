@@ -194,17 +194,17 @@ describe('estimateTokens', () => {
     expect(estimateTokens(msgs)).toBe(100);
   });
 
-  it('strips base64 data URLs before counting (they would massively inflate the estimate)', () => {
+  it('caps base64 data URLs to a fixed token cost (images count but cannot dominate)', () => {
     const realContent = 'hello world'; // 11 chars
     const bigBase64 = 'data:image/png;base64,' + 'A'.repeat(100_000);
     const msgs: ChatMessage[] = [
       { role: 'user', content: `${realContent} ${bigBase64}` },
     ];
-    // After stripping, content is "hello world [img]" ≈ 18 chars → ≈ 5 tokens
-    // Without stripping, it would be ~25k tokens
+    // Uncapped, 100k base64 chars would be ~25k tokens. Capped at 16k chars
+    // per image → exactly 4k tokens + the visible text.
     const tokens = estimateTokens(msgs);
-    expect(tokens).toBeLessThan(50);
-    expect(tokens).toBeGreaterThan(0);
+    expect(tokens).toBeGreaterThanOrEqual(4000);
+    expect(tokens).toBeLessThan(4500);
   });
 
   it('accumulates across multiple messages', () => {

@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
 import { FolderOpen, Plus, SignIn, SignOut, Cloud, CloudSlash, CloudArrowUp, GitBranch, ArrowSquareOut } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
+
+// Browser build: no Rust backend, no git, no filesystem outside OPFS.
+// Cloud sync (git-based) and system folder picking are hidden/adapted.
+const isWeb =
+  typeof window !== 'undefined' &&
+  !('__TAURI_INTERNALS__' in window) &&
+  !import.meta.env.TAURI_ENV_PLATFORM;
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { AuthScreen } from '@pvsmartinez/shared';
 import { supabase } from '../services/supabase';
@@ -51,6 +58,10 @@ You'll get 3 free responses to try it out. After that, you can connect your own 
 **Search everything:** \`Cmd+Shift+F\`
 **Settings:** \`Cmd+,\`
 
+---
+
+**What Cafezin put in your folder:** a hidden \`.cafezin/\` folder (internal config) and, if there was no versioning yet, git was set up so you can later sync your folder to the cloud if you want. Nothing is sent anywhere without you doing it.
+
 *Delete this file whenever you're ready.*
 `;
 
@@ -82,6 +93,10 @@ Você tem 3 respostas grátis para experimentar. Depois disso, pode conectar sua
 **Criar arquivo:** \`Cmd+N\`
 **Buscar em tudo:** \`Cmd+Shift+F\`
 **Configurações:** \`Cmd+,\`
+
+---
+
+**O que o Cafezin colocou na sua pasta:** uma pasta oculta \`.cafezin/\` (configurações internas) e, se ainda não havia versionamento, o git foi preparado para que você possa sincronizar a pasta com a nuvem depois, se quiser. Nada é enviado a lugar nenhum sem você fazer isso.
 
 *Apague este arquivo quando quiser.*
 `;
@@ -198,6 +213,15 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
   // ── Clone state (cloud-only flow) ─────────────────────────────────────────
   const [registerBusy, setRegisterBusy] = useState<string | null>(null); // local path being registered
 
+  // ── System git availability (desktop only) ────────────────────────────────
+  const [gitAvailable, setGitAvailable] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (isWeb) return;
+    invoke<boolean>('git_available')
+      .then(setGitAvailable)
+      .catch(() => setGitAvailable(true));
+  }, []);
+
   /** Create a new empty workspace folder and open it. */
   async function handleCreate() {
     const name = createName.trim();
@@ -205,7 +229,8 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
     setCreateBusy(true);
     setCreateError(null);
     try {
-      const parent = await pickWorkspaceFolder();
+      // Browser build: workspaces live in the OPFS virtual root — no folder pick.
+      const parent = isWeb ? '/' : await pickWorkspaceFolder();
       if (!parent) { setCreateBusy(false); return; }
       const dest = `${parent}/${name}`;
       await mkdir(dest, { recursive: true });
@@ -480,6 +505,26 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
           </div>
         )}
 
+        {/* ── System git missing (desktop only) ── */}
+        {gitAvailable === false && (
+          <div className="wp-git-warning">
+            <GitBranch weight="bold" size={14} />
+            <span>
+              {isPt
+                ? 'Git não está instalado neste computador — a sincronização na nuvem não vai funcionar. '
+                : 'Git is not installed on this computer — cloud sync will not work. '}
+              <a
+                href="https://git-scm.com/downloads"
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => { e.stopPropagation(); }}
+              >
+                {isPt ? 'Baixar o git' : 'Download git'}
+              </a>
+            </span>
+          </div>
+        )}
+
         {/* ── Primary actions ── */}
         <div className="wp-actions">
           <button className="wp-btn-action" onClick={handlePick} disabled={loading || createBusy}>
@@ -510,22 +555,22 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
               }}
               autoFocus
             />
-            <p className="wp-create-hint">Escolha onde salvar na próxima etapa. A IA vai conhecer tudo o que estiver dentro dessa pasta.</p>
+            <p className="wp-create-hint">{isWeb ? 'A IA vai conhecer tudo o que estiver dentro dessa pasta.' : 'Escolha onde salvar na próxima etapa. A IA vai conhecer tudo o que estiver dentro dessa pasta.'}</p>
             {createError && <div className="wp-auth-error">{createError}</div>}
             <button
               className="wp-btn-action wp-btn-action--primary"
               onClick={handleCreate}
               disabled={createBusy || !createName.trim()}
             >
-              {createBusy ? 'Criando…' : 'Escolher local e criar'}
+              {createBusy ? 'Criando…' : isWeb ? 'Criar pasta' : 'Escolher local e criar'}
             </button>
           </div>
         )}
 
         {(error ?? externalError) && <div className="wp-error">{error ?? externalError}</div>}
 
-        {/* ── Publish-to-cloud form (inline) ── */}
-        {publishPath && (
+        {/* ── Publish-to-cloud form (inline) — desktop only ── */}
+        {!isWeb && publishPath && (
           <div className="wp-publish-form">
             <div className="wp-publish-mode-row">
               <button
@@ -709,6 +754,8 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
               }
 
               if (entry.type === 'cloud-only') {
+                // Browser build: git clone is unavailable — hide cloud-only entries.
+                if (isWeb) return null;
                 const { cloud: cw } = entry;
                 return (
                   <div key={cw.id ?? cw.gitUrl} className="wp-recent-item wp-recent-item--cloud-only">
@@ -755,7 +802,7 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
                         {r.lastEditedAt && <span className="wp-recent-time">{timeAgo(r.lastEditedAt)}</span>}
                       </div>
                     </button>
-                    {userEmail && (
+                    {userEmail && !isWeb && (
                       <button
                         className="wp-action-btn"
                         onClick={() => handleRegisterLocalGit(r)}
@@ -795,7 +842,7 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
                       {r.lastEditedAt && <span className="wp-recent-time">{timeAgo(r.lastEditedAt)}</span>}
                     </div>
                   </button>
-                  {userEmail && (
+                  {userEmail && !isWeb && (
                     <button
                       className="wp-action-btn"
                       onClick={() => openPublishForm(r)}

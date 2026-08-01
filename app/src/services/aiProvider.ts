@@ -51,20 +51,20 @@ export const PROVIDER_SHORT_LABELS: Record<AIProviderType, string> = {
 export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
   copilot:   [], // dynamically loaded from /models endpoint
   cafezin:   [], // models loaded from CAFEZIN_MANAGED_MODELS catalog
-  openai:    ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini', 'o3-mini', 'o3'],
-  anthropic: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5'],
-  groq:      ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'meta-llama/llama-4-scout-17b-16e-instruct'],
-  google:    ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+  openai:    ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'],
+  anthropic: ['claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5'],
+  groq:      ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'],
+  google:    ['gemini-3.1-pro-preview', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'],
   custom:    [], // model ID is typed freely by the user
 };
 
 export const PROVIDER_DEFAULT_MODELS: Record<AIProviderType, string> = {
   copilot:   DEFAULT_MODEL,
-  cafezin:   'google/gemma-4-31b-it', // default para managed AI
-  openai:    'gpt-4.1',
-  anthropic: 'claude-sonnet-4-5',
-  groq:      'llama-3.3-70b-versatile',
-  google:    'gemini-2.5-flash',
+  cafezin:   'deepseek/deepseek-v4-flash', // default para managed AI
+  openai:    'gpt-5.6-terra',
+  anthropic: 'claude-sonnet-5',
+  groq:      'openai/gpt-oss-120b',
+  google:    'gemini-3.5-flash',
   custom:    '',
 };
 
@@ -90,24 +90,17 @@ export interface CafezinManagedModel {
 
 export const CAFEZIN_MANAGED_MODELS: CafezinManagedModel[] = [
   // ── Basic tier models (budget-friendly) ────────────────────────────────
+  { id: 'deepseek/deepseek-v4-flash',           name: 'DeepSeek V4 Flash',       vendor: 'DeepSeek',  supportsVision: false, consumptionRate: 0.5,  minTier: 'basic'    },
   { id: 'google/gemma-4-31b-it',                name: 'Gemma 4 31B',             vendor: 'Google',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
-  { id: 'google/gemini-2.0-flash',              name: 'Gemini 2.0 Flash',        vendor: 'Google',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
-  { id: 'google/gemini-2.5-flash',              name: 'Gemini 2.5 Flash',        vendor: 'Google',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
-  { id: 'meta-llama/llama-3.3-70b-instruct',    name: 'Llama 3.3 70B',           vendor: 'Meta',      supportsVision: false, consumptionRate: 0.5,  minTier: 'basic'    },
-  { id: 'meta-llama/llama-4-scout',             name: 'Llama 4 Scout',           vendor: 'Meta',      supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
-  { id: 'deepseek/deepseek-chat-v3-0324',       name: 'DeepSeek Chat V3',        vendor: 'DeepSeek',  supportsVision: false, consumptionRate: 0.5,  minTier: 'basic'    },
-  { id: 'mistralai/mistral-small-3.2',          name: 'Mistral Small 3.2',       vendor: 'Mistral',   supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
+  { id: 'google/gemini-3.1-flash-lite',         name: 'Gemini 3.1 Flash-Lite',   vendor: 'Google',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'basic'    },
   // ── Standard / Pro tier models ────────────────────────────────────────
-  { id: 'anthropic/claude-3-5-haiku',           name: 'Claude 3.5 Haiku',        vendor: 'Anthropic', supportsVision: true,  consumptionRate: 1.0,  minTier: 'standard' },
-  { id: 'anthropic/claude-3-7-sonnet',          name: 'Claude 3.7 Sonnet',       vendor: 'Anthropic', supportsVision: true,  consumptionRate: 2.0,  minTier: 'standard' },
-  { id: 'anthropic/claude-sonnet-4',            name: 'Claude Sonnet 4',         vendor: 'Anthropic', supportsVision: true,  consumptionRate: 2.0,  minTier: 'standard' },
-  { id: 'openai/gpt-4.1',                       name: 'GPT-4.1',                  vendor: 'OpenAI',    supportsVision: true,  consumptionRate: 1.5,  minTier: 'standard' },
-  { id: 'openai/gpt-4.1-mini',                  name: 'GPT-4.1 mini',             vendor: 'OpenAI',    supportsVision: true,  consumptionRate: 0.5,  minTier: 'standard' },
-  { id: 'google/gemini-2.5-pro',                name: 'Gemini 2.5 Pro',           vendor: 'Google',    supportsVision: true,  consumptionRate: 2.0,  minTier: 'standard' },
-  { id: 'meta-llama/llama-4-maverick',          name: 'Llama 4 Maverick',         vendor: 'Meta',      supportsVision: true,  consumptionRate: 1.0,  minTier: 'standard' },
+  { id: 'deepseek/deepseek-v4-pro',             name: 'DeepSeek V4 Pro',         vendor: 'DeepSeek',  supportsVision: false, consumptionRate: 1.5,  minTier: 'standard' },
+  { id: 'anthropic/claude-sonnet-5',            name: 'Claude Sonnet 5',         vendor: 'Anthropic', supportsVision: true,  consumptionRate: 2.0,  minTier: 'standard' },
+  { id: 'openai/gpt-5.6-terra',                 name: 'GPT-5.6 Terra',           vendor: 'OpenAI',    supportsVision: true,  consumptionRate: 1.5,  minTier: 'standard' },
+  { id: 'google/gemini-3.5-flash',              name: 'Gemini 3.5 Flash',        vendor: 'Google',    supportsVision: true,  consumptionRate: 1.0,  minTier: 'standard' },
   // ── Pro-only (heavy models) ────────────────────────────────────────────
-  { id: 'anthropic/claude-opus-4',              name: 'Claude Opus 4',            vendor: 'Anthropic', supportsVision: true,  consumptionRate: 5.0,  minTier: 'pro'      },
-  { id: 'openai/gpt-5',                         name: 'GPT-5',                    vendor: 'OpenAI',    supportsVision: true,  consumptionRate: 4.0,  minTier: 'pro'      },
+  { id: 'anthropic/claude-opus-4.8',            name: 'Claude Opus 4.8',         vendor: 'Anthropic', supportsVision: true,  consumptionRate: 5.0,  minTier: 'pro'      },
+  { id: 'openai/gpt-5.6-sol',                   name: 'GPT-5.6 Sol',             vendor: 'OpenAI',    supportsVision: true,  consumptionRate: 4.0,  minTier: 'pro'      },
 ];
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
@@ -468,10 +461,10 @@ async function streamCafezinManagedAI(
 const PROVIDER_GHOST_MODELS: Record<AIProviderType, string> = {
   copilot:   'gpt-5-mini',              // multiplier 0 — completely free
   cafezin:   '',                        // ghost text disabled for managed AI (costs budget)
-  openai:    'gpt-4o-mini',             // cheapest OpenAI chat model
-  anthropic: 'claude-3-5-haiku',        // cheapest Anthropic model
-  groq:      'llama-3.1-8b-instant',    // fast & free-tier on Groq
-  google:    'gemini-2.0-flash',        // fastest/cheapest Gemini
+  openai:    'gpt-5.6-luna',             // cheapest OpenAI chat model
+  anthropic: 'claude-haiku-4-5',        // cheapest Anthropic model
+  groq:      'openai/gpt-oss-20b',      // fast & cheap on Groq
+  google:    'gemini-3.1-flash-lite',   // fastest/cheapest Gemini
   custom:    '',                        // resolved at call time from stored config
 };
 

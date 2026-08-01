@@ -9,6 +9,7 @@
  * brings their own API key — no extra usage fees from us.
  */
 
+import { useTranslation } from 'react-i18next';
 import { Star, ArrowSquareOut, ArrowClockwise } from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { AccountState } from '../../types';
@@ -32,6 +33,7 @@ interface PremiumGateProps {
 }
 
 export function PremiumGate({ account, loading, style, isOverlay, onRefresh, trialRemaining = 0 }: PremiumGateProps) {
+  const { t } = useTranslation();
   const notLoggedIn = !account.authenticated;
   const locale = navigator.language.startsWith('pt') ? 'pt-BR' : 'en';
   const trialDone = trialRemaining === 0;
@@ -56,18 +58,16 @@ export function PremiumGate({ account, loading, style, isOverlay, onRefresh, tri
       </div>
 
       <div className="premium-gate-title">
-        {notLoggedIn ? 'Libere a IA com o plano Basic' : 'Recurso do plano Basic ou superior'}
+        {notLoggedIn ? t('premiumGate.titleNotLoggedIn') : t('premiumGate.titleLocked')}
       </div>
 
       <p className="premium-gate-desc">
-        {notLoggedIn
-          ? 'Assine o plano Basic, Standard ou Pro para usar a IA no Cafezin. Você escolhe o provider — Cafezin IA gerenciada ou sua própria chave de API.'
-          : 'Seu plano atual não inclui IA. Faça upgrade para Basic ou superior e escolha entre Cafezin IA gerenciada ou seu próprio provider com BYOK.'}
+        {notLoggedIn ? t('premiumGate.descNotLoggedIn') : t('premiumGate.descLocked')}
       </p>
 
       {!trialDone && (
         <p className="premium-gate-trial-hint">
-          💡 Você ainda tem {trialRemaining} resposta{trialRemaining !== 1 ? 's' : ''} grátis. Basta fechar este aviso e continuar.
+          {t('premiumGate.trialHint', { count: trialRemaining })}
         </p>
       )}
 
@@ -75,28 +75,28 @@ export function PremiumGate({ account, loading, style, isOverlay, onRefresh, tri
         className="ai-auth-btn premium-gate-cta"
         onClick={() => void openUpgrade()}
       >
-        {notLoggedIn ? 'Ver planos e assinar ↗' : 'Escolher plano na web ↗'}
+        {notLoggedIn ? t('premiumGate.ctaSubscribe') : t('premiumGate.ctaChoosePlan')}
         <ArrowSquareOut size={14} weight="bold" style={{ marginLeft: 5 }} />
       </button>
 
       {notLoggedIn && (
         <p className="premium-gate-login-hint">
-          Já tem conta?{' '}
+          {t('premiumGate.loginHint')}{' '}
           <button
             className="premium-gate-login-link"
             onClick={() => window.dispatchEvent(new CustomEvent('cafezin:open-settings', { detail: 'account' }))}
           >
-            Entrar em Configurações → Conta
+            {t('premiumGate.loginLink')}
           </button>
         </p>
       )}
 
       <div className="premium-gate-byok">
-        <div className="premium-gate-byok-title">Como funciona</div>
+        <div className="premium-gate-byok-title">{t('premiumGate.byokTitle')}</div>
         <p className="premium-gate-byok-desc">
-          Com o plano Basic ou superior, você libera a IA no app. Depois disso, pode usar a
-          <strong> Cafezin IA</strong> com cota mensal incluída ou sua <strong>própria chave de API</strong>
-          no provider que preferir.
+          {t('premiumGate.byokDescPart1')}
+          <strong> Cafezin IA</strong> {t('premiumGate.byokDescPart2')} <strong>{t('premiumGate.byokOwnKey')}</strong>
+          {' '}{t('premiumGate.byokDescPart3')}
         </p>
         <div className="premium-gate-byok-links">
           {BYOK_PROVIDERS.map((p) => (
@@ -115,10 +115,10 @@ export function PremiumGate({ account, loading, style, isOverlay, onRefresh, tri
         className="premium-gate-refresh"
         onClick={() => void onRefresh()}
         disabled={loading}
-        title="Já assinei — verificar status"
+        title={t('premiumGate.refreshTitle')}
       >
         <ArrowClockwise size={13} className={loading ? 'premium-gate-spin' : ''} />
-        {loading ? 'Verificando…' : 'Já assinei — atualizar'}
+        {loading ? t('premiumGate.refreshChecking') : t('premiumGate.refreshCta')}
       </button>
     </div>
   );
@@ -129,7 +129,7 @@ export function PremiumGate({ account, loading, style, isOverlay, onRefresh, tri
     <div className="ai-panel" data-panel="ai" style={style}>
       <div className="ai-panel-header">
         <span className="ai-panel-title">
-          <Star weight="thin" size={14} /> Copilot
+          <Star weight="thin" size={14} /> {t('app.copilotLabel')}
         </span>
       </div>
       {gateContent}

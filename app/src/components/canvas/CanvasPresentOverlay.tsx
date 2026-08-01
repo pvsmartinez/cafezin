@@ -2,6 +2,7 @@
  * CanvasPresentOverlay — PNG slide stage + navigation bar shown while presenting.
  */
 import type { TLShape } from 'tldraw';
+import { useTranslation } from 'react-i18next';
 
 interface CanvasPresentOverlayProps {
   frameIndex: number;
@@ -15,6 +16,7 @@ interface CanvasPresentOverlayProps {
 export function CanvasPresentOverlay({
   frameIndex, frames, previewUrls, previewGenState, onExit, onGoToFrame,
 }: CanvasPresentOverlayProps) {
+  const { t } = useTranslation();
   return (
     <>
       {/* Fullscreen PNG slide backdrop */}
@@ -23,18 +25,18 @@ export function CanvasPresentOverlay({
           <img
             className="canvas-present-slide"
             src={previewUrls[frameIndex]}
-            alt={`Slide ${frameIndex + 1}`}
+            alt={t('canvas.slideFallbackName', { number: frameIndex + 1 })}
             draggable={false}
           />
         ) : previewGenState === 'generating' ? (
-          <div className="canvas-present-generating">Generating preview…</div>
+          <div className="canvas-present-generating">{t('canvasPresent.generating')}</div>
         ) : null}
       </div>
 
       {/* Bottom navigation bar */}
       <div className="canvas-present-overlay">
-        <button className="canvas-present-exit" onClick={onExit} title="Exit (Esc)">
-          ✕ Exit
+        <button className="canvas-present-exit" onClick={onExit} title={t('canvasPresent.exitTitle')}>
+          ✕ {t('canvasPresent.exit')}
         </button>
         {frames.length > 0 ? (
           <div className="canvas-present-nav">
@@ -42,7 +44,7 @@ export function CanvasPresentOverlay({
               className="canvas-present-nav-btn"
               disabled={frameIndex === 0}
               onClick={() => onGoToFrame(frameIndex - 1)}
-              title="Previous (←)"
+              title={t('canvasPresent.prevTitle')}
             >←</button>
             <span className="canvas-present-counter">
               {frameIndex + 1} <span>/</span> {frames.length}
@@ -51,12 +53,12 @@ export function CanvasPresentOverlay({
               className="canvas-present-nav-btn"
               disabled={frameIndex === frames.length - 1}
               onClick={() => onGoToFrame(frameIndex + 1)}
-              title="Next (→)"
+              title={t('canvasPresent.nextTitle')}
             >→</button>
           </div>
         ) : (
           <div className="canvas-present-hint">
-            No frames — press <kbd>F</kbd> and draw one
+            {t('canvasPresent.noFramesPre')} <kbd>F</kbd> {t('canvasPresent.noFramesPost')}
           </div>
         )}
       </div>

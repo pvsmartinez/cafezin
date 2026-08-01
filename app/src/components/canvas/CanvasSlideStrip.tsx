@@ -5,6 +5,7 @@
  * parent (CanvasEditor) doesn't need to know about those details.
  */
 import { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Editor, TLShape, TLShapeId } from 'tldraw';
 import { createPortal } from 'react-dom';
 import type { AnyFrame } from './canvasTypes';
@@ -32,6 +33,7 @@ export function CanvasSlideStrip({
   onAddSlide, onRescanFrames, onExportFrame, onMoveFrameDir,
   onDuplicateFrame, onReorderFrames, onFitSlide,
 }: CanvasSlideStripProps) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -51,9 +53,9 @@ export function CanvasSlideStrip({
       <button
         className="canvas-strip-toggle"
         onClick={() => setCollapsed((v) => !v)}
-        title={collapsed ? 'Expand slides' : 'Collapse slides'}
+        title={collapsed ? t('canvasSlideStrip.expandTitle') : t('canvasSlideStrip.collapseTitle')}
       >
-        {collapsed ? '▶' : '◀'}&nbsp;Slides
+        {collapsed ? '▶' : '◀'}&nbsp;{t('canvasSlideStrip.slidesLabel')}
         {frames.length > 0 && (
           <span className="canvas-strip-count">{frames.length}</span>
         )}
@@ -62,33 +64,22 @@ export function CanvasSlideStrip({
       <button
         className="canvas-strip-rescan"
         onClick={onRescanFrames}
-        title="Re-scan canvas for slide frames"
+        title={t('canvasSlideStrip.rescanTitle')}
       >↺</button>
-
-      <button
-        className="canvas-strip-rescan"
-        onClick={() => editorRef.current?.undo()}
-        title="Undo (⌘Z)"
-      >↩</button>
-      <button
-        className="canvas-strip-rescan"
-        onClick={() => editorRef.current?.redo()}
-        title="Redo (⌘⇧Z)"
-      >↪</button>
 
       {frames.length > 0 && (
         <button
           className="canvas-strip-rescan"
           onClick={onFitSlide}
-          title="Zoom to fit current slide"
-        >⊡ Fit</button>
+          title={t('canvasSlideStrip.fitTitle')}
+        >⊡ {t('canvasSlideStrip.fit')}</button>
       )}
 
       {!collapsed && (
         <div className="canvas-strip-scroll" ref={scrollRef}>
           {frames.length === 0 && (
             <div className="canvas-strip-empty">
-              Press <kbd>F</kbd> or click&nbsp;<strong>+ Slide</strong>
+              {t('canvasSlideStrip.emptyPre')} <kbd>F</kbd> {t('canvasSlideStrip.emptyOr')}&nbsp;<strong>{t('canvasSlideStrip.addSlideLabel')}</strong>
             </div>
           )}
           {frames.map((frame, i) => {
@@ -109,7 +100,7 @@ export function CanvasSlideStrip({
                 ].filter(Boolean).join(' ')}
                 onClick={() => onGoToFrame(i)}
                 onDoubleClick={() => onEnterPresent(i)}
-                title={`${name || `Slide ${i + 1}`} — click to zoom, double-click to present`}
+                title={t('canvasSlideStrip.cardTitle', { name: name || t('canvas.slideFallbackName', { number: i + 1 }) })}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -133,7 +124,7 @@ export function CanvasSlideStrip({
                 onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
               >
                 <span className="canvas-strip-num">{i + 1}</span>
-                <span className="canvas-strip-name">{name || `Slide ${i + 1}`}</span>
+                <span className="canvas-strip-name">{name || t('canvas.slideFallbackName', { number: i + 1 })}</span>
                 <span
                   className="canvas-strip-delete"
                   role="button"
@@ -148,7 +139,7 @@ export function CanvasSlideStrip({
                       editorRef.current?.deleteShapes([frame.id as TLShapeId]);
                     }
                   }}
-                  title="Delete slide"
+                  title={t('canvasSlideStrip.deleteSlideTitle')}
                 >✕</span>
               </button>
             );
@@ -156,9 +147,9 @@ export function CanvasSlideStrip({
           <button
             className="canvas-strip-add"
             onClick={onAddSlide}
-            title="New 16:9 slide"
+            title={t('canvasSlideStrip.newSlideTitle')}
           >
-            + Slide
+            {t('canvasSlideStrip.addSlideLabel')}
           </button>
         </div>
       )}
@@ -178,18 +169,18 @@ export function CanvasSlideStrip({
               onMouseDown={(e) => e.stopPropagation()}
             >
               <button className="canvas-ctx-item" onClick={() => { onExportFrame(frame, frameIdx); dismiss(); }}>
-                <span className="canvas-ctx-icon">↓</span> Export PNG
+                <span className="canvas-ctx-icon">↓</span> {t('canvasCtxMenu.exportPng')}
               </button>
               <div className="canvas-ctx-sep" />
               <button className="canvas-ctx-item" disabled={frameIdx === 0} onClick={() => { onMoveFrameDir(frameIdx, -1); dismiss(); }}>
-                <span className="canvas-ctx-icon">←</span> Move Left
+                <span className="canvas-ctx-icon">←</span> {t('canvasCtxMenu.moveLeft')}
               </button>
               <button className="canvas-ctx-item" disabled={frameIdx === total - 1} onClick={() => { onMoveFrameDir(frameIdx, 1); dismiss(); }}>
-                <span className="canvas-ctx-icon">→</span> Move Right
+                <span className="canvas-ctx-icon">→</span> {t('canvasCtxMenu.moveRight')}
               </button>
               <div className="canvas-ctx-sep" />
               <button className="canvas-ctx-item" onClick={() => { onDuplicateFrame(frameIdx); dismiss(); }}>
-                <span className="canvas-ctx-icon">⧉</span> Duplicate
+                <span className="canvas-ctx-icon">⧉</span> {t('canvasCtxMenu.duplicate')}
               </button>
               <div className="canvas-ctx-sep" />
               <button className="canvas-ctx-item canvas-ctx-item--danger" onClick={() => {
@@ -197,7 +188,7 @@ export function CanvasSlideStrip({
                 if (ed && frame) ed.deleteShapes([frame.id as TLShapeId]);
                 dismiss();
               }}>
-                <span className="canvas-ctx-icon">✕</span> Delete
+                <span className="canvas-ctx-icon">✕</span> {t('canvasCtxMenu.delete')}
               </button>
             </div>
           </>,

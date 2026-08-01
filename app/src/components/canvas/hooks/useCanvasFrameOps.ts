@@ -1,11 +1,12 @@
 /**
  * useCanvasFrameOps — frame/slide CRUD and navigation operations.
  *
- * Owns: frames[], frameIndex, frameToolActive
+ * Owns: frames[], frameIndex
  * Provides: zoomToFrame, addSlide, rescanFrames, forceSave, exportFrame,
  *           reorderFrames, duplicateFrame, moveFrameDir, insertTextPreset
  */
 import { useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Editor, TLShape, TLShapeId } from 'tldraw';
 import { exportAs, createShapeId, toRichText } from 'tldraw';
 import type { CanvasTheme, AnyFrame } from '../canvasTypes';
@@ -34,9 +35,9 @@ export function useCanvasFrameOps({
   rescanFramesRef,
   forceSaveRef,
 }: UseCanvasFrameOpsOptions) {
+  const { t } = useTranslation();
   const [frames, setFrames] = useState<TLShape[]>([]);
   const [frameIndex, setFrameIndex] = useState(0);
-  const [frameToolActive, setFrameToolActive] = useState(false);
   const lastFrameCountRef = useRef<number>(0);
 
   // Stable callback — never changes identity so mount listeners can reference it safely.
@@ -55,7 +56,7 @@ export function useCanvasFrameOps({
       type: 'frame',
       x,
       y,
-      props: { w: SLIDE_W, h: SLIDE_H, name: `Slide ${frames.length + 1}` },
+      props: { w: SLIDE_W, h: SLIDE_H, name: '' },
     });
     setTimeout(() => {
       const updated = editor.getCurrentPageShapesSorted()
@@ -72,7 +73,7 @@ export function useCanvasFrameOps({
       applyThemeToSlides(editor, currentTheme);
       const layoutId = currentTheme.defaultLayout ?? 'title-body';
       if (layoutId !== 'blank' && newFrame) {
-        applySlideLayout(editor, newFrame as AnyFrame, layoutId, currentTheme);
+        applySlideLayout(editor, newFrame as AnyFrame, layoutId, currentTheme, t);
       }
     }, 60);
   }
@@ -104,7 +105,7 @@ export function useCanvasFrameOps({
   async function exportFrame(frame: TLShape, idx: number) {
     const editor = editorRef.current;
     if (!editor) return;
-    const name = (frame as AnyFrame).props?.name || `Slide ${idx + 1}`;
+    const name = (frame as AnyFrame).props?.name || t('canvas.slideFallbackName', { number: idx + 1 });
     await exportAs(editor, [frame.id as TLShapeId], { format: 'png', name });
   }
 
@@ -127,7 +128,7 @@ export function useCanvasFrameOps({
       y: yOff,
       meta: { textRole: variant },
       props: {
-        richText: toRichText(variant === 'heading' ? 'Heading' : 'Body text'),
+        richText: toRichText(variant === 'heading' ? t('canvas.headingLabel') : t('canvasTheme.placeholder.bodyText')),
         color: s.color,
         size: s.size,
         font: s.font,
@@ -157,8 +158,34 @@ export function useCanvasFrameOps({
   function duplicateFrame(idx: number) {
     const editor = editorRef.current;
     if (!editor) return;
-    const frame = frames[idx] as AnyFrame;
-    editor.duplicateShapes([frame.id as TLShapeId], { x: frame.props.w + SLIDE_GAP, y: 0 });
+    const frame = frames[idx] as AnyFrame | undefined;
+    if (!frame) return;
+    const w = frame.props.w ?? SLIDE_W;
+    const offsetX = w + SLIDE_GAP;
+    // Copy lands right after the source frame; shift every frame that sits at
+    // or beyond that spot, otherwise the copy would overlap the next slide.
+    editor.duplicateShapes([frame.id as TLShapeId], { x: offsetX, y: 0 });
+    const newX = frame.x + offsetX;
+    const others = editor.getCurrentPageShapes().filter(
+      (s) => s.type === 'frame' && s.id !== frame.id,
+    );
+    for (const o of others) {
+      if ((o as AnyFrame).x >= newX) {
+        editor.updateShape({ id: o.id, type: 'frame', x: (o as AnyFrame).x + offsetX } as never);
+      }
+    }
+    setTimeout(() => {
+      const updated = editor.getCurrentPageShapesSorted()
+        .filter((s) => s.type === 'frame')
+        .sort((a, b) => (a as AnyFrame).x - (b as AnyFrame).x);
+      lastFrameCountRef.current = updated.length;
+      setFrames(updated);
+      const newFrame = updated[idx + 1];
+      if (newFrame) {
+        zoomToFrame(editor, newFrame);
+        setFrameIndex(idx + 1);
+      }
+    }, 60);
   }
 
   function moveFrameDir(idx: number, dir: -1 | 1) {
@@ -168,7 +195,6 @@ export function useCanvasFrameOps({
   return {
     frames, setFrames,
     frameIndex, setFrameIndex,
-    frameToolActive, setFrameToolActive,
     lastFrameCountRef,
     zoomToFrame,
     addSlide,

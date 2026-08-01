@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import './ManagedAIQuotaModal.css';
 
 interface ManagedAIQuotaModalProps {
@@ -15,6 +16,7 @@ export function ManagedAIQuotaModal({
   onUpgrade,
   onChooseProvider,
 }: ManagedAIQuotaModalProps) {
+  const { t } = useTranslation();
   if (!open) return null;
 
   return (
@@ -27,20 +29,20 @@ export function ManagedAIQuotaModal({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="managed-ai-modal-badge">Cafezin IA</div>
-        <h3 id="managed-ai-modal-title" className="managed-ai-modal-title">Cota mensal esgotada</h3>
+        <h3 id="managed-ai-modal-title" className="managed-ai-modal-title">{t('quotaModal.title')}</h3>
         <p className="managed-ai-modal-desc">
-          {message ?? 'Sua cota mensal da Cafezin IA acabou. Você pode fazer upgrade do plano na web ou trocar para outro provider.'}
+          {message ?? t('quotaModal.descDefault')}
         </p>
         <div className="managed-ai-modal-actions">
           <button className="managed-ai-modal-primary" onClick={onUpgrade}>
-            Upgrade do plano ↗
+            {t('quotaModal.upgradeButton')}
           </button>
           <button className="managed-ai-modal-secondary" onClick={onChooseProvider}>
-            Escolher outro provider
+            {t('quotaModal.chooseProviderButton')}
           </button>
         </div>
         <button className="managed-ai-modal-dismiss" onClick={onClose}>
-          Agora não
+          {t('quotaModal.dismissButton')}
         </button>
       </div>
     </div>

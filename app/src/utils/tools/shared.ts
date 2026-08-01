@@ -63,7 +63,12 @@ export interface ToolContext {
   onFileWritten?: (path: string, newContent?: string) => void;
   onPathRenamed?: (fromPath: string, toPath: string) => void;
   onMarkRecorded?: (relPath: string, content: string, recordedMarks?: AIRecordedTextMark[]) => void;
-  onCanvasModified?: (shapeIds: string[]) => void;
+  /**
+   * Called after the agent modifies canvas shapes. `canvasRevert` maps each
+   * touched shape ID to its pre-edit snapshot (`null` = shape did not exist
+   * before — created by the AI) so reject can restore instead of delete.
+   */
+  onCanvasModified?: (shapeIds: string[], canvasRevert?: Record<string, unknown | null>) => void;
   onMemoryWritten?: (newContent: string) => void;
   onUserProfileWritten?: (newContent: string) => void;
   /** Called after a task is created or a task step is updated. */

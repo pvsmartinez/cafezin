@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { readFile as tauriReadFile } from '../services/fs';
 import { writeTextFile, exists } from '../services/fs';
 import './DocxInfoPanel.css';
@@ -16,6 +17,7 @@ export default function DocxInfoPanel({
   workspacePath,
   onOpenFile,
 }: DocxInfoPanelProps) {
+  const { t } = useTranslation();
   const [exporting, setExporting] = useState(false);
   const [exportDone, setExportDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export default function DocxInfoPanel({
       setExportDone(finalRelPath);
       if (onOpenFile) onOpenFile(finalRelPath);
     } catch (err) {
-      setError(`Falha ao exportar: ${String(err)}`);
+      setError(t('docxPanel.exportFailed', { error: String(err) }));
     } finally {
       setExporting(false);
     }
@@ -55,33 +57,32 @@ export default function DocxInfoPanel({
     <div className="docx-panel">
       <div className="docx-panel-inner">
         <div className="docx-icon">📄</div>
-        <h2 className="docx-title">Arquivo Word (.docx)</h2>
+        <h2 className="docx-title">{t('docxPanel.title')}</h2>
         <p className="docx-desc">
-          Arquivos <code>.docx</code> não podem ser editados diretamente no Cafezin.
-          Mas você pode exportar o conteúdo como Markdown e trabalhar normalmente.
+          {t('docxPanel.descPrefix')} <code>.docx</code> {t('docxPanel.descSuffix')}
         </p>
 
         <div className="docx-info-grid">
           <div className="docx-info-col docx-info-col--keep">
-            <h3>O que é preservado</h3>
+            <h3>{t('docxPanel.keepTitle')}</h3>
             <ul>
-              <li>Títulos (H1, H2, H3…)</li>
-              <li>Negrito e itálico</li>
-              <li>Listas com marcadores e numeradas</li>
-              <li>Parágrafos e quebras de linha</li>
-              <li>Links com URL</li>
-              <li>Blocos de código inline</li>
+              <li>{t('docxPanel.keepItem1')}</li>
+              <li>{t('docxPanel.keepItem2')}</li>
+              <li>{t('docxPanel.keepItem3')}</li>
+              <li>{t('docxPanel.keepItem4')}</li>
+              <li>{t('docxPanel.keepItem5')}</li>
+              <li>{t('docxPanel.keepItem6')}</li>
             </ul>
           </div>
           <div className="docx-info-col docx-info-col--lose">
-            <h3>O que é perdido</h3>
+            <h3>{t('docxPanel.loseTitle')}</h3>
             <ul>
-              <li>Imagens e figuras</li>
-              <li>Tabelas (estrutura simplificada)</li>
-              <li>Comentários e revisões</li>
-              <li>Cabeçalhos e rodapés</li>
-              <li>Formatação de página (margens, colunas)</li>
-              <li>Estilos personalizados de fonte/cor</li>
+              <li>{t('docxPanel.loseItem1')}</li>
+              <li>{t('docxPanel.loseItem2')}</li>
+              <li>{t('docxPanel.loseItem3')}</li>
+              <li>{t('docxPanel.loseItem4')}</li>
+              <li>{t('docxPanel.loseItem5')}</li>
+              <li>{t('docxPanel.loseItem6')}</li>
             </ul>
           </div>
         </div>
@@ -89,7 +90,7 @@ export default function DocxInfoPanel({
         <div className="docx-actions">
           {exportDone ? (
             <div className="docx-success">
-              ✓ Exportado como <strong>{exportDone}</strong> — abrindo…
+              ✓ {t('docxPanel.exportedAs')} <strong>{exportDone}</strong> {t('docxPanel.opening')}
             </div>
           ) : (
             <button
@@ -97,14 +98,14 @@ export default function DocxInfoPanel({
               onClick={handleExport}
               disabled={exporting}
             >
-              {exporting ? 'Exportando…' : 'Exportar como Markdown'}
+              {exporting ? t('docxPanel.exporting') : t('docxPanel.exportButton')}
             </button>
           )}
           {error && <p className="docx-error">{error}</p>}
         </div>
 
         <p className="docx-note">
-          O arquivo <code>.docx</code> original não é modificado.
+          {t('docxPanel.notePrefix')} <code>.docx</code> {t('docxPanel.noteSuffix')}
         </p>
       </div>
     </div>

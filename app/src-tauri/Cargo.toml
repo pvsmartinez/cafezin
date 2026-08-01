@@ -22,7 +22,7 @@ tauri = { version = "2", features = ["protocol-asset", "devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
-tauri-plugin-http = "2"
+tauri-plugin-http = { version = "2", features = ["rustls-tls"] }
 tauri-plugin-deep-link = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
@@ -30,7 +30,7 @@ tokio = { version = "1", features = ["process", "time", "rt", "io-util"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
-reqwest = { version = "0.12", features = ["multipart", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["multipart", "json", "rustls-tls"] }
 git2 = { version = "0.19", optional = true, features = ["vendored-libgit2"] }
 
 [target.'cfg(not(target_os = "ios"))'.dependencies]

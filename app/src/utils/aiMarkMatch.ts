@@ -64,6 +64,7 @@ function findRevertRange(text: string, revert?: AITextRevert): AITextMarkRange |
       // Use contextBefore as the primary signal (more stable than contextAfter).
       let best = occurrences[0];
       let bestScore = 0;
+      const targetLine = revert.line ?? -1;
       for (const pos of occurrences) {
         const surrounding = text.slice(Math.max(0, pos - contextBefore.length), pos);
         // Count matching characters from the right edge of contextBefore.
@@ -74,6 +75,12 @@ function findRevertRange(text: string, revert?: AITextRevert): AITextMarkRange |
           } else {
             break;
           }
+        }
+        // The recorded line number is a decisive tiebreaker when the context
+        // has drifted (nearby patch in the same agent turn).
+        if (targetLine >= 0) {
+          const lineAt = text.slice(0, pos).split('\n').length - 1;
+          score += (lineAt === targetLine ? 10 : 0) - Math.min(Math.abs(lineAt - targetLine), 3);
         }
         if (score > bestScore) { bestScore = score; best = pos; }
       }

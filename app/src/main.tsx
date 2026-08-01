@@ -4,15 +4,15 @@ import { ErrorBoundary } from "@pvsmartinez/shared";
 import { trackAppOpen } from "./services/analytics";
 
 /* ── Bundled fonts (no network required in Tauri) ── */
-import '@fontsource-variable/nunito';          /* UI: 300–900, wght axis */
-import '@fontsource/vollkorn/400.css';         /* Serif: regular */
-import '@fontsource/vollkorn/400-italic.css';  /* Serif: italic */
-import '@fontsource/vollkorn/600.css';         /* Serif: semibold */
-import '@fontsource/fira-code/400.css';        /* Mono: regular */
-import '@fontsource/fira-code/500.css';        /* Mono: medium */
+import './fonts-latin.css';                      /* latin-only @font-face (all subsets = ~1 MB wasted) */
 import './tokens.css';                         /* Design tokens — compartilhado entre desktop e mobile */
 import App from "./App";
-import MobileApp from "./MobileApp";
+
+// Lazy: MobileApp pulls in tldraw/pdfjs/marked/DOMPurify/katex. Loading it
+// statically bloated the desktop entry chunk (~1.3 MB) even though desktop
+// never renders it. The platform is decided before first render, so the
+// correct chunk resolves immediately.
+const MobileApp = React.lazy(() => import("./MobileApp"));
 
 function applyThemeClass(theme: 'dark' | 'light') {
   const isLight = theme === 'light';
@@ -95,17 +95,21 @@ if (import.meta.hot) {
   });
 }
 
-// Detect mobile platform.
+// Detect platform.
 // Primary: TAURI_ENV_PLATFORM is automatically injected by Tauri for every build
 // (ios / android / darwin / linux / windows) — no manual export needed.
 // Secondary: VITE_TAURI_MOBILE=true from the build script.
-// Fallback: narrow + touch viewport (unreliable, kept as last resort).
+// Browser builds (vite build --config vite.web.config.ts) get NO platform env —
+// those are treated as web: the @tauri-apps shims are active and the desktop
+// App renders, with OPFS-backed storage and network-backed AI.
 const platform = import.meta.env.TAURI_ENV_PLATFORM as string | undefined;
+const isTauri =
+  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const isMobile =
   platform === 'ios' ||
   platform === 'android' ||
   import.meta.env.VITE_TAURI_MOBILE === 'true' ||
-  (typeof window !== 'undefined' && window.innerWidth <= 600 && 'ontouchstart' in window);
+  (isTauri && typeof window !== 'undefined' && window.innerWidth <= 600 && 'ontouchstart' in window);
 
 // Fire-and-forget — analytics failures must never block the app from rendering
 trackAppOpen().catch(() => {});
@@ -113,7 +117,9 @@ trackAppOpen().catch(() => {});
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {isMobile ? <MobileApp /> : <App />}
+      <React.Suspense fallback={null}>
+        {isMobile ? <MobileApp /> : <App />}
+      </React.Suspense>
     </ErrorBoundary>
   </React.StrictMode>,
 );

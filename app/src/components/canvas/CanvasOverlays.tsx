@@ -16,6 +16,7 @@
  * tldraw doesn't remount them on every render.
  */
 import { Component, useContext, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import type { TLShapeId } from 'tldraw';
 import { createShapeId } from 'tldraw';
@@ -121,6 +122,7 @@ function ArrowAutoConnectHandler() {
 // ── Canvas AI mark overlay ─────────────────────────────────────────────────────
 function CanvasAIMarkOverlay() {
   const editor = useEditor();
+  const { t } = useTranslation();
   const { aiMarks, aiHighlight, aiNavIndex, onPrev, onNext, onReview, onReject } = useContext(CanvasAICtx);
 
   const chipPositions = useValue(
@@ -211,7 +213,7 @@ function CanvasAIMarkOverlay() {
                   onClick={onPrev}
                   disabled={aiMarks.length < 2}
                   style={{ background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 16, padding: '3px 8px', lineHeight: 1 }}
-                  title="Previous AI edit"
+                  title={t('canvasOverlays.aiMark.prevTitle')}
                 >‹</button>
                 <span
                   style={{
@@ -232,7 +234,7 @@ function CanvasAIMarkOverlay() {
                     color: '#7ec8a0', cursor: 'pointer',
                     fontSize: 13, padding: '3px 8px', lineHeight: 1,
                   }}
-                  title="Accept / mark reviewed"
+                  title={t('canvasOverlays.aiMark.acceptTitle')}
                 >✓</button>
                 <button
                   onClick={() => onReject(markId)}
@@ -241,13 +243,13 @@ function CanvasAIMarkOverlay() {
                     color: '#d87878', cursor: 'pointer',
                     fontSize: 13, padding: '3px 8px', lineHeight: 1,
                   }}
-                  title="Cancel AI edit"
+                  title={t('canvasOverlays.aiMark.rejectTitle')}
                 >×</button>
                 <button
                   onClick={onNext}
                   disabled={aiMarks.length < 2}
                   style={{ background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 16, padding: '3px 8px', lineHeight: 1 }}
-                  title="Next AI edit"
+                  title={t('canvasOverlays.aiMark.nextTitle')}
                 >›</button>
               </div>
             )}
@@ -266,6 +268,7 @@ const ARROW_HANDLE_R      = 8;  // dot radius in px
 
 function ArrowHandles() {
   const editor = useEditor();
+  const { t } = useTranslation();
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ arrowId: TLShapeId } | null>(null);
   const draggingRef = useRef(false);
@@ -414,7 +417,7 @@ function ArrowHandles() {
       {handleData.handles.map(({ id, vx, vy, anchor }) => (
         <div
           key={id}
-          title="Drag to connect"
+          title={t('canvasOverlays.arrowHandle.dragTitle')}
           style={{
             position: 'absolute',
             left: vx,
@@ -447,6 +450,7 @@ const CR_HANDLE_R = 5;
 
 function CornerRadiusHandle() {
   const editor = useEditor();
+  const { t } = useTranslation();
   const draggingRef = useRef<{
     startX: number;
     startRadius: number;
@@ -557,7 +561,7 @@ function CornerRadiusHandle() {
           pointerEvents: 'auto',
         }}
         onPointerDown={onPointerDown}
-        title={`Corner radius: ${displayRadius}px — drag right to round, left to sharpen`}
+        title={t('canvasOverlays.cornerRadius.title', { radius: displayRadius })}
       />
       {livePos && (
         <div
@@ -571,9 +575,34 @@ function CornerRadiusHandle() {
   );
 }
 
+// ── Empty-canvas hint ─────────────────────────────────────────────────────────
+// Shown when the page has zero shapes: tells a first-time user what the canvas
+// is for, and offers the AI as a starting point (⌘K equivalent).
+function CanvasEmptyHint() {
+  const editor = useEditor();
+  const { t } = useTranslation();
+  const isEmpty = useValue('isEmpty', () => editor.getCurrentPageShapes().length === 0, [editor]);
+
+  if (!isEmpty) return null;
+  return (
+    <div className="canvas-empty-hint" onPointerDown={(e) => e.stopPropagation()}>
+      <div className="canvas-empty-hint-title">{t('canvasOverlays.emptyHint.title')}</div>
+      <div className="canvas-empty-hint-text">{t('canvasOverlays.emptyHint.text')}</div>
+      <button
+        type="button"
+        className="canvas-empty-hint-cta"
+        onClick={() => window.dispatchEvent(new CustomEvent('cafezin:open-ai'))}
+      >
+        ✦ {t('canvasOverlays.emptyHint.askAI')}
+      </button>
+    </div>
+  );
+}
+
 // ── Modifier-key shortcut hints ────────────────────────────────────────────────
 function CanvasShortcutHints() {
   const editor = useEditor();
+  const { t } = useTranslation();
   const show = useValue('showHints', () => {
     const ids = editor.getSelectedShapeIds();
     return ids.length > 0 && ids.some((id) => editor.getShape(id)?.type !== 'frame');
@@ -582,11 +611,11 @@ function CanvasShortcutHints() {
   if (!show) return null;
   return (
     <div className="canvas-shortcut-hints" onPointerDown={(e) => e.stopPropagation()}>
-      <span>Shift <em>lock ratio</em></span>
+      <span>Shift <em>{t('canvasOverlays.shortcutHints.lockRatio')}</em></span>
       <span className="canvas-shortcut-hints-sep">&middot;</span>
-      <span>Alt <em>from center</em></span>
+      <span>Alt <em>{t('canvasOverlays.shortcutHints.fromCenter')}</em></span>
       <span className="canvas-shortcut-hints-sep">&middot;</span>
-      <span>&#8984; <em>snap</em></span>
+      <span>&#8984; <em>{t('canvasOverlays.shortcutHints.snap')}</em></span>
     </div>
   );
 }
@@ -594,18 +623,19 @@ function CanvasShortcutHints() {
 // ── Zoom indicator ─────────────────────────────────────────────────────────────
 function ZoomIndicator() {
   const editor = useEditor();
+  const { t } = useTranslation();
   const zoom = useValue('zoom', () => Math.round(editor.getZoomLevel() * 100), [editor]);
   const anim = { animation: { duration: 200 } } as const;
   return (
     <div className="canvas-zoom-indicator" onPointerDown={(e) => e.stopPropagation()}>
-      <button className="canvas-zoom-btn" onClick={() => editor.zoomOut(undefined, anim)} title="Zoom out">−</button>
+      <button className="canvas-zoom-btn" onClick={() => editor.zoomOut(undefined, anim)} title={t('canvasOverlays.zoom.outTitle')}>−</button>
       <button
         className="canvas-zoom-pct"
         onClick={() => editor.resetZoom(editor.getViewportScreenCenter(), anim)}
         onDoubleClick={() => editor.zoomToFit(anim)}
-        title="Click: reset to 100% · double-click: fit all"
+        title={t('canvasOverlays.zoom.resetTitle')}
       >{zoom}%</button>
-      <button className="canvas-zoom-btn" onClick={() => editor.zoomIn(undefined, anim)} title="Zoom in">+</button>
+      <button className="canvas-zoom-btn" onClick={() => editor.zoomIn(undefined, anim)} title={t('canvasOverlays.zoom.inTitle')}>+</button>
     </div>
   );
 }
@@ -693,6 +723,7 @@ export function CanvasOverlays() {
       <ShapeEffectsStyle />
       <CornerRadiusHandle />
       <ZoomIndicator />
+      <CanvasEmptyHint />
       <CanvasShortcutHints />
     </OverlayErrorBoundary>
   );

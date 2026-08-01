@@ -13,6 +13,7 @@ import React from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Warning, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { writeFile as tauriWriteFile } from '../services/fs';
+import i18n from '../i18n';
 
 interface Props {
   /** Absolute workspace path — used as cwd for git commands. */
@@ -58,13 +59,16 @@ export class CanvasErrorBoundary extends React.Component<Props, State> {
         { cmd: `git checkout HEAD -- "${canvasRelPath}"`, cwd: workspacePath },
       );
       if (result.exit_code !== 0) {
-        this.setState({ recovering: false, recoveryStatus: `Git restore failed:\n${result.stderr || result.stdout}` });
+        this.setState({
+          recovering: false,
+          recoveryStatus: i18n.t('canvasError.gitRestoreFailed', { detail: result.stderr || result.stdout }),
+        });
         return;
       }
       this.setState({ hasError: false, errorMessage: '', recovering: false, recoveryStatus: null });
       this.props.onRecovered();
     } catch (err) {
-      this.setState({ recovering: false, recoveryStatus: `Error: ${String(err)}` });
+      this.setState({ recovering: false, recoveryStatus: i18n.t('canvasError.genericError', { detail: String(err) }) });
     }
   }
 
@@ -77,7 +81,7 @@ export class CanvasErrorBoundary extends React.Component<Props, State> {
       this.setState({ hasError: false, errorMessage: '', recovering: false, recoveryStatus: null });
       this.props.onRecovered();
     } catch (err) {
-      this.setState({ recovering: false, recoveryStatus: `Error: ${String(err)}` });
+      this.setState({ recovering: false, recoveryStatus: i18n.t('canvasError.genericError', { detail: String(err) }) });
     }
   }
 
@@ -92,7 +96,7 @@ export class CanvasErrorBoundary extends React.Component<Props, State> {
       <div className="canvas-error-boundary">
         <div className="canvas-error-inner">
           <div className="canvas-error-icon"><Warning weight="thin" size={22} /></div>
-          <div className="canvas-error-title">Canvas error</div>
+          <div className="canvas-error-title">{i18n.t('canvasError.title')}</div>
           <div className="canvas-error-file">{fileName}</div>
           <div className="canvas-error-msg">{errorMessage}</div>
 
@@ -102,14 +106,14 @@ export class CanvasErrorBoundary extends React.Component<Props, State> {
               onClick={() => this.restoreFromGit()}
               disabled={recovering}
             >
-                {recovering ? 'Restoring…' : <><ArrowCounterClockwise weight="thin" size={14} /> Restore from last git commit</>}
+                {recovering ? i18n.t('canvasError.restoring') : <><ArrowCounterClockwise weight="thin" size={14} /> {i18n.t('canvasError.restoreFromGit')}</>}
             </button>
             <button
               className="canvas-error-btn canvas-error-btn--danger"
               onClick={() => this.clearCanvas()}
               disabled={recovering}
             >
-              Start fresh (clear file)
+              {i18n.t('canvasError.startFresh')}
             </button>
           </div>
 
@@ -118,8 +122,7 @@ export class CanvasErrorBoundary extends React.Component<Props, State> {
           )}
 
           <div className="canvas-error-hint">
-            The editor encountered an unexpected error and was paused to prevent data loss.
-            Other files and the rest of the app are unaffected.
+            {i18n.t('canvasError.hint')}
           </div>
         </div>
       </div>

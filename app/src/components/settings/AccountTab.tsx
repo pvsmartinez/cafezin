@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { AccountState } from '../../types';
 
 const PLAN_LABELS: Record<AccountState['plan'], string> = {
@@ -57,24 +58,25 @@ export function AccountTab({
   onOpenCheckout,
   onOpenCustomerPortal,
 }: AccountTabProps) {
+  const { t } = useTranslation();
   return (
     <div className="sm-section-list">
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Conta Cafezin</h3>
+        <h3 className="sm-section-title">{t('settings.accountTitle')}</h3>
 
         {syncStatus === 'checking' && (
-          <div className="sm-sync-status">Conectando…</div>
+          <div className="sm-sync-status">{t('settings.connecting')}</div>
         )}
 
         {syncStatus === 'connected' && (
           <div className="sm-sync-connected">
             <div className="sm-sync-connected-info">
               <span className="sm-sync-dot" />
-              <span>Conectado{syncUser ? ` como ${syncUser}` : ''}</span>
+              <span>{syncUser ? t('settings.connectedAs', { user: syncUser }) : t('settings.connected')}</span>
             </div>
             <button className="sm-sync-disconnect" onClick={() => void onSignOut()}>
-              Sair
+              {t('settings.signOut')}
             </button>
           </div>
         )}
@@ -82,22 +84,22 @@ export function AccountTab({
         {syncStatus === 'not_connected' && (
           <div className="sm-sync-pat-form">
             <p className="sm-section-desc" style={{ marginTop: 0 }}>
-              Entre com e-mail e senha para ativar seu plano Cafezin e sincronizar seus workspaces.
+              {t('settings.accountLoginDesc')}
             </p>
             <div className="sm-sync-auth-tabs">
               <button
                 className={`sm-sync-auth-tab ${authMode === 'login' ? 'active' : ''}`}
                 onClick={() => { setAuthMode('login'); setSyncError(null) }}
-              >Entrar</button>
+              >{t('settings.login')}</button>
               <button
                 className={`sm-sync-auth-tab ${authMode === 'signup' ? 'active' : ''}`}
                 onClick={() => { setAuthMode('signup'); setSyncError(null) }}
-              >Criar conta</button>
+              >{t('settings.signup')}</button>
             </div>
             <input
               className="sm-input"
               type="email"
-              placeholder="seu@email.com"
+              placeholder={t('settings.emailPlaceholder') ?? ''}
               value={emailInput}
               onChange={(e) => setEmailInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void onAuth() }}
@@ -105,7 +107,7 @@ export function AccountTab({
             <input
               className="sm-input"
               type="password"
-              placeholder="Senha"
+              placeholder={t('settings.passwordPlaceholder') ?? ''}
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void onAuth() }}
@@ -117,7 +119,7 @@ export function AccountTab({
               disabled={authBusy || !emailInput.trim() || !passwordInput.trim()}
               style={{ marginTop: 8 }}
             >
-              {authBusy ? 'Aguarde…' : authMode === 'login' ? 'Entrar' : 'Criar conta'}
+              {authBusy ? t('settings.pleaseWait') : authMode === 'login' ? t('settings.login') : t('settings.signup')}
             </button>
             {syncError && <p className="sm-sync-error">{syncError}</p>}
           </div>
@@ -125,21 +127,21 @@ export function AccountTab({
       </section>
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Plano</h3>
+        <h3 className="sm-section-title">{t('settings.planTitle')}</h3>
 
         {accountLoading ? (
-          <p className="sm-section-desc">Verificando plano…</p>
+          <p className="sm-section-desc">{t('settings.checkingPlan')}</p>
         ) : (
           <>
             <div className="sm-row">
               <div className="sm-row-label">
-                <span>Status atual</span>
+                <span>{t('settings.currentStatus')}</span>
                 <span className="sm-row-desc">
                   {account.authenticated
                     ? account.isPremium
-                      ? `${PLAN_LABELS[account.plan]} ativo`
-                      : 'Plano gratuito'
-                    : 'Não autenticado'}
+                      ? t('settings.planActive', { plan: PLAN_LABELS[account.plan] })
+                      : t('settings.freePlan')
+                    : t('settings.notAuthenticated')}
                 </span>
               </div>
               <span
@@ -162,10 +164,10 @@ export function AccountTab({
             {account.isPremium && account.currentPeriodEnd && (
               <div className="sm-row">
                 <div className="sm-row-label">
-                  <span>Renova em</span>
+                  <span>{t('settings.renewsOn')}</span>
                   <span className="sm-row-desc">
                     {new Date(account.currentPeriodEnd).toLocaleDateString(billingLocale)}
-                    {account.cancelAtPeriodEnd && ' (cancelamento agendado)'}
+                    {account.cancelAtPeriodEnd && t('settings.cancelScheduled')}
                   </span>
                 </div>
               </div>
@@ -178,7 +180,7 @@ export function AccountTab({
                 onClick={() => void onRefreshAccount()}
                 disabled={accountLoading}
               >
-                Atualizar status
+                {t('settings.refreshStatus')}
               </button>
             </div>
 
@@ -189,7 +191,7 @@ export function AccountTab({
                   onClick={() => void onOpenCustomerPortal()}
                   disabled={billingBusy !== null}
                 >
-                  {billingBusy === 'portal' ? 'Abrindo portal…' : 'Gerenciar plano ↗'}
+                  {billingBusy === 'portal' ? t('settings.openingPortal') : t('settings.managePlan')}
                 </button>
               </div>
             ) : account.authenticated ? (
@@ -199,7 +201,7 @@ export function AccountTab({
                   onClick={() => void onOpenCheckout()}
                   disabled={billingBusy !== null}
                 >
-                  {billingBusy === 'checkout' ? 'Abrindo planos…' : 'Escolher plano na web ↗'}
+                  {billingBusy === 'checkout' ? t('settings.openingPlans') : t('settings.choosePlanWeb')}
                 </button>
               </div>
             ) : null}
@@ -213,7 +215,7 @@ export function AccountTab({
                   className="sm-save-btn"
                   style={{ display: 'inline-block', textDecoration: 'none', cursor: 'pointer' }}
                 >
-                  Ver planos ↗
+                  {t('settings.viewPlans')}
                 </a>
               </div>
             )}
@@ -222,12 +224,9 @@ export function AccountTab({
       </section>
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Suas chaves de API (BYOK)</h3>
+        <h3 className="sm-section-title">{t('settings.accountApiKeysTitle')}</h3>
         <p className="sm-section-desc">
-          Com o plano Basic ou superior, você pode usar sua própria chave de API.
-          Nenhum custo extra de uso nos pagamentos do Cafezin.
-          Configure suas chaves na aba <strong>IA</strong>.
-          Pegue sua chave no provedor:
+          {t('settings.accountApiKeysDesc')}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
           {[

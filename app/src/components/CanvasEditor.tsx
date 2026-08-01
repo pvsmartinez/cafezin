@@ -1,5 +1,7 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Sparkle, X, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { Editor, TLEditorSnapshot, TLComponents } from 'tldraw';
 import {
   Tldraw,
@@ -52,6 +54,7 @@ function importPptxSlidesToEditor(
   editor: Editor,
   slides: Array<{ title: string; body: string }>,
   theme: CanvasTheme,
+  t: TFunction,
 ) {
   const { SLIDE_W, SLIDE_H, SLIDE_GAP } = { SLIDE_W: 1280, SLIDE_H: 720, SLIDE_GAP: 80 };
   const PAD = 80;
@@ -68,7 +71,7 @@ function importPptxSlidesToEditor(
       parentId: editor.getCurrentPageId() as any,
       x: frameX,
       y: 0,
-      props: { w: SLIDE_W, h: SLIDE_H, name: slide.title || `Slide ${idx + 1}` },
+      props: { w: SLIDE_W, h: SLIDE_H, name: slide.title || t('canvas.slideFallbackName', { number: idx + 1 }) },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
 
@@ -128,6 +131,7 @@ function importPptxSlidesToEditor(
 // Replaces tldraw's built-in "Something went wrong / Reset" dialog with our own
 // recovery UI. The actual error is logged so developers can diagnose root causes.
 function TlErrorFallback({ error }: { error: unknown }) {
+  const { t } = useTranslation();
   // eslint-disable-next-line no-console
   console.error('[CanvasEditor] tldraw internal error boundary caught:', error);
   return (
@@ -137,10 +141,10 @@ function TlErrorFallback({ error }: { error: unknown }) {
       background: 'var(--canvas-bg, #1a1a1a)', color: 'var(--text-muted, #999)',
       fontSize: 13, padding: 24, textAlign: 'center',
     }}>
-      <div style={{ fontSize: 18, marginBottom: 4 }}>⚠ Canvas error</div>
+      <div style={{ fontSize: 18, marginBottom: 4 }}>{t('canvas.errorTitle')}</div>
       <div style={{ maxWidth: 340, lineHeight: 1.5 }}>
-        Something went wrong in the canvas renderer. Check the browser console for details.<br />
-        Try pressing <kbd>Ctrl+Z</kbd> to undo, or close and reopen the file.
+        {t('canvas.errorBody')}<br />
+        {t('canvas.errorHintPre')} <kbd>Ctrl+Z</kbd> {t('canvas.errorHintPost')}
       </div>
       <pre style={{ fontSize: 10, maxWidth: 400, overflow: 'auto', textAlign: 'left', color: 'var(--red)', marginTop: 8, opacity: 0.7 }}>
         {error instanceof Error ? `${error.name}: ${error.message}` : String(error)}
@@ -221,13 +225,14 @@ export default function CanvasEditor({
   onAIPrev, onAINext, onMarkReviewed, onMarkRejected, onMarkUserEdited,
   darkMode = true, onFileSaved, canvasRelPath, onSelectionContextChange,
 }: CanvasEditorProps) {
+  const { t } = useTranslation();
+
   // ── Core refs ──────────────────────────────────────────────────────────────
   const editorRef    = useRef<Editor | null>(null);
   const mainDivRef   = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountCleanupRef = useRef<(() => void) | null>(null);
-  const lastToolIdRef = useRef<string | null>(null);
   const lastSelectionSignatureRef = useRef<string>('');
   const lastViewportSignatureRef = useRef<string>('');
   // Stable ref so store listeners always call the latest onChange.
@@ -259,7 +264,7 @@ export default function CanvasEditor({
   // ── Domain hooks ───────────────────────────────────────────────────────────
   const {
     frames, setFrames, frameIndex, setFrameIndex,
-    frameToolActive, setFrameToolActive, lastFrameCountRef,
+    lastFrameCountRef,
     zoomToFrame, addSlide, rescanFrames, exportFrame,
     insertTextPreset, reorderFrames, duplicateFrame, moveFrameDir,
   } = useCanvasFrameOps({ editorRef, theme, saveTimerRef, onChangeRef, rescanFramesRef, forceSaveRef });
@@ -474,10 +479,9 @@ export default function CanvasEditor({
         // Throwing causes CanvasErrorBoundary to offer "restore from git" / "start fresh"
         // without touching the file at all.
         throw new Error(
-          `Canvas file contains invalid JSON and cannot be opened safely. ` +
-          `This usually means the file was truncated by a failed write. ` +
-          `Use "Restore from last git commit" to recover your work. ` +
-          `(${parseErr instanceof Error ? parseErr.message : String(parseErr)})`
+          t('canvas.invalidJsonError', {
+            detail: parseErr instanceof Error ? parseErr.message : String(parseErr),
+          })
         );
       }
     }
@@ -533,7 +537,7 @@ export default function CanvasEditor({
       const pptxImport = meta?.pptxImport as { slides: Array<{ title: string; body: string }> } | undefined;
       if (pptxImport?.slides?.length) {
         const savedTheme = loadThemeFromDoc(editor);
-        importPptxSlidesToEditor(editor, pptxImport.slides, savedTheme);
+        importPptxSlidesToEditor(editor, pptxImport.slides, savedTheme, t);
         // Clear the pending import so re-opening doesn't re-import
         const cleanMeta = { ...meta };
         delete cleanMeta['pptxImport'];
@@ -575,17 +579,6 @@ export default function CanvasEditor({
     syncFrames();
     cleanups.push(editor.store.listen(syncFrames, { scope: 'document' }));
 
-    // Keep frameToolActive in sync with tldraw's active tool.
-    cleanups.push(editor.store.listen(
-      () => {
-        const nextToolId = editor.getCurrentToolId();
-        if (nextToolId === lastToolIdRef.current) return;
-        lastToolIdRef.current = nextToolId;
-        setFrameToolActive(nextToolId === 'frame');
-      },
-      { scope: 'session' },
-    ));
-
     cleanups.push(editor.store.listen(
       () => {
         const selectedIds = editor.getSelectedShapeIds();
@@ -599,10 +592,10 @@ export default function CanvasEditor({
           onSelectionContextChange?.(null);
           return;
         }
-        const filename = canvasRelPath?.split('/').pop() ?? 'canvas atual';
+        const filename = canvasRelPath?.split('/').pop() ?? t('canvas.currentCanvas');
         onSelectionContextChange?.({
           source: 'canvas',
-          label: `Seleção do canvas em ${filename}`,
+          label: t('canvas.selectionLabel', { filename }),
           content: [`Canvas selection from "${filename}":`, summary].join('\n'),
         });
       },
@@ -781,17 +774,16 @@ export default function CanvasEditor({
     };
 
     const initialSelection = summarizeCanvasSelection(editor);
-    lastToolIdRef.current = editor.getCurrentToolId();
     lastSelectionSignatureRef.current = `${editor.getEditingShapeId() ?? ''}|${editor.getSelectedShapeIds().join(',')}`;
     const initialViewport = editor.getViewportPageBounds();
     lastViewportSignatureRef.current = `${Math.round(initialViewport.x)}:${Math.round(initialViewport.y)}:${Math.round(initialViewport.w)}:${Math.round(initialViewport.h)}`;
     if (!initialSelection) {
       onSelectionContextChange?.(null);
     } else {
-      const filename = canvasRelPath?.split('/').pop() ?? 'canvas atual';
+      const filename = canvasRelPath?.split('/').pop() ?? t('canvas.currentCanvas');
       onSelectionContextChange?.({
         source: 'canvas',
-        label: `Seleção do canvas em ${filename}`,
+        label: t('canvas.selectionLabel', { filename }),
         content: [`Canvas selection from "${filename}":`, initialSelection].join('\n'),
       });
     }
@@ -840,7 +832,7 @@ export default function CanvasEditor({
           <div className="canvas-drop-hint">
             <div className="canvas-drop-hint-inner">
               <span className="canvas-drop-hint-icon">⬇</span>
-              <span className="canvas-drop-hint-text">Drop image to add to canvas</span>
+              <span className="canvas-drop-hint-text">{t('canvas.dropImageHint')}</span>
             </div>
           </div>
         )}
@@ -849,28 +841,11 @@ export default function CanvasEditor({
         {!isPresenting && (
           <div className="canvas-action-btns">
             <button
-              className={`canvas-img-btn${frameToolActive ? ' canvas-img-btn--active' : ''}`}
-              onClick={() => {
-                const ed = editorRef.current;
-                if (!ed) return;
-                if (frameToolActive) {
-                  ed.setCurrentTool('select');
-                } else {
-                  ed.setCurrentTool('frame');
-                }
-              }}
-              title={frameToolActive
-                ? 'Drawing slide — drag to set size. Click or press Esc to cancel'
-                : 'Draw a new slide — drag to set size (like Figma frames)'}
-            >
-              □ Slide
-            </button>
-            <button
               className="canvas-img-btn"
               onClick={() => { setImgDialogOpen(true); setImgUrlInput(''); setImgTab('url'); }}
-              title="Add image"
+              title={t('canvas.addImageTitle')}
             >
-              ⊡ Image
+              ⊡ {t('canvas.imageButtonLabel')}
             </button>
           </div>
         )}
@@ -949,11 +924,11 @@ export default function CanvasEditor({
                 } catch { /* non-fatal */ }
               }}
               title={slideLocked
-                ? 'Slide Mode ativo — câmera travada no slide atual. Clique para voltar ao canvas livre'
-                : 'Slide Mode — trava a câmera num slide de cada vez, como Google Slides'
+                ? t('canvas.slideModeActiveTitle')
+                : t('canvas.slideModeInactiveTitle')
               }
             >
-              ⊞ Slides
+              ⊞ {t('canvas.slideModeLabel')}
             </button>
           )}
 
@@ -961,9 +936,9 @@ export default function CanvasEditor({
           <button
             className={`canvas-theme-toggle${themeOpen ? ' canvas-theme-toggle--on' : ''}`}
             onClick={() => setThemeOpen((v) => !v)}
-            title="Slide theme — backgrounds, heading & body presets"
+            title={t('canvas.themeToggleTitle')}
           >
-            <Sparkle weight="fill" size={13} /> Theme
+            <Sparkle weight="fill" size={13} /> {t('canvas.themeLabel')}
           </button>
         </div>
 
@@ -973,28 +948,31 @@ export default function CanvasEditor({
 
             {/* Quick preset themes */}
             <div className="canvas-theme-section">
-              <div className="canvas-theme-label">Presets</div>
+              <div className="canvas-theme-label">{t('canvas.presetsLabel')}</div>
               <div className="canvas-theme-presets">
-                {PRESET_THEMES.map((p) => (
-                  <button
-                    key={p.label}
-                    className="canvas-theme-preset"
-                    style={{
-                      '--pt-bg': TLDRAW_COLORS.find(([id]) => id === p.theme.slideBg)?.[1] ?? '#fff',
-                      '--pt-txt': TLDRAW_COLORS.find(([id]) => id === p.theme.heading.color)?.[1] ?? '#000',
-                    } as Record<string, string>}
-                    onClick={() => handleThemeChange(p.theme)}
-                    title={`Apply "${p.label}" theme to all slides`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
+                {PRESET_THEMES.map((p) => {
+                  const presetLabel = t(`canvasTheme.presets.${p.id}`);
+                  return (
+                    <button
+                      key={p.id}
+                      className="canvas-theme-preset"
+                      style={{
+                        '--pt-bg': TLDRAW_COLORS.find(([id]) => id === p.theme.slideBg)?.[1] ?? '#fff',
+                        '--pt-txt': TLDRAW_COLORS.find(([id]) => id === p.theme.heading.color)?.[1] ?? '#000',
+                      } as Record<string, string>}
+                      onClick={() => handleThemeChange(p.theme)}
+                      title={t('canvas.applyThemeTitle', { label: presetLabel })}
+                    >
+                      {presetLabel}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Slide background */}
             <div className="canvas-theme-section">
-              <div className="canvas-theme-label">Slide background</div>
+              <div className="canvas-theme-label">{t('canvas.slideBackgroundLabel')}</div>
 
               {/* Color swatches — dimmed while an image is active */}
               <div className={`canvas-fmt-colors${theme.slideBgImage ? ' canvas-fmt-colors--muted' : ''}`}>
@@ -1004,7 +982,7 @@ export default function CanvasEditor({
                     className={`canvas-fmt-swatch${!theme.slideBgImage && theme.slideBg === id ? ' canvas-fmt-swatch--on' : ''}`}
                     style={{ '--swatch': hex } as Record<string, string>}
                     onClick={() => handleThemeChange({ ...theme, slideBg: id, slideBgImage: '' })}
-                    title={`Slide background: ${id}`}
+                    title={t('canvas.slideBackgroundSwatchTitle', { id })}
                   />
                 ))}
               </div>
@@ -1014,27 +992,27 @@ export default function CanvasEditor({
                 <div className="canvas-theme-bg-img-active">
                   <img
                     src={theme.slideBgImage}
-                    alt="background"
+                    alt={t('canvas.backgroundImageAlt')}
                     className="canvas-theme-bg-img-preview"
                   />
-                  <span className="canvas-theme-bg-img-label" title="Slide background image">
+                  <span className="canvas-theme-bg-img-label" title={t('canvas.backgroundImageTitle')}>
                     {theme.slideBgImage.startsWith('data:')
-                      ? 'Custom image'
-                      : (theme.slideBgImage.split('/').pop() ?? 'Image')}
+                      ? t('canvas.customImageLabel')
+                      : (theme.slideBgImage.split('/').pop() ?? t('canvas.imageLabel'))}
                   </span>
                   <button
                     className="canvas-theme-bg-img-remove"
                     onClick={() => handleThemeChange({ ...theme, slideBgImage: '' })}
-                    title="Remove image background"
+                    title={t('canvas.removeImageBackgroundTitle')}
                   ><X weight="thin" size={12} /></button>
                 </div>
               ) : (
                 <div className="canvas-theme-bg-picker">
                   {wsImagesLoading ? (
-                    <div className="canvas-theme-bg-picker-msg">Loading…</div>
+                    <div className="canvas-theme-bg-picker-msg">{t('canvas.loadingLabel')}</div>
                   ) : wsImages.length === 0 ? (
                     <div className="canvas-theme-bg-picker-msg">
-                      No images in workspace
+                      {t('canvas.noImagesInWorkspace')}
                       <button className="canvas-theme-bg-picker-refresh" onClick={loadWsImages}><ArrowsClockwise weight="thin" size={12} /></button>
                     </div>
                   ) : (
@@ -1070,7 +1048,7 @@ export default function CanvasEditor({
                           />
                         </button>
                       ))}
-                      <button className="canvas-theme-bg-picker-refresh" onClick={loadWsImages} title="Refresh"><ArrowsClockwise weight="thin" size={12} /></button>
+                      <button className="canvas-theme-bg-picker-refresh" onClick={loadWsImages} title={t('canvas.refreshTitle')}><ArrowsClockwise weight="thin" size={12} /></button>
                     </>
                   )}
                 </div>
@@ -1080,18 +1058,18 @@ export default function CanvasEditor({
             {/* Slide Layout */}
             <div className="canvas-theme-section">
               <div className="canvas-theme-label-row">
-                <div className="canvas-theme-label">Slide Layout</div>
+                <div className="canvas-theme-label">{t('canvas.slideLayoutLabel')}</div>
                 <button
                   className="canvas-theme-apply-btn"
                   onClick={() => {
                     const ed = editorRef.current;
                     const frame = frames[frameIndex] as AnyFrame | undefined;
                     if (!ed || !frame) return;
-                    applySlideLayout(ed, frame, theme.defaultLayout ?? 'title-body', theme);
+                    applySlideLayout(ed, frame, theme.defaultLayout ?? 'title-body', theme, t);
                     zoomToFrame(ed, frame);
                   }}
-                  title="Apply selected layout to current slide (replaces existing title/body text)"
-                >Apply to slide</button>
+                  title={t('canvas.applyLayoutTitle')}
+                >{t('canvas.applyToSlide')}</button>
               </div>
               <div className="canvas-theme-layout-grid">
                 {SLIDE_LAYOUT_OPTIONS.map((lo) => (
@@ -1099,10 +1077,10 @@ export default function CanvasEditor({
                     key={lo.id}
                     className={`canvas-theme-layout-btn${(theme.defaultLayout ?? 'title-body') === lo.id ? ' canvas-theme-layout-btn--on' : ''}`}
                     onClick={() => handleThemeChange({ ...theme, defaultLayout: lo.id })}
-                    title={lo.desc}
+                    title={t(`canvasTheme.layouts.${lo.id}.desc`)}
                   >
                     <span className="canvas-theme-layout-icon">{lo.icon}</span>
-                    <span className="canvas-theme-layout-label">{lo.label}</span>
+                    <span className="canvas-theme-layout-label">{t(`canvasTheme.layouts.${lo.id}.label`)}</span>
                   </button>
                 ))}
               </div>
@@ -1115,18 +1093,18 @@ export default function CanvasEditor({
               return (
                 <div key={variant} className="canvas-theme-section">
                   <div className="canvas-theme-label-row">
-                    <div className="canvas-theme-label">{variant === 'heading' ? 'Heading' : 'Body'}</div>
+                    <div className="canvas-theme-label">{variant === 'heading' ? t('canvas.headingLabel') : t('canvas.bodyLabel')}</div>
                     <button
                       className="canvas-theme-apply-btn"
                       onClick={() => insertTextPreset(variant)}
-                      title={`Insert a ${variant} text shape into the current slide`}
+                      title={variant === 'heading' ? t('canvas.insertHeadingTitle') : t('canvas.insertBodyTitle')}
                     >
-                      ＋ Insert {variant === 'heading' ? 'Heading' : 'Body'}
+                      {variant === 'heading' ? t('canvas.insertHeading') : t('canvas.insertBody')}
                     </button>
                     <button
                       className={`canvas-theme-edit-btn${isEditing ? ' canvas-theme-edit-btn--on' : ''}`}
                       onClick={() => setEditingPreset(isEditing ? null : variant)}
-                      title="Edit preset"
+                      title={t('canvas.editPresetTitle')}
                     ><PencilSimple weight="thin" size={12} /></button>
                   </div>
 
@@ -1138,16 +1116,16 @@ export default function CanvasEditor({
 
                   {isEditing && (
                     <div className="canvas-theme-preset-edit">
-                      <div className="canvas-fmt-label">Font</div>
+                      <div className="canvas-fmt-label">{t('canvas.fontLabel')}</div>
                       <div className="canvas-fmt-row">
                         {FONT_OPTIONS.map((f) => (
                           <button key={f.value}
                             className={`canvas-fmt-btn${ps.font === f.value ? ' canvas-fmt-btn--on' : ''}`}
                             onClick={() => handlePresetField(variant, 'font', f.value)}
-                          >{f.label}</button>
+                          >{t(`canvasConstants.font.${f.value}`)}</button>
                         ))}
                       </div>
-                      <div className="canvas-fmt-label" style={{ marginTop: 4 }}>Size</div>
+                      <div className="canvas-fmt-label" style={{ marginTop: 4 }}>{t('canvas.sizeLabel')}</div>
                       <div className="canvas-fmt-row">
                         {SIZE_OPTIONS.map((s) => (
                           <button key={s.value}
@@ -1156,17 +1134,17 @@ export default function CanvasEditor({
                           >{s.label}</button>
                         ))}
                       </div>
-                      <div className="canvas-fmt-label" style={{ marginTop: 4 }}>Align</div>
+                      <div className="canvas-fmt-label" style={{ marginTop: 4 }}>{t('canvas.alignLabel')}</div>
                       <div className="canvas-fmt-row">
                         {ALIGN_OPTIONS.map((a) => (
                           <button key={a.value}
                             className={`canvas-fmt-btn${ps.align === a.value ? ' canvas-fmt-btn--on' : ''}`}
                             onClick={() => handlePresetField(variant, 'align', a.value)}
-                            title={a.label}
+                            title={t(`canvasConstants.align.${a.value}`)}
                           >{a.icon}</button>
                         ))}
                       </div>
-                      <div className="canvas-fmt-label" style={{ marginTop: 4 }}>Color</div>
+                      <div className="canvas-fmt-label" style={{ marginTop: 4 }}>{t('canvas.colorLabel')}</div>
                       <div className="canvas-fmt-colors">
                         {TLDRAW_COLORS.map(([id, hex]) => (
                           <button key={id}

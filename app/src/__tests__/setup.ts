@@ -1,6 +1,11 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { vi } from 'vitest';
+import { setupI18n } from '../i18n';
+
+// Component tests assert against pt-BR strings — initialize i18n up front so
+// i18next keys are translated on first render.
+setupI18n('pt-BR');
 
 class DOMMatrixMock {
   a = 1;

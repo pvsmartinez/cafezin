@@ -47,7 +47,6 @@ export function getWorkspaceTools(
   _workspaceExportConfig?: WorkspaceExportConfig,
 ) {
   const staticTools = WORKSPACE_TOOLS.filter((tool) => {
-    if (tool.function.name === 'publish_vercel') return false;
     if (!isToolEnabledByWorkspace(tool.function.name, workspace ?? undefined)) return false;
     return true;
   });

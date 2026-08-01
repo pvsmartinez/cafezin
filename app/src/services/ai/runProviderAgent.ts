@@ -89,6 +89,23 @@ function buildLanguageModel(provider: string, model: string) {
   throw new Error(`Unsupported provider for agentic loop: ${provider}`);
 }
 
+// ── Anthropic prompt caching ─────────────────────────────────────────────────
+// Claude supports explicit prompt caching (cache_control: ephemeral). Marking
+// the system message + tool definitions (identical across every round of a run)
+// caches the whole stable prefix between steps and across turns of the same
+// session, cutting cost by up to ~90% for the cached region (5 min TTL).
+const ANTHROPIC_CACHE = { providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' as const } } } };
+
+function applyAnthropicCache(modelMessages: ModelMessage[], includeTailCache: boolean): ModelMessage[] {
+  return modelMessages.map((m, i) => {
+    if (i === 0 && m.role === 'system') return { ...m, ...ANTHROPIC_CACHE };
+    if (includeTailCache && i === modelMessages.length - 1 && (m.role === 'user' || m.role === 'tool')) {
+      return { ...m, ...ANTHROPIC_CACHE };
+    }
+    return m;
+  });
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -128,7 +145,11 @@ export async function runProviderAgent(
     }
 
     const langModel = buildLanguageModel(provider, resolvedModel);
-    const modelMessages = chatToModelMessages(messages);
+    let modelMessages = chatToModelMessages(messages);
+    // Cache the stable prefix (system + full history) for Anthropic models.
+    if (provider === 'anthropic') {
+      modelMessages = applyAnthropicCache(modelMessages, true);
+    }
     setLastProviderRequestDump(buildProviderRequestDump({
       provider,
       model: resolvedModel,
@@ -183,13 +204,13 @@ export async function runProviderAgent(
       return result;
     };
 
-    const toolSet = toVercelToolSet(activeTools, wrappedExecute);
+    const toolSet = toVercelToolSet(activeTools, wrappedExecute, provider === 'anthropic');
 
     const result = streamText({
       model: langModel,
       messages: modelMessages,
       tools: toolSet,
-      stopWhen: stepCountIs(100),
+      stopWhen: stepCountIs(40),
       abortSignal: signal,
       maxOutputTokens: 16000,
       temperature: 0.3,
@@ -207,6 +228,13 @@ export async function runProviderAgent(
             role: 'user',
             content: [{ type: 'text', text: label }, { type: 'image', image: url }],
           } as any as ModelMessage];
+        }
+
+        // Re-apply the Anthropic cache breakpoints — prepareStep replaces the
+        // message array, so the SDK would otherwise re-send an uncached prefix
+        // on every step (cached system + history are the big cost win).
+        if (provider === 'anthropic') {
+          msgs = applyAnthropicCache(msgs, true);
         }
 
         // 2. Compression: same budget rule as the Copilot agent loop.

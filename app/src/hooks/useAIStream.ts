@@ -64,8 +64,14 @@ export interface UseAIStreamParams {
   getLiveFileContent?: (relPath: string) => string | null;
   isFileDirty?: (relPath: string) => boolean;
   getAgentContextSnapshot?: () => AgentContextSnapshot;
-  onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
-  onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
+  onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[], agentId?: string) => void;
+  onCanvasMarkRecorded?: (
+    relPath: string,
+    shapeIds: string[],
+    model: string,
+    agentId?: string,
+    canvasRevert?: Record<string, unknown | null>,
+  ) => void;
   // ── Misc ──────────────────────────────────────────────────────────────────
   webPreviewRef?: React.RefObject<{ getScreenshot: () => Promise<string | null> } | null>;
   getActiveHtml?: () => { html: string; absPath: string } | null;
@@ -575,10 +581,10 @@ export function useAIStream({
         onFileWritten,
         onPathRenamed,
         onMarkRecorded: (relPath, content, recordedMarks) =>
-          onMarkRecorded?.(relPath, content, model, recordedMarks),
-        onCanvasModified: (shapeIds) => {
+          onMarkRecorded?.(relPath, content, model, recordedMarks, agentId),
+        onCanvasModified: (shapeIds, canvasRevert) => {
           if (shapeIds.length > 0 && activeFile) {
-            onCanvasMarkRecorded?.(activeFile, shapeIds, model);
+            onCanvasMarkRecorded?.(activeFile, shapeIds, model, agentId, canvasRevert);
           }
           rescanFramesRef?.current?.();
         },

@@ -50,15 +50,9 @@ const TIER_LIMITS_MC: Record<string, number> = {
  * Update it via SQL — no redeploy needed.
  */
 const BASIC_TIER_MODELS_FALLBACK: string[] = [
+  'deepseek/deepseek-v4-flash',
   'google/gemma-4-31b-it',
-  'google/gemini-2.0-flash',
-  'google/gemini-2.5-flash',
-  'google/gemini-flash-1.5',
-  'meta-llama/llama-3.3-70b-instruct',
-  'meta-llama/llama-4-scout',
-  'mistralai/mistral-small-3.2',
-  'deepseek/deepseek-chat-v3-0324',
-  'deepseek/deepseek-r1-0528-qwen3-8b',
+  'google/gemini-3.1-flash-lite',
 ];
 
 // Module-level cache — shared across requests within the same isolate lifetime.

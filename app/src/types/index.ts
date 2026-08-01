@@ -87,6 +87,9 @@ export interface AITextRevert {
   afterText: string;
   contextBefore?: string;
   contextAfter?: string;
+  /** 0-based line of the change start in the post-edit document — used as a
+   *  tiebreaker to anchor revert when afterText appears multiple times. */
+  line?: number;
 }
 
 export interface AISpreadsheetTarget {
@@ -520,6 +523,14 @@ export interface AIEditMark {
   spreadsheetTarget?: AISpreadsheetTarget;
   /** Canvas-only: tldraw shape IDs that were created by this AI action */
   canvasShapeIds?: string[];
+  /** Which agent instance created this mark (multi-agent sessions). */
+  agentId?: string;
+  /**
+   * Canvas-only: pre-edit snapshot of every touched shape, keyed by shape ID.
+   * `null` value means the shape did not exist before (created by the AI) —
+   * rejecting restores the snapshot or deletes brand-new shapes.
+   */
+  canvasRevert?: Record<string, unknown | null>;
 }
 
 // ── Workspace file index ──────────────────────────────────────────────────────

@@ -93,6 +93,27 @@
   text-align: center;
 }
 
+.wp-git-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--amber, #b45309);
+  background: rgba(180, 83, 9, 0.08);
+  border: 1px solid rgba(180, 83, 9, 0.25);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+
+.wp-git-warning a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .wp-recents {
   display: flex;
   flex-direction: column;

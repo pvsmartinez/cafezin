@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Warning, ArrowsClockwise, CaretDown, CaretRight, ArrowUUpLeft } from '@phosphor-icons/react';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
@@ -36,10 +37,6 @@ function getFlagTone(flag: string) {
   if (flag === '??') return 'untracked';
   if (flag === 'R') return 'renamed';
   return 'other';
-}
-
-function formatHunkCount(count: number) {
-  return `${count} ${count === 1 ? 'change' : 'changes'}`;
 }
 
 function parseStatusLine(line: string): { flag: string; file: string } {
@@ -277,13 +274,14 @@ function HunkView({
   disabled: boolean;
   onRevert: () => void;
 }) {
+  const { t } = useTranslation();
   const enrichedLines = useMemo(() => enrichHunkLines(hunk.lines), [hunk.lines]);
 
   return (
     <div className="sm-hunk">
       <div className="sm-hunk-header">
         <div className="sm-hunk-header-text">
-          <span className="sm-hunk-badge">Hunk</span>
+          <span className="sm-hunk-badge">{t('syncModal.hunkBadge')}</span>
           <span className="sm-hunk-label">{hunk.header}</span>
         </div>
         <button
@@ -291,10 +289,10 @@ function HunkView({
           className={`sm-inline-revert-btn${reverting ? ' reverting' : ''}`}
           onClick={onRevert}
           disabled={disabled || reverting}
-          title="Reverter este trecho"
+          title={t('syncModal.revertHunkTitle')}
         >
           <ArrowUUpLeft weight="thin" size={12} />
-          <span>{reverting ? 'Reverting…' : 'Revert hunk'}</span>
+          <span>{reverting ? t('syncModal.reverting') : t('syncModal.revertHunkLabel')}</span>
         </button>
       </div>
 
@@ -334,6 +332,7 @@ function FileDiffSection({
   onRefresh: () => void;
   onError: (message: string) => void;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(() => fileDiff.hunks.length <= 1);
   const [revertingHunks, setRevertingHunks] = useState<Set<number>>(new Set());
 
@@ -347,7 +346,7 @@ function FileDiffSection({
       await invoke('git_apply_patch', { path: workspacePath, patch: hunk.patch });
       onRefresh();
     } catch (error) {
-      onError(`Revert failed: ${String(error)}`);
+      onError(t('syncModal.revertFailedError', { error: String(error) }));
     } finally {
       setRevertingHunks((prev) => {
         const next = new Set(prev);
@@ -370,7 +369,7 @@ function FileDiffSection({
           </span>
           <StatusFlag flag={flag} />
           <span className="sm-file-diff-name">{fileDiff.filePath}</span>
-          <span className="sm-hunk-count">{formatHunkCount(fileDiff.hunks.length)}</span>
+          <span className="sm-hunk-count">{t('syncModal.hunkCount', { count: fileDiff.hunks.length })}</span>
         </button>
 
         <button
@@ -378,10 +377,10 @@ function FileDiffSection({
           className={`sm-file-revert-btn${revertingFile ? ' reverting' : ''}`}
           onClick={() => onRevertFile(fileDiff.filePath)}
           disabled={syncing || revertingFile}
-          title="Reverter arquivo inteiro"
+          title={t('syncModal.revertFileTitle')}
         >
           <ArrowUUpLeft weight="thin" size={13} />
-          <span>{revertingFile ? 'Reverting…' : 'Revert file'}</span>
+          <span>{revertingFile ? t('syncModal.reverting') : t('syncModal.revertFileLabel')}</span>
         </button>
       </div>
 
@@ -398,7 +397,7 @@ function FileDiffSection({
               />
             ))
           ) : (
-            <div className="sm-no-hunks">Nenhum trecho parseado para este arquivo.</div>
+            <div className="sm-no-hunks">{t('syncModal.noHunksParsed')}</div>
           )}
         </div>
       )}
@@ -407,6 +406,7 @@ function FileDiffSection({
 }
 
 export default function SyncModal({ open, workspacePath, onConfirm, onClose }: SyncModalProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -449,7 +449,7 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
       await invoke('git_checkout_file', { path: workspacePath, file });
       fetchDiff();
     } catch (nextError) {
-      setError(`Revert failed: ${String(nextError)}`);
+      setError(t('syncModal.revertFailedError', { error: String(nextError) }));
     } finally {
       setRevertingFiles((prev) => {
         const next = new Set(prev);
@@ -482,15 +482,15 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
         <div className="sm-header">
           <span className="sm-title">
             <ArrowsClockwise weight="thin" size={14} />
-            Sync changes
+            {t('syncModal.title')}
             {result && (
               <span className="sm-file-count">
-                {result.files.length} file{result.files.length !== 1 ? 's' : ''}
+                {t('syncModal.fileCount', { count: result.files.length })}
               </span>
             )}
             {result?.diff_truncated && (
-              <span className="sm-diff-truncated-badge" title="Diff maior que 100 KB; exibindo só o início">
-                truncated
+              <span className="sm-diff-truncated-badge" title={t('syncModal.truncatedBadgeTitle')}>
+                {t('syncModal.truncatedBadge')}
               </span>
             )}
           </span>
@@ -500,7 +500,7 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
         </div>
 
         <div className="sm-body">
-          {loading && <div className="sm-loading">Fetching changes…</div>}
+          {loading && <div className="sm-loading">{t('syncModal.fetchingChanges')}</div>}
 
           {!loading && error && (
             <div className="sm-error">
@@ -511,10 +511,10 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
 
           {!loading && result && (
             result.files.length === 0 ? (
-              <div className="sm-empty">Nothing to sync — working tree is clean.</div>
+              <div className="sm-empty">{t('syncModal.nothingToSync')}</div>
             ) : (
               <div className="sm-file-list">
-                <div className="sm-section-label">Changed files</div>
+                <div className="sm-section-label">{t('syncModal.changedFiles')}</div>
                 {result.files.map((line, index) => {
                   const { flag, file } = parseStatusLine(line);
                   const fileDiff = fileDiffByPath.get(file);
@@ -528,7 +528,7 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
                             <span className="sm-file-diff-caret" />
                             <StatusFlag flag={flag} />
                             <span className="sm-file-diff-name">{file}</span>
-                            <span className="sm-hunk-count sm-hunk-count--muted">No parsed diff</span>
+                            <span className="sm-hunk-count sm-hunk-count--muted">{t('syncModal.noParsedDiff')}</span>
                           </div>
                           {flag !== '??' && (
                             <button
@@ -536,10 +536,10 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
                               className={`sm-file-revert-btn${revertingFile ? ' reverting' : ''}`}
                               onClick={() => void handleRevertFile(file)}
                               disabled={syncing || revertingFile}
-                              title="Reverter arquivo inteiro"
+                              title={t('syncModal.revertFileTitle')}
                             >
                               <ArrowUUpLeft weight="thin" size={13} />
-                              <span>{revertingFile ? 'Reverting…' : 'Revert file'}</span>
+                              <span>{revertingFile ? t('syncModal.reverting') : t('syncModal.revertFileLabel')}</span>
                             </button>
                           )}
                         </div>
@@ -571,7 +571,7 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
             className="sm-commit-input"
             value={commitMsg}
             onChange={(event) => setCommitMsg(event.target.value)}
-            placeholder="Commit message…"
+            placeholder={t('syncModal.commitPlaceholder')}
             disabled={syncing}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && hasChanges) {
@@ -582,7 +582,7 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
 
           <div className="sm-footer-actions">
             <button type="button" className="sm-btn sm-btn-cancel" onClick={onClose} disabled={syncing}>
-              Cancel
+              {t('syncModal.cancelButton')}
             </button>
             <button
               type="button"
@@ -591,7 +591,7 @@ export default function SyncModal({ open, workspacePath, onConfirm, onClose }: S
               disabled={syncing || loading}
             >
               <ArrowsClockwise weight="thin" size={13} />
-              {syncing ? 'Syncing…' : hasChanges ? 'Commit & push' : 'Push'}
+              {syncing ? t('syncModal.syncingButton') : hasChanges ? t('syncModal.commitPushButton') : t('syncModal.pushButton')}
             </button>
           </div>
         </div>

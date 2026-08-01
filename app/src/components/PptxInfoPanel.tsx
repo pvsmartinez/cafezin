@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import JSZip from 'jszip';
 import { readFile as tauriReadFile, writeTextFile, exists } from '../services/fs';
 import './PptxInfoPanel.css';
@@ -58,6 +59,7 @@ export default function PptxInfoPanel({
   workspacePath,
   onOpenFile,
 }: PptxInfoPanelProps) {
+  const { t } = useTranslation();
   const [slides, setSlides] = useState<PptxSlide[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -90,14 +92,14 @@ export default function PptxInfoPanel({
 
         if (!cancelled) setSlides(parsed);
       } catch (err) {
-        if (!cancelled) setError(`Não foi possível ler o arquivo: ${String(err)}`);
+        if (!cancelled) setError(t('pptxPanel.readError', { error: String(err) }));
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     load();
     return () => { cancelled = true; };
-  }, [absPath]);
+  }, [absPath, t]);
 
   async function handleImport() {
     if (!slides || slides.length === 0) return;
@@ -146,7 +148,7 @@ export default function PptxInfoPanel({
       setDone(finalRelPath);
       if (onOpenFile) onOpenFile(finalRelPath);
     } catch (err) {
-      setError(`Falha ao importar: ${String(err)}`);
+      setError(t('pptxPanel.importFailed', { error: String(err) }));
     } finally {
       setImporting(false);
     }
@@ -158,35 +160,34 @@ export default function PptxInfoPanel({
     <div className="pptx-panel">
       <div className="pptx-panel-inner">
         <div className="pptx-icon">📊</div>
-        <h2 className="pptx-title">Apresentação PowerPoint (.pptx)</h2>
+        <h2 className="pptx-title">{t('pptxPanel.title')}</h2>
         <p className="pptx-desc">
-          Arquivos <code>.pptx</code> não podem ser editados diretamente no Cafezin.
-          Você pode importar o conteúdo como um Canvas — cada slide vira um frame editável.
+          {t('pptxPanel.descPrefix')} <code>.pptx</code> {t('pptxPanel.descSuffix')}
         </p>
 
         <div className="pptx-info-grid">
           <div className="pptx-info-col pptx-info-col--keep">
-            <h3>O que é preservado</h3>
+            <h3>{t('pptxPanel.keepTitle')}</h3>
             <ul>
-              <li>Títulos de cada slide</li>
-              <li>Texto do corpo (bullet points, parágrafos)</li>
-              <li>Ordem dos slides</li>
-              <li>Estrutura título + corpo por slide</li>
+              <li>{t('pptxPanel.keepItem1')}</li>
+              <li>{t('pptxPanel.keepItem2')}</li>
+              <li>{t('pptxPanel.keepItem3')}</li>
+              <li>{t('pptxPanel.keepItem4')}</li>
             </ul>
           </div>
           <div className="pptx-info-col pptx-info-col--lose">
-            <h3>O que é perdido</h3>
+            <h3>{t('pptxPanel.loseTitle')}</h3>
             <ul>
-              <li>Imagens e formas</li>
-              <li>Cores e fontes personalizadas</li>
-              <li>Animações e transições</li>
-              <li>Gráficos e tabelas</li>
+              <li>{t('pptxPanel.loseItem1')}</li>
+              <li>{t('pptxPanel.loseItem2')}</li>
+              <li>{t('pptxPanel.loseItem3')}</li>
+              <li>{t('pptxPanel.loseItem4')}</li>
             </ul>
           </div>
         </div>
 
         {loading && (
-          <div className="pptx-loading">Lendo apresentação…</div>
+          <div className="pptx-loading">{t('pptxPanel.loading')}</div>
         )}
 
         {!loading && error && (
@@ -194,20 +195,20 @@ export default function PptxInfoPanel({
         )}
 
         {!loading && slides && slideCount === 0 && (
-          <div className="pptx-loading">Nenhum slide encontrado nesta apresentação.</div>
+          <div className="pptx-loading">{t('pptxPanel.noSlidesFound')}</div>
         )}
 
         {!loading && slides && slideCount > 0 && (
           <>
             <div className="pptx-slides-header">
-              <span>{slideCount} slide{slideCount !== 1 ? 's' : ''} encontrado{slideCount !== 1 ? 's' : ''}</span>
+              <span>{t('pptxPanel.slidesFound', { count: slideCount })}</span>
             </div>
             <div className="pptx-slides-list">
               {slides.slice(0, 8).map((slide, i) => (
                 <div key={i} className="pptx-slide-item">
                   <span className="pptx-slide-num">{i + 1}</span>
                   <div className="pptx-slide-text">
-                    <span className="pptx-slide-title">{slide.title || '(sem título)'}</span>
+                    <span className="pptx-slide-title">{slide.title || t('pptxPanel.noTitlePlaceholder')}</span>
                     {slide.body && (
                       <span className="pptx-slide-body">
                         {slide.body.slice(0, 80)}{slide.body.length > 80 ? '…' : ''}
@@ -217,13 +218,13 @@ export default function PptxInfoPanel({
                 </div>
               ))}
               {slideCount > 8 && (
-                <div className="pptx-more">+ {slideCount - 8} slide{slideCount - 8 !== 1 ? 's' : ''} mais</div>
+                <div className="pptx-more">{t('pptxPanel.moreSlides', { count: slideCount - 8 })}</div>
               )}
             </div>
 
             {done ? (
               <div className="pptx-done">
-                Canvas criado: <strong>{done}</strong>
+                {t('pptxPanel.doneLabel')} <strong>{done}</strong>
               </div>
             ) : (
               <button
@@ -231,7 +232,7 @@ export default function PptxInfoPanel({
                 onClick={handleImport}
                 disabled={importing}
               >
-                {importing ? 'Importando…' : '🖼 Importar como Canvas'}
+                {importing ? t('pptxPanel.importing') : `🖼 ${t('pptxPanel.importButton')}`}
               </button>
             )}
           </>

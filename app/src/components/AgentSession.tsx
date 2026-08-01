@@ -4,6 +4,7 @@
  * AIPanel at the same time; only the active one is visible.
  */
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, memo, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   X, ArrowUp, Warning, Camera, Paperclip,
   Microphone, Stop, ArrowCounterClockwise, Sparkle, FileText,
@@ -62,6 +63,7 @@ const MemoizedChatMessage = memo(function MemoizedChatMessage({
   onOpenFileReference: ((path: string, line?: number) => void | Promise<void>) | undefined;
   onOpenSettings: ((tab?: string) => void) | undefined;
 }) {
+  const { t } = useTranslation();
   // Parse code segments once per message (not on every parent re-render).
   const renderedContent = useMemo(() => {
     if (msg.role === 'assistant' && msg.items && msg.items.length > 0) {
@@ -108,7 +110,7 @@ const MemoizedChatMessage = memo(function MemoizedChatMessage({
   return (
     <div className={`ai-message ai-message--${msg.role}`}>
       <div className="ai-message-label">
-        {msg.role === 'user' ? 'You' : <><Sparkle weight="fill" size={11} /> {agentLabel}</>}
+        {msg.role === 'user' ? t('agentSession.you') : <><Sparkle weight="fill" size={11} /> {agentLabel}</>}
       </div>
       <div className="ai-message-content">{renderedContent}</div>
       {msg.role === 'user' && ((msg.attachedImages && msg.attachedImages.length > 0) || msg.attachedImage) && (
@@ -173,8 +175,8 @@ export interface AgentSessionProps {
   getLiveFileContent?: (relPath: string) => string | null;
   isFileDirty?: (relPath: string) => boolean;
   getAgentContextSnapshot?: () => AgentContextSnapshot;
-  onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
-  onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
+  onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[], agentId?: string) => void;
+  onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string, agentId?: string, canvasRevert?: Record<string, unknown | null>) => void;
   activeFile?: string;
   rescanFramesRef?: React.MutableRefObject<(() => void) | null>;
   workspaceExportConfig?: WorkspaceExportConfig;
@@ -246,6 +248,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   onOpenSettings,
   selectionContext,
 }, ref) {
+  const { t } = useTranslation();
   const premiumUrl = navigator.language.startsWith('pt')
     ? 'https://cafezin.pmatz.com/br/premium'
     : 'https://cafezin.pmatz.com/premium';
@@ -424,12 +427,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     setPendingImages((prev) => {
       const remaining = Math.max(0, MAX_PENDING_IMAGES - prev.length);
       if (remaining === 0) {
-        stream.setError(`You can attach up to ${MAX_PENDING_IMAGES} images per message.`);
+        stream.setError(t('agentSession.attachLimitError', { max: MAX_PENDING_IMAGES }));
         return prev;
       }
       const accepted = incoming.slice(0, remaining);
       if (accepted.length < incoming.length) {
-        stream.setError(`Only the first ${MAX_PENDING_IMAGES} images will be sent.`);
+        stream.setError(t('agentSession.attachPartialError', { max: MAX_PENDING_IMAGES }));
       }
       return [...prev, ...accepted];
     });
@@ -492,7 +495,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       const sessions = await loadHistoricalSessions(workspacePath);
       setHistoricalSessions(sessions.filter((entry) => entry.sessionId !== session.sessionIdRef.current));
     } catch (err) {
-      setHistoryError(err instanceof Error ? err.message : 'Falha ao carregar sessões antigas.');
+      setHistoryError(err instanceof Error ? err.message : t('agentSession.historyLoadError'));
       setHistoricalSessions([]);
     } finally {
       setHistoryLoading(false);
@@ -718,19 +721,19 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
           <div className="ai-history-panel" onClick={(event) => event.stopPropagation()}>
             <div className="ai-history-panel-header">
               <div>
-                <div className="ai-history-panel-title">Sessões antigas</div>
-                <div className="ai-history-panel-subtitle">Escolha uma sessão anterior para restaurar nesta aba.</div>
+                <div className="ai-history-panel-title">{t('agentSession.historyTitle')}</div>
+                <div className="ai-history-panel-subtitle">{t('agentSession.historySubtitle')}</div>
               </div>
               <button className="ai-btn-ghost ai-history-close" onClick={closeHistoryPanel} type="button">
-                Fechar
+                {t('agentSession.historyClose')}
               </button>
             </div>
 
             <div className="ai-history-panel-body">
-              {historyLoading && <div className="ai-history-empty">Carregando sessões…</div>}
+              {historyLoading && <div className="ai-history-empty">{t('agentSession.historyLoading')}</div>}
               {!historyLoading && historyError && <div className="ai-history-empty">{historyError}</div>}
               {!historyLoading && !historyError && historicalSessions.length === 0 && (
-                <div className="ai-history-empty">Nenhuma sessão antiga encontrada neste workspace.</div>
+                <div className="ai-history-empty">{t('agentSession.historyEmpty')}</div>
               )}
               {!historyLoading && !historyError && historicalSessions.length > 0 && (
                 <div className="ai-history-list">
@@ -746,10 +749,10 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                         <span className="ai-history-item-time">{fmtRelative(historySession.savedAt)}</span>
                       </div>
                       <div className="ai-history-item-meta">
-                        <span>{historySession.userMessageCount} {historySession.userMessageCount === 1 ? 'mensagem' : 'mensagens'}</span>
+                        <span>{t('agentSession.historyMessageCount', { count: historySession.userMessageCount })}</span>
                         <span>{historySession.model}</span>
-                        {historySession.toolCalls > 0 && <span>{historySession.toolCalls} tools</span>}
-                        {historySession.archiveCount > 0 && <span>{historySession.archiveCount} resumo{historySession.archiveCount !== 1 ? 's' : ''}</span>}
+                        {historySession.toolCalls > 0 && <span>{t('agentSession.historyToolsCount', { count: historySession.toolCalls })}</span>}
+                        {historySession.archiveCount > 0 && <span>{t('agentSession.historySummaryCount', { count: historySession.archiveCount })}</span>}
                       </div>
                       {historySession.archiveSummary && (
                         <div className="ai-history-item-summary">{historySession.archiveSummary}</div>
@@ -839,17 +842,17 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
         {/* Session stats bar */}
         {(sessionStats.filesCount > 0 || sessionStats.canvasOps > 0) && (
           <div className="ai-session-stats">
-            <span className="ai-session-stats-label">Session</span>
+            <span className="ai-session-stats-label">{t('agentSession.sessionLabel')}</span>
             {sessionStats.filesCount > 0 && (
               <span className="ai-session-stat-chip">
                 <span className="ai-stat-chip-icon"><FileText weight="thin" size={12} /></span>
-                {sessionStats.filesCount} {sessionStats.filesCount === 1 ? 'file' : 'files'} edited
+                {t('agentSession.filesEditedCount', { count: sessionStats.filesCount })}
               </span>
             )}
             {sessionStats.canvasOps > 0 && (
               <span className="ai-session-stat-chip">
                 <span className="ai-stat-chip-icon"><Sparkle weight="fill" size={12} /></span>
-                {sessionStats.canvasOps} canvas {sessionStats.canvasOps === 1 ? 'op' : 'ops'}
+                {t('agentSession.canvasOpsCount', { count: sessionStats.canvasOps })}
               </span>
             )}
           </div>
@@ -860,7 +863,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
           <div className="ai-empty-state">
             {agentContext && (
               <div className="ai-agent-notice">
-                <Sparkle weight="fill" size={12} /> AGENT.md loaded as context
+                <Sparkle weight="fill" size={12} /> {t('agentSession.agentMdLoaded')}
               </div>
             )}
 
@@ -872,7 +875,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
               );
               return (
                 <div className="ai-routines">
-                  <div className="ai-routines-label">Rotinas</div>
+                  <div className="ai-routines-label">{t('agentSession.routinesLabel')}</div>
                   <div className="ai-routines-list">
                     {routines.map((routine) => (
                       <button
@@ -897,17 +900,19 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
               {session.savedSession && session.savedSession.messages.length > 0 && (
                 <button className="ai-history-link" onClick={handleRestoreSession} type="button">
                   <ArrowCounterClockwise weight="regular" size={11} />
-                  Retomar conversa anterior
+                  {t('agentSession.resumeConversation')}
                   <span className="ai-history-link-meta">
-                    · {session.savedSession.messages.filter((m) => m.role === 'user').length} msg
-                    · {fmtRelative(session.savedSession.savedAt)}
+                    {t('agentSession.resumeConversationMeta', {
+                      count: session.savedSession.messages.filter((m) => m.role === 'user').length,
+                      time: fmtRelative(session.savedSession.savedAt),
+                    })}
                   </span>
                 </button>
               )}
               {workspacePath && (
                 <button className="ai-history-link" onClick={openHistoryPanel} type="button">
                   <FileText weight="regular" size={11} />
-                  Ver sessões salvas
+                  {t('agentSession.viewSavedSessions')}
                 </button>
               )}
             </div>
@@ -975,7 +980,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
               <input
                 className="ai-ask-user-input"
                 type="text"
-                placeholder="Ou escreva sua resposta…"
+                placeholder={t('agentSession.askUserPlaceholder')}
                 value={stream.askUserInput}
                 onChange={(e) => stream.setAskUserInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') stream.handleAskUserAnswer(stream.askUserInput); }}
@@ -986,7 +991,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 disabled={!stream.askUserInput.trim()}
                 onClick={() => stream.handleAskUserAnswer(stream.askUserInput)}
               >
-                Responder
+                {t('agentSession.askUserSubmit')}
               </button>
             </div>
           </div>
@@ -1006,14 +1011,14 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                   window.open('https://github.com/github-copilot/usage', '_blank')
                 )}
               >
-                Manage paid tokens ↗
+                {t('agentSession.manageTokens')}
               </button>
             )}
             <button
               className="ai-retry-btn"
               onClick={() => { void stream.retryLastSend(); }}
             >
-              ↻ Tentar novamente
+              ↻ {t('agentSession.retry')}
             </button>
             <button
               className="ai-error-copy"
@@ -1021,8 +1026,8 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 const dump = activeProvider === 'copilot' ? getLastRequestDump() : getLastProviderRequestDump();
                 navigator.clipboard.writeText(`ERROR:\n${stream.error}\n\nLAST REQUEST DUMP:\n${dump}`);
               }}
-              title="Copy error + full last request to clipboard"
-            >Copy logs</button>
+              title={t('agentSession.copyLogsTitle')}
+            >{t('agentSession.copyLogs')}</button>
           </div>
         )}
       </div>
@@ -1030,8 +1035,8 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       {/* Continue button */}
       {stream.agentExhausted && !stream.isStreaming && (
         <div className="ai-continue-bar">
-          <button className="ai-continue-btn" onClick={() => handleSend(undefined, 'continue')}>
-            Continuar ↻
+          <button className="ai-continue-btn" onClick={() => handleSend(undefined, 'Continue the task from where it stopped. Review the conversation so far and finish the remaining work, then report what was done and what is still pending.')}>
+            {t('agentSession.continueButton')} ↻
           </button>
         </div>
       )}
@@ -1040,12 +1045,12 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       {voice.showGroqSetup && (
         <div className="ai-groq-overlay">
           <div className="ai-groq-card">
-            <div className="ai-groq-title">🎤 Entrada por voz</div>
+            <div className="ai-groq-title">{t('agentSession.groqTitle')}</div>
 
             <ol className="ai-groq-steps">
-              <li>Crie uma chave gratuita no Groq (sem cartão)</li>
-              <li>Copie a chave gerada</li>
-              <li>Cole aqui e pronto</li>
+              <li>{t('agentSession.groqStep1')}</li>
+              <li>{t('agentSession.groqStep2')}</li>
+              <li>{t('agentSession.groqStep3')}</li>
             </ol>
 
             <button
@@ -1054,7 +1059,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                 window.open('https://console.groq.com/keys', '_blank')
               )}
             >
-              Criar chave gratuita ↗
+              {t('agentSession.groqCreateKey')}
             </button>
 
             <div className="ai-groq-paste-row">
@@ -1069,7 +1074,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
               />
               <button
                 className="ai-groq-paste-btn"
-                title="Colar do teclado"
+                title={t('agentSession.groqPasteTitle')}
                 onClick={async () => {
                   try {
                     const text = await navigator.clipboard.readText();
@@ -1077,18 +1082,18 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                   } catch { /* clipboard not accessible */ }
                 }}
               >
-                Colar
+                {t('agentSession.groqPaste')}
               </button>
             </div>
 
             <div className="ai-groq-lang-row">
-              <span className="ai-groq-lang-label">Idioma da fala:</span>
+              <span className="ai-groq-lang-label">{t('agentSession.groqLangLabel')}</span>
               <select
                 className="ai-groq-lang-select"
                 value={voice.groqLangInput}
                 onChange={(e) => voice.setGroqLangInput(e.target.value)}
               >
-                <option value="auto">Automático ({voice.autoGroqLangLabel})</option>
+                <option value="auto">{t('agentSession.groqLangAuto', { label: voice.autoGroqLangLabel })}</option>
                 <option value="pt">Português</option>
                 <option value="en">English</option>
                 <option value="es">Español</option>
@@ -1110,7 +1115,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
             <div className="ai-groq-actions">
               <button className="ai-auth-btn" disabled={!voice.groqKeyInput.trim()} onClick={voice.saveGroqKeyAndClose}>
-                Salvar
+                {t('agentSession.groqSave')}
               </button>
               <button
                 className="ai-btn-ghost"
@@ -1120,7 +1125,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
                   voice.setGroqLangInput(voice.groqLangPreference);
                 }}
               >
-                Cancelar
+                {t('agentSession.groqCancel')}
               </button>
             </div>
           </div>
@@ -1151,7 +1156,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
         {isDragOver && (
           <div className="ai-drop-indicator" aria-hidden="true">
             <Paperclip weight="thin" size={14} />
-            <span>Drop images or files to attach</span>
+            <span>{t('agentSession.dropToAttach')}</span>
           </div>
         )}
         {selectionContext && !pendingSelectionContext && (
@@ -1163,7 +1168,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             title={selectionContext.label}
           >
             <Sparkle weight="fill" size={12} />
-            <span>Adicionar seleção</span>
+            <span>{t('agentSession.addSelection')}</span>
           </button>
         )}
         {pendingImages.length > 0 && (
@@ -1171,14 +1176,14 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             {pendingImages.map((image, index) => (
               <div key={index} className="ai-img-preview">
                 <img src={image} alt={`attached ${index + 1}`} />
-                <button className="ai-img-remove" onClick={() => removePendingImageAt(index)} title="Remove image">
+                <button className="ai-img-remove" onClick={() => removePendingImageAt(index)} title={t('agentSession.removeImageTitle')}>
                   <X weight="thin" size={12} />
                 </button>
               </div>
             ))}
             {!modelSupportsVision(model) && (
               <span className="ai-no-vision-warning">
-                <Warning weight="thin" size={12} /> Model doesn't support images
+                <Warning weight="thin" size={12} /> {t('agentSession.noVisionWarning')}
               </span>
             )}
           </div>
@@ -1189,10 +1194,10 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             <span className="ai-file-chip-name" title={pendingFileRef.name}>{pendingFileRef.name}</span>
             <span className="ai-file-chip-size">
               {pendingFileRef.content.length > 1000
-                ? `${Math.round(pendingFileRef.content.length / 1000)}k chars`
-                : `${pendingFileRef.content.length} chars`}
+                ? t('agentSession.charsK', { n: Math.round(pendingFileRef.content.length / 1000) })
+                : t('agentSession.charsCount', { n: pendingFileRef.content.length })}
             </span>
-            <button className="ai-img-remove" onClick={() => setPendingFileRef(null)} title="Remove file">
+            <button className="ai-img-remove" onClick={() => setPendingFileRef(null)} title={t('agentSession.removeFileTitle')}>
               <X weight="thin" size={12} />
             </button>
           </div>
@@ -1203,10 +1208,10 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             <span className="ai-file-chip-name" title={pendingSelectionContext.label}>{pendingSelectionContext.label}</span>
             <span className="ai-file-chip-size">
               {pendingSelectionContext.content.length > 1000
-                ? `${Math.round(pendingSelectionContext.content.length / 1000)}k chars`
-                : `${pendingSelectionContext.content.length} chars`}
+                ? t('agentSession.charsK', { n: Math.round(pendingSelectionContext.content.length / 1000) })
+                : t('agentSession.charsCount', { n: pendingSelectionContext.content.length })}
             </span>
-            <button className="ai-img-remove" onClick={() => setPendingSelectionContext(null)} title="Remover seleção">
+            <button className="ai-img-remove" onClick={() => setPendingSelectionContext(null)} title={t('agentSession.removeSelectionTitle')}>
               <X weight="thin" size={12} />
             </button>
           </div>
@@ -1215,7 +1220,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
           <div className="ai-queued-prompt">
             <span className="ai-queued-prompt-icon">⏱</span>
             <span className="ai-queued-prompt-text" title={queuedPrompt}>{queuedPrompt}</span>
-            <button className="ai-img-remove" onClick={() => setQueuedPrompt(null)} title="Cancelar fila">
+            <button className="ai-img-remove" onClick={() => setQueuedPrompt(null)} title={t('agentSession.cancelQueueTitle')}>
               <X weight="thin" size={12} />
             </button>
           </div>
@@ -1227,9 +1232,9 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={
-            stream.isStreaming ? 'Type to interrupt…' :
-            isDragOver ? 'Drop image or file here…' :
-            'Ask Copilot…'
+            stream.isStreaming ? t('agentSession.placeholderInterrupt') :
+            isDragOver ? t('agentSession.placeholderDropFile') :
+            t('agentSession.placeholderAsk')
           }
           className="ai-input"
         />
@@ -1246,8 +1251,8 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
               onClick={screenshot.handleTakeScreenshot}
               disabled={screenshot.isCapturing}
               title={canvasEditorRef?.current
-                ? 'Screenshot canvas → send to Copilot'
-                : 'Screenshot current view → send to Copilot'}
+                ? t('agentSession.screenshotCanvasTitle')
+                : t('agentSession.screenshotViewTitle')}
               type="button"
             >
               <Camera weight="thin" size={14} />
@@ -1256,7 +1261,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
           <button
             className="ai-btn-attach"
             onClick={handleAttachFile}
-            title="Attach file (image or document)"
+            title={t('agentSession.attachFileTitle')}
             type="button"
             disabled={stream.isStreaming}
           >
@@ -1266,10 +1271,10 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             className={`ai-btn-mic ${voice.isRecording ? 'recording' : ''} ${voice.isTranscribing ? 'transcribing' : ''}`}
             onClick={voice.handleMicClick}
             title={
-              voice.isRecording ? 'Stop recording' :
-              voice.isTranscribing ? 'Transcribing…' :
-              voice.groqKey ? 'Click to speak' :
-              'Set up voice input'
+              voice.isRecording ? t('agentSession.micStopTitle') :
+              voice.isTranscribing ? t('agentSession.micTranscribing') :
+              voice.groqKey ? t('agentSession.micClickToSpeak') :
+              t('agentSession.micSetupVoice')
             }
             type="button"
             disabled={voice.isTranscribing}
@@ -1282,7 +1287,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             }
           </button>
           {stream.isStreaming && !input.trim() ? (
-            <button onClick={stream.handleStop} className="ai-btn-send ai-btn-send--stop" title="Stop (Esc)">
+            <button onClick={stream.handleStop} className="ai-btn-send ai-btn-send--stop" title={t('agentSession.sendStopTitle')}>
               <Stop size={10} weight="fill" />
             </button>
           ) : stream.isStreaming && input.trim() ? (
@@ -1290,14 +1295,14 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
               <button
                 onClick={() => handleSend()}
                 className="ai-btn-send ai-btn-send--interrupt"
-                title="Interrupt and send (Enter)"
+                title={t('agentSession.sendInterruptTitle')}
               >
                 <ArrowUp weight="bold" size={12} />
               </button>
               <button
                 onClick={handleQueuePrompt}
                 className="ai-btn-send-queue"
-                title="Queue after agent finishes (Shift+Enter)"
+                title={t('agentSession.sendQueueTitle')}
               >
                 <ArrowUp weight="thin" size={10} />
                 <ArrowUp weight="thin" size={10} style={{ marginTop: -6 }} />
@@ -1308,7 +1313,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
               onClick={() => handleSend()}
               disabled={!input.trim() && pendingImages.length === 0}
               className="ai-btn-send"
-              title="Send (Enter)"
+              title={t('agentSession.sendTitle')}
             >
               <ArrowUp weight="thin" size={16} />
             </button>

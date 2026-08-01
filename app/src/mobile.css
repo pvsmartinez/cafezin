@@ -171,6 +171,44 @@ body.theme-light {
     color: var(--mb-preview-button-text);
   }
 
+  .mb-edit-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--mb-preview-button-bg);
+    border: 1px solid var(--mb-preview-controls-bg);
+    border-radius: 999px;
+    padding: 7px 14px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mb-edit-toggle:active {
+    opacity: 0.6;
+  }
+
+  .mb-edit-textarea {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    box-sizing: border-box;
+    border: 0;
+    outline: none;
+    resize: none;
+    background: var(--mb-preview-bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px;
+    line-height: 1.65;
+    padding: 14px 16px 40px;
+    -webkit-user-select: text;
+    user-select: text;
+    caret-color: var(--accent);
+  }
+
   .mb-preview-counter {
     color: var(--mb-preview-counter);
   }

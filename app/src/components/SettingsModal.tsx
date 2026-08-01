@@ -107,9 +107,9 @@ export default function SettingsModal({
     disabledLabel: string,
   ) {
     if (mode === 'auto') {
-      return `Automático: ${effective ? enabledLabel : disabledLabel} neste workspace agora.`;
+      return t('settings.capabilityAutoDesc', { state: effective ? enabledLabel : disabledLabel });
     }
-    return mode === 'on' ? 'Ligado manualmente.' : 'Desligado manualmente.';
+    return mode === 'on' ? t('settings.capabilityOnManual') : t('settings.capabilityOffManual');
   }
 
   const [tab, setTab] = useState<Tab>(initialTab ?? 'general');
@@ -291,7 +291,7 @@ export default function SettingsModal({
       let gitUrl: string;
       if (syncAdvancedMode === 'existing') {
         gitUrl = syncAdvancedUrl.trim();
-        if (!gitUrl) throw new Error('Informe a URL do repositório');
+        if (!gitUrl) throw new Error(t('settings.repoUrlRequiredError'));
       } else {
         let token = getGitAccountToken(label);
         if (!token) {
@@ -780,7 +780,7 @@ export default function SettingsModal({
           <button
             className={`sm-tab ${tab === 'ai' ? 'active' : ''}`}
             onClick={() => setTab('ai')}
-          >IA</button>
+          >{t('settings.tabAI')}</button>
           <button
             className={`sm-tab ${tab === 'workspace' ? 'active' : ''}`}
             onClick={() => setTab('workspace')}
@@ -790,11 +790,11 @@ export default function SettingsModal({
             className={`sm-tab ${tab === 'agent' ? 'active' : ''}`}
             onClick={() => setTab('agent')}
             disabled={!workspace}
-          >Agente</button>
+          >{t('settings.tabAgent')}</button>
           <button
             className={`sm-tab ${tab === 'mcp' ? 'active' : ''}`}
             onClick={() => setTab('mcp')}
-          >MCP</button>
+          >{t('settings.tabMcp')}</button>
           <button
             className={`sm-tab ${tab === 'sync' ? 'active' : ''}`}
             onClick={() => setTab('sync')}
@@ -802,7 +802,7 @@ export default function SettingsModal({
           <button
             className={`sm-tab ${tab === 'account' ? 'active' : ''}`}
             onClick={() => setTab('account')}
-          >Conta</button>
+          >{t('settings.tabAccount')}</button>
         </div>
 
         {/* Body */}

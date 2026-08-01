@@ -1,0 +1,11 @@
+node_modules
+app/node_modules
+app/dist
+app/dist-web
+app/src-tauri/target
+app/src-tauri/gen
+target
+.git
+.vercel
+landing/app
+Cafezin.dmg

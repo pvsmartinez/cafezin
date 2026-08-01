@@ -26,7 +26,7 @@ import { powerShell } from '@codemirror/legacy-modes/mode/powershell';
 import { r } from '@codemirror/legacy-modes/mode/r';
 import { perl } from '@codemirror/legacy-modes/mode/perl';
 
-import { EditorView, keymap, ViewPlugin, WidgetType, drawSelection } from '@codemirror/view';
+import { EditorView, keymap, ViewPlugin, WidgetType, drawSelection, placeholder } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands';
 import { StateField, RangeSetBuilder, Compartment, Prec } from '@codemirror/state';
@@ -95,6 +95,8 @@ import {
   TextAlignLeft, TextAlignCenter, TextAlignRight, TextAlignJustify,
   Highlighter, ListChecks, TextIndent, TextOutdent,
 } from '@phosphor-icons/react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { AISelectionContext, AITextRevert } from '../types';
 import { findAIMarkOccurrences, findAIMarkRange } from '../utils/aiMarkMatch';
 import './Editor.css';
@@ -647,62 +649,66 @@ interface ToolbarItem {
   indent?: 'in' | 'out';
 }
 
-const MD_TOOLBAR_GROUPS: ToolbarItem[][] = [
-  // ── Inline formatting ──────────────────────────────────────────────────────
-  [
-    { icon: TextB,             title: 'Negrito (⌘B)',            wrap: ['**', '**'] },
-    { icon: TextItalic,        title: 'Itálico (⌘I)',            wrap: ['_', '_']   },
-    { icon: TextStrikethrough, title: 'Tachado',                 wrap: ['~~', '~~'] },
-    { icon: Code,              title: 'Código inline',           wrap: ['`', '`']   },
-    { icon: Highlighter,       title: 'Realçar (highlight)',     highlight: true    },
-  ],
-  // ── Headings ───────────────────────────────────────────────────────────────
-  [
-    { text: 'H1', title: 'Título 1  (# )',    prefix: '# '   },
-    { text: 'H2', title: 'Título 2  (## )',   prefix: '## '  },
-    { text: 'H3', title: 'Título 3  (### )',  prefix: '### ' },
-  ],
-  // ── Block structure ────────────────────────────────────────────────────────
-  [
-    { icon: Minus,       title: 'Divisor horizontal',    insert: '\n---\n' },
-    { icon: Quotes,      title: 'Citação',               prefix: '> '      },
-    { icon: ListBullets, title: 'Lista com marcadores',  prefix: '- '      },
-    { icon: ListNumbers, title: 'Lista numerada',        prefix: '1. '     },
-    { icon: ListChecks,  title: 'Lista de tarefas',      checklist: true   },
-  ],
-  // ── Insert ─────────────────────────────────────────────────────────────────
-  [
-    { icon: Link,      title: 'Link',                     link: true      },
-    { icon: Image,     title: 'Imagem',                   image: true     },
-    { icon: CodeBlock, title: 'Bloco de código',          codeBlock: true },
-    { icon: Table,     title: 'Tabela',                   table: true     },
-    { icon: Sigma,     title: 'Bloco matemático (KaTeX)', mathBlock: true },
-  ],
-  // ── Alignment ───────────────────────────────────────────────────────────────
-  [
-    { icon: TextAlignLeft,    title: 'Alinhar à esquerda', align: 'left'    },
-    { icon: TextAlignCenter,  title: 'Centralizar',         align: 'center'  },
-    { icon: TextAlignRight,   title: 'Alinhar à direita',  align: 'right'   },
-    { icon: TextAlignJustify, title: 'Justificar',          align: 'justify' },
-  ],
-  // ── Superscript / subscript + indent ────────────────────────────────────────
-  [
-    { text: 'x²', title: 'Sobrescrito (superscript)', superscript: true },
-    { text: 'x₂', title: 'Subscrito (subscript)',     subscript: true   },
-  ],
-  [
-    { icon: TextIndent,  title: 'Aumentar recuo', indent: 'in'  },
-    { icon: TextOutdent, title: 'Diminuir recuo', indent: 'out' },
-  ],
-];
+function buildMdToolbarGroups(t: TFunction): ToolbarItem[][] {
+  return [
+    // ── Inline formatting ────────────────────────────────────────────────────
+    [
+      { icon: TextB,             title: t('editor.bold'),           wrap: ['**', '**'] },
+      { icon: TextItalic,        title: t('editor.italic'),         wrap: ['_', '_']   },
+      { icon: TextStrikethrough, title: t('editor.strikethrough'),  wrap: ['~~', '~~'] },
+      { icon: Code,              title: t('editor.inlineCode'),     wrap: ['`', '`']   },
+      { icon: Highlighter,       title: t('editor.highlight'),      highlight: true    },
+    ],
+    // ── Headings ─────────────────────────────────────────────────────────────
+    [
+      { text: 'H1', title: t('editor.heading1'), prefix: '# '   },
+      { text: 'H2', title: t('editor.heading2'), prefix: '## '  },
+      { text: 'H3', title: t('editor.heading3'), prefix: '### ' },
+    ],
+    // ── Block structure ──────────────────────────────────────────────────────
+    [
+      { icon: Minus,       title: t('editor.horizontalDivider'), insert: '\n---\n' },
+      { icon: Quotes,      title: t('editor.blockquote'),        prefix: '> '      },
+      { icon: ListBullets, title: t('editor.bulletList'),        prefix: '- '      },
+      { icon: ListNumbers, title: t('editor.numberedList'),      prefix: '1. '     },
+      { icon: ListChecks,  title: t('editor.taskList'),          checklist: true   },
+    ],
+    // ── Insert ───────────────────────────────────────────────────────────────
+    [
+      { icon: Link,      title: t('editor.link'),      link: true      },
+      { icon: Image,     title: t('editor.image'),     image: true     },
+      { icon: CodeBlock, title: t('editor.codeBlock'), codeBlock: true },
+      { icon: Table,     title: t('editor.table'),     table: true     },
+      { icon: Sigma,     title: t('editor.mathBlock'), mathBlock: true },
+    ],
+    // ── Alignment ────────────────────────────────────────────────────────────
+    [
+      { icon: TextAlignLeft,    title: t('editor.alignLeft'),    align: 'left'    },
+      { icon: TextAlignCenter,  title: t('editor.alignCenter'),  align: 'center'  },
+      { icon: TextAlignRight,   title: t('editor.alignRight'),   align: 'right'   },
+      { icon: TextAlignJustify, title: t('editor.alignJustify'), align: 'justify' },
+    ],
+    // ── Superscript / subscript + indent ────────────────────────────────────
+    [
+      { text: 'x²', title: t('editor.superscript'), superscript: true },
+      { text: 'x₂', title: t('editor.subscript'),   subscript: true   },
+    ],
+    [
+      { icon: TextIndent,  title: t('editor.indentIncrease'), indent: 'in'  },
+      { icon: TextOutdent, title: t('editor.indentDecrease'), indent: 'out' },
+    ],
+  ];
+}
 
 function applyMdToolbar(
   view: import('@codemirror/view').EditorView,
   item: ToolbarItem,
+  t: TFunction,
 ) {
   const state = view.state;
   const { from, to } = state.selection.main;
   const sel = state.sliceDoc(from, to);
+  const placeholder = t('editor.placeholderText');
 
   let insert = '';
   let anchor = from;
@@ -710,9 +716,9 @@ function applyMdToolbar(
 
   if (item.wrap) {
     const [before, after] = item.wrap;
-    insert = before + (sel || 'text') + after;
+    insert = before + (sel || placeholder) + after;
     anchor = from + before.length;
-    head = anchor + (sel || 'text').length;
+    head = anchor + (sel || placeholder).length;
   } else if (item.prefix) {
     const lineStart = state.doc.lineAt(from).from;
     view.dispatch({ changes: { from: lineStart, insert: item.prefix } });
@@ -722,9 +728,9 @@ function applyMdToolbar(
     insert = item.insert;
     anchor = head = from + insert.length;
   } else if (item.link) {
-    insert = `[${sel || 'text'}](url)`;
+    insert = `[${sel || placeholder}](url)`;
     anchor = from + 1;
-    head = from + 1 + (sel || 'text').length;
+    head = from + 1 + (sel || placeholder).length;
   } else if (item.image) {
     insert = `![${sel || 'alt text'}](url)`;
     anchor = from + 2;
@@ -741,29 +747,29 @@ function applyMdToolbar(
     anchor = from + 3;
     head = anchor + (sel || 'expression').length;
   } else if (item.align) {
-    const inner = sel || 'texto';
+    const inner = sel || placeholder;
     const prefix = `<div style="text-align: ${item.align}">\n\n`;
     const suffix = '\n\n</div>';
     insert = prefix + inner + suffix;
     anchor = from + prefix.length;
     head = anchor + inner.length;
   } else if (item.highlight) {
-    insert = `<mark>${sel || 'texto'}</mark>`;
+    insert = `<mark>${sel || placeholder}</mark>`;
     anchor = from + 6; // len('<mark>')
-    head = anchor + (sel || 'texto').length;
+    head = anchor + (sel || placeholder).length;
   } else if (item.checklist) {
     const lineStart = state.doc.lineAt(from).from;
     view.dispatch({ changes: { from: lineStart, insert: '- [ ] ' } });
     view.focus();
     return;
   } else if (item.superscript) {
-    insert = `<sup>${sel || 'texto'}</sup>`;
+    insert = `<sup>${sel || placeholder}</sup>`;
     anchor = from + 5;
-    head = anchor + (sel || 'texto').length;
+    head = anchor + (sel || placeholder).length;
   } else if (item.subscript) {
-    insert = `<sub>${sel || 'texto'}</sub>`;
+    insert = `<sub>${sel || placeholder}</sub>`;
     anchor = from + 5;
-    head = anchor + (sel || 'texto').length;
+    head = anchor + (sel || placeholder).length;
   } else if (item.indent) {
     // Apply to every selected line
     const { from: selFrom, to: selTo } = state.selection.main;
@@ -797,12 +803,21 @@ function applyMdToolbar(
 // ── Component ─────────────────────────────────────────────────────────────────
 const Editor = forwardRef<EditorHandle, EditorProps>(
   ({ content, onChange, onToggleFind, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics, activeFile, onSelectionContextChange }, ref) => {
+    const { t } = useTranslation();
+    const mdToolbarGroups = useMemo(() => buildMdToolbarGroups(t), [t]);
     const codeMode = !!language && language !== 'markdown';
     const viewRef = useRef<EditorView | null>(null);
     const compartmentRef = useRef(new Compartment());
     const fontCompartmentRef = useRef(new Compartment());
     const editableCompartmentRef = useRef(new Compartment());
     const lintCompartmentRef = useRef(new Compartment());
+
+    // Empty-document hint text — kept in a ref so the placeholder extension
+    // stays stable while still following language changes.
+    const emptyPlaceholderRef = useRef('');
+    emptyPlaceholderRef.current = codeMode
+      ? t('editor.codePlaceholder')
+      : t('editor.emptyPlaceholder');
 
     // Stable refs so the single update-listener always sees the latest values
     // without needing to be recreated on every render.
@@ -967,12 +982,12 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
         if (!codeMode && (e.metaKey || e.ctrlKey)) {
           const view = viewRef.current;
           if (!view) return;
-          if (e.key === 'b') { e.preventDefault(); applyMdToolbar(view, MD_TOOLBAR_GROUPS[0][0]); return; }
-          if (e.key === 'i') { e.preventDefault(); applyMdToolbar(view, MD_TOOLBAR_GROUPS[0][1]); return; }
+          if (e.key === 'b') { e.preventDefault(); applyMdToolbar(view, mdToolbarGroups[0][0], t); return; }
+          if (e.key === 'i') { e.preventDefault(); applyMdToolbar(view, mdToolbarGroups[0][1], t); return; }
         }
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [onAIRequest, onFormat, onToggleFind, codeMode],
+      [onAIRequest, onFormat, onToggleFind, codeMode, mdToolbarGroups, t],
     );
 
     // ── Clipboard image paste ─────────────────────────────────────────────────
@@ -1030,6 +1045,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       codeMode
         ? getLanguageExtension(language ?? '')
         : markdown({ base: markdownLanguage }),
+      // Empty-document hint — reads the latest text via a ref so the extension
+      // doesn't need to be recreated on language changes.
+      placeholder(emptyPlaceholderRef.current),
       // Initialize CodeMirror search state so the custom FindReplaceBar can
       // drive search commands without ever needing the native search panel.
       search(),
@@ -1088,8 +1106,8 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       <div className="editor-wrapper" onKeyDown={handleKeyDown} onPaste={handlePaste} data-locked={isLocked ? 'true' : undefined}>
         {/* ── Markdown formatting toolbar ── */}
         {!codeMode && (
-          <div className="editor-md-toolbar" aria-label="Formatação Markdown" role="toolbar">
-            {MD_TOOLBAR_GROUPS.map((group, gi) => (
+          <div className="editor-md-toolbar" aria-label={t('editor.mdToolbarLabel')} role="toolbar">
+            {mdToolbarGroups.map((group, gi) => (
               <Fragment key={gi}>
                 {gi > 0 && <span className="editor-md-toolbar-sep" aria-hidden="true" />}
                 {group.map((item) => {
@@ -1103,7 +1121,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
                       onMouseDown={(e) => {
                         e.preventDefault(); // prevent blur
                         const view = viewRef.current;
-                        if (view) applyMdToolbar(view, item);
+                        if (view) applyMdToolbar(view, item, t);
                       }}
                     >
                       {Icon ? <Icon size={15} weight="regular" /> : <span className="editor-md-toolbar-label">{item.text}</span>}

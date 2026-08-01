@@ -249,7 +249,21 @@ export const executeCanvasTools: DomainExecutor = async (name, args, ctx) => {
       let shapeIds: string[] = [];
       let errors: string[] = [];
       try {
+        // Snapshot every shape on the current page BEFORE the batch so reject
+        // can restore pre-edit state instead of deleting AI-created shapes.
+        const beforeShapes = new Map(
+          editor.getCurrentPageShapes().map((s) => [s.id, structuredClone(s)]),
+        );
         ({ count, shapeIds, errors } = executeCanvasCommands(editor, fenced));
+        if (count > 0 && shapeIds.length > 0) {
+          const canvasRevert: Record<string, unknown | null> = {};
+          for (const sid of shapeIds) {
+            canvasRevert[sid] = beforeShapes.has(sid as never) ? beforeShapes.get(sid as never) ?? null : null;
+          }
+          onCanvasModified?.(shapeIds, canvasRevert);
+        } else {
+          onCanvasModified?.(shapeIds);
+        }
       } finally {
         if (targetFile) unlockFile(targetFile);
         setCopilotOverlay(false);
@@ -260,7 +274,6 @@ export const executeCanvasTools: DomainExecutor = async (name, args, ctx) => {
         }
         return `No commands were executed. Check the command syntax.`;
       }
-      onCanvasModified?.(shapeIds);
       const fileTag = targetFile ? ` on ${targetFile.split('/').pop()}` : '';
       return `Executed ${count} canvas operation(s) successfully${fileTag}.`;
     }

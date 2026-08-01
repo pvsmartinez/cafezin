@@ -58,12 +58,12 @@ export function AgentTab({
     <div className="sm-section-list">
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Ajuda do agente</h3>
+        <h3 className="sm-section-title">{t('settings.agentHelpTitle')}</h3>
 
         <div className="sm-row sm-row--col">
           <label className="sm-label">
-            Idioma padrão das respostas
-            <span className="sm-row-desc"> — usado como preferência neste workspace</span>
+            {t('settings.defaultResponseLanguageLabel')}
+            <span className="sm-row-desc"> {t('settings.defaultResponseLanguageHint')}</span>
           </label>
           <select
             className="sm-select"
@@ -83,97 +83,97 @@ export function AgentTab({
 
         <div className="sm-row sm-row--col">
           <label className="sm-label">
-            Instruções do agente (AGENT.md)
-            <span className="sm-row-desc"> — contexto do projeto injetado em cada sessão</span>
+            {t('settings.agentInstructionsLabel')}
+            <span className="sm-row-desc"> {t('settings.agentInstructionsHint')}</span>
           </label>
           <textarea
             className="sm-textarea"
             value={wsAgent}
             onChange={(e) => setWsAgent(e.target.value)}
-            placeholder="Descreva o projeto, o tom esperado e o que o agente deve considerar sempre."
+            placeholder={t('settings.agentInstructionsPlaceholder') ?? ''}
             rows={10}
           />
         </div>
       </section>
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Capacidades do workspace</h3>
+        <h3 className="sm-section-title">{t('settings.workspaceCapabilitiesTitle')}</h3>
         <p className="sm-section-desc">
-          Defina aqui o que o agente pode usar. No modo automático, o Cafezin libera cada grupo quando encontra arquivos compatíveis neste workspace.
+          {t('settings.workspaceCapabilitiesDesc')}
         </p>
 
         <div className="sm-row">
           <div className="sm-row-label">
             <span>{t('settings.workspaceMarkdownMermaidLabel')}</span>
-            <span className="sm-row-desc">{t('settings.workspaceMarkdownMermaidDesc')} {getCapabilityModeDescription(wsMarkdownMermaid, effectiveCapabilityState?.markdownMermaid ?? false, 'ligado', 'desligado')}</span>
+            <span className="sm-row-desc">{t('settings.workspaceMarkdownMermaidDesc')} {getCapabilityModeDescription(wsMarkdownMermaid, effectiveCapabilityState?.markdownMermaid ?? false, t('settings.enabledShort'), t('settings.disabledShort'))}</span>
           </div>
           <select
             className="sm-select"
             value={wsMarkdownMermaid}
             onChange={(e) => setWsMarkdownMermaid(e.target.value as CapabilityOverrideMode)}
           >
-            <option value="auto">Automático</option>
-            <option value="on">Ligado</option>
-            <option value="off">Desligado</option>
+            <option value="auto">{t('settings.modeAuto')}</option>
+            <option value="on">{t('settings.modeOn')}</option>
+            <option value="off">{t('settings.modeOff')}</option>
           </select>
         </div>
 
         <div className="sm-row">
           <div className="sm-row-label">
-            <span>Ferramentas de canvas</span>
-            <span className="sm-row-desc">Permite o agente inspecionar e editar canvases com `canvas_op`, shapes e screenshots. {getCapabilityModeDescription(wsCanvasAgentTools, effectiveCapabilityState?.canvas ?? false, 'ligado', 'desligado')}</span>
+            <span>{t('settings.canvasToolsLabel')}</span>
+            <span className="sm-row-desc">{t('settings.canvasToolsDesc')} {getCapabilityModeDescription(wsCanvasAgentTools, effectiveCapabilityState?.canvas ?? false, t('settings.enabledShort'), t('settings.disabledShort'))}</span>
           </div>
           <select
             className="sm-select"
             value={wsCanvasAgentTools}
             onChange={(e) => setWsCanvasAgentTools(e.target.value as CapabilityOverrideMode)}
           >
-            <option value="auto">Automático</option>
-            <option value="on">Ligado</option>
-            <option value="off">Desligado</option>
+            <option value="auto">{t('settings.modeAuto')}</option>
+            <option value="on">{t('settings.modeOn')}</option>
+            <option value="off">{t('settings.modeOff')}</option>
           </select>
         </div>
 
         <div className="sm-row">
           <div className="sm-row-label">
-            <span>Ferramentas de planilha</span>
-            <span className="sm-row-desc">Liga as tools estruturadas de CSV, TSV e XLSX no contexto do agente. {getCapabilityModeDescription(wsSpreadsheetAgentTools, effectiveCapabilityState?.spreadsheet ?? false, 'ligado', 'desligado')}</span>
+            <span>{t('settings.spreadsheetToolsLabel')}</span>
+            <span className="sm-row-desc">{t('settings.spreadsheetToolsDesc')} {getCapabilityModeDescription(wsSpreadsheetAgentTools, effectiveCapabilityState?.spreadsheet ?? false, t('settings.enabledShort'), t('settings.disabledShort'))}</span>
           </div>
           <select
             className="sm-select"
             value={wsSpreadsheetAgentTools}
             onChange={(e) => setWsSpreadsheetAgentTools(e.target.value as CapabilityOverrideMode)}
           >
-            <option value="auto">Automático</option>
-            <option value="on">Ligado</option>
-            <option value="off">Desligado</option>
+            <option value="auto">{t('settings.modeAuto')}</option>
+            <option value="on">{t('settings.modeOn')}</option>
+            <option value="off">{t('settings.modeOff')}</option>
           </select>
         </div>
 
         <div className="sm-row">
           <div className="sm-row-label">
-            <span>Ferramentas web</span>
-            <span className="sm-row-desc">Controla busca web, leitura de URLs, preview HTML e comandos usados nesse fluxo. {getCapabilityModeDescription(wsWebAgentTools, effectiveCapabilityState?.web ?? false, 'ligado', 'desligado')}</span>
+            <span>{t('settings.webToolsLabel')}</span>
+            <span className="sm-row-desc">{t('settings.webToolsDesc')} {getCapabilityModeDescription(wsWebAgentTools, effectiveCapabilityState?.web ?? false, t('settings.enabledShort'), t('settings.disabledShort'))}</span>
           </div>
           <select
             className="sm-select"
             value={wsWebAgentTools}
             onChange={(e) => setWsWebAgentTools(e.target.value as CapabilityOverrideMode)}
           >
-            <option value="auto">Automático</option>
-            <option value="on">Ligado</option>
-            <option value="off">Desligado</option>
+            <option value="auto">{t('settings.modeAuto')}</option>
+            <option value="on">{t('settings.modeOn')}</option>
+            <option value="off">{t('settings.modeOff')}</option>
           </select>
         </div>
       </section>
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Copilot neste workspace</h3>
+        <h3 className="sm-section-title">{t('settings.workspaceCopilotTitle')}</h3>
 
         <div className="sm-row sm-row--col">
           <label className="sm-label">
             GitHub OAuth Client ID
-            <span className="sm-row-desc"> — configuração avançada para o login do Copilot neste workspace</span>
+            <span className="sm-row-desc"> {t('settings.githubOAuthClientIdHint')}</span>
           </label>
           <input
             className="sm-input"
@@ -182,7 +182,7 @@ export function AgentTab({
             placeholder="Iv1.1234567890abcdef"
           />
           <p className="sm-section-desc" style={{ marginTop: 8 }}>
-            Crie um OAuth App no GitHub com <strong>Device Flow</strong> e cole aqui apenas o <strong>Client ID</strong>.
+            {t('settings.githubOAuthClientIdDescPrefix')} <strong>Device Flow</strong> {t('settings.githubOAuthClientIdDescMid')} <strong>Client ID</strong>.
           </p>
         </div>
       </section>
@@ -193,7 +193,7 @@ export function AgentTab({
           onClick={onWsSave}
           disabled={wsSaving}
         >
-          {wsSaving ? 'Salvando…' : wsSaved ? '✓ Salvo' : 'Salvar configurações do agente'}
+          {wsSaving ? t('settings.wsSaving') : wsSaved ? t('settings.wsSavedDone') : t('settings.agentSaveButton')}
         </button>
       </div>
 

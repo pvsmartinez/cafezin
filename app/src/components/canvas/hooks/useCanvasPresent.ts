@@ -51,7 +51,7 @@ export function useCanvasPresent({
     else editor.zoomToFit({ animation: { duration: 350 } });
 
     if (!canvasRelPath) return;
-    const existing = await loadSlidePreviews(workspacePath, canvasRelPath);
+    const existing = await loadSlidePreviews(workspacePath, canvasRelPath, sorted.length);
     if (existing.length > 0) {
       setPreviewUrls(existing);
     } else {

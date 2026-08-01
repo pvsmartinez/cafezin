@@ -606,6 +606,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         afterText,
         contextBefore: fullAfter.slice(Math.max(0, afterStart - 80), afterStart),
         contextAfter: fullAfter.slice(afterEnd, Math.min(fullAfter.length, afterEnd + 80)),
+        line: fullAfter.slice(0, afterStart).split('\n').length - 1,
       },
     };
   }

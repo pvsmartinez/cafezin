@@ -27,6 +27,8 @@ export function makeCanvasMark(
   relPath: string,
   shapeIds: string[],
   model: string,
+  agentId?: string,
+  canvasRevert?: Record<string, unknown | null>,
 ): AIEditMark {
   return {
     id: generateId(),
@@ -36,6 +38,8 @@ export function makeCanvasMark(
     insertedAt: new Date().toISOString(),
     reviewed: false,
     canvasShapeIds: shapeIds,
+    ...(agentId ? { agentId } : {}),
+    ...(canvasRevert ? { canvasRevert } : {}),
   };
 }
 
@@ -72,8 +76,8 @@ export interface UseAIMarksReturn {
   /** Load marks from disk for a freshly opened workspace. */
   loadMarksForWorkspace: (ws: Workspace) => void;
   // ── Handlers forwarded to components ─────────────────────────────────────
-  handleMarkRecorded: (relPath: string, written: string, aiModel: string, recordedMarks?: AIRecordedTextMark[]) => void;
-  handleCanvasMarkRecorded: (relPath: string, shapeIds: string[], aiModel: string) => void;
+  handleMarkRecorded: (relPath: string, written: string, aiModel: string, recordedMarks?: AIRecordedTextMark[], agentId?: string) => void;
+  handleCanvasMarkRecorded: (relPath: string, shapeIds: string[], aiModel: string, agentId?: string, canvasRevert?: Record<string, unknown | null>) => void;
   handleMarkReviewed: (id: string) => void;
   handleMarkRejected: (id: string) => void;
   handleReviewAllMarks: () => void;
@@ -128,9 +132,9 @@ export function useAIMarks({
 
   // ── Canvas mark (agent canvas_op path) ───────────────────────────────────
   const handleCanvasMarkRecorded = useCallback(
-    (relPath: string, shapeIds: string[], aiModel: string) => {
+    (relPath: string, shapeIds: string[], aiModel: string, agentId?: string, canvasRevert?: Record<string, unknown | null>) => {
       if (!workspace || shapeIds.length === 0) return;
-      const mark = makeCanvasMark(relPath, shapeIds, aiModel);
+      const mark = makeCanvasMark(relPath, shapeIds, aiModel, agentId, canvasRevert);
       addMark(workspace, mark).then(setAiMarks).catch(() => {});
     },
     [workspace],
@@ -138,7 +142,7 @@ export function useAIMarks({
 
   // ── Text mark (agent write_workspace_file path) ───────────────────────────
   const handleMarkRecorded = useCallback(
-    (relPath: string, written: string, aiModel: string, recordedMarks?: AIRecordedTextMark[]) => {
+    (relPath: string, written: string, aiModel: string, recordedMarks?: AIRecordedTextMark[], agentId?: string) => {
       if (!workspace) return;
       // Canvas files are tracked via canvasShapeIds — skip text marks for them
       if (relPath.endsWith('.tldr.json')) return;
@@ -170,6 +174,7 @@ export function useAIMarks({
         reviewed: false,
         revert: entry.revert,
         spreadsheetTarget: entry.spreadsheetTarget,
+        ...(agentId ? { agentId } : {}),
       }));
       // Optimistic update: add marks to React state immediately so the editor
       // highlights appear without waiting for the disk I/O queue to drain.
@@ -226,6 +231,28 @@ export function useAIMarks({
       if (mark.canvasShapeIds?.length) {
         const editor = canvasEditorRef.current;
         if (!editor) return;
+        const revertMap = mark.canvasRevert;
+        if (revertMap && Object.keys(revertMap).length > 0) {
+          // Restore pre-edit state: shapes that existed before get their old
+          // props back; shapes created by the AI are deleted.
+          let restored = 0;
+          let deleted = 0;
+          for (const shapeId of mark.canvasShapeIds) {
+            const before = revertMap[shapeId];
+            const current = editor.getShape(shapeId as TLShapeId);
+            if (before == null) {
+              if (current) { editor.deleteShapes([shapeId as TLShapeId]); deleted++; }
+            } else if (current) {
+              editor.updateShape(before as Parameters<typeof editor.updateShape>[0]);
+              restored++;
+            }
+          }
+          if (restored + deleted > 0) {
+            markRejected(workspace, id).then(setAiMarks).catch(() => {});
+          }
+          return;
+        }
+        // Legacy marks (no snapshot): fall back to deleting the shapes.
         const existingIds = mark.canvasShapeIds.filter((shapeId) => !!editor.getShape(shapeId as TLShapeId));
         if (existingIds.length > 0) {
           editor.deleteShapes(existingIds as TLShapeId[]);

@@ -154,6 +154,7 @@ function _TreeNodeItem({
   dragOverDir, onDirDragEnter, onDirDragLeave, onDirDrop,
   multiSelected, onMultiToggle, onRangeSelect,
 }: TreeNodeProps) {
+  const { t } = useTranslation();
   const indent = 8 + depth * 14;
 
   if (node.isDirectory) {
@@ -208,13 +209,13 @@ function _TreeNodeItem({
           <span
             className="sidebar-tree-action"
             role="button"
-            title={`New file in ${node.name}`}
+            title={t('sidebar.newFileInFolder', { name: node.name })}
             onClick={(e) => { e.stopPropagation(); onStartCreate(node.path, 'file'); }}
           ><FilePlus weight="thin" size={12} /></span>
           <span
             className="sidebar-tree-action"
             role="button"
-            title={`New folder in ${node.name}`}
+            title={t('sidebar.newFolderInFolder', { name: node.name })}
             onClick={(e) => { e.stopPropagation(); onStartCreate(node.path, 'folder'); }}
           ><FolderPlus weight="thin" size={12} /></span>
         </button>
@@ -309,7 +310,7 @@ function _TreeNodeItem({
       }}
       onDoubleClick={(e) => { e.stopPropagation(); onRenameStart(node.path, node.name); }}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, node.path, false); }}
-      title={isImage ? `${node.path}\nDrag to canvas or folder` : node.path}
+      title={isImage ? t('sidebar.dragToCanvasHint', { path: node.path }) : node.path}
     >
       <span className={`sidebar-tree-icon ${fileIconCls}`}>{fileIconNode}</span>
       {isRenaming ? (
@@ -329,21 +330,21 @@ function _TreeNodeItem({
       ) : (
         <span className="sidebar-tree-name">{node.name}</span>
       )}
-      {hasUnseenAi && <span className="sidebar-ai-dot" title="Unseen AI edits" />}
-      {isDirty && <span className="sidebar-dirty-dot" title="Unsaved changes" />}
+      {hasUnseenAi && <span className="sidebar-ai-dot" title={t('sidebar.unseenAiEdits')} />}
+      {isDirty && <span className="sidebar-dirty-dot" title={t('sidebar.unsavedChanges')} />}
       {!isRenaming && (
         <span className="sidebar-file-actions" onClick={(e) => e.stopPropagation()}>
           <span
             role="button"
             className="sidebar-file-action"
-            title="Rename (double-click)"
+            title={t('sidebar.renameDoubleClick')}
             onClick={() => onRenameStart(node.path, node.name)}
             tabIndex={0}
           >✎</span>
           <span
             role="button"
             className="sidebar-file-action"
-            title="Duplicate"
+            title={t('sidebar.ctxDuplicate')}
             onClick={() => onDuplicateFile(node.path)}
             onKeyDown={(e) => e.key === 'Enter' && onDuplicateFile(node.path)}
             tabIndex={0}
@@ -351,7 +352,7 @@ function _TreeNodeItem({
           <span
             role="button"
             className="sidebar-file-action sidebar-file-action--delete"
-            title="Delete"
+            title={t('sidebar.ctxDelete')}
             onClick={() => onDeleteFile(node.path)}
             onKeyDown={(e) => e.key === 'Enter' && onDeleteFile(node.path)}
             tabIndex={0}
@@ -556,7 +557,7 @@ const SidebarInner = function Sidebar({
       paths,
       isDir: false,
       title: t('sidebar.deleteSelectedTitle'),
-      message: `Delete ${paths.length} file(s)?\n\nThis will be tracked in git and can be reverted via Sync.`,
+      message: t('sidebar.deleteMultipleConfirm', { count: paths.length }),
     });
   }
 
@@ -657,8 +658,8 @@ const SidebarInner = function Sidebar({
     const name = relPath.split('/').pop() ?? relPath;
     const isDir = dirSet.has(relPath);
     const msg = isDir
-      ? `Delete folder "${name}" and all its contents?\n\nThis will be tracked in git and can be reverted via Sync.`
-      : `Delete "${name}"?\n\nThis will be tracked in git and can be reverted via Sync.`;
+      ? t('sidebar.deleteFolderConfirm', { name })
+      : t('sidebar.deleteFileConfirm', { name });
     setPendingDelete({
       paths: [relPath],
       isDir,
@@ -952,7 +953,7 @@ const SidebarInner = function Sidebar({
           {workspace.name}
         </span>
         {workspace.agentContext ? (
-          <span className="sidebar-agent-badge" title="AGENT.md found — loaded as AI context">
+          <span className="sidebar-agent-badge" title={t('sidebar.agentMdFoundTitle')}>
             <Sparkle weight="fill" size={15} />
           </span>
         ) : null}
@@ -991,7 +992,7 @@ const SidebarInner = function Sidebar({
         <div className="sidebar-explorer-actions">
           <button
             className="sidebar-explorer-action"
-            title="Reload files"
+            title={t('sidebar.reloadFilesTitle')}
             onClick={() => {
               if (!onRefreshFiles || refreshingFiles) return;
               setRefreshingFiles(true);
@@ -1147,14 +1148,14 @@ const SidebarInner = function Sidebar({
                       type="button"
                       className={`sidebar-type-pill${canvasSubtype === 'freeform' ? ' active' : ''}`}
                       onClick={() => { setCanvasSubtype('freeform'); setTimeout(() => createInputRef.current?.focus(), 0); }}
-                      title="Canvas livre — sem restrição de câmera"
-                    >Canvas</button>
+                      title={t('sidebar.canvasFreeformTitle')}
+                    >{t('sidebar.canvasSubtypeFreeform')}</button>
                     <button
                       type="button"
                       className={`sidebar-type-pill${canvasSubtype === 'slides' ? ' active' : ''}`}
                       onClick={() => { setCanvasSubtype('slides'); setTimeout(() => createInputRef.current?.focus(), 0); }}
-                      title="Slides — câmera travada num slide de cada vez"
-                    >Slides</button>
+                      title={t('sidebar.canvasSlidesTitle')}
+                    >{t('sidebar.canvasSubtypeSlides')}</button>
                   </div>
                 )}
 
@@ -1222,11 +1223,11 @@ const SidebarInner = function Sidebar({
         <button
           className="sidebar-btn sidebar-btn-export"
           onClick={onExportOpen}
-          title="Export / Build"
+          title={t('sidebar.exportBuildTitle')}
         >
           <span className="sidebar-export-label">
             <span className="sidebar-btn-icon" aria-hidden><ArrowUp weight="regular" size={16} /></span>
-            <span className="sidebar-label">Export</span>
+            <span className="sidebar-label">{t('sidebar.exportLabel')}</span>
           </span>
           <span className="sidebar-export-config" aria-hidden><Gear weight="regular" size={14} /></span>
         </button>

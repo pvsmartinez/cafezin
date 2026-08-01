@@ -1068,3 +1068,49 @@ body.is-resizing webview {
   text-transform: lowercase;
   transition: opacity 0.2s;
 }
+.ws-empty-hint {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--text-dim, rgba(0,0,0,0.45));
+  opacity: 0.85;
+  max-width: 320px;
+  text-align: center;
+  line-height: 1.5;
+}
+.ws-empty-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.ws-empty:hover .ws-empty-actions,
+.ws-empty:focus-visible .ws-empty-actions,
+.ws-empty:has(.ws-empty-btn:focus) .ws-empty-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+.ws-empty-btn {
+  border: 1px solid var(--border, rgba(0,0,0,0.12));
+  background: var(--surface, #faf7f2);
+  color: var(--text, #2b2b2b);
+  border-radius: var(--radius-pill, 999px);
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ws-empty-btn:hover {
+  border-color: var(--border2, rgba(0,0,0,0.25));
+  background: var(--surface2, #f0ebe2);
+}
+.ws-empty-btn--primary {
+  border: none;
+  color: #1c1c1e;
+  background: linear-gradient(135deg, #f4b7a8, #e58a6e);
+}
+.ws-empty-btn--primary:hover {
+  opacity: 0.92;
+}

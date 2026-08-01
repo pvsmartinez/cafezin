@@ -10,6 +10,7 @@
  * every render.
  */
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Lock, DownloadSimple } from '@phosphor-icons/react';
 import type { TLShapeId } from 'tldraw';
 import {
@@ -37,6 +38,7 @@ import { enforceBgAtBack } from './canvasTheme';
 
 // ── CanvasFormatPanel ─────────────────────────────────────────────────────────
 export function CanvasFormatPanel() {
+  const { t } = useTranslation();
   const editor = useEditor();
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [systemFonts, setSystemFonts] = useState<string[] | null>(null);
@@ -459,8 +461,8 @@ export function CanvasFormatPanel() {
   const hasAlign = applicable(DefaultTextAlignStyle);
   const hasFill  = applicable(DefaultFillStyle);
   const hasDash  = applicable(DefaultDashStyle);
-  const colorLabel = selectionTypes.size > 0 && [...selectionTypes].every((t) => t === 'text' || t === 'note')
-    ? 'Text Color' : 'Color';
+  const colorLabel = selectionTypes.size > 0 && [...selectionTypes].every((s) => s === 'text' || s === 'note')
+    ? t('canvasFormatPanel.textColorLabel') : t('canvas.colorLabel');
 
   function activeCustomLabel(): string | null {
     if (curFont === 'sans'  && fontOverrides.sans)  return fontOverrides.sans;
@@ -520,12 +522,12 @@ export function CanvasFormatPanel() {
     <div className="canvas-fmt-panel" onPointerDown={(e) => e.stopPropagation()}>
 
       {selCount >= 2 && !selectedFrame && (
-        <div className="canvas-fmt-sel-badge">{selCount} selected</div>
+        <div className="canvas-fmt-sel-badge">{t('canvasFormatPanel.selectedCount', { count: selCount })}</div>
       )}
 
       {selectedFrame && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Slide</div>
+          <div className="canvas-fmt-label">{t('canvas.slideButtonLabel')}</div>
           <div className="canvas-fmt-row">
             <button
               className="canvas-fmt-btn"
@@ -533,9 +535,9 @@ export function CanvasFormatPanel() {
                 format: 'png',
                 name: (selectedFrame as AnyFrame).props?.name || 'slide',
               }).catch((err) => console.error('[FormatPanel] exportAs:', err))}
-              title="Export this slide as PNG"
+              title={t('canvasFormatPanel.exportSlideTitle')}
             >
-              <DownloadSimple weight="thin" size={14} /> Export PNG
+              <DownloadSimple weight="thin" size={14} /> {t('canvasCtxMenu.exportPng')}
             </button>
           </div>
         </div>
@@ -544,42 +546,42 @@ export function CanvasFormatPanel() {
       {arrowInfo && (
         <>
           <div className="canvas-fmt-section">
-            <div className="canvas-fmt-label">Style</div>
+            <div className="canvas-fmt-label">{t('canvasFormatPanel.styleLabel')}</div>
             <div className="canvas-fmt-row">
               {ARROW_KIND_OPTIONS.map((k) => (
                 <button
                   key={k.value}
                   className={`canvas-fmt-btn${arrowInfo.kind === k.value ? ' canvas-fmt-btn--on' : ''}`}
                   onClick={() => setArrowKind(k.value)}
-                  title={k.title}
+                  title={t(`canvasConstants.arrowKind.${k.value}`)}
                   style={{ fontSize: 16 }}
                 >{k.label}</button>
               ))}
             </div>
           </div>
           <div className="canvas-fmt-section">
-            <div className="canvas-fmt-label">Start</div>
+            <div className="canvas-fmt-label">{t('canvasFormatPanel.startLabel')}</div>
             <div className="canvas-fmt-row">
               {ARROWHEAD_OPTIONS.map((a) => (
                 <button
                   key={a.value}
                   className={`canvas-fmt-btn${arrowInfo.arrowheadStart === a.value ? ' canvas-fmt-btn--on' : ''}`}
                   onClick={() => updateArrows({ arrowheadStart: a.value })}
-                  title={a.title}
+                  title={t(`canvasConstants.arrowhead.${a.value}`)}
                   style={{ fontSize: 13 }}
                 >{a.icon}</button>
               ))}
             </div>
           </div>
           <div className="canvas-fmt-section">
-            <div className="canvas-fmt-label">End</div>
+            <div className="canvas-fmt-label">{t('canvasFormatPanel.endLabel')}</div>
             <div className="canvas-fmt-row">
               {ARROWHEAD_OPTIONS.map((a) => (
                 <button
                   key={a.value}
                   className={`canvas-fmt-btn${arrowInfo.arrowheadEnd === a.value ? ' canvas-fmt-btn--on' : ''}`}
                   onClick={() => updateArrows({ arrowheadEnd: a.value })}
-                  title={a.title}
+                  title={t(`canvasConstants.arrowhead.${a.value}`)}
                   style={{ fontSize: 13 }}
                 >{a.icon}</button>
               ))}
@@ -588,12 +590,12 @@ export function CanvasFormatPanel() {
           {/* Arrow label — only when a single arrow is selected */}
           {arrowLabel !== null && (
             <div className="canvas-fmt-section">
-              <div className="canvas-fmt-label">Label</div>
+              <div className="canvas-fmt-label">{t('canvasFormatPanel.labelLabel')}</div>
               <input
                 className="canvas-fmt-dim-input"
                 style={{ width: '100%', boxSizing: 'border-box' }}
                 type="text"
-                placeholder="Arrow label…"
+                placeholder={t('canvasFormatPanel.arrowLabelPlaceholder')}
                 value={arrowLabel.text}
                 onPointerDown={(e) => e.stopPropagation()}
                 onChange={(e) => {
@@ -615,14 +617,14 @@ export function CanvasFormatPanel() {
       {hasFont && !arrowInfo && (
         <div className="canvas-fmt-section">
           <div className="canvas-fmt-label-row-space">
-            <span className="canvas-fmt-label">Font</span>
+            <span className="canvas-fmt-label">{t('canvas.fontLabel')}</span>
             {customLabel && (
-              <span className="canvas-fmt-custom-name" title={`Custom: ${customLabel}`}>
+              <span className="canvas-fmt-custom-name" title={t('canvasFormatPanel.customFontTitle', { name: customLabel })}>
                 {customLabel}
                 <button
                   className="canvas-fmt-custom-clear"
                   onClick={() => clearFontOverride(curFont as 'sans' | 'serif' | 'mono')}
-                  title="Clear custom font"
+                  title={t('canvasFormatPanel.clearCustomFontTitle')}
                 >✕</button>
               </span>
             )}
@@ -631,25 +633,25 @@ export function CanvasFormatPanel() {
             <button
               className={`canvas-fmt-btn${curFont === 'draw' ? ' canvas-fmt-btn--on' : ''}`}
               onClick={() => ss(DefaultFontStyle, 'draw')}
-              title="Handwritten"
+              title={t('canvasFormatPanel.handwrittenTitle')}
               style={{ fontFamily: 'var(--tl-font-draw)' }}
-            >Hand</button>
+            >{t('canvasConstants.font.draw')}</button>
             <button
               className={`canvas-fmt-btn${curFont === 'sans' ? ' canvas-fmt-btn--on' : ''}`}
               onClick={() => ss(DefaultFontStyle, 'sans')}
-              title={fontOverrides.sans ?? 'Sans-serif'}
+              title={fontOverrides.sans ?? t('canvasFormatPanel.sansSerifFallback')}
               style={{ fontFamily: fontOverrides.sans ? `"${fontOverrides.sans}", sans-serif` : undefined }}
-            >Sans</button>
+            >{t('canvasConstants.font.sans')}</button>
             <button
               className={`canvas-fmt-btn${curFont === 'serif' ? ' canvas-fmt-btn--on' : ''}`}
               onClick={() => ss(DefaultFontStyle, 'serif')}
-              title={fontOverrides.serif ?? 'Serif'}
+              title={fontOverrides.serif ?? t('canvasConstants.font.serif')}
               style={{ fontFamily: fontOverrides.serif ? `"${fontOverrides.serif}", serif` : undefined }}
-            >Serif</button>
+            >{t('canvasConstants.font.serif')}</button>
             <button
               className={`canvas-fmt-btn canvas-fmt-btn-more${showFontPicker ? ' canvas-fmt-btn--on' : ''}`}
               onClick={openFontPicker}
-              title="More fonts…"
+              title={t('canvasFormatPanel.moreFontsTitle')}
             >···</button>
           </div>
 
@@ -657,7 +659,7 @@ export function CanvasFormatPanel() {
             <div className="canvas-fmt-font-picker">
               <input
                 className="canvas-fmt-font-search"
-                placeholder="Search fonts…"
+                placeholder={t('canvasFormatPanel.searchFontsPlaceholder')}
                 value={fontSearch}
                 onChange={(e) => setFontSearch(e.target.value)}
                 autoFocus
@@ -669,14 +671,14 @@ export function CanvasFormatPanel() {
                     onClick={() => { ss(DefaultFontStyle, 'mono'); setShowFontPicker(false); }}
                     style={{ fontFamily: 'var(--tl-font-mono)' }}
                   >
-                    <span className="canvas-fmt-font-item-name">Mono</span>
-                    <span className="canvas-fmt-font-item-slot">built-in</span>
+                    <span className="canvas-fmt-font-item-name">{t('canvasConstants.font.mono')}</span>
+                    <span className="canvas-fmt-font-item-slot">{t('canvasFormatPanel.builtInLabel')}</span>
                   </button>
                 )}
                 {systemFonts === null ? (
-                  <div className="canvas-fmt-font-loading">Scanning fonts…</div>
+                  <div className="canvas-fmt-font-loading">{t('canvasFormatPanel.scanningFontsLabel')}</div>
                 ) : filteredFonts.length === 0 ? (
-                  <div className="canvas-fmt-font-loading">No fonts found</div>
+                  <div className="canvas-fmt-font-loading">{t('canvasFormatPanel.noFontsFoundLabel')}</div>
                 ) : (
                   filteredFonts.map((font) => {
                     const slot = slotForFont(font);
@@ -687,7 +689,7 @@ export function CanvasFormatPanel() {
                         className={`canvas-fmt-font-item${isActive ? ' canvas-fmt-font-item--on' : ''}`}
                         onClick={() => pickSystemFont(font, slot)}
                         style={{ fontFamily: `"${font}", sans-serif` }}
-                        title={`Apply "${font}" → ${slot} slot`}
+                        title={t('canvasFormatPanel.applyFontTitle', { font, slot })}
                       >
                         <span className="canvas-fmt-font-item-name">{font}</span>
                         <span className="canvas-fmt-font-item-slot">{slot}</span>
@@ -702,7 +704,7 @@ export function CanvasFormatPanel() {
       )}
 
       <div className="canvas-fmt-section">
-        <div className="canvas-fmt-label">Size</div>
+        <div className="canvas-fmt-label">{t('canvas.sizeLabel')}</div>
         <div className="canvas-fmt-row">
           {SIZE_OPTIONS.map((s) => (
             <button
@@ -716,14 +718,14 @@ export function CanvasFormatPanel() {
 
       {geoInfo && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Shape</div>
+          <div className="canvas-fmt-label">{t('canvasFormatPanel.shapeLabel')}</div>
           <div className="canvas-fmt-geo-grid">
             {GEO_TYPES_COMMON.map((g) => (
               <button
                 key={g.value}
                 className={`canvas-fmt-geo-btn${geoInfo.geo === g.value ? ' canvas-fmt-btn--on' : ''}`}
                 onClick={() => setGeoType(g.value)}
-                title={g.label}
+                title={t(`canvasConstants.geo.${g.value}`)}
               >{g.icon}</button>
             ))}
             {showAllGeo && GEO_TYPES_EXTRA.map((g) => (
@@ -731,13 +733,13 @@ export function CanvasFormatPanel() {
                 key={g.value}
                 className={`canvas-fmt-geo-btn${geoInfo.geo === g.value ? ' canvas-fmt-btn--on' : ''}`}
                 onClick={() => setGeoType(g.value)}
-                title={g.label}
+                title={g.value.startsWith('arrow-') ? g.label : t(`canvasConstants.geo.${g.value}`)}
               >{g.icon}</button>
             ))}
             <button
               className="canvas-fmt-geo-btn canvas-fmt-geo-more"
               onClick={() => setShowAllGeo((v) => !v)}
-              title={showAllGeo ? 'Show less' : 'More shapes'}
+              title={showAllGeo ? t('canvasFormatPanel.showLessTitle') : t('canvasFormatPanel.moreShapesTitle')}
             >{showAllGeo ? '▲' : '···'}</button>
           </div>
         </div>
@@ -745,14 +747,14 @@ export function CanvasFormatPanel() {
 
       {hasAlign && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Align</div>
+          <div className="canvas-fmt-label">{t('canvas.alignLabel')}</div>
           <div className="canvas-fmt-row">
             {ALIGN_OPTIONS.map((a) => (
               <button
                 key={a.value}
                 className={`canvas-fmt-btn${curAlign === a.value ? ' canvas-fmt-btn--on' : ''}`}
                 onClick={() => ss(DefaultTextAlignStyle, a.value)}
-                title={a.label}
+                title={t(`canvasConstants.align.${a.value}`)}
               >{a.icon}</button>
             ))}
           </div>
@@ -776,14 +778,14 @@ export function CanvasFormatPanel() {
 
       {hasFill && !arrowInfo && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Fill</div>
+          <div className="canvas-fmt-label">{t('canvasFormatPanel.fillLabel')}</div>
           <div className="canvas-fmt-row">
             {FILL_OPTIONS.map((f) => (
               <button
                 key={f.value}
                 className={`canvas-fmt-btn${curFill === f.value ? ' canvas-fmt-btn--on' : ''}`}
                 onClick={() => ss(DefaultFillStyle, f.value)}
-                title={f.label}
+                title={t(`canvasConstants.fill.${f.value}`)}
               >{f.icon}</button>
             ))}
           </div>
@@ -792,14 +794,14 @@ export function CanvasFormatPanel() {
 
       {hasDash && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Stroke</div>
+          <div className="canvas-fmt-label">{t('canvasFormatPanel.strokeLabel')}</div>
           <div className="canvas-fmt-row">
             {DASH_OPTIONS.map((d) => (
               <button
                 key={d.value}
                 className={`canvas-fmt-btn${curDash === d.value ? ' canvas-fmt-btn--on' : ''}`}
                 onClick={() => ss(DefaultDashStyle, d.value)}
-                title={d.label}
+                title={t(`canvasConstants.dash.${d.value}`)}
               >{d.icon}</button>
             ))}
           </div>
@@ -808,9 +810,9 @@ export function CanvasFormatPanel() {
 
       {sizeInfo && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Dimensions</div>
+          <div className="canvas-fmt-label">{t('canvasFormatPanel.dimensionsLabel')}</div>
           <div className="canvas-fmt-wh-row">
-            <label className="canvas-fmt-wh-label">W</label>
+            <label className="canvas-fmt-wh-label">{t('canvasFormatPanel.widthAbbr')}</label>
             <input
               type="number"
               className="canvas-fmt-wh-input"
@@ -819,7 +821,7 @@ export function CanvasFormatPanel() {
               onChange={(e) => { const v = parseInt(e.target.value, 10); if (v > 0) setShapeSize('w', v); }}
               onPointerDown={(e) => e.stopPropagation()}
             />
-            <label className="canvas-fmt-wh-label">H</label>
+            <label className="canvas-fmt-wh-label">{t('canvasFormatPanel.heightAbbr')}</label>
             <input
               type="number"
               className="canvas-fmt-wh-input"
@@ -834,12 +836,12 @@ export function CanvasFormatPanel() {
 
       {rotationDegs !== null && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Rotation</div>
+          <div className="canvas-fmt-label">{t('canvasFormatPanel.rotationLabel')}</div>
           <div className="canvas-fmt-rotation-row">
             <button
               className="canvas-fmt-btn canvas-fmt-rot-btn"
               onClick={() => setRotDeg(Math.round(((rotationDegs ?? 0) - 90 + 360) % 360))}
-              title="Rotate −90°"
+              title={t('canvasFormatPanel.rotateNeg90Title')}
             >−90</button>
             <input
               type="number"
@@ -853,7 +855,7 @@ export function CanvasFormatPanel() {
             <button
               className="canvas-fmt-btn canvas-fmt-rot-btn"
               onClick={() => setRotDeg(Math.round(((rotationDegs ?? 0) + 90) % 360))}
-              title="Rotate +90°"
+              title={t('canvasFormatPanel.rotatePos90Title')}
             >+90</button>
           </div>
         </div>
@@ -862,7 +864,7 @@ export function CanvasFormatPanel() {
       {opacityPct !== null && (
         <div className="canvas-fmt-section">
           <div className="canvas-fmt-label-row-space">
-            <span className="canvas-fmt-label">Opacity</span>
+            <span className="canvas-fmt-label">{t('canvasFormatPanel.opacityLabel')}</span>
             <span className="canvas-fmt-dim-value">{opacityPct}%</span>
           </div>
           <input
@@ -879,19 +881,19 @@ export function CanvasFormatPanel() {
 
       {canAlign && !arrowInfo && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Align</div>
+          <div className="canvas-fmt-label">{t('canvas.alignLabel')}</div>
           <div className="canvas-fmt-row">
-            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('left')}      title="Align left edges">⇤</button>
-            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('center-h')} title="Center horizontally">↔</button>
-            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('right')}     title="Align right edges">⇥</button>
-            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('top')}       title="Align top edges">⇡</button>
-            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('center-v')} title="Center vertically">↕</button>
-            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('bottom')}    title="Align bottom edges">⇣</button>
+            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('left')}      title={t('canvasFormatPanel.alignLeftEdgesTitle')}>⇤</button>
+            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('center-h')} title={t('canvasFormatPanel.centerHorizontallyTitle')}>↔</button>
+            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('right')}     title={t('canvasFormatPanel.alignRightEdgesTitle')}>⇥</button>
+            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('top')}       title={t('canvasFormatPanel.alignTopEdgesTitle')}>⇡</button>
+            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('center-v')} title={t('canvasFormatPanel.centerVerticallyTitle')}>↕</button>
+            <button className="canvas-fmt-btn canvas-fmt-align-btn" onClick={() => alignAll('bottom')}    title={t('canvasFormatPanel.alignBottomEdgesTitle')}>⇣</button>
           </div>
           {editor.getSelectedShapeIds().length >= 3 && (
             <div className="canvas-fmt-row" style={{ marginTop: 2 }}>
-              <button className="canvas-fmt-btn" onClick={() => distributeAll('horizontal')} title="Distribute horizontally">↔</button>
-              <button className="canvas-fmt-btn" onClick={() => distributeAll('vertical')}   title="Distribute vertically">↕</button>
+              <button className="canvas-fmt-btn" onClick={() => distributeAll('horizontal')} title={t('canvasFormatPanel.distributeHorizontallyTitle')}>↔</button>
+              <button className="canvas-fmt-btn" onClick={() => distributeAll('vertical')}   title={t('canvasFormatPanel.distributeVerticallyTitle')}>↕</button>
             </div>
           )}
         </div>
@@ -899,21 +901,21 @@ export function CanvasFormatPanel() {
 
       {(canReorder || (lockInfo && !lockInfo.allLocked)) && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Layer</div>
+          <div className="canvas-fmt-label">{t('canvasFormatPanel.layerLabel')}</div>
           <div className="canvas-fmt-row">
             {canReorder && (
               <>
-                <button className="canvas-fmt-btn canvas-fmt-layer-btn" onClick={() => layerOrder('front')}    title="Bring to front">⤒</button>
-                <button className="canvas-fmt-btn canvas-fmt-layer-btn" onClick={() => layerOrder('forward')}  title="Bring forward">↑</button>
-                <button className="canvas-fmt-btn canvas-fmt-layer-btn" onClick={() => layerOrder('backward')} title="Send backward">↓</button>
-                <button className="canvas-fmt-btn canvas-fmt-layer-btn" onClick={() => layerOrder('back')}     title="Send to back">⤓</button>
+                <button className="canvas-fmt-btn canvas-fmt-layer-btn" onClick={() => layerOrder('front')}    title={t('canvasFormatPanel.bringToFrontTitle')}>⤒</button>
+                <button className="canvas-fmt-btn canvas-fmt-layer-btn" onClick={() => layerOrder('forward')}  title={t('canvasFormatPanel.bringForwardTitle')}>↑</button>
+                <button className="canvas-fmt-btn canvas-fmt-layer-btn" onClick={() => layerOrder('backward')} title={t('canvasFormatPanel.sendBackwardTitle')}>↓</button>
+                <button className="canvas-fmt-btn canvas-fmt-layer-btn" onClick={() => layerOrder('back')}     title={t('canvasFormatPanel.sendToBackTitle')}>⤓</button>
               </>
             )}
             {lockInfo && !lockInfo.allLocked && (
               <button
                 className="canvas-fmt-btn canvas-fmt-lock-icon-btn"
                 onClick={toggleLock}
-                title="Lock — holds in place; long-press on canvas to unlock"
+                title={t('canvasFormatPanel.lockHoldTitle')}
               ><Lock weight="thin" size={13} /></button>
             )}
           </div>
@@ -924,10 +926,10 @@ export function CanvasFormatPanel() {
         <div className="canvas-fmt-section">
           <div className="canvas-fmt-row">
             {canGroup && (
-              <button className="canvas-fmt-btn" onClick={groupSelected} title="Group selected shapes (Cmd+G)">⊞ Group</button>
+              <button className="canvas-fmt-btn" onClick={groupSelected} title={t('canvasFormatPanel.groupTitle')}>⊞ {t('canvasFormatPanel.groupLabel')}</button>
             )}
             {isGroup && (
-              <button className="canvas-fmt-btn" onClick={ungroupSelected} title="Ungroup (Cmd+Shift+G)">⊡ Ungroup</button>
+              <button className="canvas-fmt-btn" onClick={ungroupSelected} title={t('canvasFormatPanel.ungroupTitle')}>⊡ {t('canvasFormatPanel.ungroupLabel')}</button>
             )}
           </div>
         </div>
@@ -935,10 +937,10 @@ export function CanvasFormatPanel() {
 
       {canFlip && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Flip</div>
+          <div className="canvas-fmt-label">{t('canvasFormatPanel.flipLabel')}</div>
           <div className="canvas-fmt-row">
-            <button className="canvas-fmt-btn" onClick={() => flipShapes('horizontal')} title="Flip horizontal">↔ H</button>
-            <button className="canvas-fmt-btn" onClick={() => flipShapes('vertical')}   title="Flip vertical">↕ V</button>
+            <button className="canvas-fmt-btn" onClick={() => flipShapes('horizontal')} title={t('canvasFormatPanel.flipHorizontalTitle')}>↔ H</button>
+            <button className="canvas-fmt-btn" onClick={() => flipShapes('vertical')}   title={t('canvasFormatPanel.flipVerticalTitle')}>↕ V</button>
           </div>
         </div>
       )}
@@ -946,7 +948,7 @@ export function CanvasFormatPanel() {
       {effectsInfo && (
         <div className="canvas-fmt-section">
           <div className="canvas-fmt-label-row-space">
-            <span className="canvas-fmt-label">Radius</span>
+            <span className="canvas-fmt-label">{t('canvasFormatPanel.radiusLabel')}</span>
             <span className="canvas-fmt-dim-value">{effectsInfo.cornerRadius}px</span>
           </div>
           <input
@@ -963,31 +965,34 @@ export function CanvasFormatPanel() {
 
       {effectsInfo && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Shadow</div>
+          <div className="canvas-fmt-label">{t('canvasFormatPanel.shadowLabel')}</div>
           <div className="canvas-fmt-row">
             <button
               className={`canvas-fmt-btn${!effectsInfo.shadow ? ' canvas-fmt-btn--on' : ''}`}
               onClick={() => setEffectsMeta(effectsInfo.ids, { shadow: null })}
-              title="No shadow"
-            >None</button>
-            {SHADOW_PRESETS.map((p) => (
-              <button
-                key={p.label}
-                className={`canvas-fmt-btn${
-                  effectsInfo.shadow &&
-                  effectsInfo.shadow.blur === p.value.blur &&
-                  effectsInfo.shadow.opacity === p.value.opacity
-                    ? ' canvas-fmt-btn--on' : ''
-                }`}
-                onClick={() => setEffectsMeta(effectsInfo.ids, { shadow: p.value })}
-                title={`${p.label} shadow`}
-              >{p.label}</button>
-            ))}
+              title={t('canvasFormatPanel.noShadowTitle')}
+            >{t('canvasConstants.arrowhead.none')}</button>
+            {SHADOW_PRESETS.map((p) => {
+              const label = t(`canvasConstants.shadow.${p.label.toLowerCase()}`);
+              return (
+                <button
+                  key={p.label}
+                  className={`canvas-fmt-btn${
+                    effectsInfo.shadow &&
+                    effectsInfo.shadow.blur === p.value.blur &&
+                    effectsInfo.shadow.opacity === p.value.opacity
+                      ? ' canvas-fmt-btn--on' : ''
+                  }`}
+                  onClick={() => setEffectsMeta(effectsInfo.ids, { shadow: p.value })}
+                  title={t('canvasFormatPanel.shadowPresetTitle', { label })}
+                >{label}</button>
+              );
+            })}
           </div>
           {effectsInfo.shadow && (
             <div className="canvas-fmt-shadow-sliders">
               <div className="canvas-fmt-shadow-row">
-                <span className="canvas-fmt-shadow-label">Blur</span>
+                <span className="canvas-fmt-shadow-label">{t('canvasFormatPanel.blurLabel')}</span>
                 <input
                   type="range"
                   className="canvas-fmt-opacity-slider canvas-fmt-shadow-slider"
@@ -1026,7 +1031,7 @@ export function CanvasFormatPanel() {
                 <span className="canvas-fmt-dim-value">{effectsInfo.shadow.x}</span>
               </div>
               <div className="canvas-fmt-shadow-row">
-                <span className="canvas-fmt-shadow-label">Dark</span>
+                <span className="canvas-fmt-shadow-label">{t('canvasFormatPanel.darkLabel')}</span>
                 <input
                   type="range"
                   className="canvas-fmt-opacity-slider canvas-fmt-shadow-slider"
@@ -1046,18 +1051,18 @@ export function CanvasFormatPanel() {
       {/* Heading / Body insert buttons — shown when theme is available */}
       {theme && !arrowInfo && !selectedFrame && (
         <div className="canvas-fmt-section">
-          <div className="canvas-fmt-label">Insert</div>
+          <div className="canvas-fmt-label">{t('canvasFormatPanel.insertLabel')}</div>
           <div className="canvas-fmt-row">
             <button
               className="canvas-fmt-btn"
               onClick={() => applyTextPreset(editor, 'heading', theme)}
-              title="Set pen to heading style"
-            >Heading style</button>
+              title={t('canvasFormatPanel.headingStyleTitle')}
+            >{t('canvasFormatPanel.headingStyleButton')}</button>
             <button
               className="canvas-fmt-btn"
               onClick={() => applyTextPreset(editor, 'body', theme)}
-              title="Set pen to body style"
-            >Body style</button>
+              title={t('canvasFormatPanel.bodyStyleTitle')}
+            >{t('canvasFormatPanel.bodyStyleButton')}</button>
           </div>
         </div>
       )}

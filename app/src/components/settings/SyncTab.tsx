@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Workspace } from '../../types';
 import type { SyncDeviceFlowState, SyncedWorkspace } from '../../services/syncConfig';
 
@@ -82,31 +83,32 @@ export function SyncTab({
   onNavigateToAccount,
   onCancelDeviceFlow,
 }: SyncTabProps) {
+  const { t } = useTranslation();
   const needsGitAuthOnThisDevice = !hasLocalGitTokenForSelectedLabel;
   const activateLabel = syncAdvancedMode === 'existing'
-    ? 'Conectar repo e ativar sync'
-    : 'Criar repo e ativar sync';
+    ? t('settings.syncActivateConnectRepo')
+    : t('settings.syncActivateCreateRepo');
 
   return (
     <div className="sm-section-list">
 
       <section className="sm-section">
-        <h3 className="sm-section-title">Conta Cafezin</h3>
+        <h3 className="sm-section-title">{t('settings.accountTitle')}</h3>
 
         {syncStatus === 'checking' && (
-          <div className="sm-sync-status">Conectando…</div>
+          <div className="sm-sync-status">{t('settings.connecting')}</div>
         )}
 
         {syncStatus === 'not_connected' && (
           <p className="sm-section-desc">
-            Faça login na aba{' '}
+            {t('settings.syncLoginPre')}{' '}
             <button
               style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, font: 'inherit', textDecoration: 'underline' }}
               onClick={onNavigateToAccount}
             >
-              Conta
+              {t('settings.tabAccount')}
             </button>{' '}
-            para ativar a sincronização de workspaces.
+            {t('settings.syncLoginPost')}
           </p>
         )}
 
@@ -114,10 +116,10 @@ export function SyncTab({
           <div className="sm-sync-connected">
             <div className="sm-sync-connected-info">
               <span className="sm-sync-dot" />
-              <span>Conectado{syncUser ? ` como ${syncUser}` : ''}</span>
+              <span>{syncUser ? t('settings.connectedAs', { user: syncUser }) : t('settings.connected')}</span>
             </div>
             <button className="sm-sync-disconnect" onClick={() => void onSignOut()}>
-              Sair
+              {t('settings.signOut')}
             </button>
           </div>
         )}
@@ -125,9 +127,9 @@ export function SyncTab({
 
       {syncStatus === 'connected' && (
         <section className="sm-section">
-          <h3 className="sm-section-title">Workspaces sincronizados</h3>
+          <h3 className="sm-section-title">{t('settings.syncedWorkspacesTitle')}</h3>
           {syncWorkspaces.length === 0 ? (
-            <p className="sm-sync-empty">Nenhum workspace registrado ainda.</p>
+            <p className="sm-sync-empty">{t('settings.syncedWorkspacesEmpty')}</p>
           ) : (
             <ul className="sm-sync-ws-list">
               {syncWorkspaces.map((ws) => (
@@ -136,12 +138,12 @@ export function SyncTab({
                     <span className="sm-sync-ws-name">{ws.name}</span>
                     <span className="sm-sync-ws-url">{ws.gitUrl}</span>
                     {showGitDetails && (
-                      <span className="sm-sync-ws-label">Conta técnica: {ws.gitAccountLabel}</span>
+                      <span className="sm-sync-ws-label">{t('settings.syncTechAccount', { label: ws.gitAccountLabel })}</span>
                     )}
                   </div>
                   <button
                     className="sm-sync-ws-remove"
-                    title="Remover do sync"
+                    title={t('settings.syncRemoveFromSync') ?? ''}
                     onClick={() => onUnregister(ws.gitUrl)}
                   >✕</button>
                 </li>
@@ -154,26 +156,26 @@ export function SyncTab({
       {syncStatus === 'connected' && workspace && (
         <section className="sm-section">
           <h3 className="sm-section-title">
-            {workspace.hasGit ? 'Sync deste workspace' : 'Ativar sync deste workspace'}
+            {workspace.hasGit ? t('settings.syncThisWorkspaceTitle') : t('settings.syncActivateThisWorkspaceTitle')}
           </h3>
           {workspace.hasGit ? (
             <>
               {currentSyncEntry ? (
                 <div className="sm-sync-state-card">
-                  <strong>Este workspace já está sincronizado.</strong>
+                  <strong>{t('settings.syncAlreadySynced')}</strong>
                   <span>{currentSyncEntry.name}</span>
                   <span className="sm-sync-ws-url">{currentSyncEntry.gitUrl}</span>
-                  <span className="sm-sync-ws-label">Conta usada: {currentSyncEntry.gitAccountLabel}</span>
+                  <span className="sm-sync-ws-label">{t('settings.syncAccountUsed', { label: currentSyncEntry.gitAccountLabel })}</span>
                 </div>
               ) : (
                 <>
                   <p className="sm-section-desc">
-                    Registre este workspace para ele aparecer nos outros dispositivos conectados a esta conta.
+                    {t('settings.syncRegisterDesc')}
                   </p>
                   <div className="sm-row sm-row--col">
                     <label className="sm-label">
-                      Conta do Git para associar
-                      <span className="sm-row-desc"> — este rótulo ajuda a identificar qual credencial será usada no clone e no sync</span>
+                      {t('settings.syncGitAccountLabel')}
+                      <span className="sm-row-desc"> {t('settings.syncGitAccountLabelHint')}</span>
                     </label>
                     {gitAccounts.length > 0 ? (
                       <select
@@ -186,7 +188,7 @@ export function SyncTab({
                         ))}
                       </select>
                     ) : (
-                      <span className="sm-row-desc">Nenhum rótulo de conta Git conhecido ainda.</span>
+                      <span className="sm-row-desc">{t('settings.syncNoLabelsKnown')}</span>
                     )}
                   </div>
                   <div className="sm-sync-register">
@@ -195,7 +197,7 @@ export function SyncTab({
                       onClick={onRegister}
                       disabled={regState === 'busy' || knownGitLabels.length === 0}
                     >
-                      {regState === 'busy' ? 'Registrando…' : regState === 'done' ? '✓ Registrado' : 'Registrar no sync'}
+                      {regState === 'busy' ? t('settings.syncRegistering') : regState === 'done' ? t('settings.syncRegisteredDone') : t('settings.syncRegisterButton')}
                     </button>
                   </div>
                   {regState === 'error' && <p className="sm-sync-error" style={{ marginTop: 8 }}>{regError}</p>}
@@ -205,7 +207,7 @@ export function SyncTab({
           ) : (
             <>
               <p className="sm-section-desc">
-                O Cafezin vai conectar este workspace a um repositório Git e passar a sincronizá-lo por lá.
+                {t('settings.syncConnectRepoDesc')}
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)' }}>
@@ -215,20 +217,20 @@ export function SyncTab({
                     onClick={() => setSyncAdvancedMode('create')}
                     style={{ flex: 1, fontSize: 12 }}
                   >
-                    Criar repo novo
+                    {t('settings.syncCreateNewRepo')}
                   </button>
                   <button
                     className={`sm-secondary-btn ${syncAdvancedMode === 'existing' ? 'active' : ''}`}
                     onClick={() => setSyncAdvancedMode('existing')}
                     style={{ flex: 1, fontSize: 12 }}
                   >
-                    Usar URL existente
+                    {t('settings.syncUseExistingUrl')}
                   </button>
                 </div>
 
                 {syncAdvancedMode === 'create' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label className="sm-label">Nome do repositório</label>
+                    <label className="sm-label">{t('settings.syncRepoNameLabel')}</label>
                     <input
                       className="sm-input"
                       value={syncAdvancedRepoName}
@@ -241,20 +243,20 @@ export function SyncTab({
                         onClick={() => setSyncAdvancedPrivate(true)}
                         style={{ flex: 1, fontSize: 12 }}
                       >
-                        🔒 Privado
+                        {t('settings.syncPrivate')}
                       </button>
                       <button
                         className={`sm-secondary-btn ${!syncAdvancedPrivate ? 'active' : ''}`}
                         onClick={() => setSyncAdvancedPrivate(false)}
                         style={{ flex: 1, fontSize: 12 }}
                       >
-                        🌐 Público
+                        {t('settings.syncPublic')}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label className="sm-label">URL do repositório existente</label>
+                    <label className="sm-label">{t('settings.syncExistingRepoUrlLabel')}</label>
                     <input
                       className="sm-input"
                       value={syncAdvancedUrl}
@@ -267,8 +269,8 @@ export function SyncTab({
 
               <div className="sm-row sm-row--col">
                 <label className="sm-label">
-                  Conta do Git para usar
-                  <span className="sm-row-desc"> — é com ela que o repositório será criado ou associado</span>
+                  {t('settings.syncGitAccountToUseLabel')}
+                  <span className="sm-row-desc"> {t('settings.syncGitAccountToUseHint')}</span>
                 </label>
                 {knownGitLabels.length > 1 ? (
                   <select
@@ -278,7 +280,7 @@ export function SyncTab({
                   >
                     {knownGitLabels.map((label) => (
                       <option key={label} value={label}>
-                        {label}{gitAccounts.includes(label) ? ' (autenticada neste device)' : ' (conhecida pelo sync)'}
+                        {label}{gitAccounts.includes(label) ? t('settings.syncAuthenticatedOnDevice') : t('settings.syncKnownBySync')}
                       </option>
                     ))}
                   </select>
@@ -287,18 +289,18 @@ export function SyncTab({
                     <strong>{knownGitLabels[0]}</strong>
                     <span>
                       {gitAccounts.includes(knownGitLabels[0])
-                        ? 'Conta já autenticada neste dispositivo.'
-                        : 'Conta sugerida pelo histórico de sync. Se faltar token local, o GitHub só será pedido ao confirmar.'}
+                        ? t('settings.syncAccountAuthenticated')
+                        : t('settings.syncAccountSuggested')}
                     </span>
                   </div>
                 ) : (
-                  <span className="sm-row-desc">Nenhuma conta conhecida ainda. Escolha o destino acima; o GitHub só será pedido no final para autorizar este dispositivo.</span>
+                  <span className="sm-row-desc">{t('settings.syncNoKnownAccount')}</span>
                 )}
               </div>
 
               {(activateSyncFlowState || (gitFlowBusy && gitFlowState)) && (
                 <div className="sm-sync-flow">
-                  <p className="sm-sync-flow-text">Abra esta URL no navegador e insira o código:</p>
+                  <p className="sm-sync-flow-text">{t('settings.syncOpenUrlHint')}</p>
                   <a
                     className="sm-sync-flow-url"
                     href={(activateSyncFlowState ?? gitFlowState)!.verificationUri}
@@ -307,13 +309,13 @@ export function SyncTab({
                     {(activateSyncFlowState ?? gitFlowState)!.verificationUri}
                   </a>
                   <div className="sm-sync-flow-code">{(activateSyncFlowState ?? gitFlowState)!.userCode}</div>
-                  <p className="sm-sync-flow-hint">Aguardando autorização…</p>
+                  <p className="sm-sync-flow-hint">{t('settings.syncAwaitingAuth')}</p>
                 </div>
               )}
 
               {needsGitAuthOnThisDevice && !activateSyncFlowState && !gitFlowBusy && (
                 <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 4px' }}>
-                  Este dispositivo ainda não tem token Git para a conta escolhida. A autorização do GitHub só aparece depois que você confirmar o destino do sync.
+                  {t('settings.syncNoTokenYetHint')}
                 </p>
               )}
 
@@ -325,14 +327,14 @@ export function SyncTab({
                       disabled
                       style={{ flex: 1 }}
                     >
-                      {gitFlowBusy ? 'Aguardando GitHub…' : 'Ativando sync…'}
+                      {gitFlowBusy ? t('settings.syncAwaitingGithub') : t('settings.syncActivating')}
                     </button>
                     <button
                       className="sm-secondary-btn"
                       onClick={onCancelDeviceFlow}
                       style={{ flexShrink: 0 }}
                     >
-                      Cancelar
+                      {t('settings.syncCancel')}
                     </button>
                   </div>
                 ) : (
@@ -360,13 +362,13 @@ export function SyncTab({
             onClick={() => setShowGitDetails((value) => !value)}
             style={{ fontSize: 12 }}
           >
-            {showGitDetails ? '▲ Ocultar opções técnicas' : '▼ Opções técnicas'}
+            {showGitDetails ? t('settings.syncAdvancedOptionsHide') : t('settings.syncAdvancedOptionsShow')}
           </button>
 
           {showGitDetails && (
             <>
               <p className="sm-section-desc" style={{ marginTop: 12 }}>
-                Conecte contas Git adicionais e veja os rótulos técnicos usados para clone e sync.
+                {t('settings.syncConnectMoreAccountsDesc')}
               </p>
               {gitAccounts.length > 0 && (
                 <ul className="sm-sync-ws-list" style={{ marginBottom: 12 }}>
@@ -374,7 +376,7 @@ export function SyncTab({
                     <li key={l} className="sm-sync-ws-item">
                       <span className="sm-sync-dot" />
                       <span className="sm-sync-ws-name" style={{ marginLeft: 8 }}>{l}</span>
-                      <span className="sm-sync-ws-label" style={{ marginLeft: 'auto' }}>autenticado</span>
+                      <span className="sm-sync-ws-label" style={{ marginLeft: 'auto' }}>{t('settings.syncAuthenticatedTag')}</span>
                     </li>
                   ))}
                 </ul>
@@ -385,14 +387,14 @@ export function SyncTab({
                     className="sm-input"
                     value={gitLabel}
                     onChange={(e) => setGitLabel(e.target.value)}
-                    placeholder="Rótulo da conta (ex: pessoal, trabalho)"
+                    placeholder={t('settings.syncAccountLabelPlaceholder') ?? ''}
                   />
                   <button
                     className="sm-save-btn"
                     onClick={onConnectGitAccount}
                     disabled={gitFlowBusy || !gitLabel.trim()}
                   >
-                    {gitFlowBusy ? 'Aguardando…' : 'Conectar'}
+                    {gitFlowBusy ? t('settings.syncWaiting') : t('settings.syncConnect')}
                   </button>
                 </div>
               )}

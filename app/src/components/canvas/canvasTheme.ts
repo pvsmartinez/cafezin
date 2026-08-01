@@ -8,6 +8,7 @@ import {
   DefaultColorStyle, DefaultSizeStyle, DefaultFontStyle,
   DefaultTextAlignStyle, DefaultDashStyle, DefaultFillStyle,
 } from 'tldraw';
+import type { TFunction } from 'i18next';
 import type { CanvasTheme, TextStyle, AnyFrame } from './canvasTypes';
 import { SLIDE_W, SLIDE_H, TLDRAW_COLORS } from './canvasConstants';
 
@@ -20,14 +21,14 @@ export const DEFAULT_THEME: CanvasTheme = {
   defaultLayout: 'title-body',
 };
 
-export const PRESET_THEMES: { label: string; theme: CanvasTheme }[] = [
-  { label: 'Light',  theme: { slideBg: 'white',        heading: { font: 'sans',  size: 'xl', color: 'black',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'grey',       align: 'start' }, defaultLayout: 'title-body' } },
-  { label: 'Dark',   theme: { slideBg: 'black',        heading: { font: 'sans',  size: 'xl', color: 'white',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'grey',       align: 'start' }, defaultLayout: 'title-body' } },
-  { label: 'Navy',   theme: { slideBg: 'blue',         heading: { font: 'sans',  size: 'xl', color: 'white',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'light-blue',  align: 'start' }, defaultLayout: 'title-body' } },
-  { label: 'Violet', theme: { slideBg: 'light-violet', heading: { font: 'serif', size: 'xl', color: 'violet',     align: 'start' }, body: { font: 'serif', size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
-  { label: 'Warm',   theme: { slideBg: 'light-red',    heading: { font: 'sans',  size: 'xl', color: 'red',        align: 'start' }, body: { font: 'sans',  size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
-  { label: 'Forest', theme: { slideBg: 'light-green',  heading: { font: 'sans',  size: 'xl', color: 'green',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
-  { label: 'Retro',  theme: { slideBg: 'yellow',       heading: { font: 'draw',  size: 'xl', color: 'orange',     align: 'start' }, body: { font: 'draw',  size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
+export const PRESET_THEMES: { id: string; theme: CanvasTheme }[] = [
+  { id: 'light',  theme: { slideBg: 'white',        heading: { font: 'sans',  size: 'xl', color: 'black',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'grey',       align: 'start' }, defaultLayout: 'title-body' } },
+  { id: 'dark',   theme: { slideBg: 'black',        heading: { font: 'sans',  size: 'xl', color: 'white',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'grey',       align: 'start' }, defaultLayout: 'title-body' } },
+  { id: 'navy',   theme: { slideBg: 'blue',         heading: { font: 'sans',  size: 'xl', color: 'white',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'light-blue',  align: 'start' }, defaultLayout: 'title-body' } },
+  { id: 'violet', theme: { slideBg: 'light-violet', heading: { font: 'serif', size: 'xl', color: 'violet',     align: 'start' }, body: { font: 'serif', size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
+  { id: 'warm',   theme: { slideBg: 'light-red',    heading: { font: 'sans',  size: 'xl', color: 'red',        align: 'start' }, body: { font: 'sans',  size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
+  { id: 'forest', theme: { slideBg: 'light-green',  heading: { font: 'sans',  size: 'xl', color: 'green',      align: 'start' }, body: { font: 'sans',  size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
+  { id: 'retro',  theme: { slideBg: 'yellow',       heading: { font: 'draw',  size: 'xl', color: 'orange',     align: 'start' }, body: { font: 'draw',  size: 'l', color: 'black',       align: 'start' }, defaultLayout: 'title-body' } },
 ];
 
 export function loadThemeFromDoc(editor: Editor): CanvasTheme {
@@ -204,15 +205,15 @@ export function applyTextPreset(editor: Editor, variant: 'heading' | 'body', the
 // ── Slide layout presets ──────────────────────────────────────────────────────
 
 export const SLIDE_LAYOUT_OPTIONS = [
-  { id: 'blank',          label: 'Blank',      icon: '□',   desc: 'Empty slide' },
-  { id: 'title-only',     label: 'Title',      icon: 'T',   desc: 'Centered title only' },
-  { id: 'title-body',     label: 'Title+Body', icon: 'T/B', desc: 'Title + body text' },
-  { id: 'title-subtitle', label: 'Centered',   icon: 'T·S', desc: 'Centered title + subtitle' },
-  { id: 'two-column',     label: '2 Columns',  icon: '▌▌',  desc: 'Title + two text columns' },
-  { id: 'image-right',    label: 'Img Right',  icon: 'T▐',  desc: 'Text left + image placeholder right' },
+  { id: 'blank',          icon: '□' },
+  { id: 'title-only',     icon: 'T' },
+  { id: 'title-body',     icon: 'T/B' },
+  { id: 'title-subtitle', icon: 'T·S' },
+  { id: 'two-column',     icon: '▌▌' },
+  { id: 'image-right',    icon: 'T▐' },
 ] as const;
 
-export function applySlideLayout(editor: Editor, frame: AnyFrame, layoutId: string, theme: CanvasTheme) {
+export function applySlideLayout(editor: Editor, frame: AnyFrame, layoutId: string, theme: CanvasTheme, t: TFunction) {
   const W = frame.props.w ?? SLIDE_W;
   const H = frame.props.h ?? SLIDE_H;
   const PAD = 80;
@@ -240,22 +241,22 @@ export function applySlideLayout(editor: Editor, frame: AnyFrame, layoutId: stri
   if (layoutId === 'blank') {
     // intentionally empty
   } else if (layoutId === 'title-only') {
-    mkText(PAD, H / 2 - 70, W - PAD * 2, 'heading', 'Title', 'middle');
+    mkText(PAD, H / 2 - 70, W - PAD * 2, 'heading', t('canvasTheme.placeholder.title'), 'middle');
   } else if (layoutId === 'title-body') {
-    mkText(PAD, 100, W - PAD * 2, 'heading', 'Title');
-    mkText(PAD, 260, W - PAD * 2, 'body',    'Body text');
+    mkText(PAD, 100, W - PAD * 2, 'heading', t('canvasTheme.placeholder.title'));
+    mkText(PAD, 260, W - PAD * 2, 'body',    t('canvasTheme.placeholder.bodyText'));
   } else if (layoutId === 'title-subtitle') {
-    mkText(PAD, H / 2 - 130, W - PAD * 2, 'heading', 'Title',    'middle');
-    mkText(PAD, H / 2 +  20, W - PAD * 2, 'body',    'Subtitle', 'middle');
+    mkText(PAD, H / 2 - 130, W - PAD * 2, 'heading', t('canvasTheme.placeholder.title'),    'middle');
+    mkText(PAD, H / 2 +  20, W - PAD * 2, 'body',    t('canvasTheme.placeholder.subtitle'), 'middle');
   } else if (layoutId === 'two-column') {
     const colW = (W - PAD * 3) / 2;
-    mkText(PAD,              80,  W - PAD * 2, 'heading', 'Title');
-    mkText(PAD,              220, colW,        'body',    'Left column\nBody text here');
-    mkText(PAD * 2 + colW,  220, colW,        'body',    'Right column\nBody text here');
+    mkText(PAD,              80,  W - PAD * 2, 'heading', t('canvasTheme.placeholder.title'));
+    mkText(PAD,              220, colW,        'body',    t('canvasTheme.placeholder.leftColumn'));
+    mkText(PAD * 2 + colW,  220, colW,        'body',    t('canvasTheme.placeholder.rightColumn'));
   } else if (layoutId === 'image-right') {
     const half = (W - PAD * 3) / 2;
-    mkText(PAD, 100, half, 'heading', 'Title');
-    mkText(PAD, 260, half, 'body',    'Body text');
+    mkText(PAD, 100, half, 'heading', t('canvasTheme.placeholder.title'));
+    mkText(PAD, 260, half, 'body',    t('canvasTheme.placeholder.bodyText'));
     const rectId = createShapeId();
     editor.createShape({
       id: rectId, type: 'geo', parentId: frame.id as ReturnType<typeof createShapeId>,

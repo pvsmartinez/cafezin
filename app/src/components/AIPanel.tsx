@@ -3,6 +3,8 @@
  * The per-session logic lives in AgentSession.tsx.
  */
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle, memo } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   Snowflake,
   Microphone,
@@ -82,8 +84,8 @@ interface AIPanelProps {
   getLiveFileContent?: (relPath: string) => string | null;
   isFileDirty?: (relPath: string) => boolean;
   getAgentContextSnapshot?: () => AgentContextSnapshot;
-  onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[]) => void;
-  onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string) => void;
+  onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[], agentId?: string) => void;
+  onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string, agentId?: string, canvasRevert?: Record<string, unknown | null>) => void;
   activeFile?: string;
   rescanFramesRef?: React.MutableRefObject<(() => void) | null>;
   workspaceExportConfig?: WorkspaceExportConfig;
@@ -120,10 +122,10 @@ interface AgentTab {
   createdAt?: string;
 }
 
-function createAgentTab(index: number, model?: string, id?: string, createdAt?: string): AgentTab {
+function createAgentTab(t: TFunction, index: number, model?: string, id?: string, createdAt?: string): AgentTab {
   return {
     id: id ?? `agent-${index}`,
-    label: `Agente ${index}`,
+    label: t('aiPanel.tabDefaultLabel', { index }),
     status: 'idle',
     unread: false,
     ...(model ? { model } : {}),
@@ -160,8 +162,8 @@ function mapTabsIfChanged(tabs: AgentTab[], mapTab: (tab: AgentTab) => AgentTab)
   return changed ? nextTabs : tabs;
 }
 
-function restoreAgentTabs(tabs: WorkspaceAgentTabSession[] | undefined, fallbackModel?: string): AgentTab[] {
-  if (!tabs || tabs.length === 0) return [createAgentTab(1, fallbackModel)];
+function restoreAgentTabs(t: TFunction, tabs: WorkspaceAgentTabSession[] | undefined, fallbackModel?: string): AgentTab[] {
+  if (!tabs || tabs.length === 0) return [createAgentTab(t, 1, fallbackModel)];
   return tabs.map((tab) => ({
     id: tab.id,
     label: tab.label,
@@ -172,36 +174,36 @@ function restoreAgentTabs(tabs: WorkspaceAgentTabSession[] | undefined, fallback
   }));
 }
 
-function getTabStatusMeta(tab: AgentTab): { tone: 'idle' | 'thinking' | 'error' | 'ready'; label: string; ariaLabel: string; title: string } {
+function getTabStatusMeta(t: TFunction, tab: AgentTab): { tone: 'idle' | 'thinking' | 'error' | 'ready'; label: string; ariaLabel: string; title: string } {
   if (tab.status === 'thinking') {
     return {
       tone: 'thinking',
-      label: 'Trabalhando',
-      ariaLabel: 'a trabalhar',
-      title: 'Respondendo agora',
+      label: t('aiPanel.statusWorkingLabel'),
+      ariaLabel: t('aiPanel.statusWorkingAriaLabel'),
+      title: t('aiPanel.statusWorkingTitle'),
     };
   }
   if (tab.status === 'error') {
     return {
       tone: 'error',
-      label: 'Erro',
-      ariaLabel: 'erro',
-      title: 'Última resposta falhou',
+      label: t('aiPanel.statusErrorLabel'),
+      ariaLabel: t('aiPanel.statusErrorAriaLabel'),
+      title: t('aiPanel.statusErrorTitle'),
     };
   }
   if (tab.unread) {
     return {
       tone: 'ready',
-      label: 'Pronto',
-      ariaLabel: 'pronto e não lido',
-      title: 'Tem resposta nova nesta aba',
+      label: t('aiPanel.statusReadyLabel'),
+      ariaLabel: t('aiPanel.statusReadyUnreadAriaLabel'),
+      title: t('aiPanel.statusReadyUnreadTitle'),
     };
   }
   return {
     tone: 'idle',
-    label: 'Pronto',
-    ariaLabel: 'pronto',
-    title: 'Sem atividade pendente',
+    label: t('aiPanel.statusReadyLabel'),
+    ariaLabel: t('aiPanel.statusReadyAriaLabel'),
+    title: t('aiPanel.statusReadyTitle'),
   };
 }
 
@@ -263,6 +265,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   onOpenFileReference,
   onOpenSettings,
 }, ref) {
+  const { t } = useTranslation();
   const copilotOAuthClientId = workspaceConfig?.githubOAuth?.clientId?.trim() || undefined;
 
   // ── Account / premium entitlement ─────────────────────────────────────────
@@ -432,7 +435,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   }, [activeProvider, availableModels, initialModel]);
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
-  const [tabs, setTabs] = useState<AgentTab[]>(() => [createAgentTab(1, initialModel)]);
+  const [tabs, setTabs] = useState<AgentTab[]>(() => [createAgentTab(t, 1, initialModel)]);
   const [activeTabId, setActiveTabId] = useState('agent-1');
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renamingValue, setRenamingValue] = useState('');
@@ -458,8 +461,8 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
   useEffect(() => {
     const restoredTabs = workspacePath
-      ? restoreAgentTabs(loadWorkspaceSession(workspacePath).aiTabs, initialModel)
-      : [createAgentTab(1, initialModel)];
+      ? restoreAgentTabs(t, loadWorkspaceSession(workspacePath).aiTabs, initialModel)
+      : [createAgentTab(t, 1, initialModel)];
     const session = workspacePath ? loadWorkspaceSession(workspacePath) : null;
     const nextActive = session?.activeAiTabId && restoredTabs.some((tab) => tab.id === session.activeAiTabId)
       ? session.activeAiTabId
@@ -493,7 +496,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
   async function handleTranscribeAndSend(memo: PendingVoiceMemo) {
     const groqKey = getGroqKey();
-    if (!groqKey) { setMemoError('Chave Groq não configurada.'); return; }
+    if (!groqKey) { setMemoError(t('aiPanel.groqKeyMissingError')); return; }
     setProcessingMemo(memo.stem);
     setMemoError(null);
     try {
@@ -526,7 +529,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
       onVoiceMemoHandled?.(memo.stem);
       if (pendingVoiceMemos && pendingVoiceMemos.length <= 1) setVoicePanelOpen(false);
     } catch (err) {
-      setMemoError(`Erro: ${err}`);
+      setMemoError(t('aiPanel.transcriptionError', { error: String(err) }));
     } finally {
       setProcessingMemo(null);
     }
@@ -537,8 +540,8 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     const id = `agent-${n}-${Date.now()}`;
     const activeModel = tabs.find((tab) => tab.id === activeTabId)?.model ?? initialModel;
     setTabs((prev) => {
-      const next = createAgentTab(n, activeModel, id);
-      return [...prev, { ...next, label: `Agente ${n}` }];
+      const next = createAgentTab(t, n, activeModel, id);
+      return [...prev, next];
     });
     setActiveTabId(id);
     onExpand?.();
@@ -612,19 +615,19 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
         <button
           className="ai-panel-expand-btn"
           onClick={onExpand}
-          title="Expandir painel"
+          title={t('aiPanel.expandPanelTitle')}
         >
           <CaretLeft weight="thin" size={14} />
         </button>
         <div className="ai-panel-icon-strip">
           {tabs.map((tab, i) => {
-            const statusMeta = getTabStatusMeta(tab);
+            const statusMeta = getTabStatusMeta(t, tab);
             return (
               <button
                 key={tab.id}
                 className={`ai-panel-icon-btn${activeTabId === tab.id ? ' ai-panel-icon-btn--active' : ''}`}
                 onClick={() => { onExpand?.(); setActiveTabId(tab.id); }}
-                title={`${tab.label} — ${statusMeta.label}${tab.unread ? ' — não lido' : ''}`}
+                title={`${tab.label} — ${statusMeta.label}${tab.unread ? t('aiPanel.unreadSuffix') : ''}`}
               >
                 <span className={`ai-panel-icon-dot ai-panel-icon-dot--${statusMeta.tone}`} />
                 <span className="ai-panel-icon-num">{i + 1}</span>
@@ -642,7 +645,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
       {/* Tab bar */}
       <div className="ai-tab-bar">
         {tabs.map((tab) => {
-          const statusMeta = getTabStatusMeta(tab);
+          const statusMeta = getTabStatusMeta(t, tab);
           const isRenaming = renamingTabId === tab.id;
           return (
           <div
@@ -666,15 +669,15 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
                 }}
                 autoFocus
                 spellCheck={false}
-                aria-label="Renomear agente"
+                aria-label={t('aiPanel.renameAgentAriaLabel')}
               />
             ) : (
               <button
                 className="ai-tab-label"
                 onClick={() => setActiveTabId(tab.id)}
                 onDoubleClick={() => startRenaming(tab)}
-                title={`${tab.label} — ${statusMeta.title}. Duplo clique para renomear`}
-                aria-label={`${tab.label}. Status: ${statusMeta.ariaLabel}`}
+                title={`${tab.label} — ${statusMeta.title}${t('aiPanel.doubleClickToRenameSuffix')}`}
+                aria-label={`${tab.label}${t('aiPanel.statusAriaPrefix')}${statusMeta.ariaLabel}`}
               >
                 <span className="ai-tab-name">{tab.label}</span>
                 <span
@@ -689,20 +692,20 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
             <button
               className="ai-tab-close"
               onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-              title={tabs.length === 1 ? 'Fechar painel' : 'Fechar agente'}
+              title={tabs.length === 1 ? t('aiPanel.closePanelTitle') : t('aiPanel.closeAgentTitle')}
             >
               <Snowflake weight="thin" size={10} />
             </button>
           </div>
           );
         })}
-        <button className="ai-tab-add" onClick={addTab} title="Novo agente">
+        <button className="ai-tab-add" onClick={addTab} title={t('aiPanel.newAgentTitle')}>
           +
         </button>
         <button
           className="ai-tab-collapse"
           onClick={onCollapse}
-          title="Minimizar painel"
+          title={t('aiPanel.collapsePanelTitle')}
         >
           <CaretRight weight="thin" size={12} />
         </button>
@@ -717,7 +720,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           >
             <Microphone size={12} weight="fill" />
             <span>
-              {pendingVoiceMemos.length} memo{pendingVoiceMemos.length > 1 ? 's' : ''} de voz pendente{pendingVoiceMemos.length > 1 ? 's' : ''}
+              {t('aiPanel.voiceMemoPending', { count: pendingVoiceMemos.length })}
             </span>
             {voicePanelOpen ? <CaretUp size={10} /> : <CaretDown size={10} />}
           </button>
@@ -735,7 +738,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
                       onClick={() => handleTranscribeAndSend(memo)}
                       disabled={!!processingMemo}
                     >
-                      {processingMemo === memo.stem ? 'Transcrevendo…' : 'Transcrever & Enviar'}
+                      {processingMemo === memo.stem ? t('aiPanel.transcribing') : t('aiPanel.transcribeAndSend')}
                     </button>
                   </div>
                 );

@@ -3,6 +3,7 @@
  * Supports two tabs: URL input and workspace image picker.
  */
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 
 interface CanvasImageDialogProps {
   workspacePath: string;
@@ -25,6 +26,7 @@ export function CanvasImageDialog({
   wsImages, wsImagesLoading,
   onClose, onAddFromUrl, onPickWorkspaceImage, onLoadWsImages,
 }: CanvasImageDialogProps) {
+  const { t } = useTranslation();
   return (
     <div
       className="canvas-img-dialog"
@@ -32,16 +34,16 @@ export function CanvasImageDialog({
     >
       <div className="canvas-img-dialog-box">
         <div className="canvas-img-dialog-header">
-          <div className="canvas-img-dialog-title">Add image</div>
+          <div className="canvas-img-dialog-title">{t('canvasImageDialog.title')}</div>
           <div className="canvas-img-dialog-tabs">
             <button
               className={`canvas-img-tab${imgTab === 'url' ? ' canvas-img-tab--active' : ''}`}
               onClick={() => setImgTab('url')}
-            >URL</button>
+            >{t('canvasImageDialog.tabUrl')}</button>
             <button
               className={`canvas-img-tab${imgTab === 'workspace' ? ' canvas-img-tab--active' : ''}`}
               onClick={() => { setImgTab('workspace'); if (wsImages.length === 0) onLoadWsImages(); }}
-            >Workspace</button>
+            >{t('canvasImageDialog.tabWorkspace')}</button>
           </div>
         </div>
 
@@ -60,21 +62,21 @@ export function CanvasImageDialog({
               autoFocus
             />
             <div className="canvas-img-dialog-actions">
-              <button className="canvas-img-dialog-cancel" onClick={onClose}>Cancel</button>
+              <button className="canvas-img-dialog-cancel" onClick={onClose}>{t('canvasImageDialog.cancel')}</button>
               <button
                 className="canvas-img-dialog-add"
                 disabled={!imgUrlInput.trim()}
                 onClick={() => { onAddFromUrl(imgUrlInput); onClose(); }}
-              >Add</button>
+              >{t('canvasImageDialog.add')}</button>
             </div>
           </>
         ) : (
           <>
             <div className="canvas-img-ws-grid">
               {wsImagesLoading ? (
-                <div className="canvas-img-ws-loading">Loading…</div>
+                <div className="canvas-img-ws-loading">{t('canvasImageDialog.loading')}</div>
               ) : wsImages.length === 0 ? (
-                <div className="canvas-img-ws-empty">No images found in workspace</div>
+                <div className="canvas-img-ws-empty">{t('canvasImageDialog.noImagesFound')}</div>
               ) : (
                 wsImages.map((relPath) => (
                   <button
@@ -95,8 +97,8 @@ export function CanvasImageDialog({
               )}
             </div>
             <div className="canvas-img-dialog-actions">
-              <button className="canvas-img-dialog-cancel" onClick={onClose}>Cancel</button>
-              <button className="canvas-img-dialog-cancel" onClick={onLoadWsImages} style={{ marginRight: 'auto' }}>↺ Refresh</button>
+              <button className="canvas-img-dialog-cancel" onClick={onClose}>{t('canvasImageDialog.cancel')}</button>
+              <button className="canvas-img-dialog-cancel" onClick={onLoadWsImages} style={{ marginRight: 'auto' }}>↺ {t('canvasImageDialog.refresh')}</button>
             </div>
           </>
         )}

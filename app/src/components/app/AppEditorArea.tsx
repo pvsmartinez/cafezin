@@ -1,4 +1,5 @@
 import { lazy, memo, Suspense, type ComponentProps, type MutableRefObject, type RefObject } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Editor as TldrawEditor } from 'tldraw';
 import Editor from '../Editor';
 import type { EditorHandle } from '../Editor';
@@ -153,6 +154,7 @@ export function AppEditorAreaInner({
   onImagePaste,
 
 }: AppEditorAreaProps) {
+  const { t } = useTranslation();
   return (
     <div className="editor-area" ref={editorAreaRef}>
       <TabBar
@@ -290,13 +292,30 @@ export function AppEditorAreaInner({
               <div
                 className="ws-empty"
                 onClick={() => onSetHomeVisible(true)}
-                title="Abrir workspace home"
+                title={t('appEditorArea.wsEmptyHomeTitle')}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(event) => event.key === 'Enter' && onSetHomeVisible(true)}
               >
                 <span className="ws-empty-logo">✦</span>
                 <span className="ws-empty-name">cafezin</span>
+                <span className="ws-empty-hint">{t('appEditorArea.wsEmptyHint')}</span>
+                <span className="ws-empty-actions" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="ws-empty-btn"
+                    onClick={() => onSetHomeVisible(true)}
+                  >
+                    {t('appEditorArea.wsEmptyHomeBtn')}
+                  </button>
+                  <button
+                    type="button"
+                    className="ws-empty-btn ws-empty-btn--primary"
+                    onClick={() => window.dispatchEvent(new CustomEvent('cafezin:open-ai'))}
+                  >
+                    ✦ {t('appEditorArea.wsEmptyAskAI')}
+                  </button>
+                </span>
               </div>
             ) : viewMode === 'preview' && fileTypeInfo?.kind === 'markdown' ? (
               <MarkdownPreview

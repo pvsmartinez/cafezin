@@ -14,7 +14,7 @@
  * Consumers: App.tsx, canvasTools.ts, CanvasEditor.tsx, useAIScreenshot.ts, useAIStream.ts
  */
 
-import type { Editor, TLRichText, TLShapeId } from 'tldraw';
+import type { Editor, TLRichText, TLShapeId, TLShape } from 'tldraw';
 import { renderPlaintextFromRichText } from 'tldraw';
 import type { TLFrameShape } from '@tldraw/tlschema';
 
@@ -302,14 +302,47 @@ export function canvasAIContext(editor: Editor, filename: string): string {
 // ── Screenshot helpers ────────────────────────────────────────────────────────
 
 /**
+ * Frame under the viewport center — the slide the user is currently looking
+ * at. Falls back to the frame nearest the viewport center when the camera is
+ * between slides, and to `null` when the page has no frames.
+ */
+function frameInView(editor: Editor): TLShape | null {
+  const frames = editor.getCurrentPageShapes().filter((s) => s.type === 'frame');
+  if (frames.length === 0) return null;
+  const center = editor.getViewportPageBounds().center;
+  const inside = frames.find((f) => {
+    const b = editor.getShapePageBounds(f.id);
+    return b ? b.containsPoint(center) : false;
+  });
+  if (inside) return inside;
+  let best: TLShape | null = null;
+  let bestDist = Infinity;
+  for (const f of frames) {
+    const b = editor.getShapePageBounds(f.id);
+    if (!b) continue;
+    const d = (b.center.x - center.x) ** 2 + (b.center.y - center.y) ** 2;
+    if (d < bestDist) { bestDist = d; best = f; }
+  }
+  return best;
+}
+
+/**
  * Renders the current canvas page to a base64 PNG data URL.
  * pixelRatio 1 = screen size (~60-150 kB), 1.5 = sharper for vision sends (~150-350 kB).
  * Returns '' when the canvas is empty or rendering fails.
+ *
+ * When the page contains slides (frames), only the slide currently in view is
+ * rendered — a full-page panorama of 20+ slides would be squeezed into a tiny
+ * image the vision model can't read, and can exceed the WebKit canvas limit.
  */
 export async function canvasToDataUrl(editor: Editor, pixelRatio = 1): Promise<string> {
   const shapes = editor.getCurrentPageShapes();
   if (shapes.length === 0) return '';
-  const ids = shapes.map((s) => s.id);
+  let ids = shapes.map((s) => s.id);
+  const frame = frameInView(editor);
+  if (frame) {
+    ids = [frame.id, ...shapes.filter((s) => s.parentId === frame.id).map((s) => s.id)];
+  }
   try {
     const { url } = await editor.toImageDataUrl(ids, {
       format: 'png',

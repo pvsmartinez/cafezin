@@ -7,6 +7,7 @@
  * - Brief lock-flash animation on first touch
  */
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import type { Editor, TLShapeId, TLShape } from 'tldraw';
 import { createShapeId } from 'tldraw';
 import { SLIDE_W, SLIDE_H } from './canvasConstants';
@@ -30,6 +31,7 @@ export function CanvasContextMenus({
   lockPill, setLockPill,
   lockFlash,
 }: CanvasContextMenusProps) {
+  const { t } = useTranslation();
   return (
     <>
       {/* ── Shape right-click context menu ────────────────────────────────── */}
@@ -49,14 +51,14 @@ export function CanvasContextMenus({
                 if (ed) ed.duplicateShapes([shapeId], { x: 16, y: 16 });
                 dismiss();
               }}>
-                <span className="canvas-ctx-icon">⧉</span> Duplicate
+                <span className="canvas-ctx-icon">⧉</span> {t('canvasCtxMenu.duplicate')}
               </button>
               <div className="canvas-ctx-sep" />
               <button className="canvas-ctx-item" onClick={() => { editorRef.current?.bringForward([shapeId]); dismiss(); }}>
-                <span className="canvas-ctx-icon">⬆</span> Bring Forward
+                <span className="canvas-ctx-icon">⬆</span> {t('canvasCtxMenu.bringForward')}
               </button>
               <button className="canvas-ctx-item" onClick={() => { editorRef.current?.sendBackward([shapeId]); dismiss(); }}>
-                <span className="canvas-ctx-icon">⬇</span> Send Backward
+                <span className="canvas-ctx-icon">⬇</span> {t('canvasCtxMenu.sendBackward')}
               </button>
               <div className="canvas-ctx-sep" />
               {/* Wrap as Slide — creates a slide frame around selected shapes */}
@@ -74,13 +76,13 @@ export function CanvasContextMenus({
                 const fx = bounds.x - (fw - bounds.w) / 2;
                 const fy = bounds.y - (fh - bounds.h) / 2;
                 const frameId = createShapeId();
-                ed.createShape({ id: frameId, type: 'frame', x: fx, y: fy, props: { w: fw, h: fh, name: 'Slide' } });
+                ed.createShape({ id: frameId, type: 'frame', x: fx, y: fy, props: { w: fw, h: fh, name: '' } });
                 ed.reparentShapes(targetIds, frameId);
                 applyThemeToSlides(ed, loadThemeFromDoc(ed));
                 ed.setSelectedShapes([frameId]);
                 dismiss();
               }}>
-                <span className="canvas-ctx-icon">⊞</span> Wrap as Slide
+                <span className="canvas-ctx-icon">⊞</span> {t('canvasCtxMenu.wrapAsSlide')}
               </button>
               <div className="canvas-ctx-sep" />
               <button className="canvas-ctx-item" onClick={() => {
@@ -93,14 +95,14 @@ export function CanvasContextMenus({
                 }
                 dismiss();
               }}>
-                <span className="canvas-ctx-icon">🔒</span> Lock
+                <span className="canvas-ctx-icon">🔒</span> {t('canvasCtxMenu.lock')}
               </button>
               <div className="canvas-ctx-sep" />
               <button className="canvas-ctx-item canvas-ctx-item--danger" onClick={() => {
                 editorRef.current?.deleteShapes([shapeId]);
                 dismiss();
               }}>
-                <span className="canvas-ctx-icon">✕</span> Delete
+                <span className="canvas-ctx-icon">✕</span> {t('canvasCtxMenu.delete')}
               </button>
             </div>
           </>,
@@ -127,7 +129,7 @@ export function CanvasContextMenus({
                 dismiss();
               }}
             >
-              🔓 Unlock
+              🔓 {t('canvasCtxMenu.unlock')}
             </button>
           </>,
           document.body

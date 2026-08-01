@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { McpServerConfig } from '../../types';
 import {
   loadMcpServerConfigs,
@@ -11,7 +13,7 @@ import {
   type McpServerStatus,
 } from '../../services/mcpClient';
 
-// ── Catálogo de servidores populares para escritores e professores ────────────
+// ── Catalog of popular servers for writers and teachers ────────────────────
 
 interface CatalogEntry {
   name: string;
@@ -22,48 +24,50 @@ interface CatalogEntry {
   note?: string;
 }
 
-const CATALOG: CatalogEntry[] = [
-  {
-    name: 'Arquivos Locais',
-    description: 'Lê e escreve arquivos locais. Ideal para vaults do Obsidian, projetos e documentos.',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-filesystem', '/caminho/para/pasta'],
-    note: 'Substitua /caminho/para/pasta pelo diretório que deseja expor.',
-  },
-  {
-    name: 'Busca na Web (Brave)',
-    description: 'Pesquisa na web em tempo real via Brave Search. Ótimo para pesquisa acadêmica e criação de conteúdo.',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-brave-search'],
-    envKeys: [{ key: 'BRAVE_API_KEY', hint: 'Obtenha em brave.com/search/api' }],
-  },
-  {
-    name: 'Notion',
-    description: 'Lê, cria e edita páginas e databases do Notion. Perfeito para notas de aula, wikis e base de conhecimento.',
-    command: 'npx',
-    args: ['-y', '@notionhq/notion-mcp-server'],
-    envKeys: [{ key: 'NOTION_TOKEN', hint: 'Crie uma integração em notion.so/profile/integrations' }],
-  },
-  {
-    name: 'Google Drive',
-    description: 'Acessa e pesquisa arquivos no Google Drive, incluindo Docs, Sheets e Slides.',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-gdrive'],
-    note: 'Requer OAuth do Google. Rode uma vez no terminal para autenticar.',
-  },
-  {
-    name: 'Memória / Grafo de Conhecimento',
-    description: 'Memória persistente entre conversas. Salva entidades, relações e fatos que o agente pode consultar sempre.',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-memory'],
-  },
-  {
-    name: 'Fetch / Leitura de URLs',
-    description: 'Faz requisições HTTP e lê o conteúdo de páginas web. Útil para pesquisar artigos, documentação e referências.',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-fetch'],
-  },
-];
+function buildCatalog(t: TFunction): CatalogEntry[] {
+  return [
+    {
+      name: t('settings.mcpCatalogFilesystemName'),
+      description: t('settings.mcpCatalogFilesystemDesc'),
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', t('settings.mcpCatalogFilesystemPathArg')],
+      note: t('settings.mcpCatalogFilesystemNote'),
+    },
+    {
+      name: t('settings.mcpCatalogWebSearchName'),
+      description: t('settings.mcpCatalogWebSearchDesc'),
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-brave-search'],
+      envKeys: [{ key: 'BRAVE_API_KEY', hint: t('settings.mcpCatalogWebSearchHint') }],
+    },
+    {
+      name: 'Notion',
+      description: t('settings.mcpCatalogNotionDesc'),
+      command: 'npx',
+      args: ['-y', '@notionhq/notion-mcp-server'],
+      envKeys: [{ key: 'NOTION_TOKEN', hint: t('settings.mcpCatalogNotionHint') }],
+    },
+    {
+      name: 'Google Drive',
+      description: t('settings.mcpCatalogGdriveDesc'),
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-gdrive'],
+      note: t('settings.mcpCatalogGdriveNote'),
+    },
+    {
+      name: t('settings.mcpCatalogMemoryName'),
+      description: t('settings.mcpCatalogMemoryDesc'),
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-memory'],
+    },
+    {
+      name: t('settings.mcpCatalogFetchName'),
+      description: t('settings.mcpCatalogFetchDesc'),
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-fetch'],
+    },
+  ];
+}
 
 const EMPTY_FORM: Omit<McpServerConfig, 'id'> = {
   name: '',
@@ -79,6 +83,8 @@ function generateId(): string {
 }
 
 export function McpTab() {
+  const { t } = useTranslation();
+  const CATALOG = buildCatalog(t);
   const [servers, setServers] = useState<McpServerConfig[]>(() => loadMcpServerConfigs());
   const [statuses, setStatuses] = useState<Record<string, McpServerStatus>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -212,10 +218,10 @@ export function McpTab() {
 
   function statusDot(status: McpServerStatus | undefined) {
     switch (status) {
-      case 'connected': return <span title="Conectado" style={{ color: '#22c55e' }}>●</span>;
-      case 'connecting': return <span title="Conectando…" style={{ color: '#f59e0b' }}>●</span>;
-      case 'error': return <span title="Erro" style={{ color: '#ef4444' }}>●</span>;
-      default: return <span title="Parado" style={{ color: '#71717a' }}>●</span>;
+      case 'connected': return <span title={t('settings.mcpStatusConnected') ?? ''} style={{ color: '#22c55e' }}>●</span>;
+      case 'connecting': return <span title={t('settings.connecting') ?? ''} style={{ color: '#f59e0b' }}>●</span>;
+      case 'error': return <span title={t('settings.mcpStatusError') ?? ''} style={{ color: '#ef4444' }}>●</span>;
+      default: return <span title={t('settings.mcpStatusStopped') ?? ''} style={{ color: '#71717a' }}>●</span>;
     }
   }
 
@@ -224,15 +230,14 @@ export function McpTab() {
   return (
     <div className="sm-section-list">
       <section className="sm-section">
-        <h3 className="sm-section-title">Servidores MCP</h3>
+        <h3 className="sm-section-title">{t('settings.mcpServersTitle')}</h3>
         <p className="sm-section-desc">
-          Model Context Protocol — conecte ferramentas externas ao agente.
-          Cada servidor MCP expõe um conjunto de ferramentas que o agente pode invocar.
+          {t('settings.mcpServersDesc')}
         </p>
 
         {servers.length === 0 && !isEditing && (
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-            Nenhum servidor configurado.
+            {t('settings.mcpNoneConfigured')}
           </p>
         )}
 
@@ -244,7 +249,7 @@ export function McpTab() {
                 type="checkbox"
                 checked={s.enabled}
                 onChange={() => toggleEnabled(s.id)}
-                title={s.enabled ? 'Desativar' : 'Ativar'}
+                title={(s.enabled ? t('settings.mcpDisable') : t('settings.mcpEnable')) ?? ''}
               />
               {statusDot(statuses[s.id])}
               <span style={{ flex: 1, fontWeight: 500, fontSize: '0.9rem' }}>{s.name}</span>
@@ -255,21 +260,21 @@ export function McpTab() {
                 className="sm-btn sm-btn--small"
                 onClick={() => void testServer(s)}
                 disabled={testingId === s.id}
-                title="Testar conexão"
+                title={t('settings.mcpTestConnection') ?? ''}
               >
-                {testingId === s.id ? '…' : 'Testar'}
+                {testingId === s.id ? '…' : t('settings.mcpTest')}
               </button>
               <button
                 className="sm-btn sm-btn--small"
                 onClick={() => startEdit(s)}
-                title="Editar"
+                title={t('settings.mcpEdit') ?? ''}
               >
-                Editar
+                {t('settings.mcpEdit')}
               </button>
               <button
                 className="sm-btn sm-btn--small sm-btn--danger"
                 onClick={() => removeServer(s.id)}
-                title="Remover"
+                title={t('settings.mcpRemove') ?? ''}
               >
                 ✕
               </button>
@@ -288,12 +293,12 @@ export function McpTab() {
                   className="sm-btn sm-btn--link"
                   onClick={() => setExpanded((p) => ({ ...p, [s.id]: !p[s.id] }))}
                 >
-                  {expanded[s.id] ? 'Ocultar ferramentas' : `Ver ferramentas (${getMcpServerTools(s.id).length})`}
+                  {expanded[s.id] ? t('settings.mcpHideTools') : t('settings.mcpViewTools', { count: getMcpServerTools(s.id).length })}
                 </button>
                 {expanded[s.id] && (
                   <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {getMcpServerTools(s.id).map((t) => (
-                      <li key={t.name} title={t.description}>{t.name}</li>
+                    {getMcpServerTools(s.id).map((tool) => (
+                      <li key={tool.name} title={tool.description}>{tool.name}</li>
                     ))}
                   </ul>
                 )}
@@ -306,33 +311,33 @@ export function McpTab() {
         {isEditing && (
           <div className="sm-section" style={{ background: 'var(--bg-subtle, var(--bg-secondary))', borderRadius: '6px', padding: '0.75rem', marginTop: '0.5rem' }}>
             <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
-              {editId ? 'Editar servidor' : 'Novo servidor MCP'}
+              {editId ? t('settings.mcpEditServerTitle') : t('settings.mcpNewServerTitle')}
             </h4>
 
             <div className="sm-row sm-row--col">
-              <label className="sm-label">Nome</label>
+              <label className="sm-label">{t('settings.mcpNameLabel')}</label>
               <input
                 className="sm-input"
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                placeholder="Ex: Filesystem"
+                placeholder={t('settings.mcpNamePlaceholder') ?? ''}
               />
             </div>
 
             <div className="sm-row sm-row--col">
-              <label className="sm-label">Comando</label>
+              <label className="sm-label">{t('settings.mcpCommandLabel')}</label>
               <input
                 className="sm-input"
                 value={form.command}
                 onChange={(e) => setForm((p) => ({ ...p, command: e.target.value }))}
-                placeholder="Ex: npx ou /usr/local/bin/mcp-server"
+                placeholder={t('settings.mcpCommandPlaceholder') ?? ''}
               />
             </div>
 
             <div className="sm-row sm-row--col">
               <label className="sm-label">
-                Argumentos
-                <span className="sm-row-desc"> — um por linha</span>
+                {t('settings.mcpArgsLabel')}
+                <span className="sm-row-desc"> {t('settings.mcpArgsHint')}</span>
               </label>
               <textarea
                 className="sm-input"
@@ -346,8 +351,8 @@ export function McpTab() {
 
             <div className="sm-row sm-row--col">
               <label className="sm-label">
-                Variáveis de ambiente
-                <span className="sm-row-desc"> — formato KEY=VALUE, um por linha</span>
+                {t('settings.mcpEnvLabel')}
+                <span className="sm-row-desc"> {t('settings.mcpEnvHint')}</span>
               </label>
               <textarea
                 className="sm-input"
@@ -360,14 +365,14 @@ export function McpTab() {
             </div>
 
             <div className="sm-row">
-              <label className="sm-label">Escopo</label>
+              <label className="sm-label">{t('settings.mcpScopeLabel')}</label>
               <select
                 className="sm-select"
                 value={form.scope}
                 onChange={(e) => setForm((p) => ({ ...p, scope: e.target.value as 'global' | 'workspace' }))}
               >
-                <option value="global">Global (todos os workspaces)</option>
-                <option value="workspace">Workspace atual</option>
+                <option value="global">{t('settings.mcpScopeGlobal')}</option>
+                <option value="workspace">{t('settings.mcpScopeWorkspace')}</option>
               </select>
             </div>
 
@@ -377,9 +382,9 @@ export function McpTab() {
                 onClick={saveForm}
                 disabled={!form.name.trim() || !form.command.trim()}
               >
-                Salvar
+                {t('settings.mcpSave')}
               </button>
-              <button className="sm-btn" onClick={cancelForm}>Cancelar</button>
+              <button className="sm-btn" onClick={cancelForm}>{t('settings.mcpCancel')}</button>
             </div>
           </div>
         )}
@@ -387,19 +392,19 @@ export function McpTab() {
         {!isEditing && (
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
             <button className="sm-btn" onClick={startAdd}>
-              + Adicionar servidor MCP
+              {t('settings.mcpAddServerButton')}
             </button>
             <button className="sm-btn" onClick={() => setShowCatalog((p) => !p)}>
-              {showCatalog ? 'Ocultar catálogo' : '✦ Catálogo de servidores'}
+              {showCatalog ? t('settings.mcpHideCatalog') : t('settings.mcpShowCatalog')}
             </button>
           </div>
         )}
 
-        {/* Catálogo */}
+        {/* Catalog */}
         {showCatalog && !isEditing && (
           <div style={{ marginTop: '0.75rem' }}>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-              Clique em <strong>Usar</strong> para pré-preencher o formulário com as configurações do servidor.
+              {t('settings.mcpCatalogUseHintPre')} <strong>{t('settings.mcpUse')}</strong> {t('settings.mcpCatalogUseHintPost')}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {CATALOG.map((entry) => (
@@ -422,7 +427,7 @@ export function McpTab() {
                     </div>
                     {entry.envKeys && (
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                        🔑 Requer: {entry.envKeys.map((e) => e.key).join(', ')}
+                        {t('settings.mcpRequires')} {entry.envKeys.map((e) => e.key).join(', ')}
                       </div>
                     )}
                     {entry.note && (
@@ -436,7 +441,7 @@ export function McpTab() {
                     onClick={() => prefillFromCatalog(entry)}
                     style={{ flexShrink: 0, alignSelf: 'center' }}
                   >
-                    Usar
+                    {t('settings.mcpUse')}
                   </button>
                 </div>
               ))}
@@ -446,12 +451,9 @@ export function McpTab() {
       </section>
 
       <section className="sm-section">
-        <h3 className="sm-section-title">O que é MCP?</h3>
+        <h3 className="sm-section-title">{t('settings.mcpWhatIsTitle')}</h3>
         <p className="sm-row-desc" style={{ lineHeight: 1.5 }}>
-          Model Context Protocol é um padrão aberto que permite ao agente do Cafezin
-          usar ferramentas fornecidas por servidores externos — acesso a arquivos,
-          pesquisa na web, bancos de dados, APIs e muito mais.{' '}
-          Servidores MCP são encontrados em{' '}
+          {t('settings.mcpWhatIsDesc')}{' '}
           <span style={{ fontFamily: 'monospace', fontSize: '0.82rem' }}>modelcontextprotocol.io</span>.
         </p>
       </section>

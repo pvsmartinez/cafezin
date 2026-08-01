@@ -81,24 +81,22 @@ configure_macos_linker_workaround() {
   fi
 }
 
-# ── Load signing key for release builds ─────────────────────────────────────
+# ── Load signing key (updater artifacts) ────────────────────────────────────
 SIGNING_KEY_FILE="$HOME/.tauri/cafezin.key"
-if [[ "$DO_RELEASE" == "true" ]]; then
-  if [[ -f "$SIGNING_KEY_FILE" ]]; then
-    export TAURI_SIGNING_PRIVATE_KEY
-    TAURI_SIGNING_PRIVATE_KEY="$(cat "$SIGNING_KEY_FILE")"
-    echo "▸ Signing key loaded from $SIGNING_KEY_FILE"
-    if [[ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
-      echo "▸ Signing key password loaded from environment"
-    else
-      # Do NOT set TAURI_SIGNING_PRIVATE_KEY_PASSWORD when empty — Tauri handles
-      # no-password keys better when the var is UNSET (None) vs set to "" (Some(""))
-      unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-    fi
+if [[ -f "$SIGNING_KEY_FILE" ]]; then
+  export TAURI_SIGNING_PRIVATE_KEY
+  TAURI_SIGNING_PRIVATE_KEY="$(cat "$SIGNING_KEY_FILE")"
+  echo "▸ Signing key loaded from $SIGNING_KEY_FILE"
+  if [[ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
+    echo "▸ Signing key password loaded from environment"
   else
-    echo "⚠  No signing key at $SIGNING_KEY_FILE — build will not be signed."
-    echo "   Generate one with: npx tauri signer generate -w $SIGNING_KEY_FILE"
+    # Do NOT set TAURI_SIGNING_PRIVATE_KEY_PASSWORD when empty — Tauri handles
+    # no-password keys better when the var is UNSET (None) vs set to "" (Some(""))
+    unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
   fi
+else
+  echo "⚠  No signing key at $SIGNING_KEY_FILE — build will not be signed."
+  echo "   Generate one with: npx tauri signer generate -w $SIGNING_KEY_FILE"
 fi
 
 # ── Codesign + Notarize (release builds) ────────────────────────────────────
@@ -230,10 +228,13 @@ DMG_PATH=""
 TARGZ_PATH=""
 TARGZ_SIG_PATH=""
 
-APP_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name '*.app' 2>/dev/null | head -1)"
-DMG_PATH="$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name '*.dmg' 2>/dev/null | head -1)"
-TARGZ_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name '*.tar.gz' 2>/dev/null | head -1)"
-TARGZ_SIG_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name '*.tar.gz.sig' 2>/dev/null | head -1)"
+# NOTE: `|| true` is required — under `set -euo pipefail`, `find` on a
+# non-existent directory (e.g. bundle/dmg/ on --bundles app builds) exits 2
+# and the pipeline would kill the script.
+APP_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name '*.app' 2>/dev/null | head -1 || true)"
+DMG_PATH="$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name '*.dmg' 2>/dev/null | head -1 || true)"
+TARGZ_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name '*.tar.gz' 2>/dev/null | head -1 || true)"
+TARGZ_SIG_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name '*.tar.gz.sig' 2>/dev/null | head -1 || true)"
 
 if [[ -z "$APP_PATH" && -z "$DMG_PATH" ]]; then
   echo ""
@@ -302,7 +303,7 @@ if [[ "$DO_RELEASE" == "true" && -n "$DMG_PATH" ]]; then
     else
       # Tauri DMG fallback (build it now since we skipped --bundles dmg above)
       npm run tauri build -- --bundles dmg
-      DMG_PATH="$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name '*.dmg' 2>/dev/null | head -1)"
+      DMG_PATH="$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name '*.dmg' 2>/dev/null | head -1 || true)"
       cp "$DMG_PATH" "$ROOT_DIR/$DMG_DEST"
       cp "$DMG_PATH" "$ROOT_DIR/Cafezin.dmg"
     fi

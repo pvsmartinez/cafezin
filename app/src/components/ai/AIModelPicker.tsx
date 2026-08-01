@@ -1,19 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CopilotModel, CopilotModelInfo } from '../../types';
 
-const RECOMMENDED_MODEL_META: Record<string, { badge: string; hint: string }> = {
-  'gpt-5-mini': { badge: 'Padrao', hint: 'Melhor ponto de partida' },
-  'gpt-4.1': { badge: 'Leve', hint: 'Rapido e economico' },
-  'gpt-4o': { badge: 'Visual', hint: 'Bom para texto e imagem' },
-  'claude-sonnet-4-6': { badge: 'Forte', hint: 'Raciocinio equilibrado' },
-  'claude-sonnet-4-5': { badge: 'Forte', hint: 'Raciocinio equilibrado' },
-  'gemini-3-pro': { badge: 'Contexto', hint: 'Bom com contexto longo' },
-  'gemini-2.5-pro': { badge: 'Contexto', hint: 'Bom com contexto longo' },
-  'gemini-2.5-flash': { badge: 'Rapido', hint: 'Resposta curta e veloz' },
-};
+type RecommendedModelMeta = Record<string, { badge: string; hint: string }>;
 
-function getRecommendationMeta(model: CopilotModelInfo): { badge: string; hint: string } | null {
-  return RECOMMENDED_MODEL_META[model.id] ?? null;
+function getRecommendationMeta(model: CopilotModelInfo, metaMap: RecommendedModelMeta): { badge: string; hint: string } | null {
+  return metaMap[model.id] ?? null;
 }
 
 function isAdvancedModel(model: CopilotModelInfo): boolean {
@@ -21,10 +13,10 @@ function isAdvancedModel(model: CopilotModelInfo): boolean {
   return /^o\d/.test(model.id) || /(codex|max|opus|goldeneye)/i.test(model.id) || /^gpt-5\.[1-9](?!-mini)/.test(model.id);
 }
 
-function groupByVendor(models: CopilotModelInfo[]): Array<{ vendor: string; items: CopilotModelInfo[] }> {
+function groupByVendor(models: CopilotModelInfo[], otherVendorLabel: string): Array<{ vendor: string; items: CopilotModelInfo[] }> {
   const buckets = new Map<string, CopilotModelInfo[]>();
   for (const model of models) {
-    const vendor = model.vendor ?? 'Other';
+    const vendor = model.vendor ?? otherVendorLabel;
     const list = buckets.get(vendor) ?? [];
     list.push(model);
     buckets.set(vendor, list);
@@ -37,14 +29,15 @@ function groupByVendor(models: CopilotModelInfo[]): Array<{ vendor: string; item
 // When showConsumption=true, shows an estimated prompts/month label instead
 // (used for the cafezin managed AI provider where the multiplier = consumptionRate).
 export function MultiplierBadge({ value, showConsumption }: { value: number; showConsumption?: boolean }) {
+  const { t } = useTranslation();
   if (showConsumption) {
     // consumptionRate: 0.5 = fast/cheap, 1.0 = standard, 2.0 = heavy, 4-5 = very heavy
-    if (value <= 0.5) return <span className="ai-rate-badge ai-rate-free" title="Modelo leve — consome menos cota">leve</span>;
-    if (value <= 1.0) return <span className="ai-rate-badge ai-rate-standard" title="Modelo padrão — consumo normal">médio</span>;
-    if (value <= 2.5) return <span className="ai-rate-badge ai-rate-premium" title="Modelo pesado — consome mais cota">pesado</span>;
-    return <span className="ai-rate-badge ai-rate-premium" title="Modelo muito pesado — consome bastante cota">muito pesado</span>;
+    if (value <= 0.5) return <span className="ai-rate-badge ai-rate-free" title={t('aiModelPicker.consumptionLightTitle')}>{t('aiModelPicker.consumptionLight')}</span>;
+    if (value <= 1.0) return <span className="ai-rate-badge ai-rate-standard" title={t('aiModelPicker.consumptionStandardTitle')}>{t('aiModelPicker.consumptionStandard')}</span>;
+    if (value <= 2.5) return <span className="ai-rate-badge ai-rate-premium" title={t('aiModelPicker.consumptionHeavyTitle')}>{t('aiModelPicker.consumptionHeavy')}</span>;
+    return <span className="ai-rate-badge ai-rate-premium" title={t('aiModelPicker.consumptionVeryHeavyTitle')}>{t('aiModelPicker.consumptionVeryHeavy')}</span>;
   }
-  if (value === 0) return <span className="ai-rate-badge ai-rate-free">free</span>;
+  if (value === 0) return <span className="ai-rate-badge ai-rate-free">{t('aiModelPicker.free')}</span>;
   if (value <= 1)  return <span className="ai-rate-badge ai-rate-standard">1×</span>;
   return <span className="ai-rate-badge ai-rate-premium">{value}×</span>;
 }
@@ -63,9 +56,14 @@ interface ModelPickerProps {
 }
 
 export function ModelPicker({ models, value, onChange, loading, onSignOut, providerLabel, showConsumptionRate }: ModelPickerProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const recommendedMeta = useMemo(
+    () => t('aiModelPicker.recommended', { returnObjects: true }) as RecommendedModelMeta,
+    [t],
+  );
   // Keep a ref in sync so the stable listener always sees the latest value
   // without needing to re-register on every open/close toggle.
   const openRef = useRef(false);
@@ -94,7 +92,7 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut, provi
         advanced.push(model);
         continue;
       }
-      if (getRecommendationMeta(model)) {
+      if (getRecommendationMeta(model, recommendedMeta)) {
         recommended.push(model);
         continue;
       }
@@ -103,11 +101,11 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut, provi
 
     return {
       recommended,
-      regularGroups: groupByVendor(regular),
-      advancedGroups: groupByVendor(advanced),
+      regularGroups: groupByVendor(regular, t('aiModelPicker.otherVendorLabel')),
+      advancedGroups: groupByVendor(advanced, t('aiModelPicker.otherVendorLabel')),
       selectedAdvanced,
     };
-  }, [models, value]);
+  }, [models, value, recommendedMeta, t]);
 
   useEffect(() => {
     if (!open) return;
@@ -127,13 +125,13 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut, provi
             <span className="ai-model-option-name">
               <span className="ai-model-option-title-row">
                 <span>{m.name}</span>
-                {getRecommendationMeta(m) && (
-                  <span className="ai-model-rec-badge">{getRecommendationMeta(m)?.badge}</span>
+                {getRecommendationMeta(m, recommendedMeta) && (
+                  <span className="ai-model-rec-badge">{getRecommendationMeta(m, recommendedMeta)?.badge}</span>
                 )}
               </span>
               <span className="ai-model-option-subtitle">
                 {m.vendor && <span className="ai-model-option-vendor">{m.vendor}</span>}
-                {getRecommendationMeta(m) && <span className="ai-model-option-hint">{getRecommendationMeta(m)?.hint}</span>}
+                {getRecommendationMeta(m, recommendedMeta) && <span className="ai-model-option-hint">{getRecommendationMeta(m, recommendedMeta)?.hint}</span>}
               </span>
             </span>
             <MultiplierBadge value={m.multiplier} showConsumption={showConsumptionRate} />
@@ -154,12 +152,14 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut, provi
     ));
   }
 
+  const advancedHiddenCount = pickerSections.advancedGroups.reduce((count, group) => count + group.items.length, 0);
+
   return (
     <div className="ai-model-picker" ref={ref}>
       <button
         className="ai-model-trigger"
         onClick={() => setOpen((v) => !v)}
-        title="Switch model"
+        title={t('aiModelPicker.switchModelTitle')}
         disabled={loading}
       >
         <span className="ai-model-trigger-info">
@@ -174,7 +174,7 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut, provi
         <div className="ai-model-menu">
           {pickerSections.recommended.length > 0 && (
             <>
-              <div className="ai-model-group-label">Recomendados</div>
+              <div className="ai-model-group-label">{t('aiModelPicker.recommendedLabel')}</div>
               {renderItems(pickerSections.recommended)}
             </>
           )}
@@ -182,7 +182,7 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut, provi
           {pickerSections.regularGroups.length > 0 && (
             <>
               {pickerSections.recommended.length > 0 && <div className="ai-model-menu-divider" />}
-              {renderVendorGroups(pickerSections.regularGroups, 'Outros modelos')}
+              {renderVendorGroups(pickerSections.regularGroups, t('aiModelPicker.otherModelsLabel'))}
             </>
           )}
 
@@ -195,12 +195,12 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut, provi
                 onClick={() => setShowAdvanced((state) => !state)}
                 aria-expanded={showAdvanced}
               >
-                <span>Modelos avancados</span>
+                <span>{t('aiModelPicker.advancedModelsLabel')}</span>
                 <span className="ai-model-advanced-meta">
-                  {showAdvanced ? 'Ocultar' : `${pickerSections.advancedGroups.reduce((count, group) => count + group.items.length, 0)} ocultos`}
+                  {showAdvanced ? t('aiModelPicker.hideLabel') : t('aiModelPicker.hiddenCount', { count: advancedHiddenCount })}
                 </span>
               </button>
-              {showAdvanced && renderVendorGroups(pickerSections.advancedGroups, 'Avancados')}
+              {showAdvanced && renderVendorGroups(pickerSections.advancedGroups, t('aiModelPicker.advancedGroupLabel'))}
             </>
           )}
 
@@ -211,7 +211,7 @@ export function ModelPicker({ models, value, onChange, loading, onSignOut, provi
                 className="ai-model-signout-btn"
                 onClick={() => { setOpen(false); onSignOut(); }}
               >
-                Sign out
+                {t('aiModelPicker.signOut')}
               </button>
             </>
           )}

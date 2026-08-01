@@ -108,16 +108,19 @@ export function getModelTokenBudgets(model: CopilotModel): ModelTokenBudgets {
 
 /**
  * Rough token estimate: 1 token ≈ 4 characters of JSON-serialized content.
- * Base64 images are stripped from text content before counting because the
- * agent already prunes/normalizes stale vision payloads separately and these
- * raw blobs would otherwise dominate the heuristic.
+ * Base64 images are capped at MAX_IMAGE_EST_CHARS each instead of being fully
+ * stripped: a screenshot costs real context, so it must push the loop towards
+ * compression — but a raw 100 KB blob must not single-handedly explode the
+ * heuristic (pruning/compression already caps how many images are retained).
  */
+const MAX_IMAGE_EST_CHARS = 16_000; // ≈ 4k tokens per image
+
 export function estimateTokens(messages: ChatMessage[]): number {
   return Math.ceil(
     messages.reduce((sum, m) => {
       const raw = typeof m.content === 'string'
-        ? m.content.replace(BASE64_DATA_URL_RE, '[image]')
-        : JSON.stringify(m.content).replace(BASE64_DATA_URL_RE, '[image]');
+        ? m.content.replace(BASE64_DATA_URL_RE, (match) => 'i'.repeat(Math.min(match.length, MAX_IMAGE_EST_CHARS)))
+        : JSON.stringify(m.content).replace(BASE64_DATA_URL_RE, (match) => 'i'.repeat(Math.min(match.length, MAX_IMAGE_EST_CHARS)));
       return sum + raw.length / 4;
     }, 0),
   );

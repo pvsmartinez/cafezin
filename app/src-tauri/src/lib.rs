@@ -501,6 +501,10 @@ mod git_cli {
     use std::path::Path;
     use std::process::Command;
 
+    pub fn is_available() -> bool {
+        Command::new("git").arg("--version").output().is_ok()
+    }
+
     pub fn git_init(path: String) -> Result<String, String> {
         if Path::new(&path).join(".git").exists() {
             return Ok("already_initialized".into());
@@ -713,6 +717,10 @@ mod git_cli {
 mod git_native {
     use git2::{build::CheckoutBuilder, IndexAddOption, PushOptions,
                RemoteCallbacks, Repository, RepositoryInitOptions, Signature};
+
+    pub fn is_available() -> bool {
+        true // libgit2 is bundled — never missing
+    }
 
     /// Strip any embedded credentials from an HTTPS URL, returning a clean URL.
     /// The token is supplied ONLY via the RemoteCallbacks credential callback,
@@ -1266,6 +1274,14 @@ mod git_native {
 use git_cli as git;
 #[cfg(any(feature = "mas", target_os = "ios"))]
 use git_native as git;
+
+/// Whether git operations can work on this install.
+/// git_cli builds: true iff the system `git` binary is on PATH.
+/// git_native builds (MAS/iOS): always true — libgit2 is bundled.
+#[tauri::command]
+fn git_available() -> bool {
+    git::is_available()
+}
 
 // ── Workspace helpers ───────────────────────────────────────────────────────
 /// Returns the canonical (symlink-resolved) path of an existing directory.
@@ -1991,7 +2007,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_apply_patch, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo, mcp_start_server, mcp_call, mcp_stop_server, mcp_list_tools])
+        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_apply_patch, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo, mcp_start_server, mcp_call, mcp_stop_server, mcp_list_tools, git_available])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -1,5 +1,7 @@
 {
   "outputDirectory": "landing",
+  "installCommand": "npm ci --prefix app",
+  "buildCommand": "npm run --prefix app build:web && rm -rf landing/app && cp -r app/dist-web landing/app",
   "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [
@@ -690,6 +692,16 @@
       "has": [{ "type": "header", "key": "accept-language", "value": "(^|.*[;, ]+)pt(?:-BR)?(?:[;,].*|$)" }],
       "destination": "/br/redatores",
       "permanent": false
+    }
+  ],
+  "headers": [
+    {
+      "source": "/app",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
+    },
+    {
+      "source": "/app/(.*)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
     }
   ]
 }
