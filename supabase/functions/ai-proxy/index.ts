@@ -129,7 +129,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    let trialBody: { model?: string; messages?: unknown[]; max_tokens?: number; temperature?: number };
+    let trialBody: {
+      model?: string;
+      messages?: unknown[];
+      max_tokens?: number;
+      temperature?: number;
+      tools?: unknown[];
+      tool_choice?: unknown;
+    };
     try {
       trialBody = await req.json();
     } catch {
@@ -170,6 +177,8 @@ Deno.serve(async (req) => {
         messages:    trialBody.messages,
         max_tokens:  trialBody.max_tokens ?? 4096,
         temperature: trialBody.temperature ?? 0.7,
+        ...(trialBody.tools ? { tools: trialBody.tools } : {}),
+        ...(trialBody.tool_choice ? { tool_choice: trialBody.tool_choice } : {}),
         stream:      true,
       }),
     });
@@ -202,9 +211,11 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Schema `cafezin` — cobre também a RPC increment_ai_usage.
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    { db: { schema: 'cafezin' } },
   );
 
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
@@ -222,6 +233,8 @@ Deno.serve(async (req) => {
     max_tokens?: number;
     temperature?: number;
     stream?: boolean;
+    tools?: unknown[];
+    tool_choice?: unknown;
   };
 
   try {
@@ -323,6 +336,8 @@ Deno.serve(async (req) => {
       messages:      body.messages,
       max_tokens:    body.max_tokens    ?? 4096,
       temperature:   body.temperature  ?? 0.7,
+      ...(body.tools ? { tools: body.tools } : {}),
+      ...(body.tool_choice ? { tool_choice: body.tool_choice } : {}),
       stream:        true,
       // Ask OpenRouter to include usage in the final chunk
       usage: { include: true },

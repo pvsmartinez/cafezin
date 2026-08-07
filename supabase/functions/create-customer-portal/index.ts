@@ -30,9 +30,11 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get('Authorization') ?? '';
   const token = authHeader.replace('Bearer ', '');
+  // Schema `cafezin` — o projeto Supabase é compartilhado por 11 apps.
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    { db: { schema: 'cafezin' } },
   );
 
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token);

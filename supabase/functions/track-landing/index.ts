@@ -73,7 +73,9 @@ function sanitizeMetadata(value: unknown): Record<string, string | number | bool
 }
 
 function serviceClient() {
+  // Schema `cafezin` — o projeto Supabase é compartilhado por 11 apps.
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    db: { schema: 'cafezin' },
     auth: { autoRefreshToken: false, persistSession: false },
   })
 }

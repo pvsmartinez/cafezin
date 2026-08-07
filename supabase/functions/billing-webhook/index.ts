@@ -137,9 +137,11 @@ Deno.serve(async (req) => {
   const data                        = event.data ?? {};
   const userId: string | undefined  = data.custom_data?.user_id;
 
+  // Schema `cafezin` — o projeto Supabase é compartilhado por 11 apps.
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    { db: { schema: 'cafezin' } },
   );
 
   // ── Idempotency ──────────────────────────────────────────────────────────

@@ -358,6 +358,8 @@
     const SUPABASE_URL = 'https://dxxwlnvemqgpdrnkzrcr.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_4IegSXogmwjkVkRiKG_p8g_rUuJNO5u';
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      // A RPC get_my_account_state vive no schema `cafezin` (projeto Supabase compartilhado).
+      db: { schema: 'cafezin' },
       auth: {
         persistSession: true,
         autoRefreshToken: true,
