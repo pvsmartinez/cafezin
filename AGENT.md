@@ -65,7 +65,8 @@ A general-purpose AI-assisted productivity tool, inspired by how Pedro uses VS C
   - `Workspace.hasGit: boolean` — detected via `git_get_remote` on every `loadWorkspace()`
   - Workspaces **with git** → auto-registered in Supabase on open (if logged in)
   - Workspaces **without git** → local-only; "local" badge in Picker + warning banner in WorkspaceHome
-  - Migration: `supabase/migrations/0001_auth_sync.sql` — apply with `scripts/apply-migrations.sh`
+  - Migration: `supabase/migrations/0001_auth_sync.sql` — apply with
+    `python3 scripts/migrate.py cafezin --apply` from the workspace root
   - Git account tokens (for push/clone) remain in `localStorage` — device-specific, never in DB
   - Agent loop: `runCopilotAgent()` — tool-calling, MAX_ROUNDS=50, auto-continue prompt on exhaustion
   - Vision: canvas screenshot merged into user message for vision-capable models
