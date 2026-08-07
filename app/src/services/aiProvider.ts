@@ -183,6 +183,21 @@ export function isAIConfigured(): boolean {
   return !!getProviderKey(p);
 }
 
+/**
+ * True when the user has an active Supabase session (managed AI subscriber).
+ * Used to decide whether the agentic tool loop can run against the managed
+ * `cafezin` provider: anonymous trial users keep plain chat (which enforces
+ * the 3-response cap), while authenticated users get full tool access.
+ */
+export async function hasManagedAISession(): Promise<boolean> {
+  try {
+    const session = await getSupabaseSession(supabase.auth);
+    return !!session?.access_token;
+  } catch {
+    return false;
+  }
+}
+
 // ── Internal streaming adapters ───────────────────────────────────────────────
 
 /**

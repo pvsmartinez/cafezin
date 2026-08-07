@@ -7,7 +7,7 @@ import {
   getModelTokenBudgets,
   modelSupportsVision,
 } from '../services/copilot';
-import { getActiveProvider } from '../services/aiProvider';
+import { getActiveProvider, streamChat, hasManagedAISession } from '../services/aiProvider';
 import { runProviderAgent } from '../services/ai/runProviderAgent';
 import { appendLogEntry } from '../services/copilotLog';
 import { getWorkspaceTools, buildToolExecutor } from '../utils/workspaceTools';
@@ -665,6 +665,12 @@ export function useAIStream({
         );
       } else {
         // Non-Copilot provider: full agentic loop via Vercel AI SDK streamText.
+        if (getActiveProvider() === 'cafezin' && !(await hasManagedAISession())) {
+          // Anonymous/trial users: managed AI runs as plain chat (no tools),
+          // which enforces the 3-free-responses cap via streamCafezinManagedAI.
+          await streamChat(apiMessages, onChunk, onDone, onError, model, signal);
+          return;
+        }
         await runProviderAgent(
           apiMessages,
           activeTools,

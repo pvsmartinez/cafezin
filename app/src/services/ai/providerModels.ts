@@ -492,6 +492,11 @@ export function providerModelSupportsVision(provider: string, modelId: string): 
   if (provider === 'copilot') {
     return !/^o\d/.test(modelId);
   }
+  if (provider === 'cafezin') {
+    // Managed models carry an explicit supportsVision flag — do not guess.
+    const managed = CAFEZIN_MANAGED_MODELS.find((m) => m.id === modelId);
+    return managed?.supportsVision ?? false;
+  }
   if (provider === 'custom') {
     const customCatalog = getProviderCatalog('custom');
     const customModel = customCatalog.find((m) => m.id === modelId);

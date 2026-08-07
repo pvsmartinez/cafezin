@@ -126,6 +126,21 @@ export function estimateTokens(messages: ChatMessage[]): number {
   );
 }
 
+/**
+ * Rough token cost of the serialized `tools` array sent on every round of an
+ * agentic loop. Tool definitions are re-sent per request, so they must count
+ * towards the context budget — otherwise compression triggers later than the
+ * model's real context usage allows.
+ */
+export function estimateToolDefsTokens(tools: unknown[]): number {
+  if (!Array.isArray(tools) || tools.length === 0) return 0;
+  try {
+    return Math.ceil(JSON.stringify(tools).length / 4);
+  } catch {
+    return 0;
+  }
+}
+
 /** Return a copy of the messages array with base64 image blobs removed (for safe log storage). */
 export function stripBase64ForLog(messages: ChatMessage[]): object[] {
   return messages.map((m) => {

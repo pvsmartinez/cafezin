@@ -23,11 +23,15 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import type { ChatMessage, ToolActivity } from '../../types';
 import type { ToolDefinition, ToolExecutor } from '../../utils/tools/shared';
 import { getActiveProvider, getProviderKey, getActiveModel, getCustomEndpoint } from '../aiProvider';
+import { getSupabaseSession } from '@pvsmartinez/shared';
+import { supabase } from '../supabase';
+import { getDeviceTrialToken } from '../aiTrial';
 import { buildProviderRequestDump, formatProviderError, setLastProviderRequestDump } from './diagnostics';
 import { chatToModelMessages } from './messageConverter';
 import { toVercelToolSet } from './tools-adapter';
 import { providerModelSupportsVision } from './providerModels';
-import { getModelTokenBudgets } from '../copilot/tokenBudget';
+import { getModelTokenBudgets, estimateToolDefsTokens } from '../copilot/tokenBudget';
+import { filterToolsByIntent } from './toolIntents';
 
 // Sentinels emitted by canvasTools.ts — must match exactly.
 const SENTINEL_CANVAS  = '__CANVAS_PNG__:';
@@ -85,6 +89,45 @@ function buildLanguageModel(provider: string, model: string) {
       ...fetchOpt,
     }).chat(model);
   }
+  if (provider === 'cafezin') {
+    // Managed AI — the client talks to our Supabase Edge Function `ai-proxy`,
+    // which validates the session, checks quota, and forwards to OpenRouter.
+    // Auth is injected per-call (the token can change between requests), so we
+    // build an OpenAI-compatible model pointed at the proxy via a fetch wrapper.
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string) ?? '';
+    const cafezinFetch = async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const reqUrl =
+        typeof input === 'string' ? input :
+        input instanceof URL ? input.toString() :
+        (input as Request).url;
+      const isChatCompletion = reqUrl.endsWith('/chat/completions');
+      // Real session token when logged in; otherwise the anonymous trial token
+      // (the proxy enforces the trial path server-side).
+      const session = await getSupabaseSession(supabase.auth);
+      const headers = new Headers(init?.headers ?? {});
+      if (session?.access_token) {
+        headers.set('Authorization', `Bearer ${session.access_token}`);
+      } else {
+        headers.set('X-Trial-Token', getDeviceTrialToken());
+      }
+      const target = isChatCompletion
+        ? `${supabaseUrl}/functions/v1/ai-proxy`
+        : reqUrl;
+      return tauriFetch(target, { ...init, headers });
+    };
+
+    return createOpenAI({
+      // baseURL is cosmetic — the fetch wrapper rewrites every /chat/completions
+      // call to the ai-proxy Edge Function.
+      baseURL: 'https://api.openai.com/v1',
+      name: 'cafezin',
+      apiKey: 'cafezin-managed',
+      fetch: cafezinFetch as unknown as typeof fetch,
+    }).chat(model);
+  }
 
   throw new Error(`Unsupported provider for agentic loop: ${provider}`);
 }
@@ -133,10 +176,10 @@ export async function runProviderAgent(
     let streamedText = '';
 
     // If the model has no vision, filter out canvas screenshot tools and warn.
-    let activeTools = tools;
+    let activeTools = filterToolsByIntent(tools, messages);
     const hasCanvasVisionTools = tools.some((t) => CANVAS_VISION_TOOLS.has(t.function.name));
     if (!supportsVision && hasCanvasVisionTools) {
-      activeTools = tools.filter((t) => !CANVAS_VISION_TOOLS.has(t.function.name));
+      activeTools = activeTools.filter((t) => !CANVAS_VISION_TOOLS.has(t.function.name));
       onChunk(
         '\n> ⚠️ **Este modelo não suporta raciocínio visual.** ' +
         'Ferramentas de captura de tela do canvas foram desativadas. ' +
@@ -238,7 +281,9 @@ export async function runProviderAgent(
         }
 
         // 2. Compression: same budget rule as the Copilot agent loop.
-        const estimatedTok = Math.ceil(JSON.stringify(msgs).length / 4);
+        // Tool definitions are re-sent every round, so they count towards the budget.
+        const toolDefsTokens = estimateToolDefsTokens(activeTools ?? []);
+        const estimatedTok = Math.ceil(JSON.stringify(msgs).length / 4) + toolDefsTokens;
         const budgets = getModelTokenBudgets(resolvedModel as any);
         if (estimatedTok > budgets.compressBudget) {
           onChunk('\n\n_[Context approaching limit — summarizing prior session and continuing...]_\n\n');
