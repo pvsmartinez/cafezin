@@ -31,6 +31,7 @@ import {
 import type { DeviceFlowState } from '../services/copilot';
 import { COPILOT_MODELS_CHANGED_EVENT } from '../services/copilot/constants';
 import { getActiveModel, getActiveProvider } from '../services/aiProvider';
+import { getPiModels, preflightPi } from '../services/piClient';
 import type { AIProviderType } from '../services/aiProvider';
 import { getProviderCatalog, getProviderModelsForPicker, getCafezinModelsForPicker } from '../services/ai/providerModels';
 import { readFile, writeFile } from '../services/fs';
@@ -301,7 +302,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
     setAuthStatus('unauthenticated');
   }
 
-  function resolveTabModelForProvider(
+function resolveTabModelForProvider(
     provider: AIProviderType,
     requestedModel: string | undefined,
     models: CopilotModelInfo[],
@@ -312,7 +313,9 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
 
     // For cafezin, resolve against the models list directly (no local catalog)
     if (provider === 'cafezin') {
-      const requested = requestedModel?.trim();
+  const requested = requestedModel?.trim();
+  const requestedFromPiCatalog = requested && models.some((model) => model.id === requested);
+  if (requestedFromPiCatalog) return requested;
       const found = models.find((m) => m.id === requested);
       if (found) return found.id;
       return models[0]?.id ?? requestedModel;
@@ -345,6 +348,8 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   // ── Shared models (fetched once, available to all agent tabs) ─────────────
   const [availableModels, setAvailableModels] = useState<CopilotModelInfo[]>(FALLBACK_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
+  const [piModelsReady, setPiModelsReady] = useState(false);
+  const [piNotice, setPiNotice] = useState<string | null>(null);
   const modelsLoadedRef = useRef(false);
   const [activeProvider, setActiveProviderState] = useState<AIProviderType>(() => getActiveProvider());
   const copilotOAuthClientIdRef = useRef(copilotOAuthClientId);
@@ -381,6 +386,44 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
       .catch(() => setModelsLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, authStatus, copilotOAuthClientId]);
+
+  // Desktop assistant transport is Pi/OpenRouter. Its catalog is queried only
+  // after Pi's own auth check succeeds; otherwise the existing provider catalog
+  // remains available for the explicit legacy fallback.
+  useEffect(() => {
+    if (!isOpen || !isTauri || import.meta.env.VITE_TAURI_MOBILE === 'true') {
+      setPiModelsReady(false);
+      setPiNotice(null);
+      return;
+    }
+    let cancelled = false;
+    setModelsLoading(true);
+    preflightPi()
+      .then((readiness) => {
+        if (!readiness.authenticated) {
+          setPiNotice(`${readiness.message} · usando o agente compatível.`);
+          return [];
+        }
+        setPiNotice(null);
+        return getPiModels();
+      })
+      .then((models) => {
+        if (cancelled || models.length === 0) return;
+        setPiModelsReady(true);
+        setAvailableModels((current) => (sameModelList(current, models) ? current : models));
+        setTabs((tabs) => applyResolvedModelsToTabs(tabs, activeProvider, models));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPiModelsReady(false);
+          setPiNotice('Pi local indisponível · usando o agente compatível.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [isOpen, activeProvider]);
 
   // Refresh models when the user switches provider or updates favorites in settings.
   useEffect(() => {
@@ -711,6 +754,12 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
         </button>
       </div>
 
+      {piNotice && (
+        <div className="ai-pi-notice" role="status">
+          {piNotice}
+        </div>
+      )}
+
       {/* Voice memo banner — shown when mobile memos arrive without transcripts */}
       {pendingVoiceMemos && pendingVoiceMemos.length > 0 && (
         <div className="ai-voice-banner">
@@ -761,6 +810,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
           onNotAuthenticated={() => setAuthStatus('unauthenticated')}
           onSignOut={activeProvider === 'copilot' ? handleSignOut : undefined}
           activeProvider={activeProvider}
+          piTransportLabel={isTauri ? (piModelsReady ? 'Pi · OpenRouter' : 'Pi/OpenRouter · fallback') : undefined}
           availableModels={availableModels}
           modelsLoading={modelsLoading}
           onClose={onClose}

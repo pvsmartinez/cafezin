@@ -1045,6 +1045,53 @@ body.theme-light .ai-session-stat-chip {
   color: var(--text-muted);
 }
 
+/* Pi's slash palette stays close to the writing surface: a quiet command
+   hint, not a second toolbar competing with the manuscript. */
+.ai-slash-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: -2px 0 0;
+}
+
+.ai-slash-suggestion {
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: var(--surface2);
+  color: var(--text-muted);
+  cursor: pointer;
+  font: 500 var(--font-size-xs)/1 var(--font-mono);
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.ai-slash-suggestion:hover,
+.ai-slash-suggestion:focus-visible {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.1);
+  color: var(--accent);
+  outline: none;
+}
+
+.ai-thinking-picker {
+  max-width: 76px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 4px 5px;
+  background: var(--surface2);
+  color: var(--text-muted);
+  font: 500 var(--font-size-xs)/1 var(--font-mono);
+}
+
+.ai-pi-notice {
+  padding: 5px 12px;
+  border-bottom: 1px solid rgba(var(--orange-rgb), 0.18);
+  background: rgba(var(--orange-rgb), 0.06);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.01em;
+}
+
 .ai-send-spinner {
   display: inline-block;
   width: 13px;

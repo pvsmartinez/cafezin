@@ -153,6 +153,8 @@ export interface AgentSessionProps {
   onNotAuthenticated: () => void;
   onSignOut?: () => void;
   activeProvider: AIProviderType;
+  /** Transport label shown beside the model picker (e.g. Pi · OpenRouter). */
+  piTransportLabel?: string;
   /** Shared model list loaded once by AIPanel. */
   availableModels: CopilotModelInfo[];
   modelsLoading: boolean;
@@ -212,6 +214,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   onNotAuthenticated,
   onSignOut,
   activeProvider,
+  piTransportLabel,
   availableModels,
   modelsLoading,
   onClose,
@@ -296,6 +299,11 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [pendingFileRef, setPendingFileRef] = useState<{ name: string; content: string } | null>(null);
   const [pendingSelectionContext, setPendingSelectionContext] = useState<AISelectionContext | null>(null);
+  const [piCommands, setPiCommands] = useState<string[]>([]);
+  const [thinkingLevel, setThinkingLevel] = useState('medium');
+  useEffect(() => {
+    setPiCommands([]);
+  }, [activeProvider, workspacePath, agentId]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historicalSessions, setHistoricalSessions] = useState<HistoricalSession[]>([]);
@@ -403,6 +411,8 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     setMemoryContent,
     setUserProfileContent,
     onTaskChanged: reloadTask,
+    onPiCommands: setPiCommands,
+    thinkingLevel,
     onNotAuthenticated,
     agentId,
     activeFileContent: documentContext,
@@ -597,6 +607,11 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
   // ── Keyboard ─────────────────────────────────────────────────────────────
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Tab' && slashSuggestions.length > 0) {
+      e.preventDefault();
+      setInput(`/${slashSuggestions[0]} `);
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
     if (e.key === 'Enter' && e.shiftKey && stream.isStreaming) {
       e.preventDefault();
@@ -608,6 +623,13 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
       else onClose();
     }
   }
+
+  const slashQuery = input.startsWith('/') && !input.includes(' ')
+    ? input.slice(1).toLowerCase()
+    : null;
+  const slashSuggestions = slashQuery === null
+    ? []
+    : piCommands.filter((command) => command.toLowerCase().startsWith(slashQuery)).slice(0, 6);
 
   // ── Finder drop ───────────────────────────────────────────────────────────
   useImperativeHandle(ref, () => ({
@@ -780,9 +802,22 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             }}
             loading={modelsLoading}
             onSignOut={onSignOut}
-            providerLabel={PROVIDER_SHORT_LABELS[activeProvider]}
+            providerLabel={piTransportLabel ?? PROVIDER_SHORT_LABELS[activeProvider]}
             showConsumptionRate={activeProvider === 'cafezin'}
           />
+          {piTransportLabel && (
+            <select
+              className="ai-thinking-picker"
+              value={thinkingLevel}
+              onChange={(event) => setThinkingLevel(event.target.value)}
+              aria-label="Pi thinking level"
+              title="Pi thinking level"
+            >
+              {['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map((level) => (
+                <option key={level} value={level}>{level}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -1223,6 +1258,24 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             <button className="ai-img-remove" onClick={() => setQueuedPrompt(null)} title={t('agentSession.cancelQueueTitle')}>
               <X weight="thin" size={12} />
             </button>
+          </div>
+        )}
+        {slashSuggestions.length > 0 && (
+          <div className="ai-slash-suggestions" role="listbox" aria-label="Pi commands">
+            {slashSuggestions.map((command) => (
+              <button
+                key={command}
+                type="button"
+                className="ai-slash-suggestion"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  setInput(`/${command} `);
+                  inputRef.current?.focus();
+                }}
+              >
+                /{command}
+              </button>
+            ))}
           </div>
         )}
         <textarea

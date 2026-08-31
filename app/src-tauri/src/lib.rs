@@ -3,11 +3,15 @@ use std::collections::HashMap;
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 use std::fs::{self, File};
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 use std::path::PathBuf;
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 use std::process::Command;
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+use std::process::{ChildStdin, ChildStdout};
+#[cfg(all(unix, not(any(feature = "mas", target_os = "ios"))))]
+use std::os::unix::process::CommandExt;
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 use std::sync::{Arc, Mutex};
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
@@ -88,6 +92,518 @@ impl McpProcess {
 #[derive(Default)]
 struct McpProcessRegistry {
     processes: Mutex<HashMap<String, Arc<McpProcess>>>,
+}
+
+// ── Pi RPC process management ───────────────────────────────────────────────
+// Pi is deliberately kept behind a small JSONL bridge. The frontend never
+// owns a child process and the Rust side can enforce the workspace boundary,
+// keep API keys out of argv, and fan out events to the correct agent tab.
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+struct PiProcess {
+    stdin: Mutex<BufWriter<ChildStdin>>,
+    child: Mutex<std::process::Child>,
+    system_prompt_path: PathBuf,
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[derive(Default)]
+struct PiProcessRegistry {
+    processes: Arc<Mutex<HashMap<String, Arc<PiProcess>>>>,
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+static PI_PROMPT_NONCE: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn terminate_pi_process(child: &mut std::process::Child) {
+    let pid = child.id();
+    #[cfg(unix)]
+    {
+        let group = format!("-{pid}");
+        let _ = Command::new("/bin/kill").args(["-TERM", group.as_str()]).status();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(750);
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => return,
+                Ok(None) if std::time::Instant::now() < deadline => {
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+                _ => break,
+            }
+        }
+        let _ = Command::new("/bin/kill").args(["-KILL", group.as_str()]).status();
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = child.kill();
+    }
+    let _ = child.wait();
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+impl Drop for PiProcessRegistry {
+    fn drop(&mut self) {
+        if let Ok(mut processes) = self.processes.lock() {
+            for (_, process) in processes.drain() {
+                if let Ok(mut child) = process.child.lock() {
+                    terminate_pi_process(&mut child);
+                }
+                let _ = fs::remove_file(&process.system_prompt_path);
+            }
+        }
+    }
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn pi_executable() -> String {
+    if let Ok(path) = std::env::var("CAFEZIN_PI_BIN") {
+        if !path.trim().is_empty() {
+            return path;
+        }
+    }
+    ["/opt/homebrew/bin/pi", "/usr/local/bin/pi", "/usr/bin/pi"]
+        .iter()
+        .find(|path| std::path::Path::new(path).is_file())
+        .map(|path| (*path).to_string())
+        .unwrap_or_else(|| "pi".to_string())
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn normalize_pi_model_id(model: &str) -> String {
+    model.trim().strip_prefix("openrouter/").unwrap_or(model.trim()).to_string()
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn is_strict_descendant(child: &std::path::Path, parent: &std::path::Path) -> bool {
+    child.strip_prefix(parent).map(|relative| relative.components().next().is_some()).unwrap_or(false)
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn reject_parent_components(path: &std::path::Path) -> Result<(), String> {
+    if path.components().any(|component| matches!(component, std::path::Component::ParentDir)) {
+        return Err(format!("Pi path contains a parent traversal: {}", path.display()));
+    }
+    Ok(())
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn canonical_pi_paths(cwd: &str, session_dir: &str) -> Result<(PathBuf, PathBuf), String> {
+    let cwd_path = fs::canonicalize(cwd).map_err(|e| format!("pi_start: invalid workspace: {e}"))?;
+    if !cwd_path.is_dir() {
+        return Err("pi_start: workspace cwd must be a directory".to_string());
+    }
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "pi_start: home directory is unavailable".to_string())?;
+    let home_path = fs::canonicalize(home).map_err(|e| format!("pi_start: invalid home directory: {e}"))?;
+    if !is_strict_descendant(&cwd_path, &home_path) {
+        return Err(format!("pi_start: workspace must be inside the user home: {}", cwd_path.display()));
+    }
+    let session_raw = PathBuf::from(session_dir);
+    if !session_raw.is_absolute() {
+        return Err("pi_start: session_dir must be absolute".to_string());
+    }
+    reject_parent_components(&session_raw)?;
+    fs::create_dir_all(&session_raw).map_err(|e| format!("pi_start: cannot create session dir: {e}"))?;
+    let session_path = fs::canonicalize(&session_raw).map_err(|e| format!("pi_start: invalid session dir: {e}"))?;
+    if !is_strict_descendant(&session_path, &cwd_path) {
+        return Err(format!("pi_start: session_dir must descend from workspace: {}", session_path.display()));
+    }
+    Ok((cwd_path, session_path))
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn secure_prompt_path(session_dir: &std::path::Path, agent_id: &str) -> PathBuf {
+    let safe_id: String = agent_id.chars().map(|ch| if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' { ch } else { '_' }).collect();
+    let sequence = PI_PROMPT_NONCE.fetch_add(1, Ordering::Relaxed);
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let mut random = [0u8; 16];
+    let random_hex = if let Ok(mut source) = File::open("/dev/urandom") {
+        if source.read_exact(&mut random).is_ok() {
+            random.iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+    let nonce = if random_hex.is_empty() {
+        format!("{:x}-{:x}-{:x}", std::process::id(), timestamp, sequence)
+    } else {
+        random_hex
+    };
+    session_dir.join(format!(".system-prompt-{safe_id}-{nonce}.md"))
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn write_secure_prompt(path: &std::path::Path, prompt: &str) -> Result<(), String> {
+    let mut options = fs::OpenOptions::new();
+    options.create_new(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path).map_err(|e| format!("pi_start: cannot create prompt file: {e}"))?;
+    file.write_all(prompt.as_bytes()).map_err(|e| format!("pi_start: cannot write prompt file: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = file.metadata().map_err(|e| e.to_string())?.permissions();
+        permissions.set_mode(0o600);
+        fs::set_permissions(path, permissions).map_err(|e| format!("pi_start: cannot protect prompt file: {e}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn sanitize_pi_text(text: &str) -> String {
+    let mut sanitized = text.replace("OPENROUTER_API_KEY", "<redacted-key-name>");
+    for prefix in ["sk-or-", "sk-"] {
+        loop {
+            let Some(start) = sanitized.find(prefix) else { break };
+            let end = sanitized[start..].find(char::is_whitespace).map(|offset| start + offset).unwrap_or(sanitized.len());
+            sanitized.replace_range(start..end, "<redacted-secret>");
+        }
+    }
+    for marker in ["Bearer ", "bearer "] {
+        while let Some(start) = sanitized.find(marker) {
+            let token_start = start + marker.len();
+            let end = sanitized[token_start..]
+                .find(char::is_whitespace)
+                .map(|offset| token_start + offset)
+                .unwrap_or(sanitized.len());
+            if end == token_start {
+                break;
+            }
+            sanitized.replace_range(token_start..end, "<redacted-secret>");
+        }
+    }
+    let chars: String = sanitized.chars().take(2_000).collect();
+    if sanitized.chars().count() > 2_000 { format!("{chars} …") } else { chars }
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn pi_event_payload(agent_id: &str, event: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({ "agentId": agent_id, "event": event })
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn emit_pi_line(app: &tauri::AppHandle, agent_id: &str, line: &str) {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    let event = serde_json::from_str::<serde_json::Value>(trimmed).unwrap_or_else(|_| {
+        serde_json::json!({ "type": "process_stderr", "text": sanitize_pi_text(trimmed) })
+    });
+    let _ = app.emit("pi:event", pi_event_payload(agent_id, event));
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn pi_command_json(command: serde_json::Value) -> Result<String, String> {
+    if !command.is_object() {
+        return Err("Pi RPC command must be a JSON object".to_string());
+    }
+    serde_json::to_string(&command).map_err(|e| format!("Pi RPC serialization failed: {e}"))
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn pi_preflight() -> Result<serde_json::Value, String> {
+    let executable = pi_executable();
+    let output = Command::new(&executable)
+        .args(["auth", "check", "--provider", "openrouter", "--json", "--no-refresh"])
+        .env("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin")
+        .output()
+        .map_err(|e| format!("Pi não encontrado ({executable}): {e}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let auth_json = serde_json::from_str::<serde_json::Value>(&stdout).ok();
+    let authenticated = output.status.success() && auth_json.as_ref().map(|value| {
+        value.get("authenticated").and_then(serde_json::Value::as_bool)
+            .or_else(|| value.get("configured").and_then(serde_json::Value::as_bool))
+            .or_else(|| value.get("ok").and_then(serde_json::Value::as_bool))
+            .unwrap_or(true)
+    }).unwrap_or(false);
+    Ok(serde_json::json!({
+        "available": true,
+        "executable": executable,
+        "authenticated": authenticated,
+        "message": if authenticated { "OpenRouter autenticado no Pi" } else if stderr.is_empty() { "Configure OpenRouter no Pi (pi auth login)" } else { "OpenRouter não autenticado no Pi" },
+    }))
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn pi_get_available_models() -> Result<serde_json::Value, String> {
+    const MAX_BYTES: usize = 1_048_576;
+    const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+    let mut command = Command::new(pi_executable());
+    command
+        .args(["--mode", "rpc", "--provider", "openrouter", "--no-tools", "--no-context-files", "--no-session"])
+        .env("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    command.process_group(0);
+    let mut child = command.spawn()
+        .map_err(|e| format!("Pi não iniciou para listar modelos: {e}"))?;
+    let result = (|| {
+        let mut stdin = child.stdin.take().ok_or_else(|| "Pi stdin unavailable".to_string())?;
+        writeln!(stdin, "{{\"type\":\"get_available_models\",\"id\":\"cafezin-models\"}}")
+            .map_err(|e| format!("Pi models stdin failed: {e}"))?;
+        stdin.flush().map_err(|e| format!("Pi models stdin flush failed: {e}"))?;
+        let stdout = child.stdout.take().ok_or_else(|| "Pi stdout unavailable".to_string())?;
+        let (sender, receiver) = std::sync::mpsc::channel::<Result<Vec<u8>, String>>();
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(stdout);
+            let mut total = 0usize;
+            loop {
+                let mut bytes = Vec::new();
+                match reader.read_until(b'\n', &mut bytes) {
+                    Ok(0) => break,
+                    Ok(size) => {
+                        total = total.saturating_add(size);
+                        if total > MAX_BYTES {
+                            let _ = sender.send(Err("Pi model response exceeded the byte limit".to_string()));
+                            break;
+                        }
+                        if sender.send(Ok(bytes)).is_err() {
+                            break;
+                        }
+                    }
+                    Err(error) => {
+                        let _ = sender.send(Err(format!("Pi model response failed: {error}")));
+                        break;
+                    }
+                }
+            }
+        });
+        let deadline = std::time::Instant::now() + TIMEOUT;
+        loop {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                return Err("Pi model response timed out".to_string());
+            }
+            match receiver.recv_timeout(remaining) {
+                Ok(Ok(bytes)) => {
+                    let Ok(event) = serde_json::from_slice::<serde_json::Value>(&bytes) else { continue; };
+                    if event.get("type") == Some(&serde_json::json!("response")) &&
+                        event.get("command") == Some(&serde_json::json!("get_available_models")) {
+                        if event.get("success") == Some(&serde_json::json!(true)) {
+                            return Ok(event.get("data")
+                                .and_then(|data| data.get("models"))
+                                .cloned()
+                                .unwrap_or(serde_json::json!([])));
+                        }
+                        return Err("Pi não conseguiu carregar modelos OpenRouter".to_string());
+                    }
+                }
+                Ok(Err(error)) => return Err(error),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    return Err("Pi model response timed out".to_string());
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    return Err("Pi model response stream closed unexpectedly".to_string());
+                }
+            }
+        }
+    })();
+    terminate_pi_process(&mut child);
+    result
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn pi_start(
+    agent_id: String,
+    cwd: String,
+    provider: String,
+    model: String,
+    system_prompt: String,
+    session_dir: String,
+    session_id: String,
+    thinking: Option<String>,
+    registry: State<'_, PiProcessRegistry>,
+    app: tauri::AppHandle,
+) -> Result<serde_json::Value, String> {
+    if agent_id.trim().is_empty() {
+        return Err("pi_start: agent_id is required".to_string());
+    }
+    if provider.trim().is_empty() || model.trim().is_empty() {
+        return Err("pi_start: provider and model are required".to_string());
+    }
+    if session_id.trim().is_empty() || session_id.contains('/') || session_id.contains('\\') {
+        return Err("pi_start: session_id must be a non-empty path-safe value".to_string());
+    }
+    let (canonical_cwd, canonical_session_dir) = canonical_pi_paths(&cwd, &session_dir)?;
+
+    let mut guard = registry
+        .processes
+        .lock()
+        .map_err(|_| "pi_start: process registry lock poisoned".to_string())?;
+    if guard.contains_key(&agent_id) {
+        return Ok(serde_json::json!({ "agentId": agent_id, "alreadyRunning": true }));
+    }
+    let prompt_path = secure_prompt_path(&canonical_session_dir, &agent_id);
+    write_secure_prompt(&prompt_path, &system_prompt)?;
+
+    let normalized_model = normalize_pi_model_id(&model);
+    let mut command = Command::new(pi_executable());
+    command
+        .args(["--mode", "rpc", "--provider", provider.trim(), "--model", normalized_model.as_str()])
+        .args(["--append-system-prompt", prompt_path.to_string_lossy().as_ref()])
+        .args(["--session-dir", canonical_session_dir.to_string_lossy().as_ref()])
+        .args(["--session-id", session_id.as_str()])
+        .args(["--no-context-files"])
+        .current_dir(&canonical_cwd)
+        .env("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    command.process_group(0);
+    if let Some(level) = thinking.filter(|value| !value.trim().is_empty()) {
+        command.args(["--thinking", level.trim()]);
+    }
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = fs::remove_file(&prompt_path);
+            return Err(format!("Pi não iniciou: {error}"));
+        }
+    };
+    let stdin = match child.stdin.take() {
+        Some(stdin) => stdin,
+        None => {
+            terminate_pi_process(&mut child);
+            let _ = fs::remove_file(&prompt_path);
+            return Err("Pi stdin unavailable".to_string());
+        }
+    };
+    let stdout = match child.stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            terminate_pi_process(&mut child);
+            let _ = fs::remove_file(&prompt_path);
+            return Err("Pi stdout unavailable".to_string());
+        }
+    };
+    if let Some(stderr) = child.stderr.take() {
+        let stderr_app = app.clone();
+        let stderr_agent_id = agent_id.clone();
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(stderr);
+            let mut line = String::new();
+            while reader.read_line(&mut line).is_ok() {
+                if line.is_empty() { break; }
+                let text = sanitize_pi_text(line.trim());
+                if !text.is_empty() {
+                    let _ = stderr_app.emit("pi:event", pi_event_payload(
+                        &stderr_agent_id,
+                        serde_json::json!({ "type": "process_stderr", "text": text }),
+                    ));
+                }
+                line.clear();
+            }
+        });
+    }
+    let process = Arc::new(PiProcess {
+        stdin: Mutex::new(BufWriter::new(stdin)),
+        child: Mutex::new(child),
+        system_prompt_path: prompt_path.clone(),
+    });
+    let reader_app = app.clone();
+    let reader_agent_id = agent_id.clone();
+    let reader_registry = Arc::downgrade(&registry.processes);
+    let reader_process = Arc::downgrade(&process);
+    let reader_prompt_path = prompt_path;
+    guard.insert(agent_id.clone(), process);
+    std::thread::spawn(move || {
+        read_pi_stdout(stdout, reader_app, reader_agent_id, reader_registry, reader_process, reader_prompt_path);
+    });
+    Ok(serde_json::json!({ "agentId": agent_id, "alreadyRunning": false }))
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+fn read_pi_stdout(
+    stdout: ChildStdout,
+    app: tauri::AppHandle,
+    agent_id: String,
+    registry: std::sync::Weak<Mutex<HashMap<String, Arc<PiProcess>>>>,
+    process: std::sync::Weak<PiProcess>,
+    system_prompt_path: PathBuf,
+) {
+    let mut reader = BufReader::new(stdout);
+    let mut line = String::new();
+    loop {
+        line.clear();
+        match reader.read_line(&mut line) {
+            Ok(0) => break,
+            Ok(_) => emit_pi_line(&app, &agent_id, &line),
+            Err(error) => {
+                let _ = app.emit("pi:event", pi_event_payload(
+                    &agent_id,
+                    serde_json::json!({ "type": "process_error", "message": sanitize_pi_text(&error.to_string()) }),
+                ));
+                break;
+            }
+        }
+    }
+    if let (Some(registry), Some(process)) = (registry.upgrade(), process.upgrade()) {
+        if let Ok(mut processes) = registry.lock() {
+            processes.retain(|key, value| key != &agent_id || !Arc::ptr_eq(value, &process));
+        }
+    }
+    if let Some(process) = process.upgrade() {
+        if let Ok(mut child) = process.child.lock() {
+            terminate_pi_process(&mut child);
+        }
+    }
+    let _ = fs::remove_file(system_prompt_path);
+    let _ = app.emit("pi:event", pi_event_payload(&agent_id, serde_json::json!({ "type": "process_exit" })));
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn pi_send(
+    agent_id: String,
+    command: serde_json::Value,
+    registry: State<'_, PiProcessRegistry>,
+) -> Result<(), String> {
+    let line = pi_command_json(command)?;
+    let process = registry
+        .processes
+        .lock()
+        .map_err(|_| "pi_send: process registry lock poisoned".to_string())?
+        .get(&agent_id)
+        .cloned()
+        .ok_or_else(|| format!("Pi agent not running: {agent_id}"))?;
+    let mut stdin = process.stdin.lock().map_err(|_| "pi_send: stdin lock poisoned".to_string())?;
+    writeln!(stdin, "{line}").map_err(|e| format!("Pi stdin failed: {e}"))?;
+    stdin.flush().map_err(|e| format!("Pi stdin flush failed: {e}"))
+}
+
+#[cfg(not(any(feature = "mas", target_os = "ios")))]
+#[tauri::command]
+fn pi_stop(agent_id: String, registry: State<'_, PiProcessRegistry>) -> Result<(), String> {
+    let process = registry
+        .processes
+        .lock()
+        .map_err(|_| "pi_stop: process registry lock poisoned".to_string())?
+        .remove(&agent_id);
+    if let Some(process) = process {
+        let prompt_path = process.system_prompt_path.clone();
+        let mut child = process.child.lock().map_err(|_| "pi_stop: child lock poisoned".to_string())?;
+        terminate_pi_process(&mut child);
+        let _ = fs::remove_file(prompt_path);
+    }
+    Ok(())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -492,6 +1008,47 @@ fn shell_run_status(_id: String) -> Result<serde_json::Value, String> {
 #[tauri::command]
 fn shell_run_kill(_id: String) -> Result<serde_json::Value, String> {
     Err("shell_run_kill is not available in App Store / iOS builds".into())
+}
+
+// Pi is a desktop-only harness. App Store/iOS builds keep the legacy in-app
+// provider path and receive a clear capability error if the bridge is called.
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn pi_preflight() -> Result<serde_json::Value, String> {
+    Err("Pi local is not available in App Store / iOS builds".into())
+}
+
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn pi_get_available_models() -> Result<serde_json::Value, String> {
+    Err("Pi local is not available in App Store / iOS builds".into())
+}
+
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn pi_start(
+    _agent_id: String,
+    _cwd: String,
+    _provider: String,
+    _model: String,
+    _system_prompt: String,
+    _session_dir: String,
+    _session_id: String,
+    _thinking: Option<String>,
+) -> Result<serde_json::Value, String> {
+    Err("Pi local is not available in App Store / iOS builds".into())
+}
+
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn pi_send(_agent_id: String, _command: serde_json::Value) -> Result<(), String> {
+    Err("Pi local is not available in App Store / iOS builds".into())
+}
+
+#[cfg(any(feature = "mas", target_os = "ios"))]
+#[tauri::command]
+fn pi_stop(_agent_id: String) -> Result<(), String> {
+    Err("Pi local is not available in App Store / iOS builds".into())
 }
 
 // ── git_cli — CLI/shell variant (dev builds, Linux, Windows) ─────────────────
@@ -1870,6 +2427,8 @@ pub fn run() {
     let builder = builder.manage(ShellProcessRegistry::default());
     #[cfg(not(any(feature = "mas", target_os = "ios")))]
     let builder = builder.manage(McpProcessRegistry::default());
+    #[cfg(not(any(feature = "mas", target_os = "ios")))]
+    let builder = builder.manage(PiProcessRegistry::default());
 
     builder
         .setup(|app| {            // ── Deep link handler — OAuth callback (cafezin://auth/callback) ────
@@ -2007,7 +2566,78 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_apply_patch, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo, mcp_start_server, mcp_call, mcp_stop_server, mcp_list_tools, git_available])
+        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_apply_patch, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, pi_preflight, pi_get_available_models, pi_start, pi_send, pi_stop, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo, mcp_start_server, mcp_call, mcp_stop_server, mcp_list_tools, git_available])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(all(test, not(any(feature = "mas", target_os = "ios"))))]
+mod pi_protocol_tests {
+    use super::*;
+
+    #[test]
+    fn path_boundary_uses_components_instead_of_string_prefixes() {
+        assert!(is_strict_descendant(
+            std::path::Path::new("/tmp/workspace/book"),
+            std::path::Path::new("/tmp/workspace"),
+        ));
+        assert!(!is_strict_descendant(
+            std::path::Path::new("/tmp/workspace-other"),
+            std::path::Path::new("/tmp/workspace"),
+        ));
+        assert!(reject_parent_components(std::path::Path::new("/tmp/workspace/.cafezin")).is_ok());
+        assert!(reject_parent_components(std::path::Path::new("/tmp/workspace/../outside")).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_session_target_cannot_escape_workspace() {
+        use std::os::unix::fs::symlink;
+        let root = std::env::temp_dir().join(format!("cafezin-pi-test-{}", std::process::id()));
+        let workspace = root.join("workspace");
+        let outside = root.join("outside");
+        let link = workspace.join(".cafezin");
+        fs::create_dir_all(&workspace).expect("workspace");
+        fs::create_dir_all(&outside).expect("outside");
+        symlink(&outside, &link).expect("symlink");
+        let workspace = fs::canonicalize(&workspace).expect("canonical workspace");
+        let escaped = fs::canonicalize(&link).expect("canonical symlink");
+        assert!(!is_strict_descendant(&escaped, &workspace));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn stderr_sanitization_removes_known_secret_shapes_and_bounds_output() {
+        let sanitized = sanitize_pi_text("Authorization: Bearer sk-or-secret-value");
+        assert!(!sanitized.contains("sk-or-secret-value"));
+        assert!(!sanitized.contains("secret-value"));
+        assert!(sanitize_pi_text(&"x".repeat(2_001)).chars().count() <= 2_002);
+    }
+
+    #[test]
+    fn prompt_paths_are_unique_and_create_new_rejects_existing_entries() {
+        let root = std::env::temp_dir().join(format!("cafezin-pi-prompt-{}", std::process::id()));
+        fs::create_dir_all(&root).expect("prompt test directory");
+        let first = secure_prompt_path(&root, "agent/one");
+        let second = secure_prompt_path(&root, "agent/one");
+        assert_ne!(first, second);
+        write_secure_prompt(&first, "secret").expect("first prompt");
+        assert!(write_secure_prompt(&first, "replacement").is_err());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            let target = root.join("target");
+            fs::write(&target, "target").expect("symlink target");
+            let link = root.join("link");
+            symlink(&target, &link).expect("symlink");
+            assert!(write_secure_prompt(&link, "replacement").is_err());
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn model_normalization_is_provider_specific() {
+        assert_eq!(normalize_pi_model_id("openrouter/anthropic/claude"), "anthropic/claude");
+        assert_eq!(normalize_pi_model_id("anthropic/claude"), "anthropic/claude");
+    }
 }

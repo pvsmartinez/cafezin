@@ -17,6 +17,13 @@ import { applyRiskGate } from '../utils/riskGate';
 import type { RiskLevel } from '../utils/toolRisk';
 import { canvasToDataUrl, compressDataUrl } from '../utils/canvasAI';
 import { unlockAllByAgent } from '../services/copilotLock';
+import {
+  contentPartsToPiPrompt,
+  preflightPi,
+  PiUnavailableError,
+  runPiAgent,
+  stopPiAgent,
+} from '../services/piClient';
 import type {
   AgentContextSnapshot,
   AIRecordedTextMark,
@@ -80,6 +87,10 @@ export interface UseAIStreamParams {
   setUserProfileContent?: (v: string) => void;
   /** Called after any task is created or a step is updated, so the UI can reload tasks. */
   onTaskChanged?: () => void;
+  /** Receives Pi's workspace-aware slash commands when the local harness is active. */
+  onPiCommands?: (commands: string[]) => void;
+  /** Pi reasoning budget for the current agent tab. */
+  thinkingLevel?: string;
   /** Identifier for this agent instance — used to release only this agent's file locks. */
   agentId?: string;
   /**
@@ -205,6 +216,8 @@ export function useAIStream({
   setMemoryContent,
   setUserProfileContent,
   onTaskChanged,
+  onPiCommands,
+  thinkingLevel,
   onNotAuthenticated,
   agentId = 'agent-1',
   activeFileContent,
@@ -406,6 +419,7 @@ export function useAIStream({
     return () => {
       abortRef.current?.abort();
       abortRef.current = null;
+      void stopPiAgent(agentId);
       unlockAllByAgent(agentId);
       askUserResolveRef.current?.('');
       askUserResolveRef.current = null;
@@ -536,6 +550,28 @@ export function useAIStream({
       setQuotaInfo(getLastRateLimit());
     };
 
+    const onToolActivity = (activity: ToolActivity) => {
+      if (runIdRef.current !== runId) return;
+      setLiveItems((prev) => {
+        const pIdx = prev.findIndex(
+          (it) => it.type === 'tool' && it.activity.callId === activity.callId,
+        );
+        if (pIdx >= 0) {
+          const next = [...prev];
+          const previous = next[pIdx];
+          if (previous.type === 'tool') {
+            const hasArgs = Object.keys(activity.args).length > 0;
+            next[pIdx] = {
+              type: 'tool',
+              activity: { ...previous.activity, ...activity, args: hasArgs ? activity.args : previous.activity.args },
+            };
+          }
+          return next;
+        }
+        return [...prev, { type: 'tool', activity }];
+      });
+    };
+
     // ── Sliding-window token budget ──────────────────────────────────────
     // Pin only the system prompt, then fill backward from the most-recent
     // message. This avoids anchoring on the first user turn, which caused
@@ -636,24 +672,50 @@ export function useAIStream({
       });
 
       const activeProvider = getActiveProvider();
+      // Pi is the default desktop transport for every provider selection. The
+      // legacy loops remain the explicit fallback when Pi/auth is unavailable.
+      if (import.meta.env.VITE_TAURI_MOBILE !== 'true') {
+        const lastUserMessage = [...apiMessages].reverse().find((message) => message.role === 'user');
+        if (lastUserMessage) {
+          try {
+            const piReadiness = await preflightPi();
+            if (!piReadiness.authenticated) {
+              throw new PiUnavailableError(piReadiness.message);
+            }
+            const piPrompt = contentPartsToPiPrompt(lastUserMessage.content);
+            await runPiAgent({
+              agentId,
+              workspacePath: workspace.path,
+              sessionId: sessionIdRef.current,
+              provider: 'openrouter',
+              model,
+              systemPrompt: typeof systemPrompt.content === 'string' ? systemPrompt.content : '',
+              message: piPrompt.message,
+                images: piPrompt.images,
+                thinking: thinkingLevel,
+                signal,
+              onChunk,
+              onActivity: onToolActivity,
+              onCommands: onPiCommands,
+            });
+            onDone();
+            return;
+          } catch (error) {
+            if (!(error instanceof PiUnavailableError)) {
+              onError(error instanceof Error ? error : new Error(String(error)));
+              return;
+            }
+            console.warn('[Cafezin] Pi local unavailable; using legacy agent loop.', error);
+          }
+        }
+      }
       if (activeProvider === 'copilot') {
         await runCopilotAgent(
           apiMessages,
           activeTools,
           trackingExecutor,
           onChunk,
-          (activity: ToolActivity) => {
-            if (runIdRef.current !== runId) return;
-            setLiveItems((prev) => {
-              const pIdx = prev.findIndex(
-                (it) => it.type === 'tool' && it.activity.callId === activity.callId,
-              );
-              if (pIdx >= 0) {
-                const next = [...prev]; next[pIdx] = { type: 'tool', activity }; return next;
-              }
-              return [...prev, { type: 'tool', activity }];
-            });
-          },
+          onToolActivity,
           onDone,
           onError,
           model,
@@ -676,18 +738,7 @@ export function useAIStream({
           activeTools,
           trackingExecutor,
           onChunk,
-          (activity: ToolActivity) => {
-            if (runIdRef.current !== runId) return;
-            setLiveItems((prev) => {
-              const pIdx = prev.findIndex(
-                (it) => it.type === 'tool' && it.activity.callId === activity.callId,
-              );
-              if (pIdx >= 0) {
-                const next = [...prev]; next[pIdx] = { type: 'tool', activity }; return next;
-              }
-              return [...prev, { type: 'tool', activity }];
-            });
-          },
+          onToolActivity,
           onDone,
           onError,
           model,
