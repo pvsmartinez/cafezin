@@ -64,6 +64,10 @@ const DEFAULT_TARGET: Omit<ExportTarget, 'id' | 'name'> = {
   enabled: true,
 };
 
+// Keep the export engine backward-compatible with existing workspace config,
+// while exposing only manuscript → PDF in the active book-authoring UI.
+const BOOK_AUTHORING_ONLY = true;
+
 const FORMAT_DEFAULTS: Record<ExportFormat, { include: string[]; outputDir: string }> = {
   'pdf':         { include: ['md', 'mdx'],          outputDir: 'dist' },
   'canvas-png':  { include: ['tldr.json'],          outputDir: 'dist' },
@@ -159,6 +163,7 @@ export default function ExportModal({
 }: ExportModalProps) {
   const savedConfig = normalizeWorkspaceExportConfig(workspace.config.exportConfig);
   const [targets, setTargets] = useState<ExportTarget[]>(savedConfig?.targets ?? []);
+  const visibleTargets = targets.filter((target) => !BOOK_AUTHORING_ONLY || target.format === 'pdf');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<Map<string, TargetStatus>>(new Map());
   const [publishStatuses, setPublishStatuses] = useState<Map<string, TargetPublishStatus>>(new Map());
@@ -173,11 +178,11 @@ export default function ExportModal({
   const cancelControllersRef = useRef(new Map<string, { cancelled: boolean }>());
 
   function getAIPrompt(): string {
-    if (targets.length === 0) {
+    if (visibleTargets.length === 0) {
       return 'Estou abrindo as configurações de Export do Cafezin pela primeira vez. Pode me ajudar a entender quais targets de export fazem sentido criar para o meu workspace?';
     }
-    const expanded = targets.find((t) => t.id === expandedId);
-    const ref = expanded ?? targets[0];
+    const expanded = visibleTargets.find((t) => t.id === expandedId);
+    const ref = expanded ?? visibleTargets[0];
     const prompts: Record<ExportFormat, string> = {
       'pdf': `Estou configurando um target de export "${ref.name}" (Markdown → PDF) no Cafezin. Como posso configurar os campos Include, Output dir e Custom command para produzir um PDF bem formatado?`,
       'canvas-png': `Estou configurando um target de export de canvas para PNG no Cafezin. Como funciona o export de arquivos .tldr.json? Quais dicas você tem para este formato?`,
@@ -197,7 +202,7 @@ export default function ExportModal({
         const allFiles = await listAllFiles(workspace.path);
         if (cancelled) return;
         const counts = new Map<string, number>();
-        for (const t of targets) {
+        for (const t of visibleTargets) {
           if (t.format === 'git-publish') continue;
           counts.set(t.id, resolveFiles(allFiles, t).length);
         }
@@ -208,7 +213,7 @@ export default function ExportModal({
     return () => { cancelled = true; };
   // Depend only on the file-selection fields that affect which files are matched
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(targets.map(t => ({ id: t.id, format: t.format, include: t.include, includeFiles: t.includeFiles, excludeFiles: t.excludeFiles })))]);
+  }, [JSON.stringify(visibleTargets.map(t => ({ id: t.id, format: t.format, include: t.include, includeFiles: t.includeFiles, excludeFiles: t.excludeFiles })))]);
 
   useEffect(() => {
     const hasRunning = Array.from(statuses.values()).some((status) => status.status === 'running');
@@ -422,7 +427,7 @@ export default function ExportModal({
     if (isRunningAll) return;
     setIsRunningAll(true);
     try {
-      for (const t of targets.filter((t) => t.enabled)) {
+      for (const t of visibleTargets.filter((t) => t.enabled)) {
         const outcome = await runTarget(t);
         if (outcome === 'canceled') break;
       }
@@ -468,7 +473,7 @@ export default function ExportModal({
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
-  const enabledCount = targets.filter((t) => t.enabled).length;
+  const enabledCount = visibleTargets.filter((t) => t.enabled).length;
 
   return (
     <div className="em-backdrop" onClick={(e) => { if (e.target === e.currentTarget) handleRequestClose(); }}>
@@ -482,13 +487,13 @@ export default function ExportModal({
 
         {/* Target list */}
         <div className="em-body">
-          {targets.length === 0 && (
+          {visibleTargets.length === 0 && (
             <div className="em-empty">
               No export targets yet. Add one below to define what your workspace produces.
             </div>
           )}
 
-          {targets.map((target) => {
+          {visibleTargets.map((target) => {
             const s = statuses.get(target.id);
             const customConfig = getCustomExportConfig(target);
             const isExpanded = expandedId === target.id;
@@ -626,7 +631,7 @@ export default function ExportModal({
                         </button>
 
                         {/* Vercel publish button */}
-                        {target.vercelPublish && s.status === 'done' && (() => {
+                        {!BOOK_AUTHORING_ONLY && target.vercelPublish && s.status === 'done' && (() => {
                           const ps = publishStatuses.get(target.id);
                           return (
                             <button
@@ -698,7 +703,7 @@ export default function ExportModal({
                           });
                         }}
                       >
-                        {(Object.keys(FORMAT_LABELS) as ExportFormat[]).map((f) => (
+                        {(Object.keys(FORMAT_LABELS) as ExportFormat[]).filter((f) => !BOOK_AUTHORING_ONLY || f === 'pdf').map((f) => (
                           <option key={f} value={f}>{FORMAT_LABELS[f]}</option>
                         ))}
                       </select>
@@ -1037,7 +1042,7 @@ export default function ExportModal({
                     )}
 
                     {/* Vercel Publish ─────────────────────────────────── */}
-                    {target.format !== 'git-publish' && (
+                    {!BOOK_AUTHORING_ONLY && target.format !== 'git-publish' && (
                       <>
                         <div className="em-section-label">Vercel Publish</div>
                         <div className="em-field">
@@ -1085,7 +1090,7 @@ export default function ExportModal({
             <div className="em-ai-banner-left">
               <Sparkle weight="fill" className="em-ai-banner-icon" />
               <span className="em-ai-banner-text">
-                {targets.length === 0
+                {visibleTargets.length === 0
                   ? 'Precisa de ajuda para configurar seus exports?'
                   : 'Dúvidas sobre as configurações de export?'}
               </span>
@@ -1115,9 +1120,9 @@ export default function ExportModal({
             <button className="em-add-btn" onClick={addTarget}>
               <Plus weight="bold" /> New target
             </button>
-            <button className="em-add-btn" onClick={addGitPublishTarget}>
+            {!BOOK_AUTHORING_ONLY && <button className="em-add-btn" onClick={addGitPublishTarget}>
               <CloudArrowUp weight="bold" /> Git publish
-            </button>
+            </button>}
           </div>
           <div className="em-footer-right">
             {enabledCount > 0 && (

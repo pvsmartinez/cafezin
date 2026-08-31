@@ -13,7 +13,6 @@ import type { MobilePendingTask } from './services/mobilePendingTasks';
 import { markWorkspaceMemoryEntriesStale } from './services/memoryMetadata';
 
 
-import type { FileMeta } from './components/BottomPanel';
 import { useDragResize } from './hooks/useDragResize';
 import { syncSecretsFromCloud, saveApiSecret } from './services/apiSecrets';
 
@@ -61,7 +60,6 @@ import { formatShortcutLabel, getShortcutBindings } from './keyboardShortcuts';
 import { useExport } from './hooks/useExport';
 import { useVoiceMemos } from './hooks/useVoiceMemos';
 import { useTauriMenuListeners } from './hooks/useTauriMenuListeners';
-import { useDemoHub } from './hooks/useDemoHub';
 import { useDroppedFiles } from './hooks/useDroppedFiles';
 import { useEditorZoom } from './hooks/useEditorZoom';
 import { useAIDocumentContext } from './hooks/useAIDocumentContext';
@@ -86,7 +84,6 @@ setupI18n(loadAppSettings().locale);
 const launchWorkspacePath = consumeLaunchWorkspacePath();
 const AIPanel = lazy(() => import('./components/AIPanel'));
 const Sidebar = lazy(() => import('./components/Sidebar'));
-const BottomPanel = lazy(() => import('./components/BottomPanel'));
 const DesktopOnboardingModal = lazy(() => import('./components/DesktopOnboardingModal'));
 
 export default function App() {
@@ -107,14 +104,6 @@ export default function App() {
     setSidebarOpen,
     homeVisible,
     setHomeVisible,
-    terminalOpen,
-    setTerminalOpen,
-    terminalHeight,
-    setTerminalHeight,
-    terminalRequestCd,
-    setTerminalRequestCd,
-    terminalRequestRun,
-    setTerminalRequestRun,
     focusMode,
     setFocusMode,
   } = useAppShellState();
@@ -129,10 +118,6 @@ export default function App() {
   const previewShortcutLabel = useMemo(
     () => formatShortcutLabel(shortcutBindings.togglePreview),
     [shortcutBindings.togglePreview],
-  );
-  const terminalShortcutLabel = useMemo(
-    () => formatShortcutLabel(shortcutBindings.toggleTerminal),
-    [shortcutBindings.toggleTerminal],
   );
   const focusModeShortcutLabel = useMemo(
     () => formatShortcutLabel(shortcutBindings.toggleFocusMode),
@@ -203,23 +188,7 @@ export default function App() {
   // Debounce word/line count so the status bar doesn't update on every keystroke.
   // For large documents (>100KB), skip the expensive split/filter and estimate from
   // newline count — a 300-page book is ~500KB and split(/\s+/) creates ~80K strings.
-  const [wordCount, setWordCount] = useState(() => content.trim().split(/\s+/).filter(Boolean).length);
-  const [lineCount, setLineCount] = useState(() => content.split('\n').length);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const lines = content.split('\n');
-      setLineCount(lines.length);
-      if (content.length > 100_000) {
-        // For large docs: count non-empty lines × ~8 words/line as a fast approximation.
-        // Accurate enough for the status bar; avoids creating 80K+ string arrays per tick.
-        setWordCount(lines.filter((l) => l.trim().length > 0).length * 8);
-      } else {
-        setWordCount(content.trim().split(/\s+/).filter(Boolean).length);
-      }
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [content]);
-  const [fileStat, setFileStat] = useState<string | null>(null);
+  const [, setFileStat] = useState<string | null>(null);
   const [memoryRefreshKey, setMemoryRefreshKey] = useState(0);
   const activeFileRef = useRef<string | null>(null);
   activeFileRef.current = activeFile;
@@ -277,7 +246,6 @@ export default function App() {
     showUpdateModal, setShowUpdateModal,
     showSettings, setShowSettings,
     settingsInitialTab, openSettings,
-    imgSearchOpen, setImgSearchOpen,
     exportModalOpen, setExportModalOpen,
     findReplaceOpen, setFindReplaceOpen,
     aiOpen, setAiOpen,
@@ -289,7 +257,6 @@ export default function App() {
     setShowUpdateReleaseModal,
     updateToastVersion,
     setUpdateToastVersion,
-    showMobilePending,
     setShowMobilePending,
     desktopOnboardingSeen,
     showDesktopOnboarding,
@@ -309,14 +276,14 @@ export default function App() {
 
   // Voice memos recorded on mobile without transcripts
   const { pendingVoiceMemos, scanVoiceMemos, handleVoiceMemoHandled } = useVoiceMemos(workspace?.path);
-  const [mobilePendingTasks, setMobilePendingTasks] = useState<MobilePendingTask[]>([]);
+  const [, setMobilePendingTasks] = useState<MobilePendingTask[]>([]);
   // ── Canvas refs + transient state ───────────────────────────────────────
   const {
     canvasEditorRef,
     forceSaveRef,
     rescanFramesRef,
     canvasResetKey, setCanvasResetKey,
-    canvasSlideCount, setCanvasSlideCount,
+    setCanvasSlideCount,
   } = useCanvasState();
   const [aiSelectionContext, setAiSelectionContext] = useState<AISelectionContext | null>(null);
   const aiOpenRef = useRef(aiOpen);
@@ -450,8 +417,6 @@ export default function App() {
     setAiSelectionContext(null);
   }, [activeFile]);
 
-  // ── Demo Hub publish ───────────────────────────────────────────────────────
-  const { demoHubToast, handlePublishDemoHub, clearDemoHubToast } = useDemoHub(workspace);
   const dirtyFilesRef = useRef<Set<string>>(dirtyFiles);
   dirtyFilesRef.current = dirtyFiles;
   const isFileDirty = useCallback((relPath: string): boolean => {
@@ -500,15 +465,6 @@ export default function App() {
     tsEnabled,
     tsDiagnosticsDirty,
   );
-  const fileMeta = useMemo<FileMeta>(() => ({
-    kind: fileTypeInfo?.kind ?? null,
-    wordCount,
-    lines: lineCount,
-    slides: canvasSlideCount,
-    fileStat,
-    tsErrors: tsDiags.errorCount > 0 || tsDiags.warningCount > 0 || tsEnabled ? tsDiags.errorCount : undefined,
-    tsWarnings: tsEnabled ? tsDiags.warningCount : undefined,
-  }), [fileTypeInfo?.kind, wordCount, lineCount, canvasSlideCount, fileStat, tsDiags, tsEnabled]);
 
   // ── In-app update ───────────────────────────────────────────
   // dev      → open UpdateModal (runs local build script)
@@ -686,7 +642,6 @@ export default function App() {
         });
       }
     },
-    onToggleTerminal: () => setTerminalOpen((v) => !v),
     focusMode,
     onToggleFocusMode: () => {
       setFocusMode((v) => {
@@ -843,7 +798,6 @@ export default function App() {
     newFileRef,
     onExportPDF: handleExportPDF,
     setExportModalOpen,
-    setImgSearchOpen,
     setAiOpen,
     setViewMode,
     tabViewModeRef,
@@ -916,10 +870,6 @@ export default function App() {
     const updated: Workspace = { ...workspace, config: { ...workspace.config, ...patch } };
     setWorkspace(updated);
     try { await saveWorkspaceConfig(updated); } catch (e) { console.error('Failed to save workspace config:', e); }
-  }
-
-  async function handleWorkspaceTypeChange(type: string): Promise<void> {
-    await handleWorkspaceConfigChange({ workspaceType: type });
   }
 
   // ── File open ────────────────────────────────────────────────────────────────
@@ -1126,11 +1076,6 @@ export default function App() {
     [activeFile, content, workspace?.name],
   );
 
-  function handleExecutePendingTask(task: MobilePendingTask) {
-    setAiInitialPrompt(task.description);
-    setAiOpen(true);
-  }
-
   const handleViewModeChange = useCallback((mode: 'edit' | 'preview') => {
     setViewMode(mode);
     if (activeTabId) tabViewModeRef.current.set(activeTabId, mode);
@@ -1179,17 +1124,6 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // refs handle mutable values — no deps needed
 
-  const handleOpenTerminalAt = useCallback((relDir: string) => {
-    const absDir = relDir ? `${workspace?.path}/${relDir}` : workspace?.path ?? '';
-    setTerminalOpen(true);
-    setTerminalRequestCd(absDir + '|' + Date.now());
-  }, [workspace?.path]);
-
-  const handleRunButtonCommand = useCallback((command: string) => {
-    setTerminalOpen(true);
-    setTerminalRequestRun(command + '|' + Date.now());
-  }, []);
-
   const handleExpandSidebar = useCallback(() => {
     if (sidebarWidthRef.current < 80) setSidebarWidth(220);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1208,9 +1142,6 @@ export default function App() {
   const handleCloseUpdateModal = useCallback(() => setShowUpdateModal(false), []);
   const handleCloseUpdateReleaseModal = useCallback(() => setShowUpdateReleaseModal(false), []);
   const handleOpenUpdateReleaseModal = useCallback(() => setShowUpdateReleaseModal(true), []);
-  const handleCloseMobilePending = useCallback(() => setShowMobilePending(false), []);
-  const handleDeleteMobilePendingTask = useCallback((id: string) =>
-    setMobilePendingTasks((prev) => prev.filter((task) => task.id !== id)), []);
   const handleCloseSettings = useCallback(() => setShowSettings(false), []);
   const handleCloseExportModal = useCallback(() => setExportModalOpen(false), []);
   const handleOpenAIFromExport = useCallback((prompt: string) => {
@@ -1218,7 +1149,6 @@ export default function App() {
     setAiInitialPrompt(prompt);
     setAiOpen(true);
   }, []);
-  const handleCloseImageSearch = useCallback(() => setImgSearchOpen(false), []);
   const handleAskNudge = useCallback((prompt: string) => {
     dismissNudge();
     setAiInitialPrompt(prompt);
@@ -1228,7 +1158,6 @@ export default function App() {
   // AppHeader callbacks
   const handleToggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
   const handleGoHome = useCallback(() => switchToTab(null), [switchToTab]);
-  const handleClearDemoHubToast = useCallback(() => clearDemoHubToast(), [clearDemoHubToast]);
   const handleClearPandocError = useCallback(() => setPandocError(null), []);
   const handleToggleAi = useCallback(() => setAiOpen((v) => !v), []);
   const handleCloseAi   = useCallback(() => setAiOpen(false), []);
@@ -1337,8 +1266,6 @@ export default function App() {
         onRetrySave={handleRetrySave}
         dirtyFiles={dirtyFiles}
         savedToast={savedToast}
-        demoHubToast={demoHubToast}
-        onClearDemoHubToast={handleClearDemoHubToast}
         pandocError={pandocError}
         onClearPandocError={handleClearPandocError}
         isDev={import.meta.env.DEV}
@@ -1347,7 +1274,7 @@ export default function App() {
         previewShortcutLabel={previewShortcutLabel}
       />
 
-      {/* Workspace: editor body + bottom terminal panel */}
+      {/* Workspace: editor body */}
       <div className="app-workspace">
       {/* Main 3-column body */}
       <div className="app-body">
@@ -1378,9 +1305,6 @@ export default function App() {
                 onRefreshFiles={handleRefreshWorkspaceFiles}
                 lockedFiles={lockedFiles}
                 newFileRef={newFileRef}
-                onOpenTerminalAt={handleOpenTerminalAt}
-                onRunButtonCommand={handleRunButtonCommand}
-                onPublishDemoHub={handlePublishDemoHub}
                 onExportOpen={handleExportOpen}
                 onExpandSidebar={handleExpandSidebar}
               />
@@ -1439,7 +1363,6 @@ export default function App() {
           onMarkUserEdited={handleMarkUserEdited}
           onOpenFile={handleOpenFile}
           onCreateFirstWorkspaceFile={handleCreateFirstWorkspaceFile}
-          onWorkspaceTypeChange={handleWorkspaceTypeChange}
           onOpenAIReview={handleEditorAreaOpenAIReview}
           onSwitchWorkspace={handleSwitchWorkspace}
           onActivateSync={handleActivateSync}
@@ -1519,21 +1442,6 @@ export default function App() {
         )}
       </div> {/* end app-body */}
 
-      <Suspense fallback={null}>
-        <BottomPanel
-          workspacePath={workspace.path}
-          open={terminalOpen}
-          height={terminalHeight}
-          onToggle={() => setTerminalOpen((v) => !v)}
-          onHeightChange={setTerminalHeight}
-          requestCd={terminalRequestCd}
-          requestRun={terminalRequestRun}
-          fileMeta={fileMeta}
-          showTerminal={appSettings.showTerminal}
-          locale={appSettings.locale ?? 'en'}
-          toggleShortcutLabel={terminalShortcutLabel}
-        />
-      </Suspense>
       </div> {/* end app-workspace */}
 
       <AppOverlays
@@ -1547,11 +1455,6 @@ export default function App() {
         forceUpdateRequired={forceUpdateRequired}
         forceUpdateChannel={forceUpdateChannel}
         onUpdate={handleUpdate}
-        showMobilePending={showMobilePending}
-        mobilePendingTasks={mobilePendingTasks}
-        onExecutePendingTask={handleExecutePendingTask}
-        onCloseMobilePending={handleCloseMobilePending}
-        onDeleteMobilePendingTask={handleDeleteMobilePendingTask}
         showSettings={showSettings}
         appSettings={appSettings}
         onAppSettingsChange={handleAppSettingsChange}
@@ -1571,8 +1474,6 @@ export default function App() {
         onCloseExportModal={handleCloseExportModal}
         onOpenAIFromExport={handleOpenAIFromExport}
         onExportLockStateChange={setExportLockState}
-        imgSearchOpen={imgSearchOpen}
-        onCloseImageSearch={handleCloseImageSearch}
         copilotOverlayActive={copilotOverlayActive}
         activeNudge={activeNudge}
         onAskNudge={handleAskNudge}

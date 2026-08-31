@@ -12,9 +12,6 @@ export interface UseModalsReturn {
   settingsInitialTab: SettingsTab;
   openSettings: (tab?: SettingsTab) => void;
   setShowSettings: Dispatch<SetStateAction<boolean>>;
-  // Image search panel
-  imgSearchOpen: boolean;
-  setImgSearchOpen: Dispatch<SetStateAction<boolean>>;
   // Export modal
   exportModalOpen: boolean;
   setExportModalOpen: Dispatch<SetStateAction<boolean>>;
@@ -36,7 +33,6 @@ export function useModals(): UseModalsReturn {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general');
-  const [imgSearchOpen, setImgSearchOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(true);
@@ -52,7 +48,6 @@ export function useModals(): UseModalsReturn {
     showSettings, setShowSettings,
     settingsInitialTab,
     openSettings,
-    imgSearchOpen, setImgSearchOpen,
     exportModalOpen, setExportModalOpen,
     findReplaceOpen, setFindReplaceOpen,
     aiOpen, setAiOpen,

@@ -25,6 +25,12 @@ const RtfViewer = lazy(() => import('../RtfViewer'));
 const DocxInfoPanel = lazy(() => import('../DocxInfoPanel'));
 const PptxInfoPanel = lazy(() => import('../PptxInfoPanel'));
 
+// Cafezin's first authoring slice is intentionally narrow. The legacy viewers
+// remain in the repository for a possible later product, but are not part of
+// the book workspace surface.
+const BOOK_AUTHORING_ONLY = true;
+const NON_BOOK_KINDS = new Set(['canvas', 'spreadsheet', 'rtf', 'docx', 'pptx', 'html', 'code']);
+
 type ViewMode = 'edit' | 'preview';
 
 interface AppEditorAreaProps {
@@ -76,7 +82,6 @@ interface AppEditorAreaProps {
   onMarkUserEdited: (id: string) => void;
   onOpenFile: (relPath: string, lineNo?: number) => void | Promise<void>;
   onCreateFirstWorkspaceFile: () => void | Promise<void>;
-  onWorkspaceTypeChange: (type: string) => void;
   onOpenAIReview: () => void;
   onSwitchWorkspace: () => void | Promise<void>;
   onActivateSync: () => void;
@@ -140,7 +145,6 @@ export function AppEditorAreaInner({
   onMarkUserEdited,
   onOpenFile,
   onCreateFirstWorkspaceFile,
-  onWorkspaceTypeChange,
   onOpenAIReview,
   onSwitchWorkspace,
   onActivateSync,
@@ -155,6 +159,7 @@ export function AppEditorAreaInner({
 
 }: AppEditorAreaProps) {
   const { t } = useTranslation();
+  const isOutsideBookScope = fileTypeInfo ? NON_BOOK_KINDS.has(fileTypeInfo.kind) : false;
   return (
     <div className="editor-area" ref={editorAreaRef}>
       <TabBar
@@ -200,7 +205,7 @@ export function AppEditorAreaInner({
                 filename={activeFile}
                 onStat={onSetFileStat}
               />
-            ) : fileTypeInfo?.kind === 'spreadsheet' && activeFile ? (
+            ) : !BOOK_AUTHORING_ONLY && fileTypeInfo?.kind === 'spreadsheet' && activeFile ? (
               <SpreadsheetViewer
                 absPath={`${workspace.path}/${activeFile}`}
                 filename={activeFile}
@@ -215,7 +220,7 @@ export function AppEditorAreaInner({
                 onMarkRejected={onMarkRejected}
                 onMarkUserEdited={onMarkUserEdited}
               />
-            ) : fileTypeInfo?.kind === 'rtf' && activeFile ? (
+            ) : !BOOK_AUTHORING_ONLY && fileTypeInfo?.kind === 'rtf' && activeFile ? (
               <RtfViewer
                 absPath={`${workspace.path}/${activeFile}`}
                 filename={activeFile}
@@ -223,14 +228,14 @@ export function AppEditorAreaInner({
                 onStat={onSetFileStat}
                 onOpenFile={onOpenFile}
               />
-            ) : fileTypeInfo?.kind === 'docx' && activeFile ? (
+            ) : !BOOK_AUTHORING_ONLY && fileTypeInfo?.kind === 'docx' && activeFile ? (
               <DocxInfoPanel
                 absPath={`${workspace.path}/${activeFile}`}
                 filename={activeFile}
                 workspacePath={workspace.path}
                 onOpenFile={onOpenFile}
               />
-            ) : fileTypeInfo?.kind === 'pptx' && activeFile ? (
+            ) : !BOOK_AUTHORING_ONLY && fileTypeInfo?.kind === 'pptx' && activeFile ? (
               <PptxInfoPanel
                 absPath={`${workspace.path}/${activeFile}`}
                 filename={activeFile}
@@ -244,7 +249,7 @@ export function AppEditorAreaInner({
                 kind={fileTypeInfo.kind}
                 onStat={onSetFileStat}
               />
-            ) : fileTypeInfo?.kind === 'canvas' && activeFile ? (
+            ) : !BOOK_AUTHORING_ONLY && fileTypeInfo?.kind === 'canvas' && activeFile ? (
               <CanvasErrorBoundary
                 key={`${activeFile}-${canvasResetKey}`}
                 workspacePath={workspace.path}
@@ -281,7 +286,6 @@ export function AppEditorAreaInner({
                 workspace={workspace}
                 onOpenFile={onOpenFile}
                 onCreateFirstFile={onCreateFirstWorkspaceFile}
-                onWorkspaceTypeChange={onWorkspaceTypeChange}
                 aiMarks={aiMarks}
                 onOpenAIReview={onOpenAIReview}
                 onSwitchWorkspace={onSwitchWorkspace}
@@ -324,7 +328,7 @@ export function AppEditorAreaInner({
                 currentFilePath={activeFile ?? undefined}
                 features={workspace.config.features}
               />
-            ) : viewMode === 'preview' && (fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && activeFile ? (
+            ) : !BOOK_AUTHORING_ONLY && viewMode === 'preview' && (fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && activeFile ? (
               <WebPreview
                 ref={webPreviewRef}
                 content={content}
@@ -332,6 +336,13 @@ export function AppEditorAreaInner({
                 filename={activeFile}
                 isLocked={lockedFiles.has(activeFile)}
               />
+            ) : isOutsideBookScope ? (
+              <div className="ws-empty ws-empty--unsupported" role="status">
+                <span className="ws-empty-logo">✦</span>
+                <span className="ws-empty-name">{activeFile}</span>
+                <span className="ws-empty-hint">Este formato fica fora do foco de autoria do Cafezin.</span>
+                <span className="ws-empty-hint">Os arquivos continuam no workspace; abra Markdown ou texto para escrever.</span>
+              </div>
             ) : (
               fileTypeInfo?.kind === 'markdown' ? (
                 <ProseEditor
@@ -402,4 +413,3 @@ export function AppEditorAreaInner({
 }
 
 export const AppEditorArea = memo(AppEditorAreaInner);
-

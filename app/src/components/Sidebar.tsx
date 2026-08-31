@@ -35,11 +35,11 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { writeFile } from '../services/fs';
-import { WORKSPACE_MUTATED_EVENT, createFile, createCanvasFile, createSlidesCanvasFile, createFolder, refreshWorkspaceFiles, deleteFile, duplicateFile, duplicateFolder, renameFile, moveFile, updateFileReferences } from '../services/workspace';
+import { WORKSPACE_MUTATED_EVENT, createFile, createFolder, refreshWorkspaceFiles, deleteFile, duplicateFile, duplicateFolder, renameFile, moveFile, updateFileReferences } from '../services/workspace';
 import SyncModal from './SyncModal';
 import { getGitAccountToken, listGitAccountLabels } from '../services/syncConfig';
 import ProjectSearchPanel from './ProjectSearchPanel';
-import type { Workspace, FileTreeNode, AIEditMark, SidebarButton } from '../types';
+import type { Workspace, FileTreeNode, AIEditMark } from '../types';
 import { loadWorkspaceSession, saveWorkspaceSession } from '../services/workspaceSession';
 import './Sidebar.css';
 
@@ -84,31 +84,9 @@ function fileIconInfo(name: string): { icon: React.ReactNode; cls: string } {
 }
 
 // ── File-type groups for the three-category creator ────────────────────────
-type FileCategory = 'canvas' | 'text' | 'code' | 'spreadsheet';
-type CanvasSubtype = 'freeform' | 'slides';
-
 const TEXT_TYPES = [
   { ext: '.md',   label: 'Markdown' },
-  { ext: '.mdx',  label: 'MDX' },
   { ext: '.txt',  label: 'Plain text' },
-  { ext: '.json', label: 'JSON' },
-];
-
-const SPREADSHEET_TYPES = [
-  { ext: '.csv', label: 'CSV' },
-  { ext: '.tsv', label: 'TSV' },
-];
-
-const CODE_TYPES = [
-  { ext: '.html', label: 'HTML' },
-  { ext: '.js',   label: 'JavaScript' },
-  { ext: '.ts',   label: 'TypeScript' },
-  { ext: '.tsx',  label: 'TSX' },
-  { ext: '.css',  label: 'CSS' },
-  { ext: '.py',   label: 'Python' },
-  { ext: '.rs',   label: 'Rust' },
-  { ext: '.yaml', label: 'YAML' },
-  { ext: '.sh',   label: 'Shell' },
 ];
 
 // ── Recursive tree node ─────────────────────────────────────────────────────
@@ -398,12 +376,6 @@ interface SidebarProps {
   /** Current sidebar panel mode */
   sidebarMode: 'explorer' | 'search';
   onSidebarModeChange: (mode: 'explorer' | 'search') => void;
-  /** Open terminal panel and cd to this relative directory ('' = workspace root) */
-  onOpenTerminalAt?: (relDir: string) => void;
-  /** Called when user clicks a custom workspace button */
-  onRunButtonCommand?: (command: string, label: string) => void;
-  /** Called when user clicks "Publicar Demos" — only shown when demoHub is configured */
-  onPublishDemoHub?: () => void;
   /** Open the Export / Build modal */
   onExportOpen: () => void;
   /** Called when tapping any tab/button in icon mode — expands sidebar to full width */
@@ -442,9 +414,6 @@ const SidebarInner = function Sidebar({
   lockedFiles,
   sidebarMode,
   onSidebarModeChange,
-  onOpenTerminalAt,
-  onRunButtonCommand,
-  onPublishDemoHub,
   onExportOpen,
   onExpandSidebar,
   newFileRef,
@@ -455,8 +424,6 @@ const SidebarInner = function Sidebar({
   const [creatingIn, setCreatingIn] = useState<string | null>(null);
   const [creatingKind, setCreatingKind] = useState<'file' | 'folder'>('file');
   const [newName, setNewName] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<FileCategory>('text');
-  const [canvasSubtype, setCanvasSubtype] = useState<CanvasSubtype>('freeform');
   const [selectedExt, setSelectedExt] = useState('.md');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; path: string; isDir: boolean } | null>(null);
   const [movePicker, setMovePicker] = useState<{ path: string; x: number; y: number } | null>(null);
@@ -837,21 +804,10 @@ const SidebarInner = function Sidebar({
     setCreatingIn(inPath);
     setCreatingKind(kind);
     setNewName('');
-    setSelectedCategory('text');
     setSelectedExt('.md');
     setContextMenu(null);
     // Focus input after state update
     setTimeout(() => createInputRef.current?.focus(), 30);
-  }
-
-  function selectCategory(cat: FileCategory) {
-    setSelectedCategory(cat);
-    if (cat === 'canvas')      setSelectedExt('.tldr.json');
-    else if (cat === 'text')   setSelectedExt('.md');
-    else if (cat === 'spreadsheet') setSelectedExt('.csv');
-    else                       setSelectedExt('.ts');
-    if (cat !== 'canvas') setCanvasSubtype('freeform');
-    setTimeout(() => createInputRef.current?.focus(), 0);
   }
 
   function cancelCreating() {
@@ -905,19 +861,9 @@ const SidebarInner = function Sidebar({
 
     // File creation
     let relPath: string;
-    if (selectedExt === '.tldr.json') {
-      const base = baseName.replace(/\.tldr\.json$/, '');
-      relPath = `${prefix}${base}.tldr.json`;
-      if (canvasSubtype === 'slides') {
-        await createSlidesCanvasFile(workspace, `${prefix}${base}`);
-      } else {
-        await createCanvasFile(workspace, `${prefix}${base}`);
-      }
-    } else {
-      const hasExt = baseName.endsWith(selectedExt);
-      relPath = `${prefix}${hasExt ? baseName : baseName + selectedExt}`;
-      await createFile(workspace, relPath);
-    }
+    const hasExt = baseName.endsWith(selectedExt);
+    relPath = `${prefix}${hasExt ? baseName : baseName + selectedExt}`;
+    await createFile(workspace, relPath);
 
     const { files, fileTree } = await refreshWorkspaceFiles(workspace);
     onWorkspaceChange({ ...workspace, files, fileTree });
@@ -1101,105 +1047,17 @@ const SidebarInner = function Sidebar({
             </div>
             {creatingKind === 'file' && (
               <>
-                {/* ── Category tabs ── */}
-                <div className="sidebar-creator-categories">
-                  <button
-                    type="button"
-                    className={`sidebar-creator-cat${selectedCategory === 'canvas' ? ' active canvas' : ''}`}
-                    onClick={() => selectCategory('canvas')}
-                    title={t('sidebar.newCanvasTitle')}
-                  >
-                    <span className="scc-icon"><Sparkle weight="thin" size={14} /></span>
-                    <span className="scc-label">{t('sidebar.newCanvas')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`sidebar-creator-cat${selectedCategory === 'text' ? ' active text' : ''}`}
-                    onClick={() => selectCategory('text')}
-                    title={t('sidebar.newTextTitle')}
-                  >
-                    <span className="scc-icon"><FileText weight="thin" size={14} /></span>
-                    <span className="scc-label">{t('sidebar.newText')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`sidebar-creator-cat${selectedCategory === 'code' ? ' active code' : ''}`}
-                    onClick={() => selectCategory('code')}
-                    title={t('sidebar.newCodeTitle')}
-                  >
-                    <span className="scc-icon"><FileCode weight="thin" size={14} /></span>
-                    <span className="scc-label">{t('sidebar.newCode')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`sidebar-creator-cat${selectedCategory === 'spreadsheet' ? ' active spreadsheet' : ''}`}
-                    onClick={() => selectCategory('spreadsheet')}
-                    title={t('sidebar.newSpreadsheetTitle')}
-                  >
-                    <span className="scc-icon"><Table weight="thin" size={14} /></span>
-                    <span className="scc-label">{t('sidebar.newSpreadsheet')}</span>
-                  </button>
+                {/* ── Book authoring formats ── */}
+                <div className="sidebar-creator-subtypes">
+                  {TEXT_TYPES.map((tp) => (
+                    <button
+                      key={tp.ext}
+                      type="button"
+                      className={`sidebar-type-pill${selectedExt === tp.ext ? ' active' : ''}`}
+                      onClick={() => { setSelectedExt(tp.ext); setTimeout(() => createInputRef.current?.focus(), 0); }}
+                    >{tp.label}</button>
+                  ))}
                 </div>
-
-                {/* ── Sub-options for Canvas (freeform vs slides) ── */}
-                {selectedCategory === 'canvas' && (
-                  <div className="sidebar-creator-subtypes">
-                    <button
-                      type="button"
-                      className={`sidebar-type-pill${canvasSubtype === 'freeform' ? ' active' : ''}`}
-                      onClick={() => { setCanvasSubtype('freeform'); setTimeout(() => createInputRef.current?.focus(), 0); }}
-                      title={t('sidebar.canvasFreeformTitle')}
-                    >{t('sidebar.canvasSubtypeFreeform')}</button>
-                    <button
-                      type="button"
-                      className={`sidebar-type-pill${canvasSubtype === 'slides' ? ' active' : ''}`}
-                      onClick={() => { setCanvasSubtype('slides'); setTimeout(() => createInputRef.current?.focus(), 0); }}
-                      title={t('sidebar.canvasSlidesTitle')}
-                    >{t('sidebar.canvasSubtypeSlides')}</button>
-                  </div>
-                )}
-
-                {/* ── Sub-options for Text ── */}
-                {selectedCategory === 'text' && (
-                  <div className="sidebar-creator-subtypes">
-                    {TEXT_TYPES.map((tp) => (
-                      <button
-                        key={tp.ext}
-                        type="button"
-                        className={`sidebar-type-pill${selectedExt === tp.ext ? ' active' : ''}`}
-                        onClick={() => { setSelectedExt(tp.ext); setTimeout(() => createInputRef.current?.focus(), 0); }}
-                      >{tp.label}</button>
-                    ))}
-                  </div>
-                )}
-
-                {/* ── Sub-options for Code ── */}
-                {selectedCategory === 'code' && (
-                  <div className="sidebar-creator-subtypes">
-                    {CODE_TYPES.map((tp) => (
-                      <button
-                        key={tp.ext}
-                        type="button"
-                        className={`sidebar-type-pill${selectedExt === tp.ext ? ' active' : ''}`}
-                        onClick={() => { setSelectedExt(tp.ext); setTimeout(() => createInputRef.current?.focus(), 0); }}
-                      >{tp.label}</button>
-                    ))}
-                  </div>
-                )}
-
-                {/* ── Sub-options for Spreadsheet ── */}
-                {selectedCategory === 'spreadsheet' && (
-                  <div className="sidebar-creator-subtypes">
-                    {SPREADSHEET_TYPES.map((tp) => (
-                      <button
-                        key={tp.ext}
-                        type="button"
-                        className={`sidebar-type-pill${selectedExt === tp.ext ? ' active' : ''}`}
-                        onClick={() => { setSelectedExt(tp.ext); setTimeout(() => createInputRef.current?.focus(), 0); }}
-                      >{tp.label}</button>
-                    ))}
-                  </div>
-                )}
               </>
             )}
             <div className="sidebar-new-file-form">
@@ -1310,27 +1168,6 @@ const SidebarInner = function Sidebar({
             </div>
           );
         })()}
-        {/* Custom workspace buttons */}
-        {(workspace.config.sidebarButtons ?? []).map((btn: SidebarButton) => (
-          <button
-            key={btn.id}
-            className="sidebar-btn sidebar-btn-custom"
-            title={btn.description ?? btn.command}
-            onClick={() => onRunButtonCommand?.(btn.command, btn.label)}
-          >
-            {btn.label}
-          </button>
-        ))}
-        {/* Demo Hub publish button — only when project name is configured */}
-        {workspace.config.vercelConfig?.demoHub?.projectName && (
-          <button
-            className="sidebar-btn sidebar-btn-custom"
-            title={t('sidebar.publishDemoHubTitle', { projectName: workspace.config.vercelConfig.demoHub.projectName })}
-            onClick={onPublishDemoHub}
-          >
-            <ArrowRight weight="thin" size={13} /> {t('sidebar.publishDemoHub')}
-          </button>
-        )}
       </div>
     </aside>
 
@@ -1369,13 +1206,6 @@ const SidebarInner = function Sidebar({
           revealItemInDir(`${workspace.path}/${contextMenu.path}`);
           setContextMenu(null);
         }}><span className="sidebar-ctx-icon"><FolderSimple weight="thin" size={13} /></span> {t('sidebar.ctxShowInFinder')}</button>
-        <button onClick={() => {
-          const dir = contextMenu.isDir
-            ? contextMenu.path
-            : (contextMenu.path.includes('/') ? contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/')) : '');
-          onOpenTerminalAt?.(dir);
-          setContextMenu(null);
-        }}><span className="sidebar-ctx-icon"><TerminalWindow weight="thin" size={13} /></span> {t('sidebar.ctxOpenInTerminal')}</button>
         {!contextMenu.isDir && (
           <button onClick={() => {
             navigator.clipboard.writeText(contextMenu.path).catch(() => {});

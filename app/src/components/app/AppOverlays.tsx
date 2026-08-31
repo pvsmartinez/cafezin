@@ -4,12 +4,10 @@ import { ArrowCircleUp, X } from '@phosphor-icons/react';
 import UpdateModal from '../UpdateModal';
 import UpdateReleaseModal from '../UpdateReleaseModal';
 import ForceUpdateModal from '../ForceUpdateModal';
-import MobilePendingModal from '../MobilePendingModal';
 import NudgeToast from '../NudgeToast';
 import FeedbackNudge from '../FeedbackNudge';
 import { SK } from '../../services/storageKeys';
 import type { NudgePayload } from '../../hooks/useProactiveNudge';
-import type { MobilePendingTask } from '../../services/mobilePendingTasks';
 import type { AppSettings, Workspace } from '../../types';
 
 const UPDATE_TOAST_DISMISSED_KEY = SK.UPDATE_TOAST_DISMISSED;
@@ -17,7 +15,6 @@ const UPDATE_TOAST_DISMISSED_KEY = SK.UPDATE_TOAST_DISMISSED;
 const SettingsModal = lazy(() => import('../SettingsModal'));
 const DesktopOnboardingModal = lazy(() => import('../DesktopOnboardingModal'));
 const ExportModal = lazy(() => import('../ExportModal'));
-const ImageSearchPanel = lazy(() => import('../ImageSearchPanel'));
 
 type SettingsInitialTab = 'general' | 'shortcuts' | 'ai' | 'workspace' | 'agent' | 'mcp' | 'sync' | 'account' | undefined;
 
@@ -32,11 +29,6 @@ export interface AppOverlaysProps {
   forceUpdateRequired: string;
   forceUpdateChannel: string;
   onUpdate: () => Promise<void> | void;
-  showMobilePending: boolean;
-  mobilePendingTasks: MobilePendingTask[];
-  onExecutePendingTask: (task: MobilePendingTask) => void;
-  onCloseMobilePending: () => void;
-  onDeleteMobilePendingTask: (id: string) => void;
   showSettings: boolean;
   appSettings: AppSettings;
   onAppSettingsChange: (settings: AppSettings) => void;
@@ -56,8 +48,6 @@ export interface AppOverlaysProps {
   onCloseExportModal: () => void;
   onOpenAIFromExport: (prompt: string) => void;
   onExportLockStateChange: (state: { title: string; detail?: string; cancelRequested?: boolean } | null) => void;
-  imgSearchOpen: boolean;
-  onCloseImageSearch: () => void;
   copilotOverlayActive: boolean;
   activeNudge: NudgePayload | null;
   onAskNudge: (prompt: string) => void;
@@ -80,11 +70,6 @@ const AppOverlaysInner = function AppOverlays({
   forceUpdateRequired,
   forceUpdateChannel,
   onUpdate,
-  showMobilePending,
-  mobilePendingTasks,
-  onExecutePendingTask,
-  onCloseMobilePending,
-  onDeleteMobilePendingTask,
   showSettings,
   appSettings,
   onAppSettingsChange,
@@ -104,8 +89,6 @@ const AppOverlaysInner = function AppOverlays({
   onCloseExportModal,
   onOpenAIFromExport,
   onExportLockStateChange,
-  imgSearchOpen,
-  onCloseImageSearch,
   copilotOverlayActive,
   activeNudge,
   onAskNudge,
@@ -132,15 +115,6 @@ const AppOverlaysInner = function AppOverlays({
         requiredVersion={forceUpdateRequired}
         channel={forceUpdateChannel}
         onUpdate={onUpdate}
-      />
-
-      <MobilePendingModal
-        open={showMobilePending}
-        workspacePath={workspace.path}
-        tasks={mobilePendingTasks}
-        onExecute={onExecutePendingTask}
-        onClose={onCloseMobilePending}
-        onTaskDeleted={onDeleteMobilePendingTask}
       />
 
       {showSettings && (
@@ -182,16 +156,6 @@ const AppOverlaysInner = function AppOverlays({
             onClose={onCloseExportModal}
             onOpenAI={onOpenAIFromExport}
             onExportLockStateChange={onExportLockStateChange}
-          />
-        </Suspense>
-      )}
-
-      {imgSearchOpen && (
-        <Suspense fallback={null}>
-          <ImageSearchPanel
-            workspace={workspace}
-            canvasEditorRef={canvasEditorRef}
-            onClose={onCloseImageSearch}
           />
         </Suspense>
       )}

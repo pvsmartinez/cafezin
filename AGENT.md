@@ -16,12 +16,12 @@
 
 ## What We Are Building
 
-A general-purpose AI-assisted productivity tool, inspired by how Pedro uses VS Code + GitHub Copilot — but **not** focused on coding. Designed to support creative, educational, and knowledge-work workflows:
+A focused local-first AI book-authoring tool, inspired by how Pedro uses VS Code + GitHub Copilot — but centered on writing rather than coding. The active product surface is:
 
 - ✍️ Writing books and long-form content
-- 📚 Creating classes, courses, and curricula
-- 🗂️ Knowledge management and note-taking
-- 🤖 AI-powered workflows for non-technical users
+- 🗂️ Organizing chapters, notes, and research as portable Markdown files
+- 🤖 AI-powered drafting, revision, continuity checks, and reviewable edits
+- 📄 Exporting manuscripts to PDF
 
 ---
 
@@ -32,7 +32,7 @@ A general-purpose AI-assisted productivity tool, inspired by how Pedro uses VS C
 | macOS (native app) | Primary   | Pedro's daily driver                                                           |
 | PC / Windows       | Secondary | Cross-platform Tauri                                                           |
 | Web app            | Planned   | Broader accessibility                                                          |
-| iPhone / Android   | Active    | Full mobile app — MobileCopilot, file browser, voice memo, AI chat, onboarding |
+| iPhone / Android   | Parked    | Mobile surfaces remain in the repository but are outside the active authoring slice |
 
 ---
 

@@ -14,7 +14,6 @@ interface UseTauriMenuListenersOptions {
   newFileRef: MutableRefObject<(() => void) | null>;
   onExportPDF: () => void;
   setExportModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setImgSearchOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setAiOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setViewMode: (mode: 'edit' | 'preview') => void;
   tabViewModeRef: MutableRefObject<Map<string, string>>;
@@ -33,7 +32,6 @@ export function useTauriMenuListeners({
   newFileRef,
   onExportPDF,
   setExportModalOpen,
-  setImgSearchOpen,
   setAiOpen,
   setViewMode,
   tabViewModeRef,
@@ -81,7 +79,6 @@ export function useTauriMenuListeners({
       listen('menu-export-modal',     () => setExportModalOpen(true)),
       listen('menu-switch-workspace', () => onSwitchWorkspace()),
       listen('menu-toggle-sidebar',   () => setSidebarOpen((v) => !v)),
-      listen('menu-image-search',     () => setImgSearchOpen(true)),
       listen('menu-toggle-copilot',   () => setAiOpen((v) => !v)),
       listen('menu-view-edit',        () => { setViewMode('edit');    if (activeTabId) tabViewModeRef.current.set(activeTabId, 'edit'); }),
       listen('menu-view-preview',     () => { setViewMode('preview'); if (activeTabId) tabViewModeRef.current.set(activeTabId, 'preview'); }),

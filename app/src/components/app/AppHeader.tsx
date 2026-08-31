@@ -4,11 +4,6 @@ import { useTranslation } from 'react-i18next';
 import type { Workspace } from '../../types';
 import type { FileTypeInfo } from '../../utils/fileType';
 
-interface DemoHubToast {
-  msg: string;
-  ok: boolean;
-}
-
 export interface AppHeaderProps {
   sidebarOpen: boolean;
   sidebarShortcutLabel: string;
@@ -28,8 +23,6 @@ export interface AppHeaderProps {
   onRetrySave: () => void;
   dirtyFiles: Set<string>;
   savedToast: boolean;
-  demoHubToast: DemoHubToast | null;
-  onClearDemoHubToast: () => void;
   pandocError: string | null;
   onClearPandocError: () => void;
   isDev: boolean;
@@ -57,8 +50,6 @@ export function AppHeader({
   onRetrySave,
   dirtyFiles,
   savedToast,
-  demoHubToast,
-  onClearDemoHubToast,
   pandocError,
   onClearPandocError,
   isDev,
@@ -99,10 +90,7 @@ export function AppHeader({
       </div>
 
       <div className="app-header-right">
-        {(fileTypeInfo?.kind === 'markdown' ||
-          fileTypeInfo?.kind === 'canvas' ||
-          fileTypeInfo?.kind === 'html' ||
-          (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && (
+        {fileTypeInfo?.kind === 'markdown' && (
           <div className="app-view-toggle">
             <button
               className={`app-view-btn ${viewMode === 'edit' ? 'active' : ''}`}
@@ -114,50 +102,11 @@ export function AppHeader({
             <button
               className={`app-view-btn ${viewMode === 'preview' ? 'active' : ''}`}
               onClick={() => onSetViewMode('preview')}
-              title={
-                fileTypeInfo?.kind === 'canvas'
-                  ? 'Present — keyboard: ←→ to navigate, Esc to exit'
-                  : fileTypeInfo?.kind === 'html' ||
-                      (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)
-                    ? `Preview in browser (${previewShortcutLabel} to toggle)`
-                    : `Preview rendered markdown (${previewShortcutLabel} to toggle)`
-              }
+              title={`Preview rendered markdown (${previewShortcutLabel} to toggle)`}
             >
-              {fileTypeInfo?.kind === 'canvas' ? 'Present' : 'Preview'}
+              Preview
             </button>
           </div>
-        )}
-
-        {fileTypeInfo?.kind === 'html' && activeFile && (
-          <>
-            <button
-              className="app-view-btn"
-              title="Abrir no navegador (file://)"
-              onClick={async () => {
-                const { openUrl } = await import('@tauri-apps/plugin-opener');
-                openUrl(`file://${workspace.path}/${activeFile}`);
-              }}
-            >
-              ⊕ Browser
-            </button>
-            {workspace.config.vercelConfig?.demoHub?.projectName && (
-              <button
-                className="app-view-btn"
-                title={`Abrir URL publicada: ${workspace.config.vercelConfig.demoHub.projectName}.vercel.app`}
-                onClick={async () => {
-                  const { openUrl } = await import('@tauri-apps/plugin-opener');
-                  const base = `https://${workspace.config.vercelConfig!.demoHub!.projectName}.vercel.app`;
-                  const sourceDir = workspace.config.vercelConfig?.demoHub?.sourceDir ?? '';
-                  const relToSource = sourceDir
-                    ? activeFile.replace(new RegExp(`^${sourceDir}/?`), '')
-                    : activeFile;
-                  openUrl(`${base}/${relToSource}`);
-                }}
-              >
-                ⊕ Vercel
-              </button>
-            )}
-          </>
         )}
 
         {pandocBusy && (
@@ -190,16 +139,6 @@ export function AppHeader({
 
         {savedToast && <span className="app-saved-toast">{t('app.savedLabel')}</span>}
 
-        {demoHubToast && (
-          <span
-            className={demoHubToast.ok ? 'app-saved-toast' : 'app-save-error'}
-            style={{ maxWidth: 360, cursor: 'pointer' }}
-            title={demoHubToast.msg}
-            onClick={onClearDemoHubToast}
-          >
-            {demoHubToast.msg.length > 55 ? `${demoHubToast.msg.slice(0, 55)}…` : demoHubToast.msg}
-          </span>
-        )}
 
         {pandocError && (
           <span

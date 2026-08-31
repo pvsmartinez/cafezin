@@ -5,14 +5,12 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Workspace, AIEditMark, FileTreeNode } from '../types';
 import './WorkspaceHome.css';
 import { timeAgo } from '../utils/timeAgo';
-import { WORKSPACE_TYPES, type WorkspaceType } from '../utils/workspaceTypes';
 
 interface WorkspaceHomeProps {
   workspace: Workspace;
   onOpenFile: (filename: string) => void;
   onCreateFirstFile?: () => void;
   onActivateSync?: () => void;
-  onWorkspaceTypeChange?: (type: WorkspaceType) => void;
   aiMarks?: AIEditMark[];
   onOpenAIReview?: () => void;
   onSwitchWorkspace?: () => void;
@@ -47,7 +45,7 @@ function fileIcon(name: string): React.ReactNode {
   return '·';
 }
 
-export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile, onActivateSync, onWorkspaceTypeChange, aiMarks = [], onSwitchWorkspace, onClose }: WorkspaceHomeProps) {
+export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile, onActivateSync, aiMarks = [], onSwitchWorkspace, onClose }: WorkspaceHomeProps) {
   const { t } = useTranslation();
   const [sync, setSync] = useState<SyncState>({ loading: true, changedCount: 0, error: false });
 
@@ -79,9 +77,6 @@ export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile
     hour < 17 ? t('wh.goodAfternoon') :
     t('wh.goodEvening');
 
-  const currentType = workspace.config.workspaceType as WorkspaceType | undefined;
-  const currentTypeInfo = WORKSPACE_TYPES.find((wt) => wt.id === currentType);
-
   return (
     <div className="wh-root">
       {onClose && (
@@ -108,28 +103,11 @@ export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile
             </div>
           </div>
         )}
-        {/* Workspace type selector — only when workspace has files (empty state shows full cards) */}
+        {/* The first Cafezin slice is intentionally dedicated to book authoring. */}
         {totalFiles > 0 && (
           <div className="wh-type-section">
-            <div className="wh-section-label">{t('wh.workspaceType')}</div>
-            <div className="wh-type-pills">
-              {WORKSPACE_TYPES.map((wt) => (
-                <button
-                  key={wt.id}
-                  className={`wh-type-pill${currentType === wt.id ? ' wh-type-pill--active' : ''}`}
-                  onClick={() => onWorkspaceTypeChange?.(wt.id)}
-                  title={t(wt.skillsKey)}
-                >
-                  <span className="wh-type-pill-icon">{wt.icon}</span>
-                  <span className="wh-type-pill-label">{t(wt.labelKey)}</span>
-                </button>
-              ))}
-            </div>
-            {currentTypeInfo && (
-              <div className="wh-type-skills">
-                {t('wh.activeSkills')} {t(currentTypeInfo.skillsKey)}
-              </div>
-            )}
+            <div className="wh-section-label">Autoria de livros</div>
+            <div className="wh-type-skills">Markdown, prosa, revisão com IA e exportação em PDF.</div>
           </div>
         )}
 
@@ -155,19 +133,12 @@ export default function WorkspaceHome({ workspace, onOpenFile, onCreateFirstFile
           <div className="wh-empty-hero">
             <div className="wh-empty-kicker">{t('wh.emptyKicker')}</div>
             <div className="wh-type-cards-empty">
-              {WORKSPACE_TYPES.map((wt) => (
-                <button
-                  key={wt.id}
-                  className={`wh-type-card-empty${currentType === wt.id ? ' wh-type-card-empty--active' : ''}`}
-                  onClick={() => onWorkspaceTypeChange?.(wt.id)}
-                >
-                  <span className="wh-type-card-icon">{wt.icon}</span>
-                  <span className="wh-type-card-label">{t(wt.labelKey)}</span>
-                  <span className="wh-type-card-desc">{t(wt.skillsKey)}</span>
-                </button>
-              ))}
+              <div className="wh-type-card-empty wh-type-card-empty--active">
+                <span className="wh-type-card-icon">📖</span>
+                <span className="wh-type-card-label">Autoria de livros</span>
+                <span className="wh-type-card-desc">Estruture, escreva, revise e exporte seu livro.</span>
+              </div>
             </div>
-            <p className="wh-empty-coexist">{t('wh.emptyCoexist')}</p>
             <button className="wh-create-first-btn" onClick={onCreateFirstFile}>
               <Plus weight="bold" size={14} />
               <span>{t('wh.createFirstFile')}</span>

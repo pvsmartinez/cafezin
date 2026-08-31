@@ -56,7 +56,7 @@ export interface KeyboardShortcutOptions {
   onToggleFind:   () => void;
   onGlobalSearch: () => void;
   onTogglePreview:() => void;
-  onToggleTerminal:() => void;
+  onToggleTerminal?:() => void;
   onToggleFocusMode?: () => void;
   focusMode?: boolean;
   onZoomIn?: () => void;
@@ -167,7 +167,7 @@ export function useKeyboardShortcuts(opts: KeyboardShortcutOptions): void {
       }
       if (matchesShortcut(bindings.toggleTerminal, e)) {
         e.preventDefault();
-        onToggleTerminal();
+        onToggleTerminal?.();
         return;
       }
       // Zoom: Cmd/Ctrl + = or + (in), - (out), 0 (reset) — standard in every editor

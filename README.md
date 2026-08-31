@@ -1,45 +1,40 @@
 # Cafezin
 
-Cafezin is a local-first AI writing and knowledge workspace for writers, educators, creators, and serious note-takers.
+Cafezin is a local-first AI book-authoring workspace for writers.
 
-It combines Markdown documents, a visual canvas, slide creation, voice capture, built-in git, and reviewable AI edits in one app. The goal is to give non-technical knowledge workers the kind of deep, contextual AI workflow that developers get from VS Code and Copilot, without forcing their work into a cloud-first editor or a blank chat box.
+It combines Markdown documents, a focused prose editor, built-in git, reviewable AI edits, and PDF export in one app. The goal is to support the complete writing loop — structure, drafting, revision, continuity, and delivery — without forcing a book into a cloud-first editor or a blank chat box.
 
 ## What Cafezin Is For
 
 Cafezin is designed for workflows such as:
 
-- Writing books, essays, scripts, and long-form drafts
-- Building classes, lessons, courses, and curricula
-- Organizing research, notes, and second-brain style knowledge bases
-- Planning ideas visually on a canvas and turning them into slides
-- Using AI to draft, revise, summarize, and brainstorm with real workspace context
+- Writing books and long-form drafts
+- Organizing chapters, notes, and book research as local files
+- Using AI to draft, revise, summarize, and check continuity with real workspace context
+- Exporting a manuscript to a configured PDF target
 
 ## Core Product Ideas
 
 - Local-first by default: files stay on the user's device
 - Plain Markdown files: portable, readable, and git-friendly
-- Visual canvas: map ideas, flows, and structures beside documents
+- Book-first workspace: Markdown and plain text are the primary authoring formats
 - Reviewable AI edits: AI suggestions stay inspectable before becoming final
 - Built-in version history: workspaces can keep git history from the start
-- Voice capture: record and transcribe ideas into the same workspace
 - BYOK AI model access: users can connect providers such as GitHub Copilot, OpenAI, or Anthropic
 
 ## Who It Is For
 
 - Writers who want AI help without losing voice or editorial control
-- Educators who move between notes, lesson plans, and slide-ready structures
-- Content creators who need drafting, outlining, and visual planning in one place
-- Knowledge workers who want a calmer local-first alternative to scattered note, whiteboard, and chat tools
+- Authors who need drafting, outlining, continuity, and export in one local workspace
 
 ## Status
 
-Cafezin is in active early development.
+Cafezin is in active early development as a focused Mac/desktop book-authoring tool.
 
 Current public positioning:
 
-- Desktop-first product for macOS and Windows
-- Web experience is primarily marketing and account management today
-- iPhone and Android experiences are planned and partially in progress
+- Desktop-first product for macOS (Windows remains a Tauri target)
+- Mobile companion work is out of scope for this authoring slice
 
 ## Repository Structure
 
