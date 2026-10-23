@@ -6,14 +6,6 @@ export interface WorkspaceTabProps {
   workspace: Workspace;
   wsName: string;
   setWsName: (v: string) => void;
-  wsVercelToken: string;
-  setWsVercelToken: (v: string) => void;
-  wsVercelTeamId: string;
-  setWsVercelTeamId: (v: string) => void;
-  wsVercelDemoHubProject: string;
-  setWsVercelDemoHubProject: (v: string) => void;
-  wsVercelDemoHubSourceDir: string;
-  setWsVercelDemoHubSourceDir: (v: string) => void;
   wsSidebarButtons: SidebarButton[];
   setWsSidebarButtons: React.Dispatch<React.SetStateAction<SidebarButton[]>>;
   wsInboxFile: string;
@@ -35,14 +27,6 @@ export function WorkspaceTab({
   workspace,
   wsName,
   setWsName,
-  wsVercelToken,
-  setWsVercelToken,
-  wsVercelTeamId,
-  setWsVercelTeamId,
-  wsVercelDemoHubProject,
-  setWsVercelDemoHubProject,
-  wsVercelDemoHubSourceDir,
-  setWsVercelDemoHubSourceDir,
   wsSidebarButtons,
   setWsSidebarButtons,
   wsInboxFile,
@@ -140,73 +124,6 @@ export function WorkspaceTab({
             }}
           >{t('settings.wsAddButton')}</button>
         </div>
-      </section>
-
-      <section className="sm-section">
-        <h3 className="sm-section-title">Vercel Publish</h3>
-        <p className="sm-section-desc">
-          {t('settings.wsVercelPublishDesc')}
-        </p>
-
-        <div className="sm-row sm-row--col">
-          <label className="sm-label">
-            {t('settings.wsTokenOverrideLabel')}
-            <span className="sm-row-desc"> {t('settings.wsTokenOverrideHint')}</span>
-          </label>
-          <input
-            className="sm-input"
-            type="password"
-            value={wsVercelToken}
-            onChange={(e) => setWsVercelToken(e.target.value)}
-            placeholder={t('settings.wsTokenOverridePlaceholder') ?? ''}
-          />
-        </div>
-
-        <div className="sm-row sm-row--col">
-          <label className="sm-label">
-            {t('settings.wsTeamIdLabel')}
-            <span className="sm-row-desc"> {t('settings.wsTeamIdHint')}</span>
-          </label>
-          <input
-            className="sm-input"
-            value={wsVercelTeamId}
-            onChange={(e) => setWsVercelTeamId(e.target.value)}
-            placeholder={t('settings.wsTeamIdPlaceholder') ?? ''}
-          />
-        </div>
-
-        <p className="sm-section-desc" style={{ marginTop: 16 }}>
-          <strong>Demo Hub</strong> — {t('settings.wsDemoHubDesc')}{' '}
-          {t('settings.wsDemoHubExamplePrefix')} <code>demos/aula1/</code> {t('settings.wsDemoHubExampleMid')} <code>projeto.vercel.app/aula1</code>.
-        </p>
-
-        <div className="sm-row sm-row--col">
-          <label className="sm-label">
-            {t('settings.wsDemoHubProjectLabel')}
-            <span className="sm-row-desc"> {t('settings.wsDemoHubProjectHint')}</span>
-          </label>
-          <input
-            className="sm-input"
-            value={wsVercelDemoHubProject}
-            onChange={(e) => setWsVercelDemoHubProject(e.target.value)}
-            placeholder={t('settings.wsDemoHubProjectPlaceholder') ?? ''}
-          />
-        </div>
-
-        {wsVercelDemoHubProject.trim() && (
-          <div className="sm-row sm-row--col">
-            <label className="sm-label">
-              {t('settings.wsDemoHubFolderLabel')}
-              <span className="sm-row-desc"> {t('settings.wsDemoHubFolderHint')}</span>
-            </label>
-            <input
-              className="sm-input"
-              value={wsVercelDemoHubSourceDir}
-              onChange={(e) => setWsVercelDemoHubSourceDir(e.target.value)}
-              placeholder={t('settings.wsDemoHubFolderPlaceholder') ?? ''}
-            />
-          </div>
-        )}
       </section>
 
       <section className="sm-section">

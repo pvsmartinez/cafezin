@@ -1,5 +1,4 @@
 import { lazy, Suspense, memo } from 'react';
-import type { Editor as TldrawEditor } from 'tldraw';
 import { ArrowCircleUp, X } from '@phosphor-icons/react';
 import UpdateModal from '../UpdateModal';
 import UpdateReleaseModal from '../UpdateReleaseModal';
@@ -41,14 +40,8 @@ export interface AppOverlaysProps {
   desktopOnboardingSeen: boolean;
   onCloseDesktopOnboarding: () => void;
   exportModalOpen: boolean;
-  canvasEditorRef: React.MutableRefObject<TldrawEditor | null>;
-  activeFile: string | null;
-  onOpenFileForExport: (relPath: string) => Promise<void>;
-  onRestoreAfterExport: () => void;
   onCloseExportModal: () => void;
   onOpenAIFromExport: (prompt: string) => void;
-  onExportLockStateChange: (state: { title: string; detail?: string; cancelRequested?: boolean } | null) => void;
-  copilotOverlayActive: boolean;
   activeNudge: NudgePayload | null;
   onAskNudge: (prompt: string) => void;
   onDismissNudge: () => void;
@@ -82,14 +75,8 @@ const AppOverlaysInner = function AppOverlays({
   desktopOnboardingSeen,
   onCloseDesktopOnboarding,
   exportModalOpen,
-  canvasEditorRef,
-  activeFile,
-  onOpenFileForExport,
-  onRestoreAfterExport,
   onCloseExportModal,
   onOpenAIFromExport,
-  onExportLockStateChange,
-  copilotOverlayActive,
   activeNudge,
   onAskNudge,
   onDismissNudge,
@@ -149,21 +136,10 @@ const AppOverlaysInner = function AppOverlays({
           <ExportModal
             workspace={workspace}
             onWorkspaceChange={onWorkspaceChange}
-            canvasEditorRef={canvasEditorRef}
-            activeCanvasRel={activeFile?.endsWith('.tldr.json') ? activeFile : null}
-            onOpenFileForExport={onOpenFileForExport}
-            onRestoreAfterExport={onRestoreAfterExport}
             onClose={onCloseExportModal}
             onOpenAI={onOpenAIFromExport}
-            onExportLockStateChange={onExportLockStateChange}
           />
         </Suspense>
-      )}
-
-      {copilotOverlayActive && (
-        <div className="copilot-tab-overlay" aria-live="polite">
-          <span className="copilot-lock-label">Copilot a trabalhar…</span>
-        </div>
       )}
 
       {activeNudge && (

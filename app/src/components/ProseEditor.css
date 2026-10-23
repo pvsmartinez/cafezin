@@ -174,6 +174,13 @@
   box-shadow: 0 0 0 1px rgba(var(--editor-ai-mark-rgb), 0.1);
 }
 
+.prose-editor-wrapper .prose-wiki-link {
+  color: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 /* ── Locked state (AI writing) ────────────────────────────────────────────── */
 .prose-editor-wrapper[data-locked] {
   pointer-events: none;

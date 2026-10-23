@@ -5,7 +5,6 @@ import type {
   Dispatch,
   SetStateAction,
 } from 'react';
-import type { Editor as TldrawEditor, TLShapeId } from 'tldraw';
 import type { EditorHandle } from '../components/Editor';
 import {
   loadMarks,
@@ -22,27 +21,6 @@ import { applyTextMarkRevert } from '../utils/aiMarkRevert';
 import { hasAIMarkMatch } from '../utils/aiMarkMatch';
 import type { AIRecordedTextMark, Workspace, AIEditMark } from '../types';
 
-// ── Pure helper (also exported for use in App.tsx's handleInsert) ──────────
-export function makeCanvasMark(
-  relPath: string,
-  shapeIds: string[],
-  model: string,
-  agentId?: string,
-  canvasRevert?: Record<string, unknown | null>,
-): AIEditMark {
-  return {
-    id: generateId(),
-    fileRelPath: relPath,
-    text: `AI canvas edit — ${shapeIds.length} shape${shapeIds.length !== 1 ? 's' : ''}`,
-    model,
-    insertedAt: new Date().toISOString(),
-    reviewed: false,
-    canvasShapeIds: shapeIds,
-    ...(agentId ? { agentId } : {}),
-    ...(canvasRevert ? { canvasRevert } : {}),
-  };
-}
-
 // ── Hook params ─────────────────────────────────────────────────────────────
 interface UseAIMarksParams {
   workspace: Workspace | null;
@@ -53,8 +31,6 @@ interface UseAIMarksParams {
   tabsRef: MutableRefObject<string[]>;
   tabContentsRef: MutableRefObject<Map<string, string>>;
   savedContentRef: MutableRefObject<Map<string, string>>;
-  // Refs from useCanvasState / App.tsx
-  canvasEditorRef: MutableRefObject<TldrawEditor | null>;
   editorRef: RefObject<EditorHandle | null>;
   // Setters from useTabManager
   setContent: Dispatch<SetStateAction<string>>;
@@ -77,7 +53,6 @@ export interface UseAIMarksReturn {
   loadMarksForWorkspace: (ws: Workspace) => void;
   // ── Handlers forwarded to components ─────────────────────────────────────
   handleMarkRecorded: (relPath: string, written: string, aiModel: string, recordedMarks?: AIRecordedTextMark[], agentId?: string) => void;
-  handleCanvasMarkRecorded: (relPath: string, shapeIds: string[], aiModel: string, agentId?: string, canvasRevert?: Record<string, unknown | null>) => void;
   handleMarkReviewed: (id: string) => void;
   handleMarkRejected: (id: string) => void;
   handleReviewAllMarks: () => void;
@@ -108,7 +83,6 @@ export function useAIMarks({
   tabsRef,
   tabContentsRef,
   savedContentRef,
-  canvasEditorRef,
   editorRef,
   setContent,
   setDirtyFiles,
@@ -130,22 +104,10 @@ export function useAIMarks({
     loadMarks(ws).then(setAiMarks).catch(() => setAiMarks([]));
   }, []);
 
-  // ── Canvas mark (agent canvas_op path) ───────────────────────────────────
-  const handleCanvasMarkRecorded = useCallback(
-    (relPath: string, shapeIds: string[], aiModel: string, agentId?: string, canvasRevert?: Record<string, unknown | null>) => {
-      if (!workspace || shapeIds.length === 0) return;
-      const mark = makeCanvasMark(relPath, shapeIds, aiModel, agentId, canvasRevert);
-      addMark(workspace, mark).then(setAiMarks).catch(() => {});
-    },
-    [workspace],
-  );
-
   // ── Text mark (agent write_workspace_file path) ───────────────────────────
   const handleMarkRecorded = useCallback(
     (relPath: string, written: string, aiModel: string, recordedMarks?: AIRecordedTextMark[], agentId?: string) => {
       if (!workspace) return;
-      // Canvas files are tracked via canvasShapeIds — skip text marks for them
-      if (relPath.endsWith('.tldr.json')) return;
 
       const MIN_CHUNK = 40;
       const MAX_CHUNKS = 12;
@@ -158,7 +120,6 @@ export function useAIMarks({
         .map((entry) => ({
           text: entry.text.trim(),
           revert: entry.revert,
-          spreadsheetTarget: entry.spreadsheetTarget,
         }))
         .filter((entry) => entry.text.length >= MIN_CHUNK)
         .slice(0, MAX_CHUNKS);
@@ -173,7 +134,6 @@ export function useAIMarks({
         insertedAt: now,
         reviewed: false,
         revert: entry.revert,
-        spreadsheetTarget: entry.spreadsheetTarget,
         ...(agentId ? { agentId } : {}),
       }));
       // Optimistic update: add marks to React state immediately so the editor
@@ -228,39 +188,6 @@ export function useAIMarks({
       const mark = aiMarks.find((candidate) => candidate.id === id);
       if (!mark) return;
 
-      if (mark.canvasShapeIds?.length) {
-        const editor = canvasEditorRef.current;
-        if (!editor) return;
-        const revertMap = mark.canvasRevert;
-        if (revertMap && Object.keys(revertMap).length > 0) {
-          // Restore pre-edit state: shapes that existed before get their old
-          // props back; shapes created by the AI are deleted.
-          let restored = 0;
-          let deleted = 0;
-          for (const shapeId of mark.canvasShapeIds) {
-            const before = revertMap[shapeId];
-            const current = editor.getShape(shapeId as TLShapeId);
-            if (before == null) {
-              if (current) { editor.deleteShapes([shapeId as TLShapeId]); deleted++; }
-            } else if (current) {
-              editor.updateShape(before as Parameters<typeof editor.updateShape>[0]);
-              restored++;
-            }
-          }
-          if (restored + deleted > 0) {
-            markRejected(workspace, id).then(setAiMarks).catch(() => {});
-          }
-          return;
-        }
-        // Legacy marks (no snapshot): fall back to deleting the shapes.
-        const existingIds = mark.canvasShapeIds.filter((shapeId) => !!editor.getShape(shapeId as TLShapeId));
-        if (existingIds.length > 0) {
-          editor.deleteShapes(existingIds as TLShapeId[]);
-        }
-        markRejected(workspace, id).then(setAiMarks).catch(() => {});
-        return;
-      }
-
       if (!mark.revert) return;
 
       const relPath = mark.fileRelPath;
@@ -295,7 +222,7 @@ export function useAIMarks({
           window.alert('Falha ao reverter este trecho da IA.');
         });
     },
-    [workspace, aiMarks, canvasEditorRef, activeTabIdRef, tabContentsRef, savedContentRef, setContent, setDirtyFiles],
+    [workspace, aiMarks, activeTabIdRef, tabContentsRef, savedContentRef, setContent, setDirtyFiles],
   );
 
   // ── Mark ALL as reviewed ──────────────────────────────────────────────────
@@ -345,7 +272,7 @@ export function useAIMarks({
             (m) => m.fileRelPath === file && !m.reviewed,
           );
           const toRemove = fileMarks
-            .filter((m) => !m.canvasShapeIds?.length && !hasAIMarkMatch(newContent, { text: m.text, revert: m.revert }))
+            .filter((m) => !hasAIMarkMatch(newContent, { text: m.text, revert: m.revert }))
             .map((m) => m.id);
           if (toRemove.length === 0) return prev;
           const updated = prev.map((m) =>
@@ -367,50 +294,16 @@ export function useAIMarks({
     const idx = (aiNavIndex + 1) % activeFileMarks.length;
     setAiNavIndex(idx);
     const mark = activeFileMarks[idx];
-    if (mark.canvasShapeIds?.length && canvasEditorRef.current) {
-      // Try each shape ID in order — the first one might have been deleted by the user.
-      let zoomed = false;
-      for (const sid of mark.canvasShapeIds) {
-        const bounds = canvasEditorRef.current.getShapePageBounds(sid as TLShapeId);
-        if (bounds) {
-          canvasEditorRef.current.zoomToBounds(bounds, { animation: { duration: 300 }, inset: 60 });
-          zoomed = true;
-          break;
-        }
-      }
-      if (!zoomed) {
-        // eslint-disable-next-line no-console
-        console.warn('[useAIMarks] All shapes in canvas mark have been deleted — skipping zoom');
-      }
-    } else {
-      editorRef.current?.jumpToText({ text: mark.text, revert: mark.revert });
-    }
-  }, [activeFileMarks, aiNavIndex, canvasEditorRef, editorRef]);
+    editorRef.current?.jumpToText({ text: mark.text, revert: mark.revert });
+  }, [activeFileMarks, aiNavIndex, editorRef]);
 
   const handleAINavPrev = useCallback(() => {
     if (activeFileMarks.length === 0) return;
     const idx = (aiNavIndex - 1 + activeFileMarks.length) % activeFileMarks.length;
     setAiNavIndex(idx);
     const mark = activeFileMarks[idx];
-    if (mark.canvasShapeIds?.length && canvasEditorRef.current) {
-      // Try each shape ID in order — the first one might have been deleted by the user.
-      let zoomed = false;
-      for (const sid of mark.canvasShapeIds) {
-        const bounds = canvasEditorRef.current.getShapePageBounds(sid as TLShapeId);
-        if (bounds) {
-          canvasEditorRef.current.zoomToBounds(bounds, { animation: { duration: 300 }, inset: 60 });
-          zoomed = true;
-          break;
-        }
-      }
-      if (!zoomed) {
-        // eslint-disable-next-line no-console
-        console.warn('[useAIMarks] All shapes in canvas mark have been deleted — skipping zoom');
-      }
-    } else {
-      editorRef.current?.jumpToText({ text: mark.text, revert: mark.revert });
-    }
-  }, [activeFileMarks, aiNavIndex, canvasEditorRef, editorRef]);
+    editorRef.current?.jumpToText({ text: mark.text, revert: mark.revert });
+  }, [activeFileMarks, aiNavIndex, editorRef]);
 
   return {
     aiMarks,
@@ -422,7 +315,6 @@ export function useAIMarks({
     activeFileMarks,
     loadMarksForWorkspace,
     handleMarkRecorded,
-    handleCanvasMarkRecorded,
     handleMarkReviewed,
     handleMarkRejected,
     handleReviewAllMarks,

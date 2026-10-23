@@ -7,24 +7,18 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { X, Plus, Play, Trash, CaretDown, CaretUp, CheckCircle, WarningCircle, CircleNotch, FolderOpen, CloudArrowUp, Sparkle } from '@phosphor-icons/react';
+import { X, Plus, Play, Trash, CaretDown, CaretUp, CheckCircle, WarningCircle, CircleNotch, FolderOpen, Sparkle } from '@phosphor-icons/react';
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { runExportTarget, listAllFiles, resolveFiles, ExportCancelledError, type ExportProgressInfo, type ExportResult } from '../utils/exportWorkspace';
-import { deployToVercel, resolveVercelToken } from '../services/publishVercel';
 import { saveWorkspaceConfig } from '../services/workspace';
 import {
-  CUSTOM_EXPORT_INJECTION_SPEC,
-  CUSTOM_EXPORT_PROTOCOL,
-  getCustomExportConfig,
   normalizeExportTarget,
   normalizeWorkspaceExportConfig,
-  type CustomExportExecutionMode,
   type Workspace,
   type ExportTarget,
   type ExportFormat,
   type WorkspaceExportConfig,
 } from '../types';
-import type { Editor } from 'tldraw';
 import { SK } from '../services/storageKeys';
 import './ExportModal.css';
 
@@ -32,17 +26,8 @@ import './ExportModal.css';
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 
-const DEFAULT_GIT_PUBLISH = {
-  commitMessage: 'Publish from Cafezin — {{datetime}}',
-  remote: 'origin',
-  branch: '',
-  skipCommitWhenNoChanges: true,
-} as const;
-
 const FORMAT_LABELS: Record<ExportFormat, string> = {
   'pdf':        'Markdown → PDF',
-  'canvas-png': 'Canvas → PNG',
-  'canvas-pdf': 'Canvas → PDF (slides)',
   'zip':        'Zip bundle',
   'git-publish':'Git publish',
   'custom':     'Custom command',
@@ -50,8 +35,6 @@ const FORMAT_LABELS: Record<ExportFormat, string> = {
 
 const FORMAT_BADGE_COLOR: Record<ExportFormat, string> = {
   'pdf':        'red',
-  'canvas-png': 'blue',
-  'canvas-pdf': 'purple',
   'zip':        'orange',
   'git-publish':'blue',
   'custom':     'grey',
@@ -70,8 +53,6 @@ const BOOK_AUTHORING_ONLY = true;
 
 const FORMAT_DEFAULTS: Record<ExportFormat, { include: string[]; outputDir: string }> = {
   'pdf':         { include: ['md', 'mdx'],          outputDir: 'dist' },
-  'canvas-png':  { include: ['tldr.json'],          outputDir: 'dist' },
-  'canvas-pdf':  { include: ['tldr.json'],          outputDir: 'dist' },
   'zip':         { include: ['html', 'css', 'js'],  outputDir: 'dist' },
   'git-publish': { include: [],                     outputDir: '.' },
   'custom':      { include: [],                     outputDir: 'dist' },
@@ -89,29 +70,15 @@ interface TargetStatus {
   cancelRequested?: boolean;
 }
 
-type PublishStatus = 'idle' | 'deploying' | 'done' | 'error';
-
-interface TargetPublishStatus {
-  status: PublishStatus;
-  url?: string;
-  error?: string;
-}
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
 interface ExportModalProps {
   workspace: Workspace;
   onWorkspaceChange: (ws: Workspace) => void;
-  canvasEditorRef: React.RefObject<Editor | null>;
-  activeCanvasRel?: string | null;
-  /** Called before exporting a canvas: switches to that file and waits for editor mount */
-  onOpenFileForExport: (relPath: string) => Promise<void>;
-  /** Called after each canvas export to restore the previous tab */
-  onRestoreAfterExport: () => void;
   onClose: () => void;
   /** Called when the user wants to open AI with a pre-filled prompt */
   onOpenAI?: (prompt: string) => void;
-  onExportLockStateChange?: (state: { title: string; detail?: string; cancelRequested?: boolean } | null) => void;
 }
 
 function formatElapsed(ms: number): string {
@@ -138,35 +105,26 @@ function splitProgressDetail(progress?: ExportProgressInfo): { summary: string; 
 }
 
 function getSlowExportHint(target: ExportTarget): string {
-  if (target.format === 'custom') {
-    return 'Taking longer than usual. Custom commands can be slow when the script processes many files or emits a lot of logs.';
-  }
   if (target.format === 'pdf') {
     return 'Taking longer than usual. Large documents, many pages or heavy Markdown rendering can do this.';
   }
   if (target.format === 'zip') {
     return 'Taking longer than usual. Large bundles or many matched files can do this.';
   }
-  return 'Taking longer than usual. Large canvases, many pages or broad include rules can do this.';
+  return 'Taking longer than usual. Large documents, many pages or broad include rules can do this.';
 }
 
 export default function ExportModal({
   workspace,
   onWorkspaceChange,
-  canvasEditorRef,
-  activeCanvasRel,
-  onOpenFileForExport,
-  onRestoreAfterExport,
   onClose,
   onOpenAI,
-  onExportLockStateChange,
 }: ExportModalProps) {
   const savedConfig = normalizeWorkspaceExportConfig(workspace.config.exportConfig);
   const [targets, setTargets] = useState<ExportTarget[]>(savedConfig?.targets ?? []);
   const visibleTargets = targets.filter((target) => !BOOK_AUTHORING_ONLY || target.format === 'pdf');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<Map<string, TargetStatus>>(new Map());
-  const [publishStatuses, setPublishStatuses] = useState<Map<string, TargetPublishStatus>>(new Map());
   // Async file-count per target: targetId → number
   const [fileCounts, setFileCounts] = useState<Map<string, number>>(new Map());
   const [isRunningAll, setIsRunningAll] = useState(false);
@@ -183,15 +141,12 @@ export default function ExportModal({
     }
     const expanded = visibleTargets.find((t) => t.id === expandedId);
     const ref = expanded ?? visibleTargets[0];
-    const prompts: Record<ExportFormat, string> = {
-      'pdf': `Estou configurando um target de export "${ref.name}" (Markdown → PDF) no Cafezin. Como posso configurar os campos Include, Output dir e Custom command para produzir um PDF bem formatado?`,
-      'canvas-png': `Estou configurando um target de export de canvas para PNG no Cafezin. Como funciona o export de arquivos .tldr.json? Quais dicas você tem para este formato?`,
-      'canvas-pdf': `Estou configurando um target de export de canvas para PDF (slides) no Cafezin. Como funcionam os slides no tldraw e como otimizar este export?`,
-      'zip': `Estou configurando um target de export tipo Zip bundle no Cafezin. Que tipos de arquivo fazem sentido incluir? Como usar o custom command para processar o bundle?`,
-      'git-publish': `Estou configurando um target de Git publish no Cafezin. Como funciona? O que preciso no repositório para isso funcionar?`,
-      'custom': `Estou configurando um target de Custom command no Cafezin. Quais variáveis e placeholders estão disponíveis no comando? Como testar antes de rodar?`,
+    const prompts: Partial<Record<ExportFormat, string>> = {
+      'pdf': `Estou configurando um target de export "${ref.name}" (Markdown → PDF) no Cafezin. Como posso configurar os campos Include e Output dir para produzir um PDF bem formatado?`,
+      'zip': `Estou configurando um target de export tipo Zip bundle no Cafezin. Que tipos de arquivo fazem sentido incluir?`,
     };
-    return prompts[ref.format] ?? prompts['custom'];
+    return prompts[ref.format]
+      ?? `Estou configurando um target de export "${ref.name}" (Markdown → PDF) no Cafezin. Como posso configurar os campos Include e Output dir para produzir um PDF bem formatado?`;
   }
 
   // ── Async file-count preview ────────────────────────────────────────────────
@@ -203,7 +158,6 @@ export default function ExportModal({
         if (cancelled) return;
         const counts = new Map<string, number>();
         for (const t of visibleTargets) {
-          if (t.format === 'git-publish') continue;
           counts.set(t.id, resolveFiles(allFiles, t).length);
         }
         setFileCounts(counts);
@@ -237,22 +191,7 @@ export default function ExportModal({
     cancelControllersRef.current.clear();
   }, []);
 
-  useEffect(() => {
-    const canvasRun = targets.find((target) => {
-      if (target.format !== 'canvas-png' && target.format !== 'canvas-pdf') return false;
-      return statuses.get(target.id)?.status === 'running';
-    });
-    if (!canvasRun) {
-      onExportLockStateChange?.(null);
-      return;
-    }
-    const status = statuses.get(canvasRun.id);
-    onExportLockStateChange?.({
-      title: `Exporting ${canvasRun.name}`,
-      detail: describeProgress(status?.progress),
-      cancelRequested: status?.cancelRequested,
-    });
-  }, [onExportLockStateChange, statuses, targets]);
+
 
   // ── Persist helpers ─────────────────────────────────────────────────────────
   const persist = useCallback(async (nextTargets: ExportTarget[]) => {
@@ -280,24 +219,6 @@ export default function ExportModal({
     setTargets(next);
     setExpandedId(id);
     persist(next); // use derived `next`, not stale `targets` closure
-  }
-
-  function addGitPublishTarget() {
-    const id = uid();
-    const n: ExportTarget = {
-      id,
-      name: 'Git Publish',
-      description: 'Stage all changes, create a commit when needed, and push so Git-based deploys run automatically.',
-      include: [],
-      format: 'git-publish',
-      outputDir: '.',
-      gitPublish: { ...DEFAULT_GIT_PUBLISH },
-      enabled: true,
-    };
-    const next = [...targets, normalizeExportTarget(n)];
-    setTargets(next);
-    setExpandedId(id);
-    persist(next);
   }
 
   function deleteTarget(id: string) {
@@ -364,10 +285,6 @@ export default function ExportModal({
         workspacePath: workspace.path,
         workspaceConfig: workspace.config,
         target,
-        canvasEditorRef: canvasEditorRef,
-        activeCanvasRel,
-        onOpenFileForExport,
-        onRestoreAfterExport,
         shouldCancel: () => controller.cancelled,
         onProgress: (progress) => {
           setStatus(target.id, {
@@ -436,42 +353,6 @@ export default function ExportModal({
     }
   }
 
-  async function handlePublish(target: ExportTarget) {
-    const token = resolveVercelToken(workspace.config.vercelConfig?.token);
-    if (!token) {
-      setPublishStatuses((prev) => new Map(prev).set(target.id, {
-        status: 'error',
-        error: 'Token Vercel não configurado. Acesse Settings → API Keys.',
-      }));
-      return;
-    }
-    if (!target.vercelPublish?.projectName) {
-      setPublishStatuses((prev) => new Map(prev).set(target.id, {
-        status: 'error',
-        error: 'Nome do projeto Vercel não configurado neste target.',
-      }));
-      return;
-    }
-    setPublishStatuses((prev) => new Map(prev).set(target.id, { status: 'deploying' }));
-    try {
-      const result = await deployToVercel({
-        token,
-        projectName: target.vercelPublish.projectName,
-        teamId: workspace.config.vercelConfig?.teamId,
-        dirPath: `${workspace.path}/${target.outputDir}`,
-      });
-      setPublishStatuses((prev) => new Map(prev).set(target.id, {
-        status: 'done',
-        url: result.url,
-      }));
-    } catch (e) {
-      setPublishStatuses((prev) => new Map(prev).set(target.id, {
-        status: 'error',
-        error: String(e),
-      }));
-    }
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────────
   const enabledCount = visibleTargets.filter((t) => t.enabled).length;
 
@@ -495,12 +376,8 @@ export default function ExportModal({
 
           {visibleTargets.map((target) => {
             const s = statuses.get(target.id);
-            const customConfig = getCustomExportConfig(target);
             const isExpanded = expandedId === target.id;
-            const gitPublish = { ...DEFAULT_GIT_PUBLISH, ...(target.gitPublish ?? {}) };
-            const targetOutLabel = target.format === 'git-publish'
-              ? (gitPublish.branch?.trim() ? `${gitPublish.remote?.trim() || 'origin'}/${gitPublish.branch.trim()}` : `${gitPublish.remote?.trim() || 'origin'} push`)
-              : `${target.outputDir}/`;
+            const targetOutLabel = `${target.outputDir}/`;
             const elapsedMs = s?.startedAt
               ? ((s.status === 'running' ? clockNow : (s.finishedAt ?? clockNow)) - s.startedAt)
               : 0;
@@ -536,8 +413,8 @@ export default function ExportModal({
                   <span className={`em-badge em-badge--${FORMAT_BADGE_COLOR[target.format]}`}>
                     {FORMAT_LABELS[target.format]}
                   </span>
-                  <span className="em-target-out" title={target.format === 'git-publish' ? 'Git destination' : 'Output directory'}>{targetOutLabel}</span>
-                  {target.format !== 'git-publish' && fileCounts.has(target.id) && (
+                  <span className="em-target-out" title="Output directory">{targetOutLabel}</span>
+                  {fileCounts.has(target.id) && (
                     <span className="em-file-count" title="Files matched by this target">
                       {fileCounts.get(target.id)} file{fileCounts.get(target.id) !== 1 ? 's' : ''}
                     </span>
@@ -576,7 +453,7 @@ export default function ExportModal({
                   </button>
                 </div>
 
-                {/* Progress bar while canvas files are being processed */}
+                {/* Progress bar while export is running */}
                 {s?.status === 'running' && s.progress && (
                   <>
                     <div className="em-progress-wrap">
@@ -630,40 +507,9 @@ export default function ExportModal({
                           Open
                         </button>
 
-                        {/* Vercel publish button */}
-                        {!BOOK_AUTHORING_ONLY && target.vercelPublish && s.status === 'done' && (() => {
-                          const ps = publishStatuses.get(target.id);
-                          return (
-                            <button
-                              className="em-reveal-btn em-publish-btn"
-                              title={`Publish ${target.outputDir}/ to Vercel project "${target.vercelPublish.projectName}"`}
-                              onClick={() => handlePublish(target)}
-                              disabled={ps?.status === 'deploying'}
-                            >
-                              {ps?.status === 'deploying'
-                                ? <CircleNotch className="em-spin" size={13} />
-                                : <CloudArrowUp weight="fill" size={13} />}
-                              {ps?.status === 'deploying' ? 'Publicando…' : 'Publicar'}
-                            </button>
-                          );
-                        })()}
                       </div>
                     )}
 
-                    {/* Publish result */}
-                    {(() => {
-                      const ps = publishStatuses.get(target.id);
-                      if (!ps || ps.status === 'idle') return null;
-                      if (ps.status === 'done' && ps.url) return (
-                        <div className="em-result-row">
-                          <span>☁ Publicado: <a href={ps.url} target="_blank" rel="noreferrer">{ps.url}</a></span>
-                        </div>
-                      );
-                      if (ps.status === 'error') return (
-                        <span className="em-result-error">☁ {ps.error}</span>
-                      );
-                      return null;
-                    })()}
                     {s.result.errors.map((e, i) => (
                       <span key={i} className="em-result-error">{e}</span>
                     ))}
@@ -698,8 +544,6 @@ export default function ExportModal({
                             format: f,
                             include: FORMAT_DEFAULTS[f].include,
                             outputDir: FORMAT_DEFAULTS[f].outputDir,
-                            gitPublish: f === 'git-publish' ? { ...DEFAULT_GIT_PUBLISH, ...(target.gitPublish ?? {}) } : target.gitPublish,
-                            vercelPublish: f === 'git-publish' ? undefined : target.vercelPublish,
                           });
                         }}
                       >
@@ -710,7 +554,7 @@ export default function ExportModal({
                     </div>
 
                     {/* File selection —————————————————————————————— */}
-                    {target.format !== 'git-publish' && (
+                    {(
                       <>
                         <div className="em-section-label">File selection</div>
                         <div className="em-field">
@@ -756,7 +600,7 @@ export default function ExportModal({
                     )}
 
                     {/* Output ————————————————————————————————————— */}
-                    {target.format !== 'git-publish' && (
+                    {(
                       <>
                         <div className="em-section-label">Output</div>
                         <div className="em-field">
@@ -769,7 +613,7 @@ export default function ExportModal({
                         </div>
                       </>
                     )}
-                    {(target.format === 'pdf' || target.format === 'canvas-pdf') && (
+                    {target.format === 'pdf' && (
                       <div className="em-field em-field--row">
                         <label>
                           <input
@@ -788,7 +632,7 @@ export default function ExportModal({
                           />
                         )}
                         <span className="em-hint">
-                          {target.format === 'pdf' ? 'Combines all matched markdown into one PDF.' : 'Packs all canvas frames into one PDF.'}
+                          Combines all matched markdown into one PDF.
                           {target.merge && ` Output: ${target.mergeName?.trim() || 'merged'}.pdf`}
                         </span>
                       </div>
@@ -802,111 +646,6 @@ export default function ExportModal({
                           onChange={(e) => updateTarget(target.id, { mergeName: e.target.value || undefined })}
                         />
                       </div>
-                    )}
-
-                    {target.format === 'custom' && (
-                      <>
-                        <div className="em-field">
-                          <label>Command</label>
-                          <input
-                            className="em-mono"
-                            placeholder="pandoc {{input}} -o {{output}}.pdf"
-                            value={customConfig?.command ?? ''}
-                            onChange={(e) => updateTarget(target.id, {
-                              custom: {
-                                command: e.target.value,
-                                mode: customConfig?.mode,
-                              },
-                            })}
-                          />
-                        </div>
-                        <div className="em-field">
-                          <label>Execution mode</label>
-                          <select
-                            value={customConfig?.mode ?? 'auto'}
-                            onChange={(e) => updateTarget(target.id, {
-                              custom: {
-                                command: customConfig?.command ?? '',
-                                mode: e.target.value === 'auto'
-                                  ? undefined
-                                  : e.target.value as CustomExportExecutionMode,
-                              },
-                            })}
-                          >
-                            <option value="auto">Auto</option>
-                            <option value="batch">Batch once</option>
-                            <option value="per-file">Once per file</option>
-                          </select>
-                          <span className="em-hint">
-                            Auto detects per-file placeholders like {'{{input}}'} / {'{{output}}'}. Batch runs the command once for the whole target. Per-file forces one run per matched file.
-                          </span>
-                        </div>
-                        <span className="em-hint">
-                          Placeholders: {CUSTOM_EXPORT_INJECTION_SPEC.placeholders.join(', ')}.
-                          Quoted variants: {CUSTOM_EXPORT_INJECTION_SPEC.quotedPlaceholders.join(', ')}.
-                          Batch placeholders: {CUSTOM_EXPORT_INJECTION_SPEC.batchPlaceholders.join(', ')}.
-                          Runs from the workspace root using your login shell when possible.
-                        </span>
-                        <span className="em-hint em-hint--code">
-                          Progress shortcut: print lines starting with {CUSTOM_EXPORT_PROTOCOL.progressPrefix}. Examples: {CUSTOM_EXPORT_PROTOCOL.progressPrefix} 3/10 Generating images, {CUSTOM_EXPORT_PROTOCOL.progressPrefix} 42% Building PDF, or {CUSTOM_EXPORT_PROTOCOL.progressPrefix} {`{"done":3,"total":10,"detail":"Generating images"}`}. To expose exact outputs back to Cafezin, print {CUSTOM_EXPORT_PROTOCOL.artifactPrefix} 07_Exports/file.pdf or {CUSTOM_EXPORT_PROTOCOL.artifactPrefix} {`{"path":"07_Exports/file.pdf"}`}.
-                        </span>
-                      </>
-                    )}
-
-                    {target.format === 'git-publish' && (
-                      <>
-                        <div className="em-section-label">Git Publish</div>
-                        <div className="em-hint em-hint--block em-hint--info">
-                          Stages the whole workspace, creates a commit when needed, then runs git push. This is ideal for sites/apps that deploy automatically after a push to GitHub.
-                        </div>
-                        <div className="em-field">
-                          <label>Commit message <span className="em-hint">(supports {'{{workspace}}'}, {'{{target}}'}, {'{{date}}'}, {'{{datetime}}'})</span></label>
-                          <input
-                            className="em-mono"
-                            placeholder="Publish from Cafezin — {{datetime}}"
-                            value={gitPublish.commitMessage}
-                            onChange={(e) => updateTarget(target.id, {
-                              gitPublish: { ...gitPublish, commitMessage: e.target.value },
-                            })}
-                          />
-                        </div>
-                        <div className="em-field">
-                          <label>Remote</label>
-                          <input
-                            className="em-mono"
-                            placeholder="origin"
-                            value={gitPublish.remote}
-                            onChange={(e) => updateTarget(target.id, {
-                              gitPublish: { ...gitPublish, remote: e.target.value },
-                            })}
-                          />
-                        </div>
-                        <div className="em-field">
-                          <label>Branch <span className="em-hint">(optional)</span></label>
-                          <input
-                            className="em-mono"
-                            placeholder="main"
-                            value={gitPublish.branch}
-                            onChange={(e) => updateTarget(target.id, {
-                              gitPublish: { ...gitPublish, branch: e.target.value },
-                            })}
-                          />
-                          <span className="em-hint">Leave empty to push the current branch/upstream.</span>
-                        </div>
-                        <div className="em-field em-field--row">
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={gitPublish.skipCommitWhenNoChanges}
-                              onChange={(e) => updateTarget(target.id, {
-                                gitPublish: { ...gitPublish, skipCommitWhenNoChanges: e.target.checked },
-                              })}
-                            />
-                            {' '}Skip commit when there are no changes
-                          </label>
-                          <span className="em-hint">Recommended for deploy targets: the export still attempts a push even when the workspace is already clean.</span>
-                        </div>
-                      </>
                     )}
 
                     {/* PDF-only options ─────────────────────────────────── */}
@@ -1035,48 +774,6 @@ export default function ExportModal({
                       </>
                     )}
 
-                    {(target.format === 'canvas-png' || target.format === 'canvas-pdf') && (
-                      <div className="em-hint em-hint--block em-hint--info">
-                        Canvas files are opened headlessly during export. A full-screen overlay covers the UI — no visible tab switching.
-                      </div>
-                    )}
-
-                    {/* Vercel Publish ─────────────────────────────────── */}
-                    {!BOOK_AUTHORING_ONLY && target.format !== 'git-publish' && (
-                      <>
-                        <div className="em-section-label">Vercel Publish</div>
-                        <div className="em-field">
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={!!target.vercelPublish}
-                              onChange={(e) => updateTarget(target.id, {
-                                vercelPublish: e.target.checked
-                                  ? { projectName: target.vercelPublish?.projectName ?? '' }
-                                  : undefined,
-                              })}
-                            />
-                            {' '}Habilitar "Publicar" após export
-                          </label>
-                          <span className="em-hint">Exibe botão "Publicar" após export bem-sucedido para fazer deploy no Vercel.</span>
-                        </div>
-                        {target.vercelPublish && (
-                          <div className="em-field">
-                            <label>Nome do projeto Vercel <span className="em-hint">(e.g. santacruz → santacruz.vercel.app)</span></label>
-                            <input
-                              placeholder="meu-projeto"
-                              value={target.vercelPublish.projectName}
-                              onChange={(e) => updateTarget(target.id, {
-                                vercelPublish: { ...target.vercelPublish!, projectName: e.target.value },
-                              })}
-                            />
-                            <span className="em-hint">
-                              Token e Team ID são configurados em Settings → API Keys (global) ou Settings → Workspace → Vercel Publish (override).
-                            </span>
-                          </div>
-                        )}
-                      </>
-                    )}
                   </div>
                 )}
               </div>
@@ -1120,9 +817,6 @@ export default function ExportModal({
             <button className="em-add-btn" onClick={addTarget}>
               <Plus weight="bold" /> New target
             </button>
-            {!BOOK_AUTHORING_ONLY && <button className="em-add-btn" onClick={addGitPublishTarget}>
-              <CloudArrowUp weight="bold" /> Git publish
-            </button>}
           </div>
           <div className="em-footer-right">
             {enabledCount > 0 && (

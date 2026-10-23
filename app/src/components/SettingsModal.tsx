@@ -36,12 +36,11 @@ import {
   type SyncDeviceFlowState, type SyncedWorkspace,
 } from '../services/syncConfig'
 import { FALLBACK_MODELS } from '../types';
-import type { Workspace, AppSettings, SidebarButton, VercelWorkspaceConfig, WorkspaceFeatureConfig } from '../types';
+import type { Workspace, AppSettings, SidebarButton, WorkspaceFeatureConfig } from '../types';
 import { saveApiSecret } from '../services/apiSecrets';
 import { createCustomerPortalUrl } from '../services/accountService';
 import { useAccountState } from '../hooks/useAccountState';
 import { getAgentCapabilityState } from '../utils/agentCapabilities';
-import { SK } from '../services/storageKeys';
 import { GeneralTab } from './settings/GeneralTab';
 import { ShortcutsTab } from './settings/ShortcutsTab';
 import { AITab } from './settings/AITab';
@@ -364,28 +363,10 @@ export default function SettingsModal({
   const [wsInboxFile, setWsInboxFile] = useState('');
   const [wsGitBranch, setWsGitBranch] = useState('');
   const [wsMarkdownMermaid, setWsMarkdownMermaid] = useState<CapabilityOverrideMode>('auto');
-  const [wsCanvasAgentTools, setWsCanvasAgentTools] = useState<CapabilityOverrideMode>('auto');
-  const [wsSpreadsheetAgentTools, setWsSpreadsheetAgentTools] = useState<CapabilityOverrideMode>('auto');
   const [wsWebAgentTools, setWsWebAgentTools] = useState<CapabilityOverrideMode>('auto');
   const [wsGitHubClientId, setWsGitHubClientId] = useState('');
-  const [wsVercelToken, setWsVercelToken] = useState('');
-  const [wsVercelTeamId, setWsVercelTeamId] = useState('');
-  const [wsVercelDemoHubProject, setWsVercelDemoHubProject] = useState('');
-  const [wsVercelDemoHubSourceDir, setWsVercelDemoHubSourceDir] = useState('');
   const [wsSaving, setWsSaving] = useState(false);
   const [wsSaved, setWsSaved] = useState(false);
-
-  // Global Vercel token (localStorage)
-  const [globalVercelToken, setGlobalVercelToken] = useState(
-    () => localStorage.getItem(SK.VERCEL_TOKEN) ?? '',
-  );
-  const [vercelTokenSaved, setVercelTokenSaved] = useState(false);
-
-  function handleSaveVercelToken() {
-    void saveApiSecret(SK.VERCEL_TOKEN, globalVercelToken.trim());
-    setVercelTokenSaved(true);
-    setTimeout(() => setVercelTokenSaved(false), 2000);
-  }
 
   // ── AI Provider section state ─────────────────────────────────────────────
   const [aiProvider, setAIProviderLocal] = useState<AIProviderType>(() => getActiveProvider());
@@ -588,14 +569,8 @@ export default function SettingsModal({
     setWsInboxFile(workspace.config.inboxFile ?? '');
     setWsGitBranch(workspace.config.gitBranch ?? '');
     setWsMarkdownMermaid(getCapabilityOverrideMode(workspace.config.features?.markdown?.mermaid));
-    setWsCanvasAgentTools(getCapabilityOverrideMode(workspace.config.features?.canvas?.agentTools));
-    setWsSpreadsheetAgentTools(getCapabilityOverrideMode(workspace.config.features?.spreadsheet?.agentTools));
     setWsWebAgentTools(getCapabilityOverrideMode(workspace.config.features?.web?.agentTools));
     setWsGitHubClientId(workspace.config.githubOAuth?.clientId ?? '');
-    setWsVercelToken(workspace.config.vercelConfig?.token ?? '');
-    setWsVercelTeamId(workspace.config.vercelConfig?.teamId ?? '');
-    setWsVercelDemoHubProject(workspace.config.vercelConfig?.demoHub?.projectName ?? '');
-    setWsVercelDemoHubSourceDir(workspace.config.vercelConfig?.demoHub?.sourceDir ?? '');
     setWsSaved(false);
   }, [open, workspace]);
 
@@ -636,26 +611,16 @@ export default function SettingsModal({
 
   function buildWorkspaceFeatures(existing?: WorkspaceFeatureConfig): WorkspaceFeatureConfig | undefined {
     const nextMarkdown = applyCapabilityOverride(existing?.markdown, wsMarkdownMermaid, 'mermaid') as WorkspaceFeatureConfig['markdown'];
-    const nextCanvas = applyCapabilityOverride(existing?.canvas, wsCanvasAgentTools) as WorkspaceFeatureConfig['canvas'];
-    const nextSpreadsheet = applyCapabilityOverride(existing?.spreadsheet, wsSpreadsheetAgentTools) as WorkspaceFeatureConfig['spreadsheet'];
     const nextWeb = applyCapabilityOverride(existing?.web, wsWebAgentTools) as WorkspaceFeatureConfig['web'];
 
     const nextFeatures: WorkspaceFeatureConfig = {
       ...existing,
       markdown: nextMarkdown,
-      canvas: nextCanvas,
-      spreadsheet: nextSpreadsheet,
       web: nextWeb,
     };
 
     if (nextFeatures.markdown && Object.keys(nextFeatures.markdown).length === 0) {
       delete nextFeatures.markdown;
-    }
-    if (nextFeatures.canvas && Object.keys(nextFeatures.canvas).length === 0) {
-      delete nextFeatures.canvas;
-    }
-    if (nextFeatures.spreadsheet && Object.keys(nextFeatures.spreadsheet).length === 0) {
-      delete nextFeatures.spreadsheet;
     }
     if (nextFeatures.web && Object.keys(nextFeatures.web).length === 0) {
       delete nextFeatures.web;
@@ -724,18 +689,6 @@ export default function SettingsModal({
             ? { clientId: wsGitHubClientId.trim() }
             : undefined,
           features: buildWorkspaceFeatures(workspace.config.features),
-          vercelConfig: (wsVercelToken.trim() || wsVercelTeamId.trim() || wsVercelDemoHubProject.trim())
-            ? {
-                token: wsVercelToken.trim() || undefined,
-                teamId: wsVercelTeamId.trim() || undefined,
-                demoHub: wsVercelDemoHubProject.trim()
-                  ? {
-                      projectName: wsVercelDemoHubProject.trim(),
-                      sourceDir: wsVercelDemoHubSourceDir.trim() || undefined,
-                    }
-                  : undefined,
-              } as VercelWorkspaceConfig
-            : undefined,
         },
         agentContext: wsAgent || undefined,
       };
@@ -813,10 +766,6 @@ export default function SettingsModal({
             <GeneralTab
               appSettings={appSettings}
               onAppSettingsChange={onAppSettingsChange}
-              globalVercelToken={globalVercelToken}
-              onGlobalVercelTokenChange={setGlobalVercelToken}
-              vercelTokenSaved={vercelTokenSaved}
-              onSaveVercelToken={handleSaveVercelToken}
               onOpenHelp={onOpenHelp}
               onContactUs={onContactUs}
             />
@@ -883,14 +832,6 @@ export default function SettingsModal({
               workspace={workspace}
               wsName={wsName}
               setWsName={setWsName}
-              wsVercelToken={wsVercelToken}
-              setWsVercelToken={setWsVercelToken}
-              wsVercelTeamId={wsVercelTeamId}
-              setWsVercelTeamId={setWsVercelTeamId}
-              wsVercelDemoHubProject={wsVercelDemoHubProject}
-              setWsVercelDemoHubProject={setWsVercelDemoHubProject}
-              wsVercelDemoHubSourceDir={wsVercelDemoHubSourceDir}
-              setWsVercelDemoHubSourceDir={setWsVercelDemoHubSourceDir}
               wsSidebarButtons={wsSidebarButtons}
               setWsSidebarButtons={setWsSidebarButtons}
               wsInboxFile={wsInboxFile}
@@ -918,10 +859,6 @@ export default function SettingsModal({
               setWsAgent={setWsAgent}
               wsMarkdownMermaid={wsMarkdownMermaid}
               setWsMarkdownMermaid={setWsMarkdownMermaid}
-              wsCanvasAgentTools={wsCanvasAgentTools}
-              setWsCanvasAgentTools={setWsCanvasAgentTools}
-              wsSpreadsheetAgentTools={wsSpreadsheetAgentTools}
-              setWsSpreadsheetAgentTools={setWsSpreadsheetAgentTools}
               wsWebAgentTools={wsWebAgentTools}
               setWsWebAgentTools={setWsWebAgentTools}
               wsGitHubClientId={wsGitHubClientId}

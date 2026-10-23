@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  X, ArrowUp, Warning, Camera, Paperclip,
+  X, ArrowUp, Warning, Paperclip,
   Microphone, Stop, ArrowCounterClockwise, Sparkle, FileText,
 } from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -20,7 +20,6 @@ import { getProviderCatalog } from '../services/ai/providerModels';
 import { DEFAULT_MODEL } from '../types';
 import type { AgentContextSnapshot, AIRecordedTextMark, AISelectionContext, ChatMessage, CopilotModel, CopilotModelInfo, MessageItem, Task } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
-import type { Editor as TldrawEditor } from 'tldraw';
 import { getMimeType, IMAGE_EXTS } from '../utils/mime';
 import { getActiveTask } from '../services/taskService';
 import { getRoutinesForWorkspaceType } from '../utils/workspaceRoutines';
@@ -35,7 +34,6 @@ import { useAISession, contentToString, fmtRelative } from '../hooks/useAISessio
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { useSystemPrompt, useWorkspaceMemory, useUserProfile } from '../hooks/useSystemPrompt';
 import { useAIStream } from '../hooks/useAIStream';
-import { useAIScreenshot } from '../hooks/useAIScreenshot';
 import { loadHistoricalSessions, type HistoricalSession } from '../services/aiSessionHistory';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -171,16 +169,13 @@ export interface AgentSessionProps {
   workspacePath?: string;
   workspace?: Workspace | null;
   memoryRefreshKey?: number;
-  canvasEditorRef?: React.RefObject<TldrawEditor | null>;
   onFileWritten?: (path: string) => void;
   onPathRenamed?: (fromPath: string, toPath: string) => void;
   getLiveFileContent?: (relPath: string) => string | null;
   isFileDirty?: (relPath: string) => boolean;
   getAgentContextSnapshot?: () => AgentContextSnapshot;
   onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[], agentId?: string) => void;
-  onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string, agentId?: string, canvasRevert?: Record<string, unknown | null>) => void;
   activeFile?: string;
-  rescanFramesRef?: React.MutableRefObject<(() => void) | null>;
   workspaceExportConfig?: WorkspaceExportConfig;
   onExportConfigChange?: (config: WorkspaceExportConfig) => void;
   onStreamingChange?: (streaming: boolean) => void;
@@ -188,9 +183,6 @@ export interface AgentSessionProps {
   onStatusChange?: (status: 'idle' | 'thinking' | 'error') => void;
   /** Called when the user has scrolled to the bottom of the messages (clears unread). */
   onMessagesSeen?: () => void;
-  screenshotTargetRef?: React.RefObject<HTMLElement | null>;
-  webPreviewRef?: React.RefObject<{ getScreenshot: () => Promise<string | null> } | null>;
-  getActiveHtml?: () => { html: string; absPath: string } | null;
   workspaceConfig?: WorkspaceConfig;
   appLocale?: 'en' | 'pt-BR';
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
@@ -226,16 +218,13 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   workspacePath,
   workspace,
   memoryRefreshKey = 0,
-  canvasEditorRef,
   onFileWritten,
   onPathRenamed,
   getLiveFileContent,
   isFileDirty,
   getAgentContextSnapshot,
   onMarkRecorded,
-  onCanvasMarkRecorded,
   activeFile,
-  rescanFramesRef,
   workspaceExportConfig,
   onExportConfigChange,
   workspaceConfig,
@@ -244,9 +233,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   onStreamingChange,
   onStatusChange,
   onMessagesSeen,
-  screenshotTargetRef,
-  webPreviewRef,
-  getActiveHtml,
   onOpenFileReference,
   onOpenSettings,
   selectionContext,
@@ -391,9 +377,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     sessionStartedAtRef: session.sessionStartedAtRef,
     workspace,
     workspacePath,
-    canvasEditorRef,
     activeFile,
-    rescanFramesRef,
     workspaceExportConfig,
     onExportConfigChange,
     workspaceConfig,
@@ -404,9 +388,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     isFileDirty,
     getAgentContextSnapshot,
     onMarkRecorded,
-    onCanvasMarkRecorded,
-    webPreviewRef,
-    getActiveHtml,
     onStreamingChange,
     setMemoryContent,
     setUserProfileContent,
@@ -467,16 +448,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream.handleSend, pendingImages, pendingFileRef, pendingSelectionContext, input]);
-
-  const screenshot = useAIScreenshot({
-    canvasEditorRef,
-    screenshotTargetRef,
-    webPreviewRef,
-    input,
-    isStreaming: stream.isStreaming,
-    onReady: (url) => handleSend(url),
-    onStage: (url) => appendPendingImages([url]),
-  });
 
   // ── Session actions ───────────────────────────────────────────────────────
   function handleRestoreSession() {
@@ -1298,19 +1269,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
             width={72}
             height={28}
           />
-          {screenshotTargetRef && (
-            <button
-              className={`ai-btn-screenshot ${screenshot.isCapturing ? 'capturing' : ''}`}
-              onClick={screenshot.handleTakeScreenshot}
-              disabled={screenshot.isCapturing}
-              title={canvasEditorRef?.current
-                ? t('agentSession.screenshotCanvasTitle')
-                : t('agentSession.screenshotViewTitle')}
-              type="button"
-            >
-              <Camera weight="thin" size={14} />
-            </button>
-          )}
           <button
             className="ai-btn-attach"
             onClick={handleAttachFile}

@@ -1,4 +1,3 @@
-import { invoke } from '@tauri-apps/api/core';
 import { House, List, Sparkle } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import type { Workspace } from '../../types';
@@ -25,7 +24,6 @@ export interface AppHeaderProps {
   savedToast: boolean;
   pandocError: string | null;
   onClearPandocError: () => void;
-  isDev: boolean;
   aiOpen: boolean;
   onToggleAi: () => void;
   previewShortcutLabel: string;
@@ -52,7 +50,6 @@ export function AppHeader({
   savedToast,
   pandocError,
   onClearPandocError,
-  isDev,
   aiOpen,
   onToggleAi,
   previewShortcutLabel,
@@ -148,16 +145,6 @@ export function AppHeader({
           >
             ⚠ {pandocError.length > 45 ? `${pandocError.slice(0, 45)}…` : pandocError}
           </span>
-        )}
-
-        {isDev && (
-          <button
-            className="app-devtools-btn"
-            onClick={() => invoke('open_devtools')}
-            title={t('app.openDevtoolsTitle')}
-          >
-            {t('app.devtoolsLabel')}
-          </button>
         )}
 
         <button

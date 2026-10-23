@@ -58,12 +58,6 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (
-            id.includes("node_modules/tldraw") ||
-            id.includes("node_modules/@tldraw")
-          ) {
-            return "vendor-tldraw";
-          }
-          if (
             (id.includes("node_modules/@codemirror") ||
               id.includes("node_modules/@lezer")) &&
             !id.includes("node_modules/@uiw")
@@ -79,7 +73,6 @@ export default defineConfig({
           if (
             id.includes("node_modules/jspdf") ||
             id.includes("node_modules/jszip") ||
-            id.includes("node_modules/html-to-image") ||
             id.includes("node_modules/html2canvas")
           ) {
             return "vendor-export";

@@ -3,8 +3,7 @@
  *
  * This module is now a thin aggregator. Each domain is implemented in:
  *   utils/tools/fileTools.ts    - list, read, write, patch, multi_patch, search, rename, delete, scaffold, check_file
- *   utils/tools/canvasTools.ts  - list_canvas_shapes, canvas_op, canvas_screenshot, add_canvas_image, screenshot_preview
- *   utils/tools/webTools.ts     - web_search, search_images, fetch_url, run_command, publish_vercel
+ *   utils/tools/webTools.ts     - web_search, search_images, fetch_url
  *   utils/tools/configTools.ts  - export_workspace, configure_export_targets, configure_workspace, remember, ask_user
  *   utils/tools/skillTools.ts   - read_skill (on-demand protocol and best-practice guides)
  *   utils/tools/mcpTools.ts     - mcp__<server>__<tool> — dynamic tools from connected MCP servers
@@ -13,7 +12,6 @@
  */
 
 import { FILE_TOOL_DEFS, executeFileTools } from './tools/fileTools';
-import { CANVAS_TOOL_DEFS, executeCanvasTools } from './tools/canvasTools';
 import { WEB_TOOL_DEFS, executeWebTools } from './tools/webTools';
 import { CONFIG_TOOL_DEFS, executeConfigTools } from './tools/configTools';
 import { TASK_TOOL_DEFS, executeTaskTools } from './tools/taskTools';
@@ -35,7 +33,6 @@ export type { ToolContext as AgentToolContext } from './tools/shared';
 // Aggregated tool list
 export const WORKSPACE_TOOLS = [
   ...FILE_TOOL_DEFS,
-  ...CANVAS_TOOL_DEFS,
   ...WEB_TOOL_DEFS,
   ...CONFIG_TOOL_DEFS,
   ...TASK_TOOL_DEFS,
@@ -58,20 +55,19 @@ export function getWorkspaceTools(
  * Build a tool executor from a context object.
  *
  * Pass an `AgentToolContext` (same shape as `ToolContext`) instead of 19
- * positional arguments.  Only `workspacePath` and `canvasEditor` are required;
+ * positional arguments.  Only `workspacePath` is required;
  * all callbacks are optional.
  *
  * @example
  * const executor = buildToolExecutor({
  *   workspacePath: workspace.path,
- *   canvasEditor: canvasEditorRef,
  *   onFileWritten,
  *   activeFile,
  *   // ...only the fields you need
  * });
  */
 export function buildToolExecutor(ctx: import('./tools/shared').ToolContext) {
-  const domains = [executeFileTools, executeCanvasTools, executeWebTools, executeConfigTools, executeTaskTools, executeSkillTools, executeMcpTools];
+  const domains = [executeFileTools, executeWebTools, executeConfigTools, executeTaskTools, executeSkillTools, executeMcpTools];
 
   return async (name: string, args: Record<string, unknown>): Promise<string> => {
     for (const domain of domains) {

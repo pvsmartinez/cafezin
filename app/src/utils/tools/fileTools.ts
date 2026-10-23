@@ -16,16 +16,13 @@ import {
 } from '../../services/fs';
 import { walkFilesFlat } from '../../services/workspace';
 import { lockFile, unlockFile, waitForUnlock } from '../../services/copilotLock';
-import { parseSpreadsheetFile, serializeSheetToCSV, serializeSheetToTSV, sheetToMarkdownTable } from '../../services/spreadsheet';
 import { invoke } from '@tauri-apps/api/core';
 import { loadWorkspaceIndex, extractFileOutline, rankWorkspaceIndex } from '../../services/workspaceIndex';
 import { extractPdfText } from '../readPdfText';
-import type { SheetTab } from '../../services/spreadsheet';
-import type { AIRecordedTextMark, AISpreadsheetTarget } from '../../types';
+import type { AIRecordedTextMark } from '../../types';
 import type { ToolDefinition, DomainExecutor } from './shared';
 import { TEXT_EXTS, safeResolvePath } from './shared';
 
-const SPREADSHEET_EXTS = new Set(['csv', 'tsv', 'xlsx', 'xls', 'ods', 'xlsm', 'xlsb']);
 
 function getLiveTextOverride(relPath: string, ctx: Parameters<DomainExecutor>[2]): { text: string; dirty: boolean } | null {
   // Prefer getLiveFileContent — it reads from tabContentsRef which is updated on every
@@ -68,6 +65,14 @@ async function readWorkspaceText(
 }
 
 // ── Tool definitions ─────────────────────────────────────────────────────────
+
+/** Legacy/binary formats that must never be read or written as text. */
+function isUnsupportedLegacyFile(relPath: string): boolean {
+  const lower = relPath.toLowerCase();
+  if (lower.endsWith('.tldr.json')) return true;
+  const ext = lower.split('.').pop() ?? '';
+  return ['csv', 'tsv', 'xlsx', 'xls', 'ods', 'xlsm', 'xlsb', 'rtf', 'doc', 'docx', 'ppt', 'pptx'].includes(ext);
+}
 
 export const FILE_TOOL_DEFS: ToolDefinition[] = [
   {
@@ -139,8 +144,7 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         'Files up to 80 KB are returned in full; larger files are truncated — call again with start_line/end_line to page through the rest. ' +
         'To read several files at once use read_multiple_files. ' +
         'PDF files (.pdf) are supported — text is extracted automatically from each page. ' +
-        'NOTE: .tldr.json canvas files are BLOCKED — they contain base64 images that overflow the context. Use list_canvas_shapes instead. ' +
-        'Spreadsheet files are also BLOCKED here — use read_spreadsheet instead.',
+        'NOTE: binary or legacy files (spreadsheets, Office docs, canvas) are BLOCKED here — they must not be read as text.',
       parameters: {
         type: 'object',
         properties: {
@@ -170,8 +174,7 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         'Use this whenever you need to read more than one file — it is far faster than calling read_workspace_file repeatedly. ' +
         'Each file is returned with a clear header and its content (up to 80 KB each). ' +
         'PDF files (.pdf) are supported — text is extracted automatically. ' +
-        'NOTE: .tldr.json canvas files are BLOCKED — use list_canvas_shapes for those. ' +
-        'Spreadsheet files are also BLOCKED here — use read_spreadsheet for those.',
+        'NOTE: binary or legacy files (spreadsheets, Office docs, canvas) are BLOCKED here — they must not be read as text.',
       parameters: {
         type: 'object',
         properties: {
@@ -277,14 +280,13 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
       name: 'check_file',
       description:
         'Validate a file for common errors after creating or editing it. ' +
-        'For Markdown (.md): checks YAML front-matter is well-formed and that internal [text](path) links resolve to existing files. ' +
-        'For canvas files (.tldr.json): checks the JSON is a valid tldraw snapshot.',
+        'For Markdown (.md): checks YAML front-matter is well-formed and that internal [text](path) links resolve to existing files.',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'Relative path to the file to check, e.g. "chapter1.md" or "diagrams/overview.tldr.json".',
+            description: 'Relative path to the file to check, e.g. "chapter1.md".',
           },
         },
         required: ['path'],
@@ -427,8 +429,7 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
         'PREFERRED: use preset="book" or preset="course" for standard project types — no entries needed. ' +
         'Use when the user asks to set up a project layout, create a chapter structure, ' +
         'scaffold a course, or initialise any multi-file structure. ' +
-        'Each entry can be a folder (path ending with /) or a file (with optional stub content). ' +
-        'IMPORTANT: canvas files (.tldr.json) are ALWAYS created empty regardless of any content supplied — do NOT put tldraw JSON in the content field. Use canvas_op AFTER opening the file instead.',
+        'Each entry can be a folder (path ending with /) or a file (with optional stub content).',
       parameters: {
         type: 'object',
         properties: {
@@ -438,7 +439,6 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
             description:
               'Use instead of entries for standard project types. ' +
               '"book" → zero-padded chapter files (cap01.md … capNN.md) + notas.md + memory.md pre-seeded with headings. ' +
-              '"course" → aulas/ folder with one .tldr.json canvas + one -notas.md per lesson, plus recursos/ folder. ' +
               'Combine with title, author, chapters to personalise.',
           },
           title: {
@@ -490,84 +490,6 @@ export const FILE_TOOL_DEFS: ToolDefinition[] = [
           },
         },
         required: [],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'read_spreadsheet',
-      description:
-        'Read a CSV, TSV or XLSX file and return its contents as a Markdown table. ' +
-        'For XLSX files with multiple sheets, specify the sheet name or index. ' +
-        'Omit `path` to read the currently active file. ' +
-        'For plain CSV/TSV files, read_workspace_file also works and returns raw text.',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: {
-            type: 'string',
-            description: 'Relative path from workspace root, e.g. "data/sales.xlsx". Defaults to the active file.',
-          },
-          sheet: {
-            type: 'string',
-            description: 'Sheet name or 0-based index to read. Defaults to the first sheet (0).',
-          },
-          max_rows: {
-            type: 'number',
-            description: 'Maximum number of data rows to include in the output. Default: 200.',
-          },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'write_spreadsheet',
-      description:
-        'Create or edit a CSV or TSV file. Supports two modes:\n' +
-        '• **Full rewrite**: pass `headers` + `rows` to replace the entire file.\n' +
-        '• **Surgical edit**: pass `updates`, `append_rows`, and/or `delete_rows` ' +
-        'to modify only parts of an existing file, leaving untouched cells unchanged.\n' +
-        'CSV/TSV quoting and escaping are handled automatically.',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: {
-            type: 'string',
-            description: 'Relative path from workspace root. Must end in .csv or .tsv, e.g. "data/sales.csv".',
-          },
-          headers: {
-            type: 'string',
-            description: '(Full rewrite) JSON array of column header labels, e.g. ["Name","Age","Score"]. Required together with `rows`.',
-          },
-          rows: {
-            type: 'string',
-            description: '(Full rewrite) JSON array of data rows. Each row is an array of string values, e.g. [["Alice","30"],["Bob","25"]].',
-          },
-          updates: {
-            type: 'string',
-            description:
-              '(Surgical) JSON array of cell patches: [{"row":1,"col":2,"value":"new"},…]. ' +
-              'Row 0 = header row; row 1 = first data row. Col is 0-based. ' +
-              'File must already exist.',
-          },
-          append_rows: {
-            type: 'string',
-            description:
-              '(Surgical) JSON array of rows to append at the end of the existing file, e.g. [["Alice","30"],["Bob","25"]]. ' +
-              'File must already exist.',
-          },
-          delete_rows: {
-            type: 'string',
-            description:
-              '(Surgical) JSON array of 1-based data-row indices to remove. E.g. "[2,5]" deletes the 2nd and 5th data rows ' +
-              '(row 0 = header row, not counted). Applied before `updates` and `append_rows`. File must already exist.',
-          },
-        },
-        required: ['path'],
       },
     },
   },
@@ -625,48 +547,6 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
 
     const mark = buildRecordedMarkFromAfterRange(after, start, afterEnd + 1, before.slice(start, beforeEnd + 1));
     return mark ? [mark] : [];
-  }
-
-  function buildSpreadsheetRecordedMark(
-    beforeText: string,
-    afterText: string,
-    target: AISpreadsheetTarget,
-    contextBefore = '',
-    contextAfter = '',
-  ): AIRecordedTextMark | null {
-    const visibleText = (afterText || beforeText).trim();
-    if (!visibleText) return null;
-    return {
-      text: visibleText,
-      spreadsheetTarget: target,
-      revert: {
-        beforeText,
-        afterText,
-        contextBefore,
-        contextAfter,
-      },
-    };
-  }
-
-  function buildSpreadsheetLineMarks(
-    beforeSerialized: string,
-    afterSerialized: string,
-    specs: Array<{ lineIndex: number; target: AISpreadsheetTarget }>,
-  ): AIRecordedTextMark[] {
-    const beforeLines = beforeSerialized.split('\n');
-    const afterLines = afterSerialized.split('\n');
-    const marks: AIRecordedTextMark[] = [];
-
-    for (const spec of specs) {
-      const beforeLine = beforeLines[spec.lineIndex] ?? '';
-      const afterLine = afterLines[spec.lineIndex] ?? '';
-      const contextBefore = spec.lineIndex > 0 ? `${afterLines[spec.lineIndex - 1] ?? ''}\n` : '';
-      const contextAfter = spec.lineIndex + 1 < afterLines.length ? `\n${afterLines[spec.lineIndex + 1] ?? ''}` : '';
-      const mark = buildSpreadsheetRecordedMark(beforeLine, afterLine, spec.target, contextBefore, contextAfter);
-      if (mark) marks.push(mark);
-    }
-
-    return marks;
   }
 
   function buildRecordedMarksForPatch(
@@ -847,15 +727,8 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       const relPath = String(args.path ?? '');
       if (!relPath) return 'Error: path is required.';
       const ext = relPath.split('.').pop()?.toLowerCase() ?? '';
-      // Canvas files contain base64-encoded images — reading them raw floods the
-      // context window and causes API 400 errors. Use list_canvas_shapes instead.
-      if (relPath.endsWith('.tldr.json')) {
-        return 'Error: .tldr.json canvas files cannot be read with read_workspace_file — ' +
-          'their raw content contains base64 images that overflow the context. ' +
-          'Use list_canvas_shapes to inspect the open canvas (it shows shape positions, text, colors, and assetIds for images).';
-      }
-      if (SPREADSHEET_EXTS.has(ext)) {
-        return `Error: spreadsheet files (${relPath}) cannot be read with read_workspace_file — use read_spreadsheet instead.`;
+      if (isUnsupportedLegacyFile(relPath)) {
+        return `Error: ${relPath} is a legacy/binary format and is not supported — the file is left untouched.`;
       }
       let abs: string;
       try { abs = safeResolvePath(workspacePath, relPath); }
@@ -927,11 +800,8 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
         pathList.map(async (relPath) => {
           const label = `\n${'─'.repeat(60)}\n📄 ${relPath}\n${'─'.repeat(60)}`;
           const ext = relPath.split('.').pop()?.toLowerCase() ?? '';
-          if (relPath.endsWith('.tldr.json')) {
-            return `${label}\n[BLOCKED: canvas file — use list_canvas_shapes instead.]`;
-          }
-          if (SPREADSHEET_EXTS.has(ext)) {
-            return `${label}\n[BLOCKED: spreadsheet file — use read_spreadsheet instead.]`;
+          if (isUnsupportedLegacyFile(relPath)) {
+            return `${label}\n[BLOCKED: legacy/binary format — not supported.]`;
           }
           let abs: string;
           try { abs = safeResolvePath(workspacePath, relPath); }
@@ -983,8 +853,8 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       const occurrenceProvided = Object.prototype.hasOwnProperty.call(args, 'occurrence');
       if (!relPath) return 'Error: path is required.';
       if (!search)  return 'Error: search string is required (may not be empty).';
-      if (relPath.endsWith('.tldr.json')) {
-        return 'Error: canvas files (.tldr.json) cannot be patched — use canvas_op instead.';
+      if (isUnsupportedLegacyFile(relPath)) {
+        return `Error: ${relPath} is a legacy/binary format and cannot be patched — the file is left untouched.`;
       }
       let abs: string;
       try { abs = safeResolvePath(workspacePath, relPath); }
@@ -1045,8 +915,8 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
       const content = String(args.content ?? '');
       if (!relPath) return 'Error: path is required.';
       if (!content) return 'Error: content is empty — the file was not written. Check argument parsing.';
-      if (relPath.endsWith('.tldr.json')) {
-        return 'Error: canvas files (.tldr.json) cannot be written with write_workspace_file — use the canvas_op tool instead. Writing raw JSON to a canvas file would corrupt its tldraw format.';
+      if (isUnsupportedLegacyFile(relPath)) {
+        return `Error: ${relPath} is a legacy/binary format and cannot be written — the file is left untouched.`;
       }
       console.debug('[write_workspace_file] path:', relPath, 'content length:', content.length);
       let abs: string;
@@ -1216,24 +1086,11 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
 
       const issues: string[] = [];
 
-      if (relPath.endsWith('.tldr.json')) {
-        try {
-          const json = JSON.parse(text) as Record<string, unknown>;
-          const hasKeys = json.document !== undefined || json.store !== undefined || json.records !== undefined;
-          if (!hasKeys) {
-            issues.push('JSON parses but is missing expected tldraw keys (document/store/records). The canvas may be corrupted.');
-          } else {
-            const store = json.store as Record<string, unknown> | undefined;
-            const records = json.records as Array<{ typeName?: string }> | undefined;
-            const shapeCount = store
-              ? Object.keys(store).filter((k) => k.startsWith('shape:')).length
-              : (records ?? []).filter((r) => r?.typeName === 'shape').length;
-            return `✓ Valid tldraw canvas (${shapeCount} shape(s)).`;
-          }
-        } catch (e) {
-          issues.push(`Invalid JSON: ${e}`);
-        }
-      } else if (relPath.endsWith('.md') || relPath.endsWith('.mdx')) {
+      if (isUnsupportedLegacyFile(relPath)) {
+        return `check_file does not support legacy/binary formats (got: ${relPath}).`;
+      }
+
+      if (relPath.endsWith('.md') || relPath.endsWith('.mdx')) {
         if (text.startsWith('---')) {
           const fmEnd = text.indexOf('\n---', 3);
           if (fmEnd === -1) {
@@ -1265,7 +1122,7 @@ export const executeFileTools: DomainExecutor = async (name, args, ctx) => {
           }
         }
       } else {
-        return `check_file only supports .md, .mdx, and .tldr.json files (got: ${relPath}).`;
+        return `check_file only supports .md and .mdx files (got: ${relPath}).`;
       }
 
       if (issues.length === 0) return `✓ No issues found in ${relPath}.`;
@@ -1689,13 +1546,10 @@ draft: true
           } else {
             const dir = abs.split('/').slice(0, -1).join('/');
             if (!(await exists(dir))) await mkdir(dir, { recursive: true });
-            // Canvas files (.tldr.json) must always be created empty — writing raw
-            // tldraw JSON here would produce a broken schema and a migration-error.
-            const isCanvas = entryPath.endsWith('.tldr.json');
-            const stubContent = isCanvas ? '' : (typeof entry.content === 'string' ? entry.content : '');
+            const stubContent = typeof entry.content === 'string' ? entry.content : '';
             await writeTextFile(abs, stubContent);
             onFileWritten?.(entryPath, stubContent);
-            created.push(isCanvas ? `${entryPath} (canvas — created empty, use canvas_op to populate)` : entryPath);
+            created.push(entryPath);
           }
         } catch (e) {
           errors.push(`Failed to create ${entryPath}: ${e}`);
@@ -1710,189 +1564,6 @@ draft: true
       return parts.join('\n');
     }
 
-    // ── read_spreadsheet ──────────────────────────────────────────────────
-    case 'read_spreadsheet': {
-      const relPath = typeof args.path === 'string' ? args.path : (ctx.activeFile ?? '');
-      if (!relPath) return 'No file specified and no active file open.';
-      const absPath = safeResolvePath(workspacePath, relPath);
-      const ext = relPath.split('.').pop()?.toLowerCase() ?? 'csv';
-      const maxRows = typeof args.max_rows === 'number' ? args.max_rows : 200;
-
-      const data = await parseSpreadsheetFile(absPath, ext);
-      if (data.sheets.length === 0) return 'Spreadsheet is empty or has no sheets.';
-
-      // Resolve which sheet to read
-      let sheetIdx = 0;
-      if (args.sheet !== undefined) {
-        if (typeof args.sheet === 'number') {
-          sheetIdx = args.sheet;
-        } else {
-          const name = String(args.sheet);
-          const found = data.sheets.findIndex((s) => s.name === name);
-          sheetIdx = found >= 0 ? found : parseInt(name, 10) || 0;
-        }
-      }
-      const sheet = data.sheets[Math.min(sheetIdx, data.sheets.length - 1)];
-      if (!sheet) return 'Sheet not found.';
-
-      const header = data.sheets.length > 1
-        ? `**${data.filename}** — sheet: **${sheet.name}** (${sheetIdx + 1}/${data.sheets.length})\nAll sheets: ${data.sheets.map((s) => s.name).join(', ')}\n\n`
-        : `**${data.filename}**\n\n`;
-
-      return header + sheetToMarkdownTable(sheet, maxRows);
-    }
-
-    // ── write_spreadsheet ─────────────────────────────────────────────────
-    case 'write_spreadsheet': {
-      const relPath = String(args.path ?? '').trim();
-      if (!relPath) return 'Error: path is required.';
-      const ext = relPath.split('.').pop()?.toLowerCase() ?? '';
-      if (ext !== 'csv' && ext !== 'tsv') return 'Error: write_spreadsheet only supports .csv and .tsv files.';
-
-      let absPath: string;
-      try { absPath = safeResolvePath(workspacePath, relPath); }
-      catch (e) { return String(e); }
-
-      const hasFullRewrite = args.headers !== undefined || args.rows !== undefined;
-      const hasSurgical    = args.updates !== undefined || args.append_rows !== undefined || args.delete_rows !== undefined;
-
-      if (!hasFullRewrite && !hasSurgical) {
-        return 'Error: provide either (headers + rows) for a full rewrite, or (updates / append_rows / delete_rows) for a surgical edit.';
-      }
-      if (hasFullRewrite && hasSurgical) {
-        return 'Error: cannot mix full-rewrite params (headers/rows) with surgical params (updates/append_rows/delete_rows) in one call.';
-      }
-
-      let sheet: SheetTab;
-      let summaryVerb: string;
-      let recordedMarks: AIRecordedTextMark[] = [];
-      let previousSerialized = '';
-
-      if (hasFullRewrite) {
-        // Full rewrite
-        let headers: string[], rows: string[][];
-        try {
-          headers = JSON.parse(String(args.headers ?? '[]')) as string[];
-          rows    = JSON.parse(String(args.rows    ?? '[]')) as string[][];
-          if (!Array.isArray(headers)) return 'Error: headers must be a JSON array of strings.';
-          if (!Array.isArray(rows))    return 'Error: rows must be a JSON array of arrays.';
-        } catch (e) { return `Error: invalid JSON in headers or rows: ${e}`; }
-        sheet = { name: 'Sheet1', headers, rows: rows.map((r) => r.map(String)) };
-        summaryVerb = `full rewrite — ${headers.length} col(s), ${rows.length} data row(s)`;
-
-      } else {
-        // Surgical edit — read existing file first
-        if (!(await exists(absPath))) {
-          return `File not found: ${relPath}. Surgical edits require an existing file — use full rewrite (headers+rows) to create it.`;
-        }
-        const existingData = await parseSpreadsheetFile(absPath, ext);
-        sheet = existingData.sheets[0] ?? { name: 'Sheet1', headers: [], rows: [] };
-        previousSerialized = ext === 'tsv'
-          ? await serializeSheetToTSV(sheet)
-          : await serializeSheetToCSV(sheet);
-        const ops: string[] = [];
-        const changedRowTargets = new Map<number, AISpreadsheetTarget>();
-
-        // delete_rows runs first so indices in updates/append_rows refer to post-deletion state
-        if (args.delete_rows !== undefined) {
-          let deleteIdxs: number[];
-          try {
-            deleteIdxs = JSON.parse(String(args.delete_rows)) as number[];
-            if (!Array.isArray(deleteIdxs)) return 'Error: delete_rows must be a JSON array of row numbers.';
-          } catch (e) { return `Error: invalid JSON in delete_rows: ${e}`; }
-          const deleteSet = new Set(deleteIdxs.map((n) => n - 1)); // 1-based to 0-based
-          const before = sheet.rows.length;
-          sheet.rows = sheet.rows.filter((_, ri) => !deleteSet.has(ri));
-          ops.push(`${before - sheet.rows.length} row(s) deleted`);
-        }
-
-        if (args.updates !== undefined) {
-          let updates: Array<{ row: number; col: number; value: string }>;
-          try {
-            updates = JSON.parse(String(args.updates)) as typeof updates;
-            if (!Array.isArray(updates)) return 'Error: updates must be a JSON array.';
-          } catch (e) { return `Error: invalid JSON in updates: ${e}`; }
-          for (const u of updates) {
-            const r = Number(u.row);
-            const c = Number(u.col);
-            const v = String(u.value ?? '');
-            if (r === 0) {
-              while (sheet.headers.length <= c) sheet.headers.push('');
-              sheet.headers[c] = v;
-              changedRowTargets.set(0, { kind: 'header', sheetName: sheet.name, col: c });
-            } else {
-              const ri = r - 1;
-              while (sheet.rows.length <= ri) sheet.rows.push(sheet.headers.map(() => ''));
-              while (sheet.rows[ri].length <= c) sheet.rows[ri].push('');
-              sheet.rows[ri][c] = v;
-              changedRowTargets.set(r, { kind: 'cell', sheetName: sheet.name, row: ri, col: c });
-            }
-          }
-          ops.push(`${updates.length} cell update(s)`);
-        }
-
-        if (args.append_rows !== undefined) {
-          let newRows: string[][];
-          try {
-            newRows = JSON.parse(String(args.append_rows)) as string[][];
-            if (!Array.isArray(newRows)) return 'Error: append_rows must be a JSON array of arrays.';
-          } catch (e) { return `Error: invalid JSON in append_rows: ${e}`; }
-          const startRowIndex = sheet.rows.length;
-          sheet.rows.push(...newRows.map((r) => r.map(String)));
-          newRows.forEach((_, idx) => {
-            changedRowTargets.set(startRowIndex + 1 + idx, {
-              kind: 'row',
-              sheetName: sheet.name,
-              row: startRowIndex + idx,
-            });
-          });
-          ops.push(`${newRows.length} row(s) appended`);
-        }
-
-        summaryVerb = `surgical edit — ${ops.join(', ')}, ${sheet.rows.length} total row(s)`;
-
-        const finalSerialized = ext === 'tsv'
-          ? await serializeSheetToTSV(sheet)
-          : await serializeSheetToCSV(sheet);
-        recordedMarks = buildSpreadsheetLineMarks(
-          previousSerialized,
-          finalSerialized,
-          Array.from(changedRowTargets.entries()).map(([lineIndex, target]) => ({ lineIndex, target })),
-        );
-      }
-
-      const serialized = ext === 'tsv'
-        ? await serializeSheetToTSV(sheet)
-        : await serializeSheetToCSV(sheet);
-
-      if (recordedMarks.length === 0) {
-        const previousText = previousSerialized || ((await exists(absPath)) ? await readTextFile(absPath).catch(() => '') : '');
-        recordedMarks = buildRecordedMarksFromSingleRewrite(previousText, serialized);
-      }
-
-      const lwWrite = await waitForUnlock(relPath, ctx.agentId);
-      if (lwWrite.timedOut) {
-        return `Cannot write "${relPath}" — it is locked by another agent (${lwWrite.owner}).`;
-      }
-      lockFile(relPath, ctx.agentId);
-      await new Promise<void>((r) => setTimeout(r, 0));
-      const dirPath = absPath.split('/').slice(0, -1).join('/');
-      try {
-        if (!(await exists(dirPath))) await mkdir(dirPath, { recursive: true });
-        await writeTextFile(absPath, serialized);
-      } catch (e) {
-        unlockFile(relPath);
-        return `Error writing file: ${e}`;
-      }
-      try {
-        onFileWritten?.(relPath);
-        onMarkRecorded?.(relPath, serialized, recordedMarks);
-        await new Promise<void>((r) => setTimeout(r, 400));
-      } finally {
-        unlockFile(relPath);
-      }
-      return `${ext.toUpperCase()} written: ${relPath} — ${summaryVerb} (${serialized.length} chars).`;
-    }
     default:
       return null;
   }

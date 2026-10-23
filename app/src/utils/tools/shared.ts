@@ -2,7 +2,6 @@
  * Shared types and utilities for workspace tool domains.
  */
 
-import type { Editor } from 'tldraw';
 import type { AIRecordedTextMark, WorkspaceExportConfig, WorkspaceConfig } from '../../types';
 
 // ── Public tool schema type (OpenAI function-calling format) ─────────────────
@@ -48,11 +47,9 @@ export type DomainExecutor = (
 
 export interface ToolContext {
   workspacePath: string;
-  canvasEditor: { current: Editor | null };
   activeFile?: string;
   workspaceExportConfig?: WorkspaceExportConfig;
   workspaceConfig?: WorkspaceConfig;
-  webPreviewRef?: { current: { getScreenshot: () => Promise<string | null> } | null };
   /**
    * Called after an agent tool writes a file to disk.
    * `newContent` is the text that was written — callers should use it to
@@ -63,12 +60,6 @@ export interface ToolContext {
   onFileWritten?: (path: string, newContent?: string) => void;
   onPathRenamed?: (fromPath: string, toPath: string) => void;
   onMarkRecorded?: (relPath: string, content: string, recordedMarks?: AIRecordedTextMark[]) => void;
-  /**
-   * Called after the agent modifies canvas shapes. `canvasRevert` maps each
-   * touched shape ID to its pre-edit snapshot (`null` = shape did not exist
-   * before — created by the AI) so reject can restore instead of delete.
-   */
-  onCanvasModified?: (shapeIds: string[], canvasRevert?: Record<string, unknown | null>) => void;
   onMemoryWritten?: (newContent: string) => void;
   onUserProfileWritten?: (newContent: string) => void;
   /** Called after a task is created or a task step is updated. */
@@ -76,14 +67,13 @@ export interface ToolContext {
   onExportConfigChange?: (config: WorkspaceExportConfig) => void;
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
   onAskUser?: (question: string, options?: string[]) => Promise<string>;
-  getActiveHtml?: () => { html: string; absPath: string } | null;
   getLiveFileContent?: (relPath: string) => string | null;
   isFileDirty?: (relPath: string) => boolean;
   /** Agent that owns locks created by this executor call. */
   agentId?: string;
   /**
    * When true, the executor is running inside a mobile app (iOS/Android).
-   * Shell-dependent tools (custom export, git-publish, run_command) must be
+   * Shell-dependent tools (custom export, git-publish) must be
    * skipped and should return a human-readable "not supported on mobile" message.
    */
   isMobile?: boolean;

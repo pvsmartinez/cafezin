@@ -1,12 +1,9 @@
-import { lazy, memo, Suspense, type ComponentProps, type MutableRefObject, type RefObject } from 'react';
+import { lazy, memo, Suspense, useState, type ComponentProps, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Editor as TldrawEditor } from 'tldraw';
 import Editor from '../Editor';
 import type { EditorHandle } from '../Editor';
-import { CanvasErrorBoundary } from '../CanvasErrorBoundary';
 import { EditorErrorBoundary } from '../EditorErrorBoundary';
 import WorkspaceHome from '../WorkspaceHome';
-import type { WebPreviewHandle } from '../WebPreview';
 import FindReplaceBar from '../FindReplaceBar';
 import AIMarkOverlay from '../AIMarkOverlay';
 import TabBar from '../TabBar';
@@ -14,22 +11,10 @@ import BacklinksPanel from '../BacklinksPanel';
 import type { AIEditMark, AISelectionContext, AppSettings, Workspace } from '../../types';
 import type { FileTypeInfo } from '../../utils/fileType';
 
-const CanvasEditor = lazy(() => import('../CanvasEditor'));
 const ProseEditor = lazy(() => import('../ProseEditor'));
 const MarkdownPreview = lazy(() => import('../MarkdownPreview'));
-const WebPreview = lazy(() => import('../WebPreview'));
 const PDFViewer = lazy(() => import('../PDFViewer'));
 const MediaViewer = lazy(() => import('../MediaViewer'));
-const SpreadsheetViewer = lazy(() => import('../SpreadsheetViewer'));
-const RtfViewer = lazy(() => import('../RtfViewer'));
-const DocxInfoPanel = lazy(() => import('../DocxInfoPanel'));
-const PptxInfoPanel = lazy(() => import('../PptxInfoPanel'));
-
-// Cafezin's first authoring slice is intentionally narrow. The legacy viewers
-// remain in the repository for a possible later product, but are not part of
-// the book workspace surface.
-const BOOK_AUTHORING_ONLY = true;
-const NON_BOOK_KINDS = new Set(['canvas', 'spreadsheet', 'rtf', 'docx', 'pptx', 'html', 'code']);
 
 type ViewMode = 'edit' | 'preview';
 
@@ -50,22 +35,12 @@ interface AppEditorAreaProps {
   homeVisible: boolean;
   findReplaceOpen: boolean;
   aiHighlight: boolean;
-  aiNavIndex: number;
   activeFileMarks: AIEditMark[];
-  onAIPrev: () => void;
-  onAINext: () => void;
   backlinks: ComponentProps<typeof BacklinksPanel>['backlinks'];
   outlinks: ComponentProps<typeof BacklinksPanel>['outlinks'];
   backlinksLoading: boolean;
-  canvasResetKey: number;
-  onSlideCountChange: (count: number) => void;
-  tsDiagnostics: ComponentProps<typeof Editor>['diagnostics'];
   editorRef: RefObject<EditorHandle | null>;
   editorAreaRef: RefObject<HTMLDivElement | null>;
-  webPreviewRef: RefObject<WebPreviewHandle | null>;
-  canvasEditorRef: MutableRefObject<TldrawEditor | null>;
-  rescanFramesRef: MutableRefObject<(() => void) | null>;
-  forceSaveRef: MutableRefObject<(() => void) | null>;
   onSelectTab: ComponentProps<typeof TabBar>['onSelect'];
   onCloseTab: ComponentProps<typeof TabBar>['onClose'];
   onCloseOthers: ComponentProps<typeof TabBar>['onCloseOthers'];
@@ -79,7 +54,6 @@ interface AppEditorAreaProps {
   onSelectionContextChange: (context: AISelectionContext | null) => void;
   onMarkReviewed: (id: string) => void;
   onMarkRejected: (id: string) => void;
-  onMarkUserEdited: (id: string) => void;
   onOpenFile: (relPath: string, lineNo?: number) => void | Promise<void>;
   onCreateFirstWorkspaceFile: () => void | Promise<void>;
   onOpenAIReview: () => void;
@@ -87,13 +61,7 @@ interface AppEditorAreaProps {
   onActivateSync: () => void;
   onSetHomeVisible: (visible: boolean) => void;
   onSetFileStat: (value: string | null) => void;
-  onRecoverCanvas: () => Promise<void>;
-  onCanvasEditorReady: (editor: TldrawEditor | null) => void;
-  onCanvasPresentModeChange: (presenting: boolean) => void;
-  onFileSaved: () => void;
-  onFormat?: ComponentProps<typeof Editor>['onFormat'];
   onImagePaste: ComponentProps<typeof Editor>['onImagePaste'];
-
 }
 
 export function AppEditorAreaInner({
@@ -113,22 +81,12 @@ export function AppEditorAreaInner({
   homeVisible,
   findReplaceOpen,
   aiHighlight,
-  aiNavIndex,
   activeFileMarks,
-  onAIPrev,
-  onAINext,
   backlinks,
   outlinks,
   backlinksLoading,
-  canvasResetKey,
-  onSlideCountChange,
-  tsDiagnostics,
   editorRef,
   editorAreaRef,
-  webPreviewRef,
-  canvasEditorRef,
-  rescanFramesRef,
-  forceSaveRef,
   onSelectTab,
   onCloseTab,
   onCloseOthers,
@@ -142,7 +100,6 @@ export function AppEditorAreaInner({
   onSelectionContextChange,
   onMarkReviewed,
   onMarkRejected,
-  onMarkUserEdited,
   onOpenFile,
   onCreateFirstWorkspaceFile,
   onOpenAIReview,
@@ -150,16 +107,10 @@ export function AppEditorAreaInner({
   onActivateSync,
   onSetHomeVisible,
   onSetFileStat,
-  onRecoverCanvas,
-  onCanvasEditorReady,
-  onCanvasPresentModeChange,
-  onFileSaved,
-  onFormat,
   onImagePaste,
-
 }: AppEditorAreaProps) {
   const { t } = useTranslation();
-  const isOutsideBookScope = fileTypeInfo ? NON_BOOK_KINDS.has(fileTypeInfo.kind) : false;
+  const [sourceMode, setSourceMode] = useState(false);
   return (
     <div className="editor-area" ref={editorAreaRef}>
       <TabBar
@@ -178,6 +129,15 @@ export function AppEditorAreaInner({
         onReorder={onReorderTabs}
       />
 
+      {activeFile && fileTypeInfo?.kind === 'markdown' && viewMode === 'edit' && (
+        <div className="writing-mode-switch" role="group" aria-label="Modo de escrita">
+          <button className={`app-view-btn ${!sourceMode ? 'active' : ''}`}
+            aria-pressed={!sourceMode} onClick={() => setSourceMode(false)}>Escrita</button>
+          <button className={`app-view-btn ${sourceMode ? 'active' : ''}`}
+            aria-pressed={sourceMode} onClick={() => setSourceMode(true)}>Markdown</button>
+        </div>
+      )}
+
       {activeFile && lockedFiles.has(activeFile) && (
         <div className="copilot-lock-overlay" aria-hidden>
           <span className="copilot-lock-label">writing…</span>
@@ -188,7 +148,6 @@ export function AppEditorAreaInner({
         open={findReplaceOpen}
         onClose={() => onSetFindReplaceOpen(false)}
         editorRef={editorRef}
-        canvasEditor={canvasEditorRef.current}
         fileKind={fileTypeInfo?.kind ?? null}
       />
 
@@ -205,43 +164,6 @@ export function AppEditorAreaInner({
                 filename={activeFile}
                 onStat={onSetFileStat}
               />
-            ) : !BOOK_AUTHORING_ONLY && fileTypeInfo?.kind === 'spreadsheet' && activeFile ? (
-              <SpreadsheetViewer
-                absPath={`${workspace.path}/${activeFile}`}
-                filename={activeFile}
-                onStat={onSetFileStat}
-                onSelectionContextChange={onSelectionContextChange}
-                aiMarks={activeFileMarks}
-                aiHighlight={aiHighlight}
-                aiNavIndex={aiNavIndex}
-                onAIPrev={onAIPrev}
-                onAINext={onAINext}
-                onMarkReviewed={onMarkReviewed}
-                onMarkRejected={onMarkRejected}
-                onMarkUserEdited={onMarkUserEdited}
-              />
-            ) : !BOOK_AUTHORING_ONLY && fileTypeInfo?.kind === 'rtf' && activeFile ? (
-              <RtfViewer
-                absPath={`${workspace.path}/${activeFile}`}
-                filename={activeFile}
-                workspacePath={workspace.path}
-                onStat={onSetFileStat}
-                onOpenFile={onOpenFile}
-              />
-            ) : !BOOK_AUTHORING_ONLY && fileTypeInfo?.kind === 'docx' && activeFile ? (
-              <DocxInfoPanel
-                absPath={`${workspace.path}/${activeFile}`}
-                filename={activeFile}
-                workspacePath={workspace.path}
-                onOpenFile={onOpenFile}
-              />
-            ) : !BOOK_AUTHORING_ONLY && fileTypeInfo?.kind === 'pptx' && activeFile ? (
-              <PptxInfoPanel
-                absPath={`${workspace.path}/${activeFile}`}
-                filename={activeFile}
-                workspacePath={workspace.path}
-                onOpenFile={onOpenFile}
-              />
             ) : (fileTypeInfo?.kind === 'video' || fileTypeInfo?.kind === 'audio' || fileTypeInfo?.kind === 'image') && activeFile ? (
               <MediaViewer
                 absPath={`${workspace.path}/${activeFile}`}
@@ -249,38 +171,6 @@ export function AppEditorAreaInner({
                 kind={fileTypeInfo.kind}
                 onStat={onSetFileStat}
               />
-            ) : !BOOK_AUTHORING_ONLY && fileTypeInfo?.kind === 'canvas' && activeFile ? (
-              <CanvasErrorBoundary
-                key={`${activeFile}-${canvasResetKey}`}
-                workspacePath={workspace.path}
-                canvasRelPath={activeFile}
-                onRecovered={onRecoverCanvas}
-              >
-                <CanvasEditor
-                  key={`${activeFile}-${canvasResetKey}`}
-                  content={content}
-                  onChange={onContentChange}
-                  workspacePath={workspace.path}
-                  onEditorReady={onCanvasEditorReady}
-                  onSlideCountChange={onSlideCountChange}
-                  presentMode={viewMode === 'preview'}
-                  onPresentModeChange={onCanvasPresentModeChange}
-                  aiMarks={activeFileMarks}
-                  aiHighlight={aiHighlight}
-                  aiNavIndex={aiNavIndex}
-                  onAIPrev={onAIPrev}
-                  onAINext={onAINext}
-                  onMarkReviewed={onMarkReviewed}
-                  onMarkRejected={onMarkRejected}
-                  onMarkUserEdited={onMarkUserEdited}
-                  rescanFramesRef={rescanFramesRef}
-                  forceSaveRef={forceSaveRef}
-                  darkMode={isDarkTheme}
-                  onFileSaved={onFileSaved}
-                  canvasRelPath={activeFile ?? undefined}
-                  onSelectionContextChange={onSelectionContextChange}
-                />
-              </CanvasErrorBoundary>
             ) : !activeFile && homeVisible ? (
               <WorkspaceHome
                 workspace={workspace}
@@ -321,31 +211,43 @@ export function AppEditorAreaInner({
                   </button>
                 </span>
               </div>
+            ) : fileTypeInfo?.kind === 'unsupported' ? (
+              <div className="ws-empty ws-empty--unsupported" role="status">
+                <span className="ws-empty-logo">✦</span>
+                <span className="ws-empty-name">{activeFile}</span>
+                <span className="ws-empty-hint">{t('appEditorArea.unsupportedFormatTitle')}</span>
+                <span className="ws-empty-hint">{t('appEditorArea.unsupportedFormatHint')}</span>
+              </div>
             ) : viewMode === 'preview' && fileTypeInfo?.kind === 'markdown' ? (
               <MarkdownPreview
                 content={content}
                 onNavigate={onOpenFile}
                 currentFilePath={activeFile ?? undefined}
+                workspaceFileTree={workspace.fileTree}
                 features={workspace.config.features}
               />
-            ) : !BOOK_AUTHORING_ONLY && viewMode === 'preview' && (fileTypeInfo?.kind === 'html' || (fileTypeInfo?.kind === 'code' && fileTypeInfo.supportsPreview)) && activeFile ? (
-              <WebPreview
-                ref={webPreviewRef}
-                content={content}
-                absPath={`${workspace.path}/${activeFile}`}
-                filename={activeFile}
-                isLocked={lockedFiles.has(activeFile)}
-              />
-            ) : isOutsideBookScope ? (
-              <div className="ws-empty ws-empty--unsupported" role="status">
-                <span className="ws-empty-logo">✦</span>
-                <span className="ws-empty-name">{activeFile}</span>
-                <span className="ws-empty-hint">Este formato fica fora do foco de autoria do Cafezin.</span>
-                <span className="ws-empty-hint">Os arquivos continuam no workspace; abra Markdown ou texto para escrever.</span>
-              </div>
             ) : (
-              fileTypeInfo?.kind === 'markdown' ? (
+              fileTypeInfo?.kind === 'markdown' && !sourceMode ? (
                 <ProseEditor
+                  key={activeFile ?? 'none'}
+                  ref={editorRef}
+                  content={content}
+                  onChange={onContentChange}
+                  onToggleFind={() => onSetFindReplaceOpen(true)}
+                  onAIRequest={onAIRequest}
+                  onSelectionContextChange={onSelectionContextChange}
+                  aiMarks={activeFileMarks.map((mark) => ({ id: mark.id, text: mark.text, revert: mark.revert }))}
+                  onAIMarkEdited={onMarkReviewed}
+                  fontSize={appSettings.editorFontSize}
+                  onImagePaste={onImagePaste}
+                  activeFile={activeFile ?? undefined}
+                  onNavigate={onOpenFile}
+                  workspaceFileTree={workspace.fileTree}
+                  isDark={isDarkTheme}
+                  isLocked={activeFile ? lockedFiles.has(activeFile) : false}
+                />
+              ) : (
+                <Editor
                   key={activeFile ?? 'none'}
                   ref={editorRef}
                   content={content}
@@ -361,27 +263,6 @@ export function AppEditorAreaInner({
                   isDark={isDarkTheme}
                   isLocked={activeFile ? lockedFiles.has(activeFile) : false}
                 />
-              ) : (
-              <Editor
-                key={activeFile ?? 'none'}
-                ref={editorRef}
-                content={content}
-                onChange={onContentChange}
-                onToggleFind={() => onSetFindReplaceOpen(true)}
-                onAIRequest={onAIRequest}
-                onSelectionContextChange={onSelectionContextChange}
-                aiMarks={activeFileMarks.map((mark) => ({ id: mark.id, text: mark.text, revert: mark.revert }))}
-                onAIMarkEdited={onMarkReviewed}
-                fontSize={appSettings.editorFontSize}
-                onImagePaste={onImagePaste}
-                language={fileTypeInfo?.language}
-                activeFile={activeFile ?? undefined}
-                isDark={isDarkTheme}
-                isLocked={activeFile ? lockedFiles.has(activeFile) : false}
-                onFormat={fileTypeInfo?.kind === 'code' ? onFormat : undefined}
-                diagnostics={tsDiagnostics}
-
-              />
               )
             )}
           </Suspense>
@@ -389,7 +270,7 @@ export function AppEditorAreaInner({
       </div>
 
       {aiHighlight && viewMode === 'edit' && activeFileMarks.length > 0 &&
-        !['pdf', 'video', 'image', 'canvas', 'spreadsheet'].includes(fileTypeInfo?.kind ?? '') && (
+        !['pdf', 'video', 'image'].includes(fileTypeInfo?.kind ?? '') && (
         <AIMarkOverlay
           visible={aiHighlight}
           marks={activeFileMarks}

@@ -34,7 +34,7 @@ const SLIDES: OnboardingSlide[] = [
   {
     eyebrow: 'Leitura e contexto',
     title: 'Abra arquivos e volte para o fio da meada rapido',
-    body: 'Consulte notas, capitulos, materiais e canvases do workspace sem depender de abrir o desktop toda vez.',
+    body: 'Consulte notas, capitulos e materiais do workspace sem depender de abrir o desktop toda vez.',
     accent: 'Seu contexto com voce',
     Icon: Books,
   },

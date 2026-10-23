@@ -3,7 +3,6 @@ import { readTextFile, readFile, writeTextFile } from '../../services/fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { CaretLeft, SpeakerSimpleHigh, Pen, Eye } from '@phosphor-icons/react';
 import { getFileTypeInfo } from '../../utils/fileType';
-import { loadSlidePreviews } from '../../utils/slidePreviews';
 import type { WorkspaceFeatureConfig } from '../../types';
 
 const MarkdownPreview = lazy(() => import('../MarkdownPreview'));
@@ -18,80 +17,8 @@ interface MobilePreviewProps {
   onClear: () => void;
 }
 
-// ── Canvas slide viewer ───────────────────────────────────────────────────
-
-function SlideViewer({ workspacePath, filePath }: { workspacePath: string; filePath: string }) {
-  const [urls, setUrls] = useState<string[]>([]);
-  const [idx, setIdx] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    setIdx(0);
-    loadSlidePreviews(workspacePath, filePath).then(u => {
-      setUrls(u);
-      setLoading(false);
-    });
-  }, [workspacePath, filePath]);
-
-  if (loading) {
-    return (
-      <div className="mb-preview-stage h-full flex flex-col items-center justify-center">
-        <div className="spinner" />
-      </div>
-    );
-  }
-
-  if (urls.length === 0) {
-    return (
-      <div className="mb-preview-stage h-full flex flex-col items-center justify-center">
-        <div className="flex flex-col items-center justify-center gap-4 px-6 py-8 text-center">
-          <div className="text-sm text-muted max-w-[280px] leading-[1.5]">
-            Sem slides gerados. Abra este canvas no desktop para gerar as imagens.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mb-preview-stage h-full flex flex-col items-center justify-center relative">
-      <img
-        key={urls[idx]}
-        src={urls[idx]}
-        alt={`Slide ${idx + 1}`}
-        className="w-full max-h-[calc(100%-60px)] object-contain"
-      />
-      <div className="mb-preview-controls absolute bottom-0 inset-x-0 flex items-center justify-center gap-4 px-4 py-3">
-        <button
-          className="mb-preview-button border-0 rounded-lg text-lg w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-30 active:opacity-50"
-          disabled={idx === 0}
-          onClick={() => setIdx(i => i - 1)}
-        >‹</button>
-        <span className="mb-preview-counter text-[13px] min-w-[60px] text-center">{idx + 1} / {urls.length}</span>
-        <button
-          className="mb-preview-button border-0 rounded-lg text-lg w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-30 active:opacity-50"
-          disabled={idx === urls.length - 1}
-          onClick={() => setIdx(i => i + 1)}
-        >›</button>
-      </div>
-    </div>
-  );
-}
-
 // ── HTML / webpage viewer ────────────────────────────────────────────────
 
-function HtmlViewer({ absPath }: { absPath: string }) {
-  const src = convertFileSrc(absPath);
-  return (
-    <iframe
-      src={src}
-      title="webpage preview"
-      className="w-full flex-1 border-0 block min-h-0"
-      sandbox="allow-scripts allow-same-origin"
-    />
-  );
-}
 
 // ── Markdown viewer (editable) ───────────────────────────────────────────
 
@@ -304,9 +231,6 @@ function PDFViewer({ absPath }: { absPath: string }) {
 
 // ── Text / code viewer (editable) ────────────────────────────────────────
 
-function TextViewer({ absPath }: { absPath: string }) {
-  return <EditableTextViewer absPath={absPath} mode="code" />;
-}
 
 // ── Main preview ──────────────────────────────────────────────────────────
 
@@ -317,10 +241,6 @@ export default function MobilePreview({ workspacePath, filePath, features, onCle
 
   function renderBody() {
     switch (kind) {
-      case 'canvas':
-        return <SlideViewer workspacePath={workspacePath} filePath={filePath} />;
-      case 'html':
-        return <HtmlViewer absPath={absPath} />;
       case 'markdown':
         return <MarkdownViewer absPath={absPath} features={features} />;
       case 'image':
@@ -331,8 +251,6 @@ export default function MobilePreview({ workspacePath, filePath, features, onCle
         return <AudioViewer absPath={absPath} />;
       case 'pdf':
         return <PDFViewer absPath={absPath} />;
-      case 'code':
-        return <TextViewer absPath={absPath} />;
       default:
         return (
           <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
@@ -353,7 +271,7 @@ export default function MobilePreview({ workspacePath, filePath, features, onCle
         </span>
       </div>
 
-      <div className={`flex-1 overflow-y-auto scroll-touch${kind === 'html' ? ' overflow-hidden flex flex-col' : ''}`}>
+      <div className="flex-1 overflow-y-auto scroll-touch">
         {renderBody()}
       </div>
     </>

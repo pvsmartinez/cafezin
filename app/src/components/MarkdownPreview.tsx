@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import type { WorkspaceFeatureConfig } from '../types';
+import type { FileTreeNode, WorkspaceFeatureConfig } from '../types';
 import { ensureKatexCss } from '../utils/ensureKatexCss';
+import { flattenFileTree, resolveDocumentLink } from '../utils/documentLinks';
 import {
   hasMermaidCodeBlocks,
   isMermaidRenderingEnabled,
@@ -14,15 +15,28 @@ interface MarkdownPreviewProps {
   content: string;
   /** Called when the user clicks a relative Markdown link (e.g. ./notes.md). */
   onNavigate?: (relPath: string) => void;
-  /** Absolute path of the file currently being previewed — used to resolve
+  /** Workspace-relative path of the file currently being previewed — used to resolve
    *  relative links (e.g. ../folder/other.md → folder/other.md). */
   currentFilePath?: string;
   /** Optional per-workspace render capabilities. */
   features?: WorkspaceFeatureConfig;
+  /** Workspace file tree — enables Obsidian-style root fallback for wiki links
+   *  ([[file]] resolves even when the file is outside the current document dir).
+   *  Contract: parent (AppEditorArea) should pass workspace.fileTree here. */
+  workspaceFileTree?: FileTreeNode[];
 }
 
-export default function MarkdownPreview({ content, onNavigate, currentFilePath, features }: MarkdownPreviewProps) {
+export default function MarkdownPreview({
+  content,
+  onNavigate,
+  currentFilePath,
+  features,
+  workspaceFileTree,
+}: MarkdownPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [missingTarget, setMissingTarget] = useState<string | null>(null);
+
+  useEffect(() => { setMissingTarget(null); }, [content, currentFilePath]);
 
   useEffect(() => {
     void ensureKatexCss();
@@ -80,31 +94,24 @@ export default function MarkdownPreview({ content, onNavigate, currentFilePath, 
     const href = link.getAttribute('href');
     if (!href) return;
     e.preventDefault();
-    if (href.startsWith('http://') || href.startsWith('https://')) {
+    if (/^https?:\/\//i.test(href)) {
       openUrl(href);
       return;
     }
-    // Relative file link — resolve against current file's directory
+    // Relative file link (markdown or wiki) — resolve via the shared resolver
     if (!href.startsWith('#') && onNavigate) {
-      let target = href.split('#')[0]; // strip anchor fragment
+      const target = href.split('#')[0]; // strip anchor fragment
       if (target) {
-        // Resolve relative to the current file's directory
-        if (currentFilePath) {
-          const dir = currentFilePath.includes('/')
-            ? currentFilePath.split('/').slice(0, -1).join('/')
-            : '';
-          const parts = (dir ? dir + '/' + target : target).split('/');
-          const resolved: string[] = [];
-          for (const p of parts) {
-            if (p === '..') resolved.pop();
-            else if (p !== '.') resolved.push(p);
-          }
-          target = resolved.join('/');
-        }
-        onNavigate(target);
+        const dir = currentFilePath?.includes('/')
+          ? currentFilePath.split('/').slice(0, -1).join('/')
+          : '';
+        const existingPaths = workspaceFileTree ? flattenFileTree(workspaceFileTree) : undefined;
+        const resolved = resolveDocumentLink(target, dir, existingPaths);
+        if (resolved) { setMissingTarget(null); onNavigate(resolved); }
+        else setMissingTarget(target);
       }
     }
-  }, [onNavigate, currentFilePath]);
+  }, [onNavigate, currentFilePath, workspaceFileTree]);
 
   return (
     <div className="md-preview-scroll">
@@ -112,9 +119,12 @@ export default function MarkdownPreview({ content, onNavigate, currentFilePath, 
         ref={containerRef}
         className="md-preview-body"
         onClick={handleClick}
-        // marked sanitises nothing — but content is local files the user owns
+        // renderMarkdownBaseHtml sanitizes all generated HTML with DOMPurify.
         dangerouslySetInnerHTML={{ __html: html }}
       />
+      {missingTarget && <p className="md-missing-link" role="status">
+        Referência não encontrada: {missingTarget}. Nenhum arquivo foi criado.
+      </p>}
     </div>
   );
 }

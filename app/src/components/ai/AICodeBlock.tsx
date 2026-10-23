@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { ArrowClockwise, Check, Copy, Play } from '@phosphor-icons/react';
-import { invoke } from '@tauri-apps/api/core';
+import { Check, Copy } from '@phosphor-icons/react';
 
 // ── Segment parser ────────────────────────────────────────────────────────────
 export type MsgSegment =
@@ -29,42 +28,21 @@ export function parseSegments(raw: string): MsgSegment[] {
 }
 
 // ── Code block component ──────────────────────────────────────────────────────
-const RUNNABLE_LANGS = new Set(['bash', 'sh', 'zsh', 'shell', 'python', 'py']);
-
 interface CodeBlockProps {
   lang: string;
   code: string;
+  /** Unused — kept for call-site compatibility (execution was removed). */
   workspacePath?: string;
 }
 
-export function CodeBlock({ lang, code, workspacePath }: CodeBlockProps) {
-  const [output, setOutput] = useState<{ stdout: string; stderr: string; exit_code: number } | null>(null);
-  const [running, setRunning] = useState(false);
+export function CodeBlock({ lang, code }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
-
-  async function runCode() {
-    setRunning(true);
-    setOutput(null);
-    try {
-      const result = await invoke<{ stdout: string; stderr: string; exit_code: number }>(
-        'shell_run',
-        { cmd: code, cwd: workspacePath ?? '.' },
-      );
-      setOutput(result);
-    } catch (err) {
-      setOutput({ stdout: '', stderr: String(err), exit_code: -1 });
-    } finally {
-      setRunning(false);
-    }
-  }
 
   async function handleCopy() {
     await navigator.clipboard.writeText(code);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   }
-
-  const canRun = RUNNABLE_LANGS.has(lang.toLowerCase());
 
   return (
     <div className="ai-code-block">
@@ -76,23 +54,9 @@ export function CodeBlock({ lang, code, workspacePath }: CodeBlockProps) {
               ? <><Check weight="bold" size={13} />{' Copied'}</>
               : <><Copy weight="thin" size={13} />{' Copy'}</>}
           </button>
-          {canRun && (
-            <button className="ai-code-run-btn" onClick={runCode} disabled={running}>
-              {running
-                ? <ArrowClockwise weight="thin" size={13} />
-                : <><Play weight="thin" size={13} />{' Run'}</>}
-            </button>
-          )}
         </div>
       </div>
       <pre className="ai-code-pre"><code>{code}</code></pre>
-      {output && (
-        <div className={`ai-code-output ${output.exit_code !== 0 ? 'ai-code-output--error' : ''}`}>
-          {output.stdout && <pre className="ai-code-stdout">{output.stdout}</pre>}
-          {output.stderr && <pre className="ai-code-stderr">{output.stderr}</pre>}
-          <span className="ai-code-exit">exit {output.exit_code}</span>
-        </div>
-      )}
     </div>
   );
 }

@@ -59,7 +59,7 @@ export interface ChatMessage {
 }
 
 export interface AISelectionContext {
-  source: 'editor' | 'canvas' | 'spreadsheet';
+  source: 'editor';
   label: string;
   content: string;
 }
@@ -92,17 +92,9 @@ export interface AITextRevert {
   line?: number;
 }
 
-export interface AISpreadsheetTarget {
-  kind: 'cell' | 'row' | 'column' | 'header';
-  sheetName: string;
-  row?: number;
-  col?: number;
-}
-
 export interface AIRecordedTextMark {
   text: string;
   revert?: AITextRevert;
-  spreadsheetTarget?: AISpreadsheetTarget;
 }
 
 export interface AgentInstructionSource {
@@ -135,8 +127,6 @@ export interface CopilotStreamChunk {
 /** What to produce from a set of source files. */
 export type ExportFormat =
   | 'pdf'         // markdown → PDF (jsPDF, pure JS)
-  | 'canvas-png'  // each canvas file → PNG (via tldraw)
-  | 'canvas-pdf'  // each canvas → PDF, one page per slide/frame
   | 'zip'         // bundle matching files into a .zip (JSZip, pure JS)
   | 'git-publish' // git add -A + commit + push, useful for deploy-by-git workflows
   | 'custom';     // run an arbitrary shell command (desktop only)
@@ -218,18 +208,10 @@ export interface ExportTarget {
   };
   /** For 'custom' format: the Cafezin ↔ script integration contract. */
   custom?: CustomExportConfig;
-  /**
-   * When set, a "Publish to Vercel" button appears after a successful export.
-   * The Vercel token is read from workspace vercelConfig > global cafezin-vercel-token.
-   */
-  vercelPublish?: {
-    /** Vercel project name (e.g. "santacruz" → deploys to santacruz.vercel.app) */
-    projectName: string;
-  };
   enabled: boolean;
   /**
    * Merge all matched files into a single output instead of one per file.
-   * Supported for: pdf (concatenated markdown), canvas-pdf (all frames across canvases).
+   * Supported for: pdf (concatenated markdown).
    */
   merge?: boolean;
   /** Filename (without extension) for the merged output. Default: 'merged' */
@@ -413,19 +395,14 @@ export interface WorkspaceFeatureConfig {
   markdown?: {
     mermaid?: boolean;
   };
-  /** Canvas-specific workspace capabilities. */
-  canvas?: {
-    /** Enable canvas-specific agent tools such as canvas_op and screenshots. Defaults to true. */
-    agentTools?: boolean;
-  };
-  /** Spreadsheet-specific workspace capabilities. */
-  spreadsheet?: {
-    /** Enable structured spreadsheet tools such as read_spreadsheet and write_spreadsheet. Defaults to true. */
-    agentTools?: boolean;
-  };
   /** Web / browser capabilities for the agent. */
   web?: {
-    /** Enable web search, URL fetch, preview and shell/web tools. Defaults to true. */
+    /** Enable web search, URL fetch and page preview tools. Defaults to true. */
+    agentTools?: boolean;
+  };
+  /** Development capabilities such as shell execution. */
+  development?: {
+    /** Enable shell-based agent tools for the agent. Undefined = automatic (enabled only in detected code workspaces). */
     agentTools?: boolean;
   };
   /** Reserved for future code-editor capabilities. */
@@ -520,17 +497,8 @@ export interface AIEditMark {
   reviewedAt?: string;
   decision?: 'accepted' | 'rejected' | 'edited';
   revert?: AITextRevert;
-  spreadsheetTarget?: AISpreadsheetTarget;
-  /** Canvas-only: tldraw shape IDs that were created by this AI action */
-  canvasShapeIds?: string[];
   /** Which agent instance created this mark (multi-agent sessions). */
   agentId?: string;
-  /**
-   * Canvas-only: pre-edit snapshot of every touched shape, keyed by shape ID.
-   * `null` value means the shape did not exist before (created by the AI) —
-   * rejecting restores the snapshot or deletes brand-new shapes.
-   */
-  canvasRevert?: Record<string, unknown | null>;
 }
 
 // ── Workspace file index ──────────────────────────────────────────────────────

@@ -335,7 +335,9 @@ export async function exportMarkdownToPDF(
     hooks?.onProgress?.('paginate', 'Paginating PDF…');
     const pxScale   = canvas.height / Math.max(1, contentHeightCss);
     const breaks    = computeSmartBreaks(elemBounds, contentHeightCss, A4_H_CSS);
-    const pdf       = new jsPDF({ orientation: 'portrait', unit: 'px', format: 'a4' });
+    const pdf = new jsPDF({
+      orientation: 'portrait', unit: 'px', format: 'a4', compress: true,
+    });
     const pageW     = pdf.internal.pageSize.getWidth();
     const pageH     = pdf.internal.pageSize.getHeight();
     const a4CanvasH = Math.round(A4_H_CSS * pxScale);

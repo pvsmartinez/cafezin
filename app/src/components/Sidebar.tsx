@@ -13,6 +13,7 @@ import {
   FolderPlus,
   Minus,
   Sparkle,
+  Paperclip,
   MagnifyingGlass,
   ArrowsClockwise,
   ArrowUp,
@@ -51,7 +52,7 @@ import './Sidebar.css';
  * two functions drifting out of sync.
  */
 function fileIconInfo(name: string): { icon: React.ReactNode; cls: string } {
-  if (name.endsWith('.tldr.json')) return { icon: <Sparkle weight="fill" size={12} />, cls: 'sidebar-icon--canvas' };
+  if (name.endsWith('.tldr.json')) return { icon: <Paperclip weight="fill" size={12} />, cls: '' };
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   if (['md', 'mdx', 'txt'].includes(ext))        return { icon: <FileText weight="thin" size={13} />, cls: 'sidebar-icon--md' };
   if (['ts', 'tsx'].includes(ext))               return { icon: <FileCode weight="thin" size={13} />, cls: 'sidebar-icon--ts' };
@@ -288,7 +289,7 @@ function _TreeNodeItem({
       }}
       onDoubleClick={(e) => { e.stopPropagation(); onRenameStart(node.path, node.name); }}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, node.path, false); }}
-      title={isImage ? t('sidebar.dragToCanvasHint', { path: node.path }) : node.path}
+      title={node.path}
     >
       <span className={`sidebar-tree-icon ${fileIconCls}`}>{fileIconNode}</span>
       {isRenaming ? (
@@ -360,7 +361,7 @@ interface SidebarProps {
   onSyncComplete: () => void;
   onOpenAIReview: () => void;
   // (kept in props so parent can still trigger highlight+jump without popup)
-  onReviewAllMarks: () => void;
+  onReviewChanges: () => void;
   onAIPrev: () => void;
   onAINext: () => void;
   /** Called after a file is deleted — parent should clear it from active state */
@@ -404,7 +405,7 @@ const SidebarInner = function Sidebar({
   onUpdate: _onUpdate,
   onSyncComplete,
   onOpenAIReview: _onOpenAIReview,
-  onReviewAllMarks,
+  onReviewChanges,
   onAIPrev,
   onAINext,
   onFileDeleted,
@@ -1159,9 +1160,9 @@ const SidebarInner = function Sidebar({
                     )}
                     <button
                       className="sidebar-ai-review-all"
-                      onClick={(e) => { e.stopPropagation(); onReviewAllMarks(); }}
-                      title={t('sidebar.aiEditsReviewAll')}
-                    ><Check weight="thin" size={13} /></button>
+                      onClick={(e) => { e.stopPropagation(); onReviewChanges(); }}
+                      title="Comparar alterações da IA"
+                    >Revisar</button>
                   </div>
                 </div>
               )}

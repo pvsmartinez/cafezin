@@ -17,9 +17,7 @@ interface UseTauriMenuListenersOptions {
   setAiOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setViewMode: (mode: 'edit' | 'preview') => void;
   tabViewModeRef: MutableRefObject<Map<string, string>>;
-  onFormat: () => void;
   fileTypeKind: string | null | undefined;
-  viewMode: string;
   activeTabId: string | null;
 }
 
@@ -35,9 +33,7 @@ export function useTauriMenuListeners({
   setAiOpen,
   setViewMode,
   tabViewModeRef,
-  onFormat,
   fileTypeKind,
-  viewMode,
   activeTabId,
 }: UseTauriMenuListenersOptions) {
   // Listen for the native menu "Update Cafezin…" event
@@ -82,9 +78,8 @@ export function useTauriMenuListeners({
       listen('menu-toggle-copilot',   () => setAiOpen((v) => !v)),
       listen('menu-view-edit',        () => { setViewMode('edit');    if (activeTabId) tabViewModeRef.current.set(activeTabId, 'edit'); }),
       listen('menu-view-preview',     () => { setViewMode('preview'); if (activeTabId) tabViewModeRef.current.set(activeTabId, 'preview'); }),
-      listen('menu-format-file',      () => { if (fileTypeKind === 'code' && viewMode === 'edit') onFormat(); }),
     ];
     return () => { uns.forEach((p) => p.then((fn) => fn()).catch(() => {})); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileTypeKind, viewMode, activeTabId]);
+  }, [fileTypeKind, activeTabId]);
 }

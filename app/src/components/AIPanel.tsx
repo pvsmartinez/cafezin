@@ -41,7 +41,6 @@ import { getGroqKey, getGroqLangPreference } from '../hooks/useVoiceInput';
 import { FALLBACK_MODELS } from '../types';
 import type { AgentContextSnapshot, AIRecordedTextMark, AISelectionContext, CopilotModelInfo } from '../types';
 import type { Workspace, WorkspaceExportConfig, WorkspaceConfig } from '../types';
-import type { Editor as TldrawEditor } from 'tldraw';
 import { resolveVoiceTranscriptionLanguage } from '../utils/voiceLanguage';
 
 import { AIAuthScreen } from './ai/AIAuthScreen';
@@ -79,23 +78,17 @@ interface AIPanelProps {
   workspacePath?: string;
   workspace?: Workspace | null;
   memoryRefreshKey?: number;
-  canvasEditorRef?: React.RefObject<TldrawEditor | null>;
   onFileWritten?: (path: string) => void;
   onPathRenamed?: (fromPath: string, toPath: string) => void;
   getLiveFileContent?: (relPath: string) => string | null;
   isFileDirty?: (relPath: string) => boolean;
   getAgentContextSnapshot?: () => AgentContextSnapshot;
   onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[], agentId?: string) => void;
-  onCanvasMarkRecorded?: (relPath: string, shapeIds: string[], model: string, agentId?: string, canvasRevert?: Record<string, unknown | null>) => void;
   activeFile?: string;
-  rescanFramesRef?: React.MutableRefObject<(() => void) | null>;
   workspaceExportConfig?: WorkspaceExportConfig;
   onExportConfigChange?: (config: WorkspaceExportConfig) => void;
   style?: React.CSSProperties;
   onStreamingChange?: (streaming: boolean) => void;
-  screenshotTargetRef?: React.RefObject<HTMLElement | null>;
-  webPreviewRef?: React.RefObject<{ getScreenshot: () => Promise<string | null> } | null>;
-  getActiveHtml?: () => { html: string; absPath: string } | null;
   workspaceConfig?: WorkspaceConfig;
   appLocale?: 'en' | 'pt-BR';
   onWorkspaceConfigChange?: (patch: Partial<WorkspaceConfig>) => void;
@@ -240,16 +233,13 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   workspacePath,
   workspace,
   memoryRefreshKey = 0,
-  canvasEditorRef,
   onFileWritten,
   onPathRenamed,
   getLiveFileContent,
   isFileDirty,
   getAgentContextSnapshot,
   onMarkRecorded,
-  onCanvasMarkRecorded,
   activeFile,
-  rescanFramesRef,
   workspaceExportConfig,
   onExportConfigChange,
   workspaceConfig,
@@ -258,9 +248,6 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   style,
   onStreamingChange,
   selectionContext,
-  screenshotTargetRef,
-  webPreviewRef,
-  getActiveHtml,
   pendingVoiceMemos,
   onVoiceMemoHandled,
   onOpenFileReference,
@@ -828,16 +815,13 @@ function resolveTabModelForProvider(
           workspacePath={workspacePath}
           workspace={workspace}
           memoryRefreshKey={memoryRefreshKey}
-          canvasEditorRef={canvasEditorRef}
           onFileWritten={onFileWritten}
           onPathRenamed={onPathRenamed}
           getLiveFileContent={getLiveFileContent}
           isFileDirty={isFileDirty}
           getAgentContextSnapshot={getAgentContextSnapshot}
           onMarkRecorded={onMarkRecorded}
-          onCanvasMarkRecorded={onCanvasMarkRecorded}
           activeFile={activeFile}
-          rescanFramesRef={rescanFramesRef}
           workspaceExportConfig={workspaceExportConfig}
           onExportConfigChange={onExportConfigChange}
           onStreamingChange={onStreamingChange}
@@ -867,9 +851,6 @@ function resolveTabModelForProvider(
             }));
           }}
           onMessagesSeen={() => clearUnread(tab.id)}
-          screenshotTargetRef={screenshotTargetRef}
-          webPreviewRef={webPreviewRef}
-          getActiveHtml={getActiveHtml}
           workspaceConfig={workspaceConfig}
           appLocale={appLocale}
           onWorkspaceConfigChange={onWorkspaceConfigChange}

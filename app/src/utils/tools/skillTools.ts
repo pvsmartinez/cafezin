@@ -6,11 +6,7 @@
  * `read_skill(name)` when it is about to perform work in that area.
  *
  * Skills available:
- *   canvas      → Canvas / tldraw editing commands and layout rules
  *   book        → Long-form writing workflow
- *   spreadsheet → CSV / XLSX editing rules
- *   html        → Interactive HTML/CSS demo guidance
- *   code        → TypeScript / Node verification and editing
  *   export      → Export target protocol (PDF, ZIP, git-publish, custom)
  *   memory      → Detailed memory management and staleness rules
  *   tasks       → Multi-step task tracking protocol
@@ -21,77 +17,6 @@ import type { ToolDefinition, DomainExecutor } from './shared';
 // ── Skill content ─────────────────────────────────────────────────────────────
 
 export const SKILL_CONTENT: Record<string, string> = {
-  canvas: `# Canvas Skill — tldraw Editing Protocol
-
-## Core rules (non-negotiable)
-- **Never** write raw JSON to .tldr.json files. Only \`canvas_op\` may modify canvases.
-- **Never** read .tldr.json with \`read_workspace_file\` — raw JSON contains huge base64 blobs. Use \`list_canvas_shapes\` instead.
-- \`canvas_op\` always requires the \`expected_file\` parameter (relative path to the .tldr.json file).
-- \`list_canvas_shapes\` only describes the **currently open** canvas. Confirm the "Canvas file:" header matches before editing.
-- Call \`canvas_screenshot\` after every editing pass and fix visible problems before replying.
-
-## Workflow before editing
-1. Call \`list_canvas_shapes\` → read current shape IDs, positions, and occupied area.
-2. Plan new shapes to avoid overlaps. Safe margins: x 80–1200, y 20–680 (inside 1280×720 slides).
-3. Minimum gap between shapes: 20px. Text width >= 200px. Geo label width >= 120px.
-4. Prefer high-level slide ops over manual coordinate math whenever possible.
-
-## canvas_op command reference (one JSON object per call)
-\`\`\`
-{"op":"add_slide","name":"Slide title"}
-{"op":"duplicate_slide","slide":"<frameId>","name":"Slide 2"}
-{"op":"set_slide_background","slide":"<frameId>","url":"https://..."}
-{"op":"set_slide_background","slide":"<frameId>","color":"blue"}
-{"op":"copy_slide_background","from_slide":"<frameId>","to_slides":["<frameId>"]}
-{"op":"apply_theme","bg_color":"black","text_color":"white","to_slides":"all"}
-{"op":"recolor_slide","slide":"<frameId>","text_color":"white","geo_color":"light-blue"}
-
-{"op":"create_lesson","slides":[{"type":"title","title":"Aula 01","subtitle":"Introdução"}]}
-{"op":"add_card_list","slide":"<frameId>","title":"Conceitos","cards":[{"text":"Agente","color":"yellow"},{"text":"Ambiente","color":"blue"}],"cols":1}
-{"op":"add_bullet_list","slide":"<frameId>","header":"Pontos","items":["Item 1","Item 2"],"y_start":80,"item_color":"yellow","pitch":90}
-{"op":"add_two_col","slide":"<frameId>","header":"Comparação","left_title":"Antes","left_items":["..."],"right_title":"Depois","right_items":["..."],"y_start":40}
-
-{"op":"add_text","slide":"<frameId>","text":"Título","x":100,"y":100,"size":"xl","color":"black"}
-{"op":"add_geo","slide":"<frameId>","geo":"rectangle","text":"Label","x":100,"y":100,"w":200,"h":80,"fill":"solid","color":"blue"}
-{"op":"add_note","slide":"<frameId>","text":"Pequeno sticky","x":100,"y":100}  ← avoid for main slide content; notes are intentionally small
-{"op":"add_arrow","x1":100,"y1":150,"x2":400,"y2":150,"label":"depends on","color":"grey"}
-{"op":"add_image","slide":"<frameId>","url":"https://...","x":100,"y":100,"w":300,"h":200,"to_back":true}
-
-{"op":"move","id":"<shapeId>","x":200,"y":150}
-{"op":"update","id":"<shapeId>","text":"new label","color":"blue","size":"xl"}
-{"op":"delete","id":"<shapeId>"}
-
-{"op":"clear","confirm":"yes"}  ← ⚠️ DANGER: wipes all shapes. Only when user says "limpar tudo" / "clear everything".
-\`\`\`
-
-## Style defaults
-- Font: sans (default)
-- Text sizes: title → xl | section → l | body → m | caption → s
-- Max 3 colors per slide. Default palette: white, black, blue, grey
-- Keep visual hierarchy clear — every slide should have one focal point
-
-## Layout heuristics for slides
-- For colorful teaching slides with stacked blocks, use \`add_card_list\` first.
-- For text-heavy slides, use \`add_bullet_list\`.
-- For compare/contrast, use \`add_two_col\`.
-- Use \`add_note\` only for real sticky-note style annotations, not as the main building block of a slide.
-- Default safe content width is 1120px inside a 1280×720 slide.
-- If you need manual two-column placement: left x=80 w=540, right x=660 w=540.
-
-## Lesson workflow (new canvas)
-1. Call \`list_workspace_files\` to see existing lesson canvases for reference.
-2. Use \`canvas_op\` to initialize the deck; do not write raw .tldr.json manually.
-3. Prefer \`add_slide\` + \`add_card_list\` for rich lesson slides.
-4. Use \`create_lesson\` only for quick/simple outline decks.
-5. Reuse successful slides with \`duplicate_slide\` instead of recreating layouts manually.
-4. Call \`canvas_screenshot\` → fix issues → reply with summary.
-
-## Lesson workflow (add to existing canvas)
-1. \`list_canvas_shapes\` to get existing frame IDs and layout.
-2. Append new slides with \`canvas_op\` commands.
-3. If the deck already has a good visual template, duplicate that slide first.
-3. \`canvas_screenshot\` → fix → reply.`,
-
   book: `# Book-Writing Skill
 
 ## Core principle
@@ -121,86 +46,6 @@ Call \`word_count\` when the user asks progress or after a major session.
 ## Export / publish
 Use \`configure_export_targets(preset="book")\` to create a book PDF target, then \`export_workspace\`.`,
 
-  spreadsheet: `# Spreadsheet Skill — CSV / XLSX Rules
-
-## Tool selection
-- \`read_spreadsheet\` — table-aware read; returns data as Markdown table with row numbers. Prefer for structured inspection.
-- \`write_spreadsheet\` — create or surgically edit rows, cells, and columns.
-- \`read_workspace_file\` — fine for raw source text or when you need exact line-level content.
-- For XLSX files: always use \`read_spreadsheet\` / \`write_spreadsheet\` — never \`read_workspace_file\`.
-
-## Editing rules
-- Preserve headers, column order, delimiters, and row alignment unless restructuring is explicitly requested.
-- Be careful with: numeric IDs (no rounding), dates (preserve original format), locale-specific decimals (comma vs period), empty cells (don't auto-fill).
-- For a single cell change: \`write_spreadsheet(action="set_cell", ...)\`.
-- To add a row: \`write_spreadsheet(action="append_row", ...)\`.
-- To delete a row: \`write_spreadsheet(action="delete_row", ...)\`.
-- Full rewrite via \`write_spreadsheet(action="write_all", ...)\` only when user asks for a rebuild from scratch.
-
-## Before large edits
-1. \`read_spreadsheet\` to inspect current shape and data types.
-2. Describe the intended transformation to the user.
-3. Confirm before proceeding with destructive changes.`,
-
-  html: `# HTML / Interactive Demo Skill
-
-## Overview
-The active .html/.htm file renders live in the preview panel. Changes reflect immediately after \`write_workspace_file\` or \`patch_workspace_file\`.
-
-## Best practices
-- Use relative units (%, rem, vh/vw) and CSS variables for scalable layouts.
-- Prefer flex/grid — avoid absolute/fixed positioning for main content areas.
-- Readable line width: max 65–80ch for body text.
-- Clear spacing (padding/margin), accessible color contrast (WCAG AA: ≥ 4.5:1 for text).
-- Add :hover and :focus states for all interactive elements (buttons, links, inputs).
-
-## Assets
-- Inline images as base64 data URLs or use https:// URLs — local file:// paths are blocked by the WebKit sandbox.
-- Keep total HTML under 500KB for smooth preview rendering.
-- Prefer system fonts (sans-serif, serif, monospace) for offline demos to avoid CDN dependencies.
-
-## Workflow
-1. \`read_workspace_file\` — read the current file before editing.
-2. \`patch_workspace_file\` — targeted CSS or HTML changes.
-3. \`screenshot_preview\` — capture and inspect the result.
-4. Fix any layout, spacing, or contrast issues.
-5. \`screenshot_preview\` again after fixes before replying.
-
-## JavaScript
-- Vanilla JS preferred for demos — no bundler needed.
-- Guard DOM access with \`DOMContentLoaded\` or place scripts at end of \`<body>\`.
-- Console errors visible in screenshot_preview output — fix before reporting done.`,
-
-  code: `# Code Workspace Skill — TypeScript / Node Verification
-
-## Before editing
-1. \`outline_workspace\` — understand project structure, entry points, config files.
-2. Read relevant \`package.json\`, \`tsconfig.json\`, \`vite.config.ts\`, or framework config.
-3. \`search_workspace("<symbol>")\` — find the exact function, type, or variable before modifying it.
-4. Never guess at type signatures, imports, or existing code — read the actual files.
-
-## Editing
-- \`patch_workspace_file\` for surgical changes. \`multi_patch\` for coordinated edits across multiple files.
-- \`write_workspace_file\` only for genuinely new files or when the user explicitly wants a full rewrite.
-- On large existing files, avoid full rewrites — they make verification harder and increase error surface.
-
-## Verification flow (TypeScript / Node)
-After every non-trivial change, verify in this order:
-1. \`run_command("npx tsc --noEmit")\` — zero errors required.
-2. If tests configured: \`run_command("npm test")\` or \`run_command("npx vitest run")\`.
-3. If lint configured: \`run_command("npm run lint")\`.
-4. Report pass/fail status honestly. Never mark done while verification is failing.
-
-## Error handling
-1. Read the full error message — locate failing file and line.
-2. \`read_workspace_file(path, start_line, end_line)\` — get context around the error.
-3. \`patch_workspace_file\` the exact location.
-4. Re-run the failing command to confirm fixed.
-5. Repeat until clean.
-
-## If no test/lint setup exists
-Skip tests and lint silently. Only run tsc if TypeScript is present in package.json.`,
-
   export: `# Export Skill — PDF, ZIP, Git-Publish, Custom
 
 ## Workflow
@@ -213,8 +58,6 @@ Skip tests and lint silently. Only run tsc if TypeScript is present in package.j
 
 ## Formats
 - \`pdf\` — converts Markdown files to PDF. Options: merge, pdfCssFile, toc, titlePage, versionOutput.
-- \`canvas-png\` — exports each canvas slide as a PNG image.
-- \`canvas-pdf\` — exports canvas slides merged into a PDF.
 - \`zip\` — bundles files into a ZIP archive.
 - \`git-publish\` — commits and pushes to a git remote. Options: remote, branch, commitMessage, skipCommitWhenNoChanges.
 - \`custom\` — runs a workspace-root shell command. Modes: auto, batch, per-file.
@@ -230,8 +73,7 @@ Skip tests and lint silently. Only run tsc if TypeScript is present in package.j
 - Artifact lines (output files): start with \`CAFEZIN_ARTIFACT:\`
 
 ## Presets
-- \`configure_export_targets(action="add", preset="book")\` — sensible PDF target for long-form writing.
-- \`configure_export_targets(action="add", preset="slides")\` — per-slide PNG export for canvases.`,
+- \`configure_export_targets(action="add", preset="book")\` — sensible PDF target for long-form writing.`,
 
   memory: `# Memory Skill — Detailed Memory Management
 
@@ -337,22 +179,17 @@ export const SKILL_TOOL_DEFS: ToolDefinition[] = [
       description:
         'Load detailed protocol, command reference, and best-practice instructions for a specific skill area. '
         + 'Call this BEFORE performing complex work in that area — it contains the full rules the system prompt only summarises. '
-        + 'Skills: canvas (tldraw commands and layout), book (long-form writing workflow), '
-        + 'spreadsheet (CSV/XLSX editing), html (interactive demo guidance), code (TypeScript verification), '
-        + 'export (PDF/ZIP/git-publish rules), memory (memory management detail), tasks (task tracking protocol).',
+        + 'Skills: book (long-form writing workflow), export (PDF/ZIP/git-publish rules), '
+        + 'memory (memory management detail), tasks (task tracking protocol).',
       parameters: {
         type: 'object' as const,
         properties: {
           name: {
             type: 'string',
-            enum: ['canvas', 'book', 'spreadsheet', 'html', 'code', 'export', 'memory', 'tasks'],
+            enum: ['book', 'export', 'memory', 'tasks'],
             description:
               'Skill to load. '
-              + 'canvas: full canvas_op command reference + layout rules. '
-              + 'book: long-form writing and chapter workflow. '
-              + 'spreadsheet: CSV/XLSX reading and editing rules. '
-              + 'html: interactive HTML/CSS demo guidance. '
-              + 'code: TypeScript/Node editing and verification. '
+              + 'book: long-form writing workflow. '
               + 'export: export target protocol for PDF, ZIP, git, and custom commands. '
               + 'memory: detailed memory management, staleness rules, and deduplication. '
               + 'tasks: multi-step task creation and lifecycle.',

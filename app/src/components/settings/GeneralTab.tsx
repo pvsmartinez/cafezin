@@ -7,10 +7,6 @@ const AUTOSAVE_DELAYS = [500, 1000, 2000, 0];
 export interface GeneralTabProps {
   appSettings: AppSettings;
   onAppSettingsChange: (s: AppSettings) => void;
-  globalVercelToken: string;
-  onGlobalVercelTokenChange: (v: string) => void;
-  vercelTokenSaved: boolean;
-  onSaveVercelToken: () => void;
   onOpenHelp: () => void;
   onContactUs: () => void;
 }
@@ -18,10 +14,6 @@ export interface GeneralTabProps {
 export function GeneralTab({
   appSettings,
   onAppSettingsChange,
-  globalVercelToken,
-  onGlobalVercelTokenChange,
-  vercelTokenSaved,
-  onSaveVercelToken,
   onOpenHelp,
   onContactUs,
 }: GeneralTabProps) {
@@ -199,28 +191,6 @@ export function GeneralTab({
           {t('settings.apiKeysDesc')}
         </p>
 
-        <div className="sm-row sm-row--col">
-          <label className="sm-label">
-            {t('settings.vercelTokenLabel')}
-            <span className="sm-row-desc"> — <a href="https://vercel.com/account/tokens" target="_blank" rel="noreferrer">vercel.com/account/tokens</a></span>
-          </label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              className="sm-input"
-              type="password"
-              value={globalVercelToken}
-              onChange={(e) => onGlobalVercelTokenChange(e.target.value)}
-              placeholder="token_..."
-              style={{ flex: 1 }}
-            />
-            <button
-              className={`sm-save-btn ${vercelTokenSaved ? 'saved' : ''}`}
-              onClick={onSaveVercelToken}
-            >
-              {vercelTokenSaved ? t('settings.saved') : t('settings.save')}
-            </button>
-          </div>
-        </div>
       </section>
 
       <section className="sm-section">

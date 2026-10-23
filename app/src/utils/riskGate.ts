@@ -115,10 +115,6 @@ function buildArgSummary(name: string, args: Record<string, unknown>): string {
   switch (name) {
     case 'delete_workspace_file':
       return str('path') ? `Arquivo: \`${str('path')}\`` : '';
-    case 'run_command':
-      return str('command') ? `Comando: \`${truncate(str('command'), 80)}\`` : '';
-    case 'publish_vercel':
-      return str('projectName') ? `Projeto: \`${str('projectName')}\`` : '';
     case 'rename_workspace_file':
       return (str('from') && str('to'))
         ? `De: \`${str('from')}\` → Para: \`${str('to')}\``
@@ -128,10 +124,6 @@ function buildArgSummary(name: string, args: Record<string, unknown>): string {
     default:
       return '';
   }
-}
-
-function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) + '…' : s;
 }
 
 function countLines(s: string): number {

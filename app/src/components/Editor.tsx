@@ -1,39 +1,13 @@
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { html } from '@codemirror/lang-html';
-import { css } from '@codemirror/lang-css';
-import { javascript } from '@codemirror/lang-javascript';
-import { json } from '@codemirror/lang-json';
-import { python } from '@codemirror/lang-python';
-import { rust } from '@codemirror/lang-rust';
-import { yaml } from '@codemirror/lang-yaml';
-import { xml } from '@codemirror/lang-xml';
-import { go } from '@codemirror/lang-go';
-import { java } from '@codemirror/lang-java';
-import { cpp } from '@codemirror/lang-cpp';
-import { php } from '@codemirror/lang-php';
-import { sql } from '@codemirror/lang-sql';
-import { vue } from '@codemirror/lang-vue';
-import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
-import { shell } from '@codemirror/legacy-modes/mode/shell';
-import { toml } from '@codemirror/legacy-modes/mode/toml';
-import { ruby } from '@codemirror/legacy-modes/mode/ruby';
-import { lua } from '@codemirror/legacy-modes/mode/lua';
-import { swift } from '@codemirror/legacy-modes/mode/swift';
-import { diff } from '@codemirror/legacy-modes/mode/diff';
-import { powerShell } from '@codemirror/legacy-modes/mode/powershell';
-import { r } from '@codemirror/legacy-modes/mode/r';
-import { perl } from '@codemirror/legacy-modes/mode/perl';
 
 import { EditorView, keymap, ViewPlugin, WidgetType, drawSelection, placeholder } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands';
 import { StateField, RangeSetBuilder, Compartment, Prec } from '@codemirror/state';
 import { Decoration, DecorationSet } from '@codemirror/view';
-import type { Extension } from '@codemirror/state';
-import { linter, setDiagnostics } from '@codemirror/lint';
-import type { Diagnostic } from '@codemirror/lint';
 import { search, SearchCursor, RegExpCursor, getSearchQuery } from '@codemirror/search';
 // ── Custom search match highlighter ─────────────────────────────────────────
 // CodeMirror's built-in searchHighlighter only fires when the native search
@@ -147,22 +121,11 @@ interface EditorProps {
    */
   onImagePaste?: (file: File) => Promise<string | null>;
   /**
-   * CodeMirror language hint: 'markdown' (default), 'html', 'css',
-   * 'javascript', 'typescript', 'json', 'python', 'rust', 'yaml', 'shell', …
-   * When set to anything other than 'markdown' (or empty), the editor switches
-   * to a full-width code-editor layout with appropriate syntax highlighting.
+   * Language hint for the file being edited. 'markdown' (or empty) renders the
+   * prose editor with live preview; any other value renders a plain-text code
+   * layout (mono font, line numbers) without syntax highlighting or IDE tools.
    */
   language?: string;
-  /**
-   * Called when the user clicks the Format button in code mode.
-   * The callback receives the current content and should return the formatted string.
-   */
-  onFormat?: () => void;
-  /**
-   * CodeMirror diagnostics (errors/warnings) to display as inline squiggles.
-   * Typically produced by `useTsDiagnostics` for TypeScript/JavaScript files.
-   */
-  diagnostics?: Diagnostic[];
   /**
    * Async function that returns a ghost-text completion for the current cursor context.
    * When provided, ghost text (Tab to accept, Escape to dismiss) is active in all modes.
@@ -577,42 +540,6 @@ function makeEditorTheme(fontSize: number, codeMode = false, isDark = true) {
   }, { dark: isDark });
 }
 
-// ── Language extension resolver ───────────────────────────────────────────────
-function getLanguageExtension(language: string): Extension {
-  switch (language) {
-    // ── First-class CodeMirror language packages ─────────────────────────────
-    case 'html':        return html({ selfClosingTags: true });
-    case 'css':         return css();
-    case 'javascript':  return javascript({ jsx: true });
-    case 'typescript':  return javascript({ jsx: true, typescript: true });
-    case 'json':        return json();
-    case 'python':      return python();
-    case 'rust':        return rust();
-    case 'yaml':        return yaml();
-    case 'xml':         return xml();
-    case 'go':          return go();
-    case 'java':        return java();
-    case 'cpp':         return cpp();
-    case 'php':         return php();
-    case 'sql':         return sql();
-    case 'vue':         return vue();
-    // Kotlin: no dedicated CM package; Java grammar gives reasonable highlighting
-    case 'kotlin':      return java();
-    // ── Legacy-mode languages (StreamLanguage wrapper) ───────────────────────
-    case 'shell':       return StreamLanguage.define(shell);
-    case 'toml':        return StreamLanguage.define(toml);
-    case 'ruby':        return StreamLanguage.define(ruby);
-    case 'lua':         return StreamLanguage.define(lua);
-    case 'swift':       return StreamLanguage.define(swift);
-    case 'diff':        return StreamLanguage.define(diff);
-    case 'powershell':  return StreamLanguage.define(powerShell);
-    case 'r':           return StreamLanguage.define(r);
-    case 'perl':        return StreamLanguage.define(perl);
-    // ── Markdown is handled by the outer branch; any unknown = plain text ────
-    default:            return [];
-  }
-}
-
 const DEFAULT_FONT_SIZE = 14;
 
 function buildSelectionContext(selectedText: string, activeFile?: string): AISelectionContext | null {
@@ -802,7 +729,7 @@ function applyMdToolbar(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 const Editor = forwardRef<EditorHandle, EditorProps>(
-  ({ content, onChange, onToggleFind, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, onFormat, diagnostics, activeFile, onSelectionContextChange }, ref) => {
+  ({ content, onChange, onToggleFind, onAIRequest, aiMarks, onAIMarkEdited, fontSize = DEFAULT_FONT_SIZE, onImagePaste, language, isDark = true, isLocked = false, activeFile, onSelectionContextChange }, ref) => {
     const { t } = useTranslation();
     const mdToolbarGroups = useMemo(() => buildMdToolbarGroups(t), [t]);
     const codeMode = !!language && language !== 'markdown';
@@ -810,7 +737,6 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
     const compartmentRef = useRef(new Compartment());
     const fontCompartmentRef = useRef(new Compartment());
     const editableCompartmentRef = useRef(new Compartment());
-    const lintCompartmentRef = useRef(new Compartment());
 
     // Empty-document hint text — kept in a ref so the placeholder extension
     // stays stable while still following language changes.
@@ -952,12 +878,6 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       });
     }, [isLocked]);
 
-    // Push TypeScript / JS diagnostics as inline squiggles
-    useEffect(() => {
-      if (!viewRef.current) return;
-      viewRef.current.dispatch(setDiagnostics(viewRef.current.state, diagnostics ?? []));
-    }, [diagnostics]);
-
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
         if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'f') {
@@ -972,13 +892,6 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
           onAIRequest?.(selection);
           return;
         }
-        // ⌥F — format code file (mirrors the header button)
-        // On macOS ⌥F produces 'ƒ'; on other platforms e.altKey + 'f'
-        if (codeMode && (e.key === 'ƒ' || (e.altKey && e.key === 'f'))) {
-          e.preventDefault();
-          onFormat?.();
-          return;
-        }
         if (!codeMode && (e.metaKey || e.ctrlKey)) {
           const view = viewRef.current;
           if (!view) return;
@@ -987,7 +900,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
         }
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [onAIRequest, onFormat, onToggleFind, codeMode, mdToolbarGroups, t],
+      [onAIRequest, onToggleFind, codeMode, mdToolbarGroups, t],
     );
 
     // ── Clipboard image paste ─────────────────────────────────────────────────
@@ -1036,14 +949,14 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
     // Memoised so @uiw/react-codemirror does NOT call StateEffect.reconfigure
     // (the most expensive CodeMirror operation) on every re-render / keystroke.
     // Deps: only the things that fundamentally change the editor mode.
-    // Runtime changes (aiMarks, fontSize, isDark, isLocked, diagnostics) are
+    // Runtime changes (aiMarks, fontSize, isDark, isLocked) are
     // handled by their own compartment useEffect()s below without touching this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const extensions = useMemo(() => [
-      // Language: use markdown (+ embedded code blocks) for prose, or the
-      // file-specific grammar for code files.
+      // Language: markdown (+ embedded code blocks) for prose; plain text for
+      // code files (IDE grammars were removed with the dev mode).
       codeMode
-        ? getLanguageExtension(language ?? '')
+        ? []
         : markdown({ base: markdownLanguage }),
       // Empty-document hint — reads the latest text via a ref so the extension
       // doesn't need to be recreated on language changes.
@@ -1094,8 +1007,6 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
       ),
       compartmentRef.current.of(makeAIMarkField(aiMarks ?? [])),
       aiMarkEditListener,
-      // Lint state field — active in code mode; provides squiggles for TS/JS errors
-      lintCompartmentRef.current.of(codeMode ? linter(() => []) : []),
       // Live preview: hide syntax markers on non-cursor lines (prose only)
       livePreviewExtension,
     // codeMode and language are the only props that require a full editor
@@ -1151,8 +1062,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(
             indentOnInput: true,
             bracketMatching: true,
             closeBrackets: true,
-            // Autocompletion active in code mode only
-            autocompletion: codeMode,
+            autocompletion: false,
             rectangularSelection: codeMode,
             // Active line gutter highlight in code mode
             highlightActiveLine: codeMode,

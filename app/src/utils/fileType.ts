@@ -1,120 +1,30 @@
-/** What kind of file this is — drives which viewer/editor is shown. */
-export type FileKind = 'markdown' | 'pdf' | 'video' | 'audio' | 'image' | 'canvas' | 'html' | 'code' | 'spreadsheet' | 'rtf' | 'docx' | 'pptx' | 'unknown';
+/** Writing formats and read-only research attachments supported by Cafezin. */
+export type FileKind = 'markdown' | 'pdf' | 'video' | 'audio' | 'image' | 'unsupported';
 
 export interface FileTypeInfo {
   kind: FileKind;
-  /** Whether an Edit/Preview toggle makes sense for this file */
   supportsPreview: boolean;
-  /** Which mode to default to when the file is first opened */
   defaultMode: 'edit' | 'preview';
-  /** Language hint for CodeMirror (empty string = plain text) */
+  /** Kept for Markdown consumers; Cafezin is not a source-code editor. */
   language: string;
 }
 
-const CODE_EXTENSIONS: Record<string, string> = {
-  // Web
-  ts: 'typescript', tsx: 'typescript',
-  js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
-  json: 'json', jsonc: 'json',
-  css: 'css', scss: 'css', less: 'css',
-  html: 'html', htm: 'html',
-  xml: 'xml', svg: 'xml', xhtml: 'xml',
-  vue: 'vue',
-  // Systems
-  rs: 'rust',
-  go: 'go',
-  c: 'cpp', h: 'cpp', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp',
-  java: 'java',
-  kt: 'kotlin', kts: 'kotlin',
-  swift: 'swift',
-  // Scripting
-  py: 'python',
-  rb: 'ruby',
-  lua: 'lua',
-  php: 'php',
-  pl: 'perl', pm: 'perl',
-  r: 'r',
-  // Data / Config
-  sql: 'sql',
-  toml: 'toml',
-  yaml: 'yaml', yml: 'yaml',
-  // Shell
-  sh: 'shell', bash: 'shell', zsh: 'shell',
-  ps1: 'powershell',
-  // Diff / plain text
-  diff: 'diff', patch: 'diff',
-  txt: '', log: '',
-  // Misc
-  md: 'markdown',
-};
-
 export function getFileTypeInfo(filename: string): FileTypeInfo {
-  // .tldr.json must be checked before the generic `.json` extension path
-  if (filename.endsWith('.tldr.json')) {
-    return { kind: 'canvas', supportsPreview: false, defaultMode: 'edit', language: '' };
-  }
-
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
-
-  if (ext === 'md' || ext === 'mdx' || ext === 'txt') {
-    return { kind: 'markdown', supportsPreview: ext !== 'txt', defaultMode: 'edit', language: 'markdown' };
-  }
-
-  if (ext === 'pdf') {
-    return { kind: 'pdf', supportsPreview: false, defaultMode: 'preview', language: '' };
-  }
-
-  // Videos — played via HTML5 <video>; macOS WebView supports mp4/webm/mov/m4v/mkv
-  if (['mp4', 'webm', 'mov', 'm4v', 'mkv', 'ogv', 'avi'].includes(ext)) {
-    return { kind: 'video', supportsPreview: false, defaultMode: 'preview', language: '' };
-  }
-
-  // Audio — played via HTML5 <audio>
-  if (['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'opus', 'weba', 'wma'].includes(ext)) {
-    return { kind: 'audio', supportsPreview: false, defaultMode: 'preview', language: '' };
-  }
-
-  // Images + GIFs — shown via <img>
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tiff', 'tif'].includes(ext)) {
-    return { kind: 'image', supportsPreview: false, defaultMode: 'preview', language: '' };
-  }
-
-  // Spreadsheets — handled by SpreadsheetViewer
-  if (['csv', 'tsv'].includes(ext)) {
-    return { kind: 'spreadsheet', supportsPreview: false, defaultMode: 'edit', language: '' };
-  }
-  if (['xlsx', 'xls', 'ods', 'xlsm', 'xlsb'].includes(ext)) {
-    return { kind: 'spreadsheet', supportsPreview: false, defaultMode: 'edit', language: '' };
-  }
-
-  if (ext in CODE_EXTENSIONS) {
-    // HTML/HTM files get a dedicated live webpage preview
-    if (ext === 'html' || ext === 'htm') {
-      return { kind: 'html', supportsPreview: true, defaultMode: 'preview', language: 'html' };
-    }
+  if (['md', 'mdx', 'markdown', 'txt'].includes(ext)) {
     return {
-      kind: 'code',
-      supportsPreview: false,
-      defaultMode: 'edit',
-      language: CODE_EXTENSIONS[ext],
+      kind: 'markdown', supportsPreview: ext !== 'txt', defaultMode: 'edit', language: 'markdown',
     };
   }
-
-  // RTF documents — stripped to plain text by RtfViewer
-  if (ext === 'rtf') {
-    return { kind: 'rtf', supportsPreview: false, defaultMode: 'edit', language: '' };
+  let kind: FileKind = 'unsupported';
+  if (ext === 'pdf') kind = 'pdf';
+  else if (['mp4', 'webm', 'mov', 'm4v', 'mkv', 'ogv', 'avi'].includes(ext)) kind = 'video';
+  else if (['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'opus', 'weba', 'wma'].includes(ext)) {
+    kind = 'audio';
+  } else if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tiff', 'tif'].includes(ext)) {
+    kind = 'image';
   }
-
-  // Word documents — info panel with export-as-markdown option
-  if (ext === 'docx' || ext === 'doc') {
-    return { kind: 'docx', supportsPreview: false, defaultMode: 'edit', language: '' };
-  }
-
-  // PowerPoint presentations — info panel with import-as-canvas option
-  if (ext === 'pptx' || ext === 'ppt') {
-    return { kind: 'pptx', supportsPreview: false, defaultMode: 'edit', language: '' };
-  }
-
-  // Slides etc. — treat as unknown, open read-only in editor
-  return { kind: 'unknown', supportsPreview: false, defaultMode: 'edit', language: '' };
+  // Binary, Office, canvas and development files are never loaded into an editable
+  // buffer. They remain visible on disk without risking accidental text overwrites.
+  return { kind, supportsPreview: false, defaultMode: kind === 'unsupported' ? 'edit' : 'preview', language: '' };
 }

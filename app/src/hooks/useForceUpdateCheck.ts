@@ -18,6 +18,8 @@ export function useForceUpdateCheck(
   const [forceUpdateChannel, setForceUpdateChannel] = useState('release');
 
   useEffect(() => {
+    // Browser builds have no native updater and must not be blocked by desktop versions.
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
     async function checkMinVersion() {
       try {
         const { getVersion } = await import('@tauri-apps/api/app');

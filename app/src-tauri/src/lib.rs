@@ -28,19 +28,6 @@ use tauri_plugin_deep_link::DeepLinkExt;
 #[cfg(not(target_os = "ios"))]
 use tokio::io::AsyncBufReadExt;
 
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-#[derive(Default)]
-struct ShellProcessRegistry {
-    processes: Mutex<HashMap<String, ManagedShellProcess>>,
-}
-
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-struct ManagedShellProcess {
-    child: std::process::Child,
-    stdout_path: PathBuf,
-    stderr_path: PathBuf,
-}
-
 // ── MCP (Model Context Protocol) process management ─────────────────────────
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
 struct McpProcess {
@@ -608,77 +595,6 @@ fn pi_stop(agent_id: String, registry: State<'_, PiProcessRegistry>) -> Result<(
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-fn ensure_shell_cwd_allowed(cwd: &str) -> Result<(), String> {
-    // Windows uses USERPROFILE; Unix uses HOME.
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_default();
-    if home.is_empty() || !cwd.starts_with(&home) {
-        return Err(format!("shell_run: cwd must be within $HOME (rejected: {cwd})"));
-    }
-    Ok(())
-}
-
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-fn cap_shell_output(bytes: &[u8]) -> String {
-    let s = String::from_utf8_lossy(bytes);
-    if s.chars().count() > 8_000 {
-        format!("{}\n\n[… output truncated]", s.chars().take(8_000).collect::<String>())
-    } else {
-        s.to_string()
-    }
-}
-
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-fn cap_text_output(text: String) -> String {
-    if text.chars().count() > 8_000 {
-        format!("{}\n\n[… output truncated]", text.chars().take(8_000).collect::<String>())
-    } else {
-        text
-    }
-}
-
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-fn shell_process_output_paths(id: &str) -> (PathBuf, PathBuf) {
-    let base = std::env::temp_dir();
-    (
-        base.join(format!("cafezin-shell-{id}.out.log")),
-        base.join(format!("cafezin-shell-{id}.err.log")),
-    )
-}
-
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-fn build_shell_process_id() -> String {
-    let millis = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let salt = format!("{:?}", std::thread::current().id());
-    format!("{millis}-{}", salt.replace(['(', ')', ' '], ""))
-}
-
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-fn build_shell_command(cmd: &str, cwd: &str) -> Command {
-    #[cfg(target_os = "windows")]
-    {
-        // On Windows use cmd.exe. The /C flag executes the command and exits.
-        let mut command = Command::new("cmd");
-        command.args(["/C", cmd]).current_dir(cwd);
-        command
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let shell = std::env::var("SHELL").unwrap_or_default();
-        let shell_bin = match shell.as_str() {
-            s if s.ends_with("/bash") || s.ends_with("/zsh") || s.ends_with("/sh") => s.to_string(),
-            _ => "/bin/bash".to_string(),
-        };
-        let mut command = Command::new(shell_bin);
-        command.args(["-lc", cmd]).current_dir(cwd);
-        command
-    }
-}
 
 
 /// Opens the webview DevTools inspector (debug builds only).
@@ -690,128 +606,6 @@ fn open_devtools(webview_window: tauri::WebviewWindow) {
     let _ = webview_window; // no-op in release builds
 }
 
-// ── shell_run ─────────────────────────────────────────────────────────────────
-// CLI variant: desktop dev builds (local, PC, Linux)
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-#[tauri::command]
-fn shell_run(cmd: String, cwd: String) -> Result<serde_json::Value, String> {
-    ensure_shell_cwd_allowed(&cwd)?;
-    let output = build_shell_command(&cmd, &cwd)
-        .output()
-        .map_err(|e| e.to_string())?;
-
-    Ok(serde_json::json!({
-        "stdout":    cap_shell_output(&output.stdout),
-        "stderr":    cap_shell_output(&output.stderr),
-        "exit_code": output.status.code().unwrap_or(-1),
-    }))
-}
-
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-#[tauri::command]
-fn shell_run_start(
-    cmd: String,
-    cwd: String,
-    registry: State<'_, ShellProcessRegistry>,
-) -> Result<serde_json::Value, String> {
-    ensure_shell_cwd_allowed(&cwd)?;
-
-    let id = build_shell_process_id();
-    let (stdout_path, stderr_path) = shell_process_output_paths(&id);
-    let stdout_file = File::create(&stdout_path).map_err(|e| e.to_string())?;
-    let stderr_file = File::create(&stderr_path).map_err(|e| e.to_string())?;
-
-    let child = build_shell_command(&cmd, &cwd)
-        .stdout(Stdio::from(stdout_file))
-        .stderr(Stdio::from(stderr_file))
-        .spawn()
-        .map_err(|e| e.to_string())?;
-
-    registry
-        .processes
-        .lock()
-        .map_err(|_| "shell_run_start: process registry lock poisoned".to_string())?
-        .insert(
-            id.clone(),
-            ManagedShellProcess {
-                child,
-                stdout_path,
-                stderr_path,
-            },
-        );
-
-    Ok(serde_json::json!({ "id": id }))
-}
-
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-#[tauri::command]
-fn shell_run_status(
-    id: String,
-    registry: State<'_, ShellProcessRegistry>,
-) -> Result<serde_json::Value, String> {
-    let (running, exit_code, stdout_path, stderr_path, remove_after) = {
-        let mut guard = registry
-            .processes
-            .lock()
-            .map_err(|_| "shell_run_status: process registry lock poisoned".to_string())?;
-        let process = guard
-            .get_mut(&id)
-            .ok_or_else(|| format!("shell_run_status: process not found ({id})"))?;
-        let status = process.child.try_wait().map_err(|e| e.to_string())?;
-        let running = status.is_none();
-        let exit_code = status.and_then(|s| s.code()).unwrap_or(-1);
-        let stdout_path = process.stdout_path.clone();
-        let stderr_path = process.stderr_path.clone();
-        if !running {
-            let _ = guard.remove(&id);
-        }
-        (running, exit_code, stdout_path, stderr_path, !running)
-    };
-
-    let stdout = fs::read_to_string(&stdout_path).unwrap_or_default();
-    let stderr = fs::read_to_string(&stderr_path).unwrap_or_default();
-
-    if remove_after {
-        let _ = fs::remove_file(&stdout_path);
-        let _ = fs::remove_file(&stderr_path);
-    }
-
-    Ok(serde_json::json!({
-        "running": running,
-        "stdout": cap_text_output(stdout),
-        "stderr": cap_text_output(stderr),
-        "exit_code": if running { serde_json::Value::Null } else { serde_json::json!(exit_code) }
-    }))
-}
-
-#[cfg(not(any(feature = "mas", target_os = "ios")))]
-#[tauri::command]
-fn shell_run_kill(
-    id: String,
-    registry: State<'_, ShellProcessRegistry>,
-) -> Result<serde_json::Value, String> {
-    let removed = {
-        let mut guard = registry
-            .processes
-            .lock()
-            .map_err(|_| "shell_run_kill: process registry lock poisoned".to_string())?;
-        guard.remove(&id)
-    };
-
-    let mut process = removed.ok_or_else(|| format!("shell_run_kill: process not found ({id})"))?;
-    let _ = process.child.kill();
-    let _ = process.child.wait();
-    let stdout = fs::read_to_string(&process.stdout_path).unwrap_or_default();
-    let stderr = fs::read_to_string(&process.stderr_path).unwrap_or_default();
-    let _ = fs::remove_file(&process.stdout_path);
-    let _ = fs::remove_file(&process.stderr_path);
-
-    Ok(serde_json::json!({
-        "killed": true,
-        "stdout": cap_text_output(stdout),
-        "stderr": cap_text_output(stderr),
-    }))
-}
 
 // ── MCP Tauri commands — desktop (non-MAS, non-iOS) ─────────────────────────
 #[cfg(not(any(feature = "mas", target_os = "ios")))]
@@ -983,31 +777,6 @@ fn mcp_stop_server(_server_id: String) -> Result<(), String> {
 #[tauri::command]
 fn mcp_list_tools(_server_id: String) -> Result<serde_json::Value, String> {
     Err("MCP is not available in App Store / iOS builds".into())
-}
-
-// Store/sandbox variant: App Sandbox and iOS do not allow arbitrary shell execution
-#[cfg(any(feature = "mas", target_os = "ios"))]
-#[tauri::command]
-fn shell_run(_cmd: String, _cwd: String) -> Result<serde_json::Value, String> {
-    Err("shell_run is not available in App Store / iOS builds".into())
-}
-
-#[cfg(any(feature = "mas", target_os = "ios"))]
-#[tauri::command]
-fn shell_run_start(_cmd: String, _cwd: String) -> Result<serde_json::Value, String> {
-    Err("shell_run_start is not available in App Store / iOS builds".into())
-}
-
-#[cfg(any(feature = "mas", target_os = "ios"))]
-#[tauri::command]
-fn shell_run_status(_id: String) -> Result<serde_json::Value, String> {
-    Err("shell_run_status is not available in App Store / iOS builds".into())
-}
-
-#[cfg(any(feature = "mas", target_os = "ios"))]
-#[tauri::command]
-fn shell_run_kill(_id: String) -> Result<serde_json::Value, String> {
-    Err("shell_run_kill is not available in App Store / iOS builds".into())
 }
 
 // Pi is a desktop-only harness. App Store/iOS builds keep the legacy in-app
@@ -2424,7 +2193,6 @@ async fn update_app(app: tauri::AppHandle, project_root: String) -> Result<(), S
 pub fn run() {
     let builder = tauri::Builder::default();
     #[cfg(not(any(feature = "mas", target_os = "ios")))]
-    let builder = builder.manage(ShellProcessRegistry::default());
     #[cfg(not(any(feature = "mas", target_os = "ios")))]
     let builder = builder.manage(McpProcessRegistry::default());
     #[cfg(not(any(feature = "mas", target_os = "ios")))]
@@ -2499,14 +2267,12 @@ pub fn run() {
                 )?;
 
                 // Tools menu
-                let image_search_item  = MenuItem::with_id(app, "image_search",  "Image Search\u{2026}",            true, Some("cmd+i"))?;
-                let tools_sep1         = PredefinedMenuItem::separator(app)?;
                 let export_pdf_item    = MenuItem::with_id(app, "export_pdf",    "Export to PDF\u{2026}",           true, None::<&str>)?;
                 let export_sep         = PredefinedMenuItem::separator(app)?;
-                let export_modal_item  = MenuItem::with_id(app, "export_modal",  "Export / Build Settings\u{2026}", true, None::<&str>)?;
+                let export_modal_item  = MenuItem::with_id(app, "export_modal",  "Export Settings\u{2026}", true, None::<&str>)?;
                 let tools_menu = Submenu::with_items(
                     app, "Tools", true,
-                    &[&image_search_item, &tools_sep1, &export_pdf_item, &export_sep, &export_modal_item],
+                    &[&export_pdf_item, &export_sep, &export_modal_item],
                 )?;
 
                 // Help menu
@@ -2523,11 +2289,9 @@ pub fn run() {
                 let view_sep1           = PredefinedMenuItem::separator(app)?;
                 let view_edit_item      = MenuItem::with_id(app, "view_edit",      "Edit Mode",        true, None::<&str>)?;
                 let view_preview_item   = MenuItem::with_id(app, "view_preview",   "Preview Mode",     true, None::<&str>)?;
-                let view_sep2_item      = PredefinedMenuItem::separator(app)?;
-                let format_item         = MenuItem::with_id(app, "format_file",    "Format File",      true, Some("alt+f"))?;
                 let view_menu = Submenu::with_items(
                     app, "View", true,
-                    &[&toggle_sidebar_item, &toggle_copilot_item, &view_sep1, &view_edit_item, &view_preview_item, &view_sep2_item, &format_item],
+                    &[&toggle_sidebar_item, &toggle_copilot_item, &view_sep1, &view_edit_item, &view_preview_item],
                 )?;
 
                 let menu = Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu, &tools_menu, &help_menu])?;
@@ -2542,14 +2306,12 @@ pub fn run() {
                         "new_window"         => { let _ = handle.emit("menu-new-window", ()); }
                         "switch_workspace"   => { let _ = handle.emit("menu-switch-workspace", ()); }
                         "new_file"           => { let _ = handle.emit("menu-new-file", ()); }
-                        "image_search"       => { let _ = handle.emit("menu-image-search", ()); }
                         "export_pdf"         => { let _ = handle.emit("menu-export-pdf", ()); }
                         "export_modal"       => { let _ = handle.emit("menu-export-modal", ()); }
                         "toggle_sidebar"     => { let _ = handle.emit("menu-toggle-sidebar", ()); }
                         "toggle_copilot"     => { let _ = handle.emit("menu-toggle-copilot", ()); }
                         "view_edit"          => { let _ = handle.emit("menu-view-edit", ()); }
                         "view_preview"       => { let _ = handle.emit("menu-view-preview", ()); }
-                        "format_file"        => { let _ = handle.emit("menu-format-file", ()); }
                         "help_tour"          => { let _ = handle.emit("menu-help-tour", ()); }
                         "contact_us"         => { let _ = handle.emit("menu-contact-us", ()); }
                         _ => {}
@@ -2566,7 +2328,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_apply_patch, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, shell_run, shell_run_start, shell_run_status, shell_run_kill, pi_preflight, pi_get_available_models, pi_start, pi_send, pi_stop, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo, mcp_start_server, mcp_call, mcp_stop_server, mcp_list_tools, git_available])
+        .invoke_handler(tauri::generate_handler![canonicalize_path, ensure_config_dir, grep_workspace, git_init, git_diff, git_sync, git_checkout_file, git_apply_patch, git_checkout_branch, git_get_remote, git_set_remote, git_clone, git_pull, pi_preflight, pi_get_available_models, pi_start, pi_send, pi_stop, update_app, transcribe_audio, open_devtools, build_channel, github_device_flow_init, github_device_flow_poll, github_create_repo, mcp_start_server, mcp_call, mcp_stop_server, mcp_list_tools, git_available])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

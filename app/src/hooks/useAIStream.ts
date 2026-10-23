@@ -15,7 +15,6 @@ import type { ToolExecutor } from '../utils/workspaceTools';
 import { initMcpServers, loadMcpServerConfigs } from '../services/mcpClient';
 import { applyRiskGate } from '../utils/riskGate';
 import type { RiskLevel } from '../utils/toolRisk';
-import { canvasToDataUrl, compressDataUrl } from '../utils/canvasAI';
 import { unlockAllByAgent } from '../services/copilotLock';
 import {
   contentPartsToPiPrompt,
@@ -37,7 +36,6 @@ import type {
   WorkspaceConfig,
   WorkspaceExportConfig,
 } from '../types';
-import type { Editor as TldrawEditor } from 'tldraw';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface QuotaInfo {
@@ -59,9 +57,7 @@ export interface UseAIStreamParams {
   // ── Workspace / tools ─────────────────────────────────────────────────────
   workspace?: Workspace | null;
   workspacePath?: string;
-  canvasEditorRef?: React.RefObject<TldrawEditor | null>;
   activeFile?: string;
-  rescanFramesRef?: React.MutableRefObject<(() => void) | null>;
   workspaceExportConfig?: WorkspaceExportConfig;
   onExportConfigChange?: (cfg: WorkspaceExportConfig) => void;
   workspaceConfig?: WorkspaceConfig;
@@ -72,16 +68,6 @@ export interface UseAIStreamParams {
   isFileDirty?: (relPath: string) => boolean;
   getAgentContextSnapshot?: () => AgentContextSnapshot;
   onMarkRecorded?: (relPath: string, content: string, model: string, recordedMarks?: AIRecordedTextMark[], agentId?: string) => void;
-  onCanvasMarkRecorded?: (
-    relPath: string,
-    shapeIds: string[],
-    model: string,
-    agentId?: string,
-    canvasRevert?: Record<string, unknown | null>,
-  ) => void;
-  // ── Misc ──────────────────────────────────────────────────────────────────
-  webPreviewRef?: React.RefObject<{ getScreenshot: () => Promise<string | null> } | null>;
-  getActiveHtml?: () => { html: string; absPath: string } | null;
   onStreamingChange?: (v: boolean) => void;
   setMemoryContent: (v: string) => void;
   setUserProfileContent?: (v: string) => void;
@@ -187,6 +173,29 @@ export function buildRetryMessages(
 }
 
 // ── useAIStream ───────────────────────────────────────────────────────────────
+
+/** Downscale + re-encode a data-URL image so vision payloads stay small. */
+async function compressDataUrl(dataUrl: string, maxDim: number, quality: number): Promise<string> {
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('image load failed'));
+      img.src = dataUrl;
+    });
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', quality);
+  } catch {
+    return dataUrl;
+  }
+}
+
 export function useAIStream({
   model,
   systemPrompt,
@@ -196,9 +205,7 @@ export function useAIStream({
   sessionStartedAtRef,
   workspace,
   workspacePath,
-  canvasEditorRef,
   activeFile,
-  rescanFramesRef,
   workspaceExportConfig,
   onExportConfigChange,
   workspaceConfig,
@@ -209,9 +216,6 @@ export function useAIStream({
   isFileDirty,
   getAgentContextSnapshot,
   onMarkRecorded,
-  onCanvasMarkRecorded,
-  webPreviewRef,
-  getActiveHtml,
   onStreamingChange,
   setMemoryContent,
   setUserProfileContent,
@@ -613,25 +617,16 @@ export function useAIStream({
     if (workspace) {
       const rawExecutor = buildToolExecutor({
         workspacePath: workspace.path,
-        canvasEditor: canvasEditorRef ?? { current: null },
         onFileWritten,
         onPathRenamed,
         onMarkRecorded: (relPath, content, recordedMarks) =>
           onMarkRecorded?.(relPath, content, model, recordedMarks, agentId),
-        onCanvasModified: (shapeIds, canvasRevert) => {
-          if (shapeIds.length > 0 && activeFile) {
-            onCanvasMarkRecorded?.(activeFile, shapeIds, model, agentId, canvasRevert);
-          }
-          rescanFramesRef?.current?.();
-        },
         activeFile,
         workspaceExportConfig,
         onExportConfigChange,
         onMemoryWritten: setMemoryContent,
-        webPreviewRef: webPreviewRef as { current: { getScreenshot: () => Promise<string | null> } | null } | undefined,
         onAskUser,
-        getActiveHtml,
-        workspaceConfig,
+              workspaceConfig,
         onWorkspaceConfigChange,
         agentId,
         activeFileContent,
@@ -666,10 +661,7 @@ export function useAIStream({
       if (!isMobilePlatform) {
         await initMcpServers(loadMcpServerConfigs());
       }
-      const activeTools = getWorkspaceTools(workspace, workspaceExportConfig).filter((t) => {
-        if (isMobilePlatform && t.function.name === 'run_command') return false;
-        return true;
-      });
+      const activeTools = getWorkspaceTools(workspace, workspaceExportConfig);
 
       const activeProvider = getActiveProvider();
       // Pi is the default desktop transport for every provider selection. The
@@ -889,14 +881,6 @@ export function useAIStream({
 
     if (modelSupportsVision(model)) {
       const parts: ContentPart[] = [];
-      if (canvasEditorRef?.current) {
-        const url = await canvasToDataUrl(canvasEditorRef.current, 0.5);
-        if (url) {
-          const compressed = await compressDataUrl(url, 512, 0.65);
-          parts.push({ type: 'text', text: 'Current canvas state (before any edits) — study this carefully before making changes:' });
-          parts.push({ type: 'image_url', image_url: { url: compressed } });
-        }
-      }
       if (capturedImages.length > 0) {
         parts.push({
           type: 'text',

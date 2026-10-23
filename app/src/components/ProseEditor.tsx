@@ -13,7 +13,9 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Extension } from '@tiptap/core';
-import Underline from '@tiptap/extension-underline';
+import { openUrl } from '@tauri-apps/plugin-opener';
+import { flattenFileTree, resolveDocumentLink, restoreProseWikiLinks } from '../utils/documentLinks';
+import type { FileTreeNode } from '../types';
 import { Markdown } from 'tiptap-markdown';
 import { useTranslation } from 'react-i18next';
 import {
@@ -199,6 +201,28 @@ function makeAIMarkPlugin(storeRef: { current: AIMark[] }) {
   });
 }
 
+// Decorate wiki syntax without replacing its text: Markdown persistence stays portable.
+const wikiLinkPlugin = new Plugin({
+  props: {
+    decorations(state) {
+      const decorations: Decoration[] = [];
+      state.doc.descendants((node, pos, parent) => {
+        if (!node.isText || parent?.type.name === 'codeBlock' ||
+            node.marks.some((mark) => mark.type.name === 'code')) return;
+        const pattern = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+        for (const match of (node.text ?? '').matchAll(pattern)) {
+          decorations.push(Decoration.inline(pos + match.index!, pos + match.index! + match[0].length, {
+            class: 'prose-wiki-link',
+            'data-document-target': match[1].trim(),
+            title: '⌘/Ctrl + clique para abrir a referência',
+          }));
+        }
+      });
+      return DecorationSet.create(state.doc, decorations);
+    },
+  },
+});
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ProseEditorProps {
@@ -214,6 +238,8 @@ interface ProseEditorProps {
   onImagePaste?: (file: File) => Promise<string | null>;
   onSelectionContextChange?: (ctx: AISelectionContext | null) => void;
   activeFile?: string;
+  onNavigate?: (path: string) => void;
+  workspaceFileTree?: FileTreeNode[];
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -233,6 +259,8 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
       onImagePaste,
       onSelectionContextChange,
       activeFile,
+      onNavigate,
+      workspaceFileTree,
     },
     ref,
   ) => {
@@ -243,6 +271,8 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
     // writes: if an AI write came in between the user's onUpdate and the
     // subsequent React render, the boolean would incorrectly suppress the
     // external update.
+    const [missingTarget, setMissingTarget] = useState<string | null>(null);
+    useEffect(() => { setMissingTarget(null); }, [activeFile]);
     const lastEmittedMdRef   = useRef<string | null>(null);
     const aiMarksStoreRef    = useRef<AIMark[]>(aiMarks ?? []);
     const aiMarksRef         = useRef(aiMarks ?? []);
@@ -281,8 +311,11 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
 
     const editor = useEditor({
       extensions: [
-        StarterKit,
-        Underline,
+        StarterKit.configure({ link: { openOnClick: false } }),
+        Extension.create({
+          name: 'wikiLinks',
+          addProseMirrorPlugins: () => [wikiLinkPlugin],
+        }),
         Markdown.configure({ html: false, transformPastedText: true }),
         // AI mark decorations via a ProseMirror plugin registered as a Tiptap extension
         Extension.create({
@@ -347,7 +380,10 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
           }
         }
         // Emit markdown and record it so the sync effect can detect the echo.
-        const md: string = (ed.storage as unknown as { markdown: { getMarkdown(): string } }).markdown.getMarkdown();
+        const serialized = (ed.storage as unknown as {
+          markdown: { getMarkdown(): string };
+        }).markdown.getMarkdown();
+        const md = restoreProseWikiLinks(serialized, content);
         lastEmittedMdRef.current = md;
         onChange(md);
       },
@@ -364,7 +400,7 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
 
     // ── Sync external content changes (AI writes, file loads) ─────────────────
     useEffect(() => {
-      if (!editor) return;
+      if (!editor || editor.isDestroyed) return;
       // If this content update is just the echo of our own onUpdate emission,
       // skip it — the editor already has this content. Clear the record so
       // any future external update (different value) will be applied.
@@ -378,14 +414,14 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
 
     // ── Sync isLocked ─────────────────────────────────────────────────────────
     useEffect(() => {
-      if (!editor) return;
+      if (!editor || editor.isDestroyed) return;
       editor.setEditable(!isLocked);
     }, [editor, isLocked]);
 
     // ── Sync AI marks ─────────────────────────────────────────────────────────
     useEffect(() => {
       aiMarksStoreRef.current = aiMarks ?? [];
-      if (!editor) return;
+      if (!editor || editor.isDestroyed) return;
       // Trigger a no-op transaction that causes the plugin to rebuild decorations
       editor.view.dispatch(editor.state.tr.setMeta(aiMarkKey, true));
     }, [editor, aiMarks]);
@@ -480,7 +516,25 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
         data-locked={isLocked || undefined}
         data-theme={isDark ? 'dark' : 'light'}
         style={{ '--prose-font-size': `${fontSize}px` } as React.CSSProperties}
-      >        {editor && !isLocked && <ProseToolbar editor={editor} />}        <EditorContent editor={editor} className="tiptap-content" />
+        onClick={(event) => {
+          if (!event.metaKey && !event.ctrlKey) return;
+          const link = (event.target as HTMLElement).closest('[data-document-target], a[href]');
+          const target = link?.getAttribute('data-document-target') ?? link?.getAttribute('href');
+          if (!target) return;
+          event.preventDefault();
+          if (/^https?:\/\//i.test(target)) { void openUrl(target); return; }
+          const fromDir = activeFile?.split('/').slice(0, -1).join('/') ?? '';
+          const resolved = resolveDocumentLink(target, fromDir,
+            workspaceFileTree ? flattenFileTree(workspaceFileTree) : undefined);
+          if (resolved) { setMissingTarget(null); onNavigate?.(resolved); }
+          else setMissingTarget(target);
+        }}
+      >
+        {editor && !isLocked && <ProseToolbar editor={editor} />}
+        <EditorContent editor={editor} className="tiptap-content" />
+        {missingTarget && <p className="md-missing-link" role="status">
+          Referência não encontrada: {missingTarget}. Nenhum arquivo foi criado.
+        </p>}
       </div>
     );
   },

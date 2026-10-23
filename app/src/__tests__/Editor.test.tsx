@@ -527,51 +527,6 @@ describe('Editor — Cmd+B / Cmd+I prose shortcuts', () => {
   });
 });
 
-// ── Code mode toolbar ─────────────────────────────────────────────────────────
-describe('Editor — code mode toolbar', () => {
-  it('does NOT render a Format button inside the editor (it lives in the app header)', () => {
-    render(
-      <Editor
-        content="const x = 1"
-        onChange={vi.fn()}
-        language="javascript"
-        onFormat={vi.fn()}
-      />,
-    );
-    expect(screen.queryByTitle('Format file (Prettier)')).not.toBeInTheDocument();
-  });
-
-  it('does NOT render the Format button when onFormat is not provided', () => {
-    render(
-      <Editor content="const x = 1" onChange={vi.fn()} language="javascript" />,
-    );
-    expect(screen.queryByTitle('Format file (Prettier)')).not.toBeInTheDocument();
-  });
-
-  it('does NOT render the Format button in prose mode', () => {
-    const onFormat = vi.fn();
-    render(<Editor content="text" onChange={vi.fn()} onFormat={onFormat} />);
-    expect(screen.queryByTitle('Format file (Prettier)')).not.toBeInTheDocument();
-  });
-
-  it('⌥F keyboard shortcut calls onFormat in code mode', async () => {
-    const onFormat = vi.fn();
-    const { container } = render(
-      <Editor
-        content="const x = 1"
-        onChange={vi.fn()}
-        language="javascript"
-        onFormat={onFormat}
-      />,
-    );
-    await act(async () => {});
-
-    const wrapper = container.querySelector('.editor-wrapper')!;
-    fireEvent.keyDown(wrapper, { key: 'f', altKey: true });
-    expect(onFormat).toHaveBeenCalledOnce();
-  });
-});
-
 // ── isLocked prop ─────────────────────────────────────────────────────────────
 describe('Editor — isLocked prop', () => {
   it('sets data-locked attribute when isLocked=true', () => {

@@ -2,11 +2,11 @@
 # release-version.sh  —  bump semver + sync manifests + trigger full release
 #
 # Usage:
-#   ./scripts/release-version.sh              # bump patch + macOS + Windows + iOS
+#   ./scripts/release-version.sh              # bump patch + macOS + Windows
 #   ./scripts/release-version.sh minor        # bump minor + trigger full release
 #   ./scripts/release-version.sh major        # bump major + trigger full release
 #   ./scripts/release-version.sh 1.2.3        # set explicit version + trigger full release
-#   ./scripts/release-version.sh patch --no-ios
+#   ./scripts/release-version.sh patch --with-ios  # explicitly include parked mobile target
 #   ./scripts/release-version.sh patch --no-wait-windows
 #
 # Notes:
@@ -28,7 +28,7 @@ RELEASES_JSON="$ROOT_DIR/landing/releases.json"
 LATEST_JSON="$ROOT_DIR/update/latest.json"
 
 BUMP="patch"
-RUN_IOS=true
+RUN_IOS=false
 WAIT_WINDOWS=true
 POSITIONAL_SET=false
 
@@ -38,7 +38,8 @@ Usage:
   ./scripts/release-version.sh [patch|minor|major|x.y.z] [options]
 
 Options:
-  --no-ios             Skip iOS/TestFlight
+  --with-ios           Include parked iOS/TestFlight target (desktop-only by default)
+  --no-ios             Skip iOS/TestFlight (kept for compatibility)
   --no-wait-windows    Trigger Windows build but do not wait for completion
   -h, --help           Show this help
 EOF
@@ -62,6 +63,10 @@ while [[ $# -gt 0 ]]; do
       fi
       BUMP="$1"
       POSITIONAL_SET=true
+      shift
+      ;;
+    --with-ios)
+      RUN_IOS=true
       shift
       ;;
     --no-ios)

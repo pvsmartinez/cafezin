@@ -11,15 +11,11 @@ export interface AgentTabProps {
   setWsAgent: (v: string) => void;
   wsMarkdownMermaid: CapabilityOverrideMode;
   setWsMarkdownMermaid: (v: CapabilityOverrideMode) => void;
-  wsCanvasAgentTools: CapabilityOverrideMode;
-  setWsCanvasAgentTools: (v: CapabilityOverrideMode) => void;
-  wsSpreadsheetAgentTools: CapabilityOverrideMode;
-  setWsSpreadsheetAgentTools: (v: CapabilityOverrideMode) => void;
   wsWebAgentTools: CapabilityOverrideMode;
   setWsWebAgentTools: (v: CapabilityOverrideMode) => void;
   wsGitHubClientId: string;
   setWsGitHubClientId: (v: string) => void;
-  effectiveCapabilityState: { markdownMermaid: boolean; canvas: boolean; spreadsheet: boolean; web: boolean } | null;
+  effectiveCapabilityState: { markdownMermaid: boolean; web: boolean } | null;
   getCapabilityModeDescription: (
     mode: CapabilityOverrideMode,
     effective: boolean,
@@ -38,10 +34,6 @@ export function AgentTab({
   setWsAgent,
   wsMarkdownMermaid,
   setWsMarkdownMermaid,
-  wsCanvasAgentTools,
-  setWsCanvasAgentTools,
-  wsSpreadsheetAgentTools,
-  setWsSpreadsheetAgentTools,
   wsWebAgentTools,
   setWsWebAgentTools,
   wsGitHubClientId,
@@ -111,38 +103,6 @@ export function AgentTab({
             className="sm-select"
             value={wsMarkdownMermaid}
             onChange={(e) => setWsMarkdownMermaid(e.target.value as CapabilityOverrideMode)}
-          >
-            <option value="auto">{t('settings.modeAuto')}</option>
-            <option value="on">{t('settings.modeOn')}</option>
-            <option value="off">{t('settings.modeOff')}</option>
-          </select>
-        </div>
-
-        <div className="sm-row">
-          <div className="sm-row-label">
-            <span>{t('settings.canvasToolsLabel')}</span>
-            <span className="sm-row-desc">{t('settings.canvasToolsDesc')} {getCapabilityModeDescription(wsCanvasAgentTools, effectiveCapabilityState?.canvas ?? false, t('settings.enabledShort'), t('settings.disabledShort'))}</span>
-          </div>
-          <select
-            className="sm-select"
-            value={wsCanvasAgentTools}
-            onChange={(e) => setWsCanvasAgentTools(e.target.value as CapabilityOverrideMode)}
-          >
-            <option value="auto">{t('settings.modeAuto')}</option>
-            <option value="on">{t('settings.modeOn')}</option>
-            <option value="off">{t('settings.modeOff')}</option>
-          </select>
-        </div>
-
-        <div className="sm-row">
-          <div className="sm-row-label">
-            <span>{t('settings.spreadsheetToolsLabel')}</span>
-            <span className="sm-row-desc">{t('settings.spreadsheetToolsDesc')} {getCapabilityModeDescription(wsSpreadsheetAgentTools, effectiveCapabilityState?.spreadsheet ?? false, t('settings.enabledShort'), t('settings.disabledShort'))}</span>
-          </div>
-          <select
-            className="sm-select"
-            value={wsSpreadsheetAgentTools}
-            onChange={(e) => setWsSpreadsheetAgentTools(e.target.value as CapabilityOverrideMode)}
           >
             <option value="auto">{t('settings.modeAuto')}</option>
             <option value="on">{t('settings.modeOn')}</option>

@@ -1,7 +1,7 @@
 [package]
 name = "app"
 version = "0.1.15"
-description = "Cafezin — AI-assisted creative workspace"
+description = "Cafezin — local-first book authoring"
 authors = ["Pedro Martinez"]
 edition = "2021"
 
@@ -49,3 +49,8 @@ mas = ["dep:git2"]
 # the Microsoft Store handles updates instead.
 # Build with: npx tauri build --no-bundle --features msix
 msix = []
+
+# Keep local authoring builds compact; release settings remain unchanged.
+[profile.dev]
+debug = 1
+incremental = false

@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import type { MutableRefObject } from 'react';
-import type { Editor as TldrawEditor } from 'tldraw';
 import { saveWorkspaceConfig } from '../services/workspace';
 import {
   normalizeWorkspaceExportConfig,
@@ -12,9 +11,7 @@ interface UseExportOptions {
   workspace: Workspace | null;
   activeFile: string | null;
   content: string;
-  canvasEditorRef: MutableRefObject<TldrawEditor | null>;
   activeTabId: string | null;
-  mountedRef: MutableRefObject<boolean>;
   switchToTab: (path: string) => void;
   /** A ref whose .current always points to the latest handleOpenFile implementation. */
   handleOpenFileRef: MutableRefObject<(path: string) => void | Promise<void>>;
@@ -26,9 +23,7 @@ export function useExport({
   workspace,
   activeFile,
   content,
-  canvasEditorRef,
   activeTabId,
-  mountedRef,
   switchToTab,
   handleOpenFileRef,
   refreshWorkspace,
@@ -59,36 +54,16 @@ export function useExport({
   }
 
   async function handleOpenFileForExport(relPath: string): Promise<void> {
-    // If the canvas is already the active tab with a live editor, nothing to open
-    if (relPath === activeFile && canvasEditorRef.current) return;
-
     exportRestoreTabRef.current = activeTabId;
     setExportLock(true);
     setExportLockState((current) => current ?? {
-      title: 'Exporting canvas…',
+      title: 'Exporting…',
       detail: `Opening ${relPath}…`,
       cancelRequested: false,
     });
-    // Null the ref so we can detect the fresh mount below
-    canvasEditorRef.current = null;
 
     try {
       await handleOpenFileRef.current(relPath);
-      // Poll until tldraw Editor is mounted (key={activeFile} on CanvasEditor remounts on switch).
-      // The `mountedRef` guard ensures the poll stops immediately if the component unmounts
-      // (e.g. user switches workspace mid-export), preventing ghost state updates.
-      await new Promise<void>((resolve, reject) => {
-        const start = Date.now();
-        let timerId: ReturnType<typeof setTimeout> | null = null;
-        const check = () => {
-          if (!mountedRef.current) { reject(new Error('Component unmounted during export')); return; }
-          if (canvasEditorRef.current) { resolve(); return; }
-          if (Date.now() - start > 10_000) { reject(new Error('Canvas editor did not mount in time')); return; }
-          timerId = setTimeout(check, 80);
-        };
-        check();
-        void timerId;
-      });
     } catch (e) {
       handleRestoreAfterExport();
       throw e;

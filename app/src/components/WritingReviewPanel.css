@@ -1,0 +1,96 @@
+.writing-review-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 1000);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 45%);
+}
+
+.writing-review {
+  width: min(920px, 100%);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-xl);
+}
+
+.writing-review-header,
+.writing-review-file,
+.writing-review-change footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.writing-review-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.writing-review h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.writing-review h2 span { color: var(--text-muted); font-size: 13px; margin-left: 8px; }
+.writing-review button {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.writing-review button:hover { background: var(--surface2); }
+.writing-review button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.writing-review button:disabled { opacity: 0.5; cursor: not-allowed; }
+.writing-review-header > button { font-size: 22px; border: 0; padding: 0 8px; }
+.writing-review-body { padding: 20px; overflow-y: auto; }
+.writing-review-empty { color: var(--text-muted); margin: 24px 0; text-align: center; }
+.writing-review-change + .writing-review-change { margin-top: 28px; }
+.writing-review-file { margin-bottom: 12px; font-size: 13px; }
+.writing-review-file button {
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  background: none;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.writing-review-file span { color: var(--text-muted); font-size: 11px; }
+.writing-review-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.writing-review-comparison section {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.writing-review-comparison h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.writing-review-comparison pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.7;
+}
+.writing-review-after { border-left: 3px solid var(--accent) !important; }
+.writing-review-change footer { justify-content: flex-end; margin-top: 12px; font-size: 12px; }
+.writing-review button.writing-review-accept { border-color: var(--accent); }
+
+@media (max-width: 640px) {
+  .writing-review-backdrop { padding: 12px; }
+  .writing-review-comparison { grid-template-columns: 1fr; }
+  .writing-review-body { padding: 14px; }
+}

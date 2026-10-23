@@ -2,7 +2,7 @@
  * Risk classification for agent tools.
  *
  * Three levels:
- *   low    — reads, writes, searches, canvas edits, config. Always allowed.
+ *   low    — reads, writes, searches, config. Always allowed.
  *   medium — structural operations (rename, mass scaffold). Requires user permission
  *            once per session or permanently (stored in workspace config).
  *   high   — destructive/external side-effects (delete, shell, publish).
@@ -35,19 +35,11 @@ const TOOL_RISK_MAP: Record<string, RiskLevel> = {
   write_workspace_file:   'low',
   patch_workspace_file:   'low',
   multi_patch:            'low',
-  write_spreadsheet:      'low',
-  read_spreadsheet:       'low',
 
   // ── Structural file operations ────────────────────────────────────────────
   rename_workspace_file:  'medium',
   scaffold_workspace:     'medium',
 
-  // ── Canvas ───────────────────────────────────────────────────────────────
-  list_canvas_shapes:     'low',
-  canvas_op:              'low',
-  canvas_screenshot:      'low',
-  screenshot_preview:     'low',
-  add_canvas_image:       'low',
 
   // ── Web / external ───────────────────────────────────────────────────────
   web_search:             'low',
@@ -67,8 +59,6 @@ const TOOL_RISK_MAP: Record<string, RiskLevel> = {
 
   // ── High-risk: destructive / external side-effects ───────────────────────
   delete_workspace_file:  'high',
-  run_command:            'high',
-  publish_vercel:         'high',
 };
 
 /** Return the risk level for a tool. Unknown tools default to 'medium'. */
@@ -95,8 +85,6 @@ export const TOOL_FRIENDLY_NAMES: Record<string, string> = {
   rename_workspace_file: 'Renomear arquivo',
   scaffold_workspace:    'Criar estrutura de arquivos',
   delete_workspace_file: 'Excluir arquivo/pasta',
-  run_command:           'Executar comando no terminal',
-  publish_vercel:        'Publicar no Vercel',
 };
 
 export function getToolFriendlyName(toolName: string): string {

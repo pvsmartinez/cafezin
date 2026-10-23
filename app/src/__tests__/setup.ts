@@ -96,14 +96,6 @@ vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
 }));
 
-// ── Mock tldraw ──────────────────────────────────────────────────────────────
-vi.mock('tldraw', () => ({
-  createShapeId: vi.fn(() => `shape:${Math.random().toString(36).slice(2)}`),
-  renderPlaintextFromRichText: vi.fn((_editor: unknown, rt: { text?: string }) => rt?.text ?? ''),
-  toRichText: vi.fn((text: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [] }], text })),
-  Tldraw: vi.fn(() => null),
-}));
-
 // ── Mock @uiw/react-codemirror ───────────────────────────────────────────────
 // CodeMirror requires a real browser canvas/layout engine; swap it out with a
 // lightweight textarea for component-level tests.

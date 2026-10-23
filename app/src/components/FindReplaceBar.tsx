@@ -3,7 +3,6 @@
  *
  * For text/code files (CodeMirror): uses @codemirror/search SearchQuery API.
  * For markdown files (Tiptap): searches document text directly via ProseMirror.
- * For canvas files (tldraw): searches shape text and zooms between matches.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -21,7 +20,6 @@ import { SearchCursor } from '@codemirror/search';
 import type { EditorHandle } from './Editor';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import type { Node as PMNode } from '@tiptap/pm/model';
-import type { Editor as TldrawEditor, TLShape } from 'tldraw';
 import './FindReplaceBar.css';
 
 export interface FindReplaceBarProps {
@@ -30,34 +28,7 @@ export interface FindReplaceBarProps {
   onClose: () => void;
   /** CodeMirror editor ref — present when a text/code file is open */
   editorRef?: React.RefObject<EditorHandle | null>;
-  /** tldraw editor — present when a canvas is open */
-  canvasEditor?: TldrawEditor | null;
-  /** 'editor' | 'canvas' | null */
   fileKind?: string | null;
-}
-
-// ── Canvas helpers ────────────────────────────────────────────────────────────
-function canvasMatches(
-  editor: TldrawEditor,
-  needle: string,
-  caseSensitive: boolean,
-): TLShape[] {
-  if (!needle) return [];
-  const shapes = editor.getCurrentPageShapes();
-  return shapes.filter((s) => {
-    const text = (s.props as Record<string, unknown>).text as string | undefined;
-    if (!text) return false;
-    return caseSensitive
-      ? text.includes(needle)
-      : text.toLowerCase().includes(needle.toLowerCase());
-  });
-}
-
-function zoomToShape(editor: TldrawEditor, shape: TLShape) {
-  const bounds = editor.getShapePageBounds(shape.id);
-  if (!bounds) return;
-  editor.zoomToBounds(bounds, { animation: { duration: 200 }, inset: 80 });
-  editor.select(shape.id);
 }
 
 // ── Tiptap search helpers ─────────────────────────────────────────────────────
@@ -150,7 +121,6 @@ export default function FindReplaceBar({
   open,
   onClose,
   editorRef,
-  canvasEditor,
   fileKind,
 }: FindReplaceBarProps) {
   const [query, setQuery] = useState('');
@@ -160,9 +130,6 @@ export default function FindReplaceBar({
   const [wholeWord, setWholeWord] = useState(false);
   const [showReplace, setShowReplace] = useState(false);
 
-  // Canvas navigation state
-  const [canvasMatchIdx, setCanvasMatchIdx] = useState(0);
-  const [canvasMatchCount, setCanvasMatchCount] = useState(0);
   const [cmMatchCount, setCmMatchCount] = useState(0);
   // Tiptap navigation state
   const [tiptapMatchIdx, setTiptapMatchIdx] = useState(0);
@@ -180,8 +147,6 @@ export default function FindReplaceBar({
 
   // Build and apply search query whenever query/options change
   const applyQuery = useCallback(() => {
-    if (fileKind === 'canvas') return;
-
     // ── Tiptap path ──────────────────────────────────────────────────────────
     const tiptap = editorRef?.current?.getTiptapEditor?.();
     if (tiptap) {
@@ -228,24 +193,7 @@ export default function FindReplaceBar({
     applyQuery();
   }, [applyQuery]);
 
-  // Canvas: recount matches when query/options/canvasEditor change
-  useEffect(() => {
-    if (fileKind !== 'canvas' || !canvasEditor) return;
-    const matches = canvasMatches(canvasEditor, query, caseSensitive);
-    setCanvasMatchCount(matches.length);
-    setCanvasMatchIdx(0);
-    if (matches.length > 0) zoomToShape(canvasEditor, matches[0]);
-  }, [query, caseSensitive, canvasEditor, fileKind]);
-
   function handleFindNext() {
-    if (fileKind === 'canvas') {
-      if (!canvasEditor || canvasMatchCount === 0) return;
-      const matches = canvasMatches(canvasEditor, query, caseSensitive);
-      const idx = (canvasMatchIdx + 1) % matches.length;
-      setCanvasMatchIdx(idx);
-      zoomToShape(canvasEditor, matches[idx]);
-      return;
-    }
     const tiptap = editorRef?.current?.getTiptapEditor?.();
     if (tiptap) {
       if (tiptapMatches.length === 0) return;
@@ -261,14 +209,6 @@ export default function FindReplaceBar({
   }
 
   function handleFindPrev() {
-    if (fileKind === 'canvas') {
-      if (!canvasEditor || canvasMatchCount === 0) return;
-      const matches = canvasMatches(canvasEditor, query, caseSensitive);
-      const idx = (canvasMatchIdx - 1 + matches.length) % matches.length;
-      setCanvasMatchIdx(idx);
-      zoomToShape(canvasEditor, matches[idx]);
-      return;
-    }
     const tiptap = editorRef?.current?.getTiptapEditor?.();
     if (tiptap) {
       if (tiptapMatches.length === 0) return;
@@ -305,7 +245,7 @@ export default function FindReplaceBar({
       return;
     }
     const view = editorRef?.current?.getView();
-    if (!view || fileKind === 'canvas') return;
+    if (!view) return;
     applyQuery();
     replaceNext(view);
     applyQuery(); // recount after replace
@@ -325,7 +265,7 @@ export default function FindReplaceBar({
       return;
     }
     const view = editorRef?.current?.getView();
-    if (!view || fileKind === 'canvas') return;
+    if (!view) return;
     applyQuery();
     replaceAll(view);
     applyQuery(); // recount after replace
@@ -367,9 +307,8 @@ export default function FindReplaceBar({
 
   if (!open) return null;
 
-  const isCanvas = fileKind === 'canvas';
-  const isTiptap = !isCanvas && !!(editorRef?.current?.getTiptapEditor?.());
-  const matchCount = isCanvas ? canvasMatchCount : isTiptap ? tiptapMatches.length : cmMatchCount;
+  const isTiptap = !!(editorRef?.current?.getTiptapEditor?.());
+  const matchCount = isTiptap ? tiptapMatches.length : cmMatchCount;
 
   return (
     <div className="frb-root" onKeyDown={handleKeyDown} role="dialog" aria-label="Find and replace">
@@ -412,13 +351,11 @@ export default function FindReplaceBar({
               className={`frb-opt${wholeWord ? ' active' : ''}`}
               onClick={() => setWholeWord((v) => !v)}
               title="Whole word"
-              disabled={isCanvas}
             >[W]</button>
             <button
               className={`frb-opt${useRegex ? ' active' : ''}`}
               onClick={() => setUseRegex((v) => !v)}
               title="Use regex"
-              disabled={isCanvas}
             >.*</button>
           </div>
 
@@ -432,7 +369,7 @@ export default function FindReplaceBar({
         </div>
 
         {/* ── Replace row ── */}
-        {showReplace && !isCanvas && (
+        {showReplace && (
           <div className="frb-row frb-replace-row">
             <div className="frb-input-wrap">
               <input

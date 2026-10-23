@@ -499,7 +499,9 @@
     "wsEmptyHomeTitle": "Abrir workspace home",
     "wsEmptyHint": "Nenhum arquivo aberto — comece pela home ou peça ajuda à IA.",
     "wsEmptyHomeBtn": "Abrir home",
-    "wsEmptyAskAI": "Perguntar à IA"
+    "wsEmptyAskAI": "Perguntar à IA",
+    "unsupportedFormatTitle": "Formato não suportado",
+    "unsupportedFormatHint": "Este formato saiu do foco de escrita do Cafezin. O arquivo continua no workspace, intacto — abra Markdown ou texto para escrever."
   },
   "premiumGate": {
     "titleNotLoggedIn": "Libere a IA com o plano Basic",

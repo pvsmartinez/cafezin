@@ -57,7 +57,7 @@ function buildExportSystemSummary(workspaceExportConfig?: WorkspaceExportConfig)
 function buildCoreAppSummary(): string {
   return `You are the Cafezin AI assistant — a thoughtful co-pilot for writers, educators, researchers, and knowledge workers.
 
-Cafezin is a local-first desktop productivity workspace: Markdown documents, tldraw visual canvases, spreadsheets, and code files — all stored on the user's machine, no cloud backend.
+Cafezin is a local-first desktop productivity workspace for Markdown documents — stored on the user's machine, no cloud backend.
 
 Identity and work style:
 • Co-pilot, not author. Suggest, draft, scaffold — but the user makes every decision.
@@ -72,20 +72,11 @@ function buildFileTypeSummary(): string {
   return `Primary file types:
 • Markdown (.md): main writing format, previewed live.
 • PDF (.pdf): use read_workspace_file to extract and read text from any page. Read-only (cannot write back to PDF).
-• Canvas (.tldr.json): tldraw whiteboards for slides, diagrams, and visual work. Use canvas_op only — never write raw JSON.
-• Spreadsheet (.csv, .tsv, .xlsx): tabular data. Use read_spreadsheet / write_spreadsheet.
-• Code (.ts, .tsx, .js, .py, .sh): edited with the code pane.
+• Plain-text files (.txt, .py, .sh, …): edited as plain text without syntax highlighting.
+
+Legacy/binary formats (spreadsheets, Office docs, .tldr.json canvas, RTF) are NOT supported: never read or write them; tell the user the format is not supported and the file was left untouched.
 
 For detailed rules per file type, call read_skill with the relevant skill name before working on that type.`;
-}
-
-function buildCanvasProtocol(): string {
-  return `Canvas — critical rules (call read_skill("canvas") for full command reference before canvas work):
-• Only canvas_op modifies canvases — never write raw JSON to .tldr.json.
-• Only list_canvas_shapes inspects canvases — never read_workspace_file on .tldr.json.
-• canvas_op always requires expected_file.
-• list_canvas_shapes only shows the currently open canvas — confirm "Canvas file:" before editing.
-• After canvas edits, call canvas_screenshot once and fix visible problems before replying.`;
 }
 
 function buildToolUsageProtocol(): string {
@@ -112,10 +103,6 @@ function buildMemoryProtocol(): string {
 • For deeper memory management rules and the memory vs. routine decision guide, call read_skill("memory").`;
 }
 
-function buildVerifyProtocol(): string {
-  return `Code workspace: call read_skill("code") before editing code files — it contains the full verification flow (tsc, tests, lint) and editing rules.`;
-}
-
 function buildBookProtocol(): string {
   return `Long-form writing: call read_skill("book") before a writing session — it covers the full workflow: workspace exploration, incremental drafting, continuity search, memory use for characters and plot, and export.`;
 }
@@ -128,14 +115,6 @@ function buildTaskProtocol(): string {
 • When a tracked task exists, check its step list first. Never recreate a task that already exists — it survives context summarization.
 • Before reporting done, reconcile every step (none should remain [pending] or [in-progress]).
 • For full task creation and lifecycle details, call read_skill("tasks").`;
-}
-
-function buildHtmlGuidance(): string {
-  return `HTML / interactive demo: call read_skill("html") — it covers layout best practices, asset rules, JavaScript patterns, and the screenshot_preview verification loop.`;
-}
-
-function buildSpreadsheetProtocol(): string {
-  return `Spreadsheet: call read_skill("spreadsheet") before working with CSV/TSV/XLSX files — it contains tool selection rules, cell-level editing patterns, and data integrity guidelines.`;
 }
 
 function buildActiveTaskSummary(activeTask?: Task | null): string {
@@ -303,7 +282,7 @@ export function useSystemPrompt({
 • If the request involves files and you haven't explored the workspace yet, call outline_workspace or list_workspace_files before making assumptions.
 • Workspace memory and user profile are injected at the bottom of this prompt — read them before any long task.
 • If the user says "continue where we left off" or references a past session, call read_workspace_file(path=".cafezin/copilot-log.jsonl") and find archive entries (entryType:"archive") to restore context.
-• Load skill protocols just-in-time: call read_skill("canvas") immediately before canvas work, read_skill("book") before a writing session, read_skill("code") before editing code, read_skill("export") before running an export, etc. Never load skills preemptively — only when you are about to use them.`
+• Load skill protocols just-in-time: call read_skill("book") before a writing session, read_skill("export") before running an export, etc. Never load skills preemptively — only when you are about to use them.`
         : '',
 
       // ── Language preference ───────────────────────────────────
@@ -320,11 +299,6 @@ export function useSystemPrompt({
       // ── File types ────────────────────────────────────────────
       buildFileTypeSummary(),
 
-      // ── Canvas / visual editing ───────────────────────────────
-      capabilityState.canvas ? buildCanvasProtocol() : '',
-
-      capabilityState.spreadsheet ? buildSpreadsheetProtocol() : '',
-
       hasTools ? buildExportSystemSummary(workspaceExportConfig ?? workspace?.config?.exportConfig) : '',
       hasTools ? buildActiveTaskSummary(activeTask) : '',
 
@@ -332,14 +306,11 @@ export function useSystemPrompt({
         ? [
             buildToolUsageProtocol(),
             buildMemoryProtocol(),
-            ...(workspaceProfile.codeWorkspace ? [buildVerifyProtocol()] : []),
             ...(workspaceProfile.longFormWriting ? [buildBookProtocol()] : []),
             buildTaskProtocol(),
             `Workspace capability switches (configured in Agent Settings):
-• Canvas tools: ${capabilityState.canvas ? 'enabled' : 'disabled — to enable, open [Agent Settings](cafezin://settings?tab=agent)'}
-• Spreadsheet tools: ${capabilityState.spreadsheet ? 'enabled' : 'disabled — to enable, open [Agent Settings](cafezin://settings?tab=agent)'}
-• Web/browser tools: ${capabilityState.web ? 'enabled' : 'disabled — to enable, open [Agent Settings](cafezin://settings?tab=agent)'}
-• If a user asks you to do something that requires a disabled tool group, tell them the capability is disabled and suggest they open [Agent Settings](cafezin://settings?tab=agent) to enable it. Never attempt to use disabled tool groups.`,
+• Web research (search, images, URL fetch): ${capabilityState.search ? 'enabled' : 'disabled — to enable, open [Agent Settings](cafezin://settings?tab=agent)'}
+• Never attempt to use disabled tool groups. Explain the relevant switch if needed; do not change capability permissions yourself.`,
           ].join('\n\n')
         : 'No workspace is currently open, so file tools are unavailable.',
 
@@ -353,10 +324,6 @@ export function useSystemPrompt({
           : '',
       truncatedDocumentContext ? `\nCurrent document context:\n${truncatedDocumentContext}` : '',
 
-      // ── HTML / interactive demo guidance ──────────────────────
-      capabilityState.web && activeFile && (activeFile.endsWith('.html') || activeFile.endsWith('.htm'))
-        ? buildHtmlGuidance()
-        : '',
     ].filter(Boolean).join('\n\n'),
-  }), [hasTools, model, workspaceFileList, summarizedUserProfile, summarizedMemory, workspaceGuidance, truncatedDocumentContext, activeFile, workspace?.config, activeTask, capabilityState.canvas, capabilityState.spreadsheet, capabilityState.web, workspaceProfile.codeWorkspace, workspaceProfile.longFormWriting]);
+  }), [hasTools, model, workspaceFileList, summarizedUserProfile, summarizedMemory, workspaceGuidance, truncatedDocumentContext, activeFile, workspace?.config, activeTask, capabilityState.web, capabilityState.search, workspaceProfile.longFormWriting]);
 }

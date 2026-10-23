@@ -34,15 +34,12 @@ describe('getToolRiskLevel', () => {
     expect(getToolRiskLevel('search_workspace')).toBe('low');
     expect(getToolRiskLevel('web_search')).toBe('low');
     expect(getToolRiskLevel('fetch_url')).toBe('low');
-    expect(getToolRiskLevel('canvas_screenshot')).toBe('low');
   });
 
   it('classifies write/edit tools as low', () => {
     expect(getToolRiskLevel('write_workspace_file')).toBe('low');
     expect(getToolRiskLevel('patch_workspace_file')).toBe('low');
     expect(getToolRiskLevel('multi_patch')).toBe('low');
-    expect(getToolRiskLevel('canvas_op')).toBe('low');
-    expect(getToolRiskLevel('write_spreadsheet')).toBe('low');
     expect(getToolRiskLevel('create_task')).toBe('low');
     expect(getToolRiskLevel('update_task_step')).toBe('low');
     expect(getToolRiskLevel('list_tasks')).toBe('low');
@@ -55,8 +52,6 @@ describe('getToolRiskLevel', () => {
 
   it('classifies destructive tools as high', () => {
     expect(getToolRiskLevel('delete_workspace_file')).toBe('high');
-    expect(getToolRiskLevel('run_command')).toBe('high');
-    expect(getToolRiskLevel('publish_vercel')).toBe('high');
   });
 
   it('defaults unknown tools to medium (safe fallback)', () => {
@@ -220,7 +215,7 @@ describe('applyRiskGate — forever workspace grant', () => {
       workspaceConfig: { name: 'test', riskPermissions: { high: 'forever' } },
     });
 
-    await gated('run_command', { command: 'echo hello' });
+    await gated('delete_workspace_file', { path: 'notes.md' });
     expect(onAskUser).not.toHaveBeenCalled();
   });
 });
@@ -239,22 +234,12 @@ describe('applyRiskGate — high-risk tools', () => {
     expect(question).toContain('notes.md');
   });
 
-  it('prompts for run_command and includes command in question', async () => {
-    const { executor } = makeExecutor();
-    const onAskUser = makeAskUser('Permitir nesta sessão');
-    const gated = applyRiskGate(executor, { onAskUser, sessionGranted: new Set() });
-
-    await gated('run_command', { command: 'rm -rf /' });
-    const [question] = (onAskUser as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(question).toContain('rm -rf /');
-  });
-
-  it('prompts for publish_vercel', async () => {
+  it('blocks high-risk tools when the user denies', async () => {
     const { executor } = makeExecutor();
     const onAskUser = makeAskUser('Não permitir');
     const gated = applyRiskGate(executor, { onAskUser, sessionGranted: new Set() });
 
-    const result = await gated('publish_vercel', { projectName: 'my-site' });
+    const result = await gated('delete_workspace_file', { path: 'notes.md' });
     expect(result).toContain('bloqueada');
     expect(onAskUser).toHaveBeenCalledOnce();
   });

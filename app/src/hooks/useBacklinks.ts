@@ -11,10 +11,19 @@
  *   [text](../dir/filename.md)
  *   [[filename]]                 wiki-style (extension optional)
  *   [[dir/filename]]
+ *   [[filename|Label]]           wiki-style with custom label
+ *
+ * Parsing/resolution is shared with MarkdownPreview via utils/documentLinks.
  */
 import { useEffect, useRef, useState } from 'react';
 import { readTextFile } from '../services/fs';
+import { WORKSPACE_MUTATED_EVENT } from '../services/workspace';
 import type { Workspace } from '../types';
+import {
+  labelFromPath,
+  parseDocumentLinks,
+  resolveDocumentLink,
+} from '../utils/documentLinks';
 
 export interface LinkRef {
   /** Workspace-relative path of the file */
@@ -29,52 +38,20 @@ export interface BacklinksResult {
   loading: boolean;
 }
 
-/** Extract all markdown link targets from a piece of text */
-function extractLinks(text: string, sourcePath: string): string[] {
+/** Extract all markdown link targets from a piece of text (shared parser) */
+function extractLinks(text: string, sourcePath: string, existingPaths: string[]): string[] {
   const targets: string[] = [];
   const sourceDir = sourcePath.includes('/')
     ? sourcePath.split('/').slice(0, -1).join('/')
     : '';
 
-  // Standard markdown links: [text](target)
-  const mdLinkRe = /\[([^\]]*)\]\(([^)#]+)\)/g;
-  let m: RegExpExecArray | null;
-  while ((m = mdLinkRe.exec(text)) !== null) {
-    const raw = m[2].trim();
-    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#')) continue;
-    // Resolve relative path
-    const resolved = resolvePath(sourceDir, raw);
-    if (resolved) targets.push(resolved);
-  }
-
-  // Wiki-style links: [[filename]] or [[dir/filename]]
-  const wikiRe = /\[\[([^\]|#]+?)(?:\|[^\]]+)?\]\]/g;
-  while ((m = wikiRe.exec(text)) !== null) {
-    const raw = m[1].trim();
-    if (!raw) continue;
-    // Add .md extension if missing
-    const withExt = raw.includes('.') ? raw : raw + '.md';
-    const resolved = resolvePath(sourceDir, withExt);
+  const links = parseDocumentLinks(text);
+  for (const link of links) {
+    const resolved = resolveDocumentLink(link.rawTarget, sourceDir, existingPaths);
     if (resolved) targets.push(resolved);
   }
 
   return [...new Set(targets)];
-}
-
-function resolvePath(fromDir: string, relativePath: string): string | null {
-  if (!relativePath) return null;
-  const parts = (fromDir ? fromDir + '/' + relativePath : relativePath).split('/');
-  const resolved: string[] = [];
-  for (const p of parts) {
-    if (p === '..') { resolved.pop(); }
-    else if (p !== '.') resolved.push(p);
-  }
-  return resolved.join('/') || null;
-}
-
-function labelFromPath(path: string): string {
-  const name = path.split('/').pop() ?? path;
-  return name.replace(/\.(md|mdx|txt)$/i, '');
 }
 
 function sameLinkRefs(left: LinkRef[], right: LinkRef[]): boolean {
@@ -110,6 +87,18 @@ export function useBacklinks(
   const [backlinks, setBacklinks] = useState<LinkRef[]>([]);
   const [outlinks, setOutlinks] = useState<LinkRef[]>([]);
   const [loading, setLoading] = useState(false);
+  const [mutationRevision, setMutationRevision] = useState(0);
+
+  useEffect(() => {
+    if (!enabled || !workspace) return;
+    const handleMutation = (event: Event) => {
+      if ((event as CustomEvent<{ workspacePath?: string }>).detail?.workspacePath === workspace.path) {
+        setMutationRevision((revision) => revision + 1);
+      }
+    };
+    window.addEventListener(WORKSPACE_MUTATED_EVENT, handleMutation);
+    return () => window.removeEventListener(WORKSPACE_MUTATED_EVENT, handleMutation);
+  }, [workspace?.path, enabled]);
 
   // Cached link map: Map<filePath, outgoing-link-paths[]>
   // Built once per workspace/file-list change; queried cheaply on tab switches.
@@ -140,11 +129,10 @@ export function useBacklinks(
     }
 
     const mdFiles = collectMdFiles(workspace);
-    const newKey = `${workspace.path}|${mdFiles.join('\0')}`;
+    const newKey = `${workspace.path}|${mutationRevision}|${mdFiles.join('\0')}`;
 
     // File list content unchanged — no need to re-read anything.
     if (newKey === buildKeyRef.current) return;
-    buildKeyRef.current = newKey;
 
     let cancelled = false;
     setLoading(true);
@@ -158,7 +146,9 @@ export function useBacklinks(
           if (cancelled) return null;
           try {
             const text = await readTextFile(`${wsPath}/${filePath}`);
-            return { filePath, links: extractLinks(text, filePath) };
+            // Obsidian-style root fallback: any markdown file in the workspace is a
+            // candidate target for wiki links, regardless of its directory.
+            return { filePath, links: extractLinks(text, filePath, mdFiles) };
           } catch {
             return null; // file unreadable or deleted — skip
           }
@@ -171,6 +161,7 @@ export function useBacklinks(
       for (const result of results) {
         if (result) map.set(result.filePath, result.links);
       }
+      buildKeyRef.current = newKey;
       setLinkMap(map);
       setLoading(false);
     }, 250);
@@ -183,7 +174,7 @@ export function useBacklinks(
   // workspace?.path changes on workspace switch. activeFile is intentionally
   // NOT a dep here — tab switches must not trigger file reads.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace?.path, workspace?.fileTree, enabled]);
+  }, [workspace?.path, workspace?.fileTree, enabled, mutationRevision]);
 
   // ── Effect 2: derive backlinks for the active file — pure in-memory ──────
   // Runs on every tab switch but does ZERO file I/O; just filters the cached map.

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { detectAgentCapabilitiesFromFileTree, getAgentCapabilityState, getAgentWorkspaceProfile } from '../utils/agentCapabilities';
+import {
+  detectAgentCapabilitiesFromFileTree,
+  getAgentCapabilityState,
+  getAgentWorkspaceProfile,
+  isToolEnabledByWorkspace,
+} from '../utils/agentCapabilities';
 import type { FileTreeNode, WorkspaceConfig, WorkspaceIndex } from '../types';
 
 const file = (path: string): FileTreeNode => ({
@@ -26,7 +31,97 @@ describe('agentCapabilities', () => {
 
     expect(state.markdownMermaid).toBe(true);
     expect(state.web).toBe(true);
-    expect(state.canvas).toBe(false);
+  });
+
+  it('keeps web search available in a markdown/empty workspace without HTML files', () => {
+    const markdownSource = {
+      config: { name: 'Livro' },
+      fileTree: [file('01_Manuscript/chapter-01.md'), file('notes/outline.md')],
+    };
+    const markdownWorkspace = getAgentCapabilityState(markdownSource);
+    expect(markdownWorkspace.search).toBe(true);
+    expect(markdownWorkspace.development).toBe(false);
+
+    const emptyWorkspace = getAgentCapabilityState({ name: 'Vazio' });
+    expect(emptyWorkspace.search).toBe(true);
+    expect(emptyWorkspace.development).toBe(false);
+    expect(emptyWorkspace.web).toBe(false);
+
+    expect(isToolEnabledByWorkspace('web_search', markdownSource)).toBe(true);
+    expect(isToolEnabledByWorkspace('fetch_url', markdownSource)).toBe(true);
+    expect(isToolEnabledByWorkspace('search_images', markdownSource)).toBe(true);
+  });
+
+  it('keeps run_command/publish_vercel unavailable (removed development tools)', () => {
+    const source = {
+      config: { name: 'App' },
+      fileTree: [
+        file('package.json'),
+        file('src/App.tsx'),
+        file('src/main.tsx'),
+        file('src/utils.ts'),
+        file('src/data.ts'),
+        file('src/lib.ts'),
+        file('src/view.tsx'),
+        file('src/api.ts'),
+      ],
+    };
+
+    const state = getAgentCapabilityState(source);
+    expect(state.development).toBe(false);
+    expect(isToolEnabledByWorkspace('run_command', source)).toBe(false);
+    expect(isToolEnabledByWorkspace('publish_vercel', source)).toBe(false);
+    expect(isToolEnabledByWorkspace('canvas_op', source)).toBe(false);
+    expect(isToolEnabledByWorkspace('write_spreadsheet', source)).toBe(false);
+
+    expect(state.web).toBe(false);
+  });
+
+  it('does not resurrect removed tools from old development overrides', () => {
+    const markdownTree = [
+      file('01_Manuscript/chapter-01.md'),
+      file('01_Manuscript/chapter-02.md'),
+      file('notes/outline.md'),
+      file('notes/characters.md'),
+      file('notes/research.md'),
+      file('notes/timeline.md'),
+    ];
+
+    const optInSource = {
+      config: { name: 'Livro', features: { development: { agentTools: true } } },
+      fileTree: markdownTree,
+    };
+    const optIn = getAgentCapabilityState(optInSource);
+    expect(optIn.development).toBe(false);
+    expect(isToolEnabledByWorkspace('run_command', optInSource)).toBe(false);
+
+    const codeTree = [
+      file('package.json'),
+      file('src/a.ts'),
+      file('src/b.ts'),
+      file('src/c.ts'),
+      file('src/d.ts'),
+      file('src/e.ts'),
+      file('src/f.ts'),
+      file('src/g.ts'),
+    ];
+    const optOutSource = {
+      config: { name: 'App', features: { development: { agentTools: false } } },
+      fileTree: codeTree,
+    };
+    const optOut = getAgentCapabilityState(optOutSource);
+    expect(optOut.development).toBe(false);
+  });
+
+  it('disables web search via the existing features.web.agentTools=false override', () => {
+    const source = {
+      config: { name: 'Livro', features: { web: { agentTools: false } } },
+      fileTree: [file('notes/outline.md')],
+    };
+    const state = getAgentCapabilityState(source);
+    expect(state.search).toBe(false);
+    expect(isToolEnabledByWorkspace('web_search', source)).toBe(false);
+    expect(isToolEnabledByWorkspace('fetch_url', source)).toBe(false);
   });
 
   it('respects manual markdown mermaid overrides', () => {
@@ -64,9 +159,9 @@ describe('agentCapabilities', () => {
     ]);
 
     expect(detected.markdownMermaid).toBe(false);
-    expect(detected.canvas).toBe(true);
-    expect(detected.web).toBe(true);
-    expect(detected.spreadsheet).toBe(true);
+    expect(detected.web).toBe(true); // HTML file still drives the web guidance capability
+    expect(detected.search).toBe(true);
+    expect(detected.canvas).toBeUndefined();
   });
 
   it('detects a long-form writing workspace from many chapter-like markdown files', () => {

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import {
-  FolderSimple, GlobeSimple, FileText, PaintBrush, FilePdf,
-  Image, FilmStrip, SpeakerSimpleHigh, FileCode, Paperclip, House,
+  FolderSimple, GlobeSimple, FileText, FilePdf,
+  Image, FilmStrip, SpeakerSimpleHigh, Paperclip, House,
 } from '@phosphor-icons/react';
 import type { FileTreeNode } from '../../types';
 import { getFileTypeInfo } from '../../utils/fileType';
 
 // File kinds that can be previewed on mobile
-const PREVIEWABLE_KINDS = new Set(['markdown', 'pdf', 'image', 'video', 'canvas', 'html', 'code']);
+const PREVIEWABLE_KINDS = new Set(['markdown', 'pdf', 'image', 'video', 'audio']);
 
 function FileIcon({ name, isDir }: { name: string; isDir: boolean }) {
   const sz = 16;
@@ -16,13 +16,10 @@ function FileIcon({ name, isDir }: { name: string; isDir: boolean }) {
   const info = getFileTypeInfo(name);
   switch (info.kind) {
     case 'markdown': return <FileText    weight={w} size={sz} />;
-    case 'canvas':   return <PaintBrush  weight={w} size={sz} />;
     case 'pdf':      return <FilePdf     weight={w} size={sz} />;
     case 'image':    return <Image       weight={w} size={sz} />;
     case 'video':    return <FilmStrip   weight={w} size={sz} />;
     case 'audio':    return <SpeakerSimpleHigh weight={w} size={sz} />;
-    case 'html':     return <GlobeSimple weight={w} size={sz} />;
-    case 'code':     return <FileCode    weight={w} size={sz} />;
     default:         return <Paperclip   weight={w} size={sz} />;
   }
 }

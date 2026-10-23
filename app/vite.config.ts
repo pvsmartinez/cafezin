@@ -37,26 +37,17 @@ export default defineConfig(async () => ({
       resolveDependencies(_filename, deps, context) {
         if (context.hostType !== 'html') return deps;
         return deps.filter((dep) =>
-          !dep.includes('vendor-tldraw') &&
           !dep.includes('vendor-export') &&
           !dep.includes('vendor-katex')
         );
       },
     },
     // Tauri desktop app — chunks load from disk, not network.
-    // tldraw and codemirror are monolithic libs; 2 MB is a reasonable ceiling.
+    // CodeMirror and PDF export are split from the writing workspace.
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // tldraw — largest single dep (~1.5 MB unminified)
-          // NOTE: React is intentionally NOT given its own chunk — it must be
-          // bundled into the main entry so it's always available before any
-          // vendor chunk that calls React.createContext / React.forwardRef.
-          if (id.includes('node_modules/tldraw') ||
-              id.includes('node_modules/@tldraw')) {
-            return 'vendor-tldraw';
-          }
           // CodeMirror editor stack — @uiw/react-codemirror must NOT be here
           // because it depends on React; mixing it into vendor-codemirror causes
           // the chunk to execute before vendor-react, leaving React undefined.
@@ -90,7 +81,6 @@ export default defineConfig(async () => ({
           // PDF / ZIP / canvas-capture utilities
           if (id.includes('node_modules/jspdf') ||
               id.includes('node_modules/jszip') ||
-              id.includes('node_modules/html-to-image') ||
               id.includes('node_modules/html2canvas')) {
             return 'vendor-export';
           }

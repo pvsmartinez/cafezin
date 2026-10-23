@@ -3,6 +3,7 @@ import { marked } from 'marked';
 import type { Workspace, WorkspaceFeatureConfig } from '../types';
 import { preprocessMath } from './mathPreprocess';
 import { linkifyWorkspaceReferencesInHtml } from './assistantFileLinks';
+import { preprocessWikiLinksToHtml } from './documentLinks';
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -44,7 +45,7 @@ export function isMermaidRenderingEnabled(features?: WorkspaceFeatureConfig): bo
 
 export function renderMarkdownBaseHtml(content: string): string {
   try {
-    return sanitizeRenderedHtml(marked.parse(preprocessMath(content)) as string);
+    return sanitizeRenderedHtml(marked.parse(preprocessWikiLinksToHtml(preprocessMath(content))) as string);
   } catch {
     return '<p>Failed to render markdown.</p>';
   }

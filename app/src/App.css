@@ -501,7 +501,25 @@ body.theme-light .app {
   min-height: 0;
 }
 
-/* ── Editor area — wraps all viewer/editor/canvas components.
+.md-missing-link {
+  padding: 12px 24px;
+  margin: 0;
+  color: var(--text-muted);
+  background: var(--surface);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.writing-mode-switch {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 5px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* ── Editor area — wraps writing and reference viewers.
    position:relative is required so FindReplaceBar can anchor to top-right. */
 .editor-area {
   flex: 1;

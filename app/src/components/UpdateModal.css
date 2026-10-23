@@ -5,8 +5,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Must beat tldraw portals (~9999) and export-lock (9998) that render   */
-  /* directly into document.body, bypassing isolation: isolate on canvas. */
+  /* Must beat the export-lock overlay (9998) rendered into document.body. */
   z-index: var(--z-top);
   backdrop-filter: blur(3px);
 }

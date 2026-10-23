@@ -30,8 +30,8 @@ const SLIDES: Record<Locale, HelpSlide[]> = {
       eyebrow: 'Como usar o Cafezin',
       title: 'Um workspace para escrever, ensinar, planejar e publicar',
       body: 'Use o Cafezin para livros, aulas, sites, planilhas e qualquer trabalho intelectual que precise de contexto real.',
-      accent: 'Markdown, canvas e IA no mesmo lugar',
-      bullets: ['Escreva livro ou aula em arquivos locais', 'Abra sites e HTML com preview', 'Consulte spreadsheets sem sair do app'],
+      accent: 'Markdown e IA no mesmo lugar',
+      bullets: ['Escreva livro ou aula em arquivos locais', 'Exporte para PDF com um clique', 'Pesquise imagens e PDFs com a IA'],
       Icon: Sparkle,
     },
     {
@@ -52,7 +52,7 @@ const SLIDES: Record<Locale, HelpSlide[]> = {
     },
     {
       eyebrow: 'Casos de uso',
-      title: 'Livro, aula, spreadsheet e site podem conviver no mesmo projeto',
+      title: 'Livro, aula e material podem conviver no mesmo projeto',
       body: 'Monte materiais longos, revise dados, organize pesquisa e publique demos sem espalhar seu trabalho em varias ferramentas soltas.',
       accent: 'Feito para trabalho profundo',
       bullets: ['Capitulos, notas e pesquisa lado a lado', 'Aulas, slides e materiais no mesmo workspace', 'Planilhas e sites como parte do processo'],
@@ -71,9 +71,9 @@ const SLIDES: Record<Locale, HelpSlide[]> = {
     {
       eyebrow: 'How Cafezin works',
       title: 'One workspace for writing, teaching, planning, and publishing',
-      body: 'Use Cafezin for books, lessons, sites, spreadsheets, and any deep work that benefits from real project context.',
-      accent: 'Markdown, canvas, and AI together',
-      bullets: ['Write books and lessons in local files', 'Open sites and HTML with preview', 'Review spreadsheets without leaving the app'],
+      body: 'Use Cafezin for books, lessons, and any deep work that benefits from real project context.',
+      accent: 'Markdown and AI together',
+      bullets: ['Write books and lessons in local files', 'Export to PDF with one click', 'Research images and PDFs with the AI'],
       Icon: Sparkle,
     },
     {
@@ -94,10 +94,10 @@ const SLIDES: Record<Locale, HelpSlide[]> = {
     },
     {
       eyebrow: 'Use cases',
-      title: 'Books, lessons, spreadsheets, and sites can live in one project',
+      title: 'Books, lessons, and material can live in one project',
       body: 'Build long-form material, review data, organize research, and publish demos without scattering your work across disconnected tools.',
       accent: 'Built for deep work',
-      bullets: ['Chapters, notes, and research side by side', 'Lessons, slides, and materials in one workspace', 'Spreadsheets and sites as part of the same process'],
+      bullets: ['Chapters, notes, and research side by side', 'Lessons and materials in one workspace', 'PDF export built in'],
       Icon: Books,
     },
     {

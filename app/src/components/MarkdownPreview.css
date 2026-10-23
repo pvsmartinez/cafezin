@@ -249,6 +249,11 @@
   background: var(--surface);
 }
 
+.md-preview-body .wiki-link {
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
 /* Horizontal rules */
 .md-preview-body hr {
   border: none;

@@ -8,7 +8,7 @@ import './fonts-latin.css';                      /* latin-only @font-face (all s
 import './tokens.css';                         /* Design tokens — compartilhado entre desktop e mobile */
 import App from "./App";
 
-// Lazy: MobileApp pulls in tldraw/pdfjs/marked/DOMPurify/katex. Loading it
+// Lazy: MobileApp pulls in pdfjs/marked/DOMPurify/katex. Loading it
 // statically bloated the desktop entry chunk (~1.3 MB) even though desktop
 // never renders it. The platform is decided before first render, so the
 // correct chunk resolves immediately.

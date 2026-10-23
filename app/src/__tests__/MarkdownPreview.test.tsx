@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import MarkdownPreview from '../components/MarkdownPreview';
 
 vi.mock('mermaid', () => ({
@@ -10,6 +10,38 @@ vi.mock('mermaid', () => ({
     })),
   },
 }));
+
+describe('MarkdownPreview — connected documents', () => {
+  const fileTree = [
+    { name: 'personagens.md', path: 'personagens.md', isDirectory: false },
+    { name: 'capitulo.md', path: 'capitulos/capitulo.md', isDirectory: false },
+  ];
+
+  it('opens a wiki reference using its alias and root fallback', () => {
+    const onNavigate = vi.fn();
+    render(<MarkdownPreview content="Leia [[personagens|as pessoas da história]]."
+      currentFilePath="capitulos/capitulo.md" workspaceFileTree={fileTree}
+      onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByRole('link', { name: 'as pessoas da história' }));
+    expect(onNavigate).toHaveBeenCalledWith('personagens.md');
+  });
+
+  it('does not navigate or create a file for a missing reference', () => {
+    const onNavigate = vi.fn();
+    render(<MarkdownPreview content="[[ainda-nao-existe]]" workspaceFileTree={fileTree}
+      onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByRole('link'));
+    expect(onNavigate).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent('Nenhum arquivo foi criado');
+  });
+
+  it('keeps wiki syntax literal in inline and fenced code', () => {
+    const { container } = render(<MarkdownPreview
+      content={'`[[personagens]]`\n\n```md\n[[personagens]]\n```'} />);
+    expect(container.querySelector('a')).not.toBeInTheDocument();
+    expect(container.querySelector('code')).toHaveTextContent('[[personagens]]');
+  });
+});
 
 // ── Basic rendering ───────────────────────────────────────────────────────────
 describe('MarkdownPreview — basic rendering', () => {

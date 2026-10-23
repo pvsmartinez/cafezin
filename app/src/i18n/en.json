@@ -499,7 +499,9 @@
     "wsEmptyHomeTitle": "Open workspace home",
     "wsEmptyHint": "No file open — start at the home screen or ask the AI for help.",
     "wsEmptyHomeBtn": "Open home",
-    "wsEmptyAskAI": "Ask AI"
+    "wsEmptyAskAI": "Ask AI",
+    "unsupportedFormatTitle": "Format not supported",
+    "unsupportedFormatHint": "This format is outside Cafezin's writing focus. The file stays in the workspace, untouched — open Markdown or plain text to write."
   },
   "premiumGate": {
     "titleNotLoggedIn": "Unlock AI with the Basic plan",

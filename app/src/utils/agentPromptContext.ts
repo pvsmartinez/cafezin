@@ -91,7 +91,6 @@ function scoreSection(section: MarkdownSection): number {
     'capabilities',
     'rules',
     'writing',
-    'canvas',
     'spreadsheet',
     // Schema / data model sections — these change over time and are critical anchor points
     'schema',
@@ -222,12 +221,9 @@ function flattenFileTree(nodes: FileTreeNode[] | undefined): string[] {
   return files;
 }
 
-function fileCategory(path: string): 'markdown' | 'canvas' | 'spreadsheet' | 'html' | 'code' | 'other' {
+function fileCategory(path: string): 'markdown' | 'code' | 'other' {
   const lower = path.toLowerCase();
   if (lower.endsWith('.md') || lower.endsWith('.mdx') || lower.endsWith('.txt')) return 'markdown';
-  if (lower.endsWith('.tldr.json')) return 'canvas';
-  if (/\.(csv|tsv|xlsx|xls|ods|xlsm|xlsb)$/i.test(lower)) return 'spreadsheet';
-  if (/\.(html|htm)$/i.test(lower)) return 'html';
   if (/\.(ts|tsx|js|jsx|json|css|py|rs|sh|sql)$/i.test(lower)) return 'code';
   return 'other';
 }
@@ -245,13 +241,6 @@ function scoreFile(path: string, options: WorkspaceFileSummaryOptions): number {
   switch (fileCategory(path)) {
     case 'markdown':
       score += 30;
-      break;
-    case 'canvas':
-    case 'spreadsheet':
-      score += 24;
-      break;
-    case 'html':
-      score += 18;
       break;
     case 'code':
       score += 12;
@@ -282,9 +271,6 @@ export function summarizeWorkspaceFiles(
 
   const counts = {
     markdown: 0,
-    canvas: 0,
-    spreadsheet: 0,
-    html: 0,
     code: 0,
     other: 0,
   };
@@ -303,7 +289,7 @@ export function summarizeWorkspaceFiles(
 
   const lines = [
     `Workspace snapshot: ${files.length} file(s) total ` +
-      `(${counts.markdown} markdown, ${counts.canvas} canvas, ${counts.spreadsheet} spreadsheets, ${counts.html} html, ${counts.code} code, ${counts.other} other).`,
+      `(${counts.markdown} markdown, ${counts.code} code, ${counts.other} other).`,
   ];
 
   const labeled = topFiles.map((path) => {

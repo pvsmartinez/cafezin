@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import type { MutableRefObject } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { copyFile } from '../services/fs';
-import { getFileTypeInfo } from '../utils/fileType';
 import type { Workspace } from '../types';
 import type { AIPanelHandle } from '../components/AIPanel';
 
@@ -12,7 +11,6 @@ const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 interface UseDroppedFilesOptions {
   workspace: Workspace | null;
   workspaceRef: MutableRefObject<Workspace | null>;
-  activeTabIdRef: MutableRefObject<string | null>;
   aiPanelRef: MutableRefObject<AIPanelHandle | null>;
   setAiOpen: React.Dispatch<React.SetStateAction<boolean>>;
   refreshWorkspace: (ws: Workspace) => Promise<void>;
@@ -23,7 +21,6 @@ interface UseDroppedFilesOptions {
 export function useDroppedFiles({
   workspace,
   workspaceRef,
-  activeTabIdRef,
   aiPanelRef,
   setAiOpen,
   refreshWorkspace,
@@ -40,19 +37,9 @@ export function useDroppedFiles({
     const wsRoot = ws.path;
     const opened: string[] = [];
 
-    const activeKind = activeTabIdRef.current
-      ? getFileTypeInfo(activeTabIdRef.current).kind
-      : null;
-    const canvasIsActive = activeKind === 'canvas';
-
     for (const absPath of paths) {
       const name = absPath.split('/').pop();
       if (!name) continue;
-
-      const dropKind = getFileTypeInfo(name).kind;
-      if (canvasIsActive && (dropKind === 'image' || dropKind === 'video' || dropKind === 'audio')) {
-        continue;
-      }
 
       let relPath: string;
       if (absPath.startsWith(wsRoot + '/')) {

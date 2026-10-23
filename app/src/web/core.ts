@@ -15,7 +15,7 @@ export async function invoke(cmd: string, _args?: unknown): Promise<never> {
 
 /**
  * Local file URLs. The browser build keeps the `asset://` prefix so the
- * tldraw asset store's existing resolution logic works over OPFS.
+ * existing asset resolution logic works over OPFS.
  */
 export function convertFileSrc(filePath: string): string {
   return `asset://${encodeURIComponent(filePath)}`;

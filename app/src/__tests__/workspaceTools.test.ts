@@ -6,29 +6,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DirEntry } from '@tauri-apps/plugin-fs';
 import * as tauriFs from '@tauri-apps/plugin-fs';
-import { buildToolExecutor } from '../utils/workspaceTools';
-import type { Editor } from 'tldraw';
+import { buildToolExecutor, getWorkspaceTools } from '../utils/workspaceTools';
 import * as canvasAI from '../utils/canvasAI';
 import * as canvasRegistry from '../utils/canvasRegistry';
 
 const WS_PATH = '/test/workspace';
 
 function makeExecutor(
-  editorOverride: Editor | null = null,
   callbacks: {
     onFileWritten?: (p: string, content?: string) => void;
     onMarkRecorded?: (p: string, c: string) => void;
-    onCanvasModified?: (ids: string[]) => void;
     getLiveFileContent?: (path: string) => string | null;
     isFileDirty?: (path: string) => boolean;
   } = {},
 ) {
   return buildToolExecutor({
     workspacePath: WS_PATH,
-    canvasEditor: { current: editorOverride },
     onFileWritten: callbacks.onFileWritten,
     onMarkRecorded: callbacks.onMarkRecorded,
-    onCanvasModified: callbacks.onCanvasModified,
     getLiveFileContent: callbacks.getLiveFileContent,
     isFileDirty: callbacks.isFileDirty,
   });
@@ -36,6 +31,30 @@ function makeExecutor(
 
 beforeEach(() => {
   vi.resetAllMocks();
+});
+
+describe('authoring tool surface', () => {
+  it('offers writing and research tools, but not shell or publishing, by default', () => {
+    const names = getWorkspaceTools({ config: {}, fileTree: [] })
+      .map((tool) => tool.function.name);
+    expect(names).toContain('read_workspace_file');
+    expect(names).toContain('write_workspace_file');
+    expect(names).toContain('export_workspace');
+    expect(names).toContain('web_search');
+    expect(names).toContain('fetch_url');
+    expect(names).not.toContain('run_command');
+    expect(names).not.toContain('publish_vercel');
+    expect(names).not.toContain('screenshot_preview');
+  });
+
+  it('never offers removed development tools, even with explicit opt-in', () => {
+    const names = getWorkspaceTools({
+      config: { features: { development: { agentTools: true } } },
+      fileTree: [],
+    }).map((tool) => tool.function.name);
+    expect(names).not.toContain('run_command');
+    expect(names).not.toContain('publish_vercel');
+  });
 });
 
 // ── list_workspace_files ──────────────────────────────────────────────────────
@@ -126,7 +145,7 @@ describe('read_workspace_file', () => {
   it('prefers the live open-buffer content when available', async () => {
     vi.mocked(tauriFs.exists).mockResolvedValue(true);
     vi.mocked(tauriFs.readTextFile).mockResolvedValue('stale disk text');
-    const exec = makeExecutor(null, {
+    const exec = makeExecutor({
       getLiveFileContent: (path) => path === 'notes.md' ? 'live editor text' : null,
       isFileDirty: (path) => path === 'notes.md',
     });
@@ -174,14 +193,14 @@ describe('write_workspace_file', () => {
 
   it('calls onFileWritten callback after a successful write', async () => {
     const onFileWritten = vi.fn();
-    const exec = makeExecutor(null, { onFileWritten });
+    const exec = makeExecutor({ onFileWritten });
     await exec('write_workspace_file', { path: 'cb.md', content: 'hello' });
     expect(onFileWritten).toHaveBeenCalledWith('cb.md', 'hello');
   });
 
   it('calls onMarkRecorded callback after a successful write', async () => {
     const onMarkRecorded = vi.fn();
-    const exec = makeExecutor(null, { onMarkRecorded });
+    const exec = makeExecutor({ onMarkRecorded });
     await exec('write_workspace_file', { path: 'marked.md', content: 'AI text' });
     expect(onMarkRecorded).toHaveBeenCalledWith('marked.md', 'AI text', expect.anything());
   });
@@ -239,45 +258,13 @@ describe('search_workspace', () => {
       ])
       .mockResolvedValue([]);
     vi.mocked(tauriFs.readTextFile).mockResolvedValue('stale disk text');
-    const exec = makeExecutor(null, {
+    const exec = makeExecutor({
       getLiveFileContent: (path) => path === 'readme.md' ? 'first line\nTARGET only in live buffer\nthird line' : null,
       isFileDirty: (path) => path === 'readme.md',
     });
     const result = await exec('search_workspace', { query: 'TARGET' });
     expect(result).toContain('live unsaved buffer');
     expect(result).toContain('TARGET only in live buffer');
-  });
-});
-
-// ── list_canvas_shapes: no editor guard ──────────────────────────────────────
-describe('list_canvas_shapes (no editor)', () => {
-  it('returns an informative message when no canvas is open', async () => {
-    const exec = makeExecutor(null); // no editor
-    const result = await exec('list_canvas_shapes', {});
-    expect(result).toContain('No canvas');
-  });
-
-  it('can target a specific canvas file and list shapes after auto-opening it', async () => {
-    const fakeEditor = { id: 'editor' } as unknown as Editor;
-    vi.spyOn(canvasRegistry, 'ensureCanvasTabOpen').mockResolvedValue(undefined);
-    vi.spyOn(canvasRegistry, 'getCanvasEditor').mockReturnValue(fakeEditor);
-    vi.spyOn(canvasAI, 'summarizeCanvas').mockReturnValue('shape summary');
-
-    const exec = makeExecutor(null);
-    const result = await exec('list_canvas_shapes', { expected_file: 'slides/deck.tldr.json' });
-
-    expect(canvasRegistry.ensureCanvasTabOpen).toHaveBeenCalledWith('slides/deck.tldr.json');
-    expect(canvasRegistry.getCanvasEditor).toHaveBeenCalledWith('slides/deck.tldr.json');
-    expect(result).toContain('Canvas file: slides/deck.tldr.json');
-  });
-});
-
-// ── canvas_op: no editor guard ────────────────────────────────────────────────
-describe('canvas_op (no editor)', () => {
-  it('returns an informative message when no canvas is open', async () => {
-    const exec = makeExecutor(null);
-    const result = await exec('canvas_op', { commands: '{"op":"add_note","text":"hi"}' });
-    expect(result).toContain('No canvas');
   });
 });
 
@@ -306,15 +293,6 @@ describe('word_count', () => {
     expect(result).toContain('chap2.md');
     expect(result).toContain('TOTAL');
     expect(result).toContain('5 words');
-  });
-});
-
-// ── canvas_screenshot: no editor guard ───────────────────────────────────────
-describe('canvas_screenshot (no editor)', () => {
-  it('returns an informative message when no canvas is open', async () => {
-    const exec = makeExecutor(null);
-    const result = await exec('canvas_screenshot', {});
-    expect(result).toContain('No canvas');
   });
 });
 
@@ -353,7 +331,7 @@ describe('write_workspace_file — canvas file rejection', () => {
       path: 'board.tldr.json',
       content: '{"shapes":[]}',
     });
-    expect(result).toContain('canvas files (.tldr.json) cannot be written');
+    expect(result).toContain('legacy/binary format and cannot be written');
     expect(tauriFs.writeTextFile).not.toHaveBeenCalled();
   });
 
@@ -363,7 +341,7 @@ describe('write_workspace_file — canvas file rejection', () => {
       path: 'slides/deck.tldr.json',
       content: '{}',
     });
-    expect(result).toContain('canvas files (.tldr.json) cannot be written');
+    expect(result).toContain('legacy/binary format and cannot be written');
     expect(tauriFs.writeTextFile).not.toHaveBeenCalled();
   });
 });

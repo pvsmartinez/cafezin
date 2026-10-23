@@ -30,7 +30,6 @@ export const WORKSPACE_MUTATED_EVENT = 'cafezin:workspace-mutated';
 type WorkspaceMutationReason =
   | 'write'
   | 'create-file'
-  | 'create-canvas'
   | 'delete'
   | 'duplicate-file'
   | 'rename'
@@ -306,47 +305,6 @@ export async function createFile(workspace: Workspace, filename: string): Promis
     }
     await writeTextFile(absPath, content);
     dispatchWorkspaceMutation(workspace.path, 'create-file');
-  }
-}
-
-/** Create an empty tldraw canvas file (.tldr.json). */
-export async function createCanvasFile(workspace: Workspace, filename: string): Promise<void> {
-  const name = filename.endsWith('.tldr.json') ? filename : `${filename}.tldr.json`;
-  const absPath = `${workspace.path}/${name}`;
-  const parentDir = absPath.substring(0, absPath.lastIndexOf('/'));
-  if (parentDir && !(await exists(parentDir))) {
-    await mkdir(parentDir, { recursive: true });
-  }
-  if (!(await exists(absPath))) {
-    // An empty string tells CanvasEditor to start with a blank canvas
-    await writeTextFile(absPath, '');
-    dispatchWorkspaceMutation(workspace.path, 'create-canvas');
-  }
-}
-
-/**
- * Create a tldraw canvas file pre-configured for Slide Mode.
- * Writes a minimal snapshot with `document.meta.slideLocked = true` so the
- * CanvasEditor initialises straight into slide-locked mode.
- */
-export async function createSlidesCanvasFile(workspace: Workspace, filename: string): Promise<void> {
-  const name = filename.endsWith('.tldr.json') ? filename : `${filename}.tldr.json`;
-  const absPath = `${workspace.path}/${name}`;
-  const parentDir = absPath.substring(0, absPath.lastIndexOf('/'));
-  if (parentDir && !(await exists(parentDir))) {
-    await mkdir(parentDir, { recursive: true });
-  }
-  if (!(await exists(absPath))) {
-    const snapshot = {
-      document: {
-        id: 'document:document',
-        typeName: 'document',
-        meta: { slideLocked: true },
-      },
-      session: {},
-    };
-    await writeTextFile(absPath, JSON.stringify(snapshot));
-    dispatchWorkspaceMutation(workspace.path, 'create-canvas');
   }
 }
 

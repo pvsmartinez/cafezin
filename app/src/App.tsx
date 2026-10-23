@@ -6,7 +6,6 @@ import type { EditorHandle } from './components/Editor';
 import type { AIPanelHandle } from './components/AIPanel';
 import WorkspacePicker from './components/WorkspacePicker';
 import SplashScreen from './components/SplashScreen';
-import type { WebPreviewHandle } from './components/WebPreview';
 import UpdateModal from './components/UpdateModal';
 import UpdateReleaseModal from './components/UpdateReleaseModal';
 import type { MobilePendingTask } from './services/mobilePendingTasks';
@@ -21,10 +20,6 @@ import { useTabManager } from './hooks/useTabManager';
 import { useAutosave } from './hooks/useAutosave';
 import { useFileWatcher } from './hooks/useFileWatcher';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import type { TLShapeId, Editor as TldrawEditor } from 'tldraw';
-// canvasAIContext is loaded lazily (see useEffect below) to keep tldraw
-// out of the main bundle — it's only needed when a canvas file is open.
-import { registerCanvasTabControls, getCanvasEditor } from './utils/canvasRegistry';
 
 import {
   loadWorkspace,
@@ -44,12 +39,10 @@ import { APP_SETTINGS_KEY } from './types';
 import { setupI18n } from './i18n';
 import { useBacklinks } from './hooks/useBacklinks';
 import { useModals } from './hooks/useModals';
-import { useCanvasState } from './hooks/useCanvasState';
 import { useAIMarks } from './hooks/useAIMarks';
 import { useDesktopPrompts } from './hooks/useDesktopPrompts';
 import { loadAppSettings, useAppShellState } from './hooks/useAppShellState';
 import { useForceUpdateCheck } from './hooks/useForceUpdateCheck';
-import { useTsDiagnostics } from './hooks/useTsDiagnostics';
 import { useProactiveNudge } from './hooks/useProactiveNudge';
 import { useFeedbackNudge } from './hooks/useFeedbackNudge';
 import { AppOverlays } from './components/app/AppOverlays';
@@ -64,7 +57,6 @@ import { useDroppedFiles } from './hooks/useDroppedFiles';
 import { useEditorZoom } from './hooks/useEditorZoom';
 import { useAIDocumentContext } from './hooks/useAIDocumentContext';
 import { useWorkspaceSession } from './hooks/useWorkspaceSession';
-import { formatContent } from './utils/formatUtils';
 import { useAppSession } from './hooks/useAppSession';
 import {
   compareVersions,
@@ -85,9 +77,14 @@ const launchWorkspacePath = consumeLaunchWorkspacePath();
 const AIPanel = lazy(() => import('./components/AIPanel'));
 const Sidebar = lazy(() => import('./components/Sidebar'));
 const DesktopOnboardingModal = lazy(() => import('./components/DesktopOnboardingModal'));
+const WritingReviewPanel = lazy(() => import('./components/WritingReviewPanel'));
 
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const openWritingReview = useCallback(() => setReviewOpen(true), []);
+  const closeWritingReview = useCallback(() => setReviewOpen(false), []);
+  useEffect(() => { setReviewOpen(false); }, [workspace?.path]);
   const [launchWorkspacePending, setLaunchWorkspacePending] = useState<boolean>(!!launchWorkspacePath);
   const [launchWorkspaceError, setLaunchWorkspaceError] = useState<string | null>(null);
   const {
@@ -222,7 +219,7 @@ export default function App() {
         if (!ws) continue;
         if (!tabsRef.current.includes(filePath)) continue;
         const kind = getFileTypeInfo(filePath).kind;
-        if (['pdf', 'video', 'audio', 'image', 'canvas'].includes(kind)) continue;
+        if (['pdf', 'video', 'audio', 'image', 'unsupported'].includes(kind)) continue;
         try {
           const freshText = await readFile(ws, filePath);
           savedContentRef.current.set(filePath, freshText);
@@ -238,7 +235,6 @@ export default function App() {
   const editorRef = useRef<EditorHandle>(null);
   const editorAreaRef = useRef<HTMLDivElement>(null);
   const aiPanelRef = useRef<AIPanelHandle | null>(null);
-  const webPreviewRef = useRef<WebPreviewHandle | null>(null);
   const mountedRef = useRef(true);
   const { zoomEditor, resetEditorZoom } = useEditorZoom({ editorAreaRef, setAppSettings });
   // ── Modals / overlays (──────────────────────────────────────────────────
@@ -277,42 +273,15 @@ export default function App() {
   // Voice memos recorded on mobile without transcripts
   const { pendingVoiceMemos, scanVoiceMemos, handleVoiceMemoHandled } = useVoiceMemos(workspace?.path);
   const [, setMobilePendingTasks] = useState<MobilePendingTask[]>([]);
-  // ── Canvas refs + transient state ───────────────────────────────────────
-  const {
-    canvasEditorRef,
-    forceSaveRef,
-    rescanFramesRef,
-    canvasResetKey, setCanvasResetKey,
-    setCanvasSlideCount,
-  } = useCanvasState();
   const [aiSelectionContext, setAiSelectionContext] = useState<AISelectionContext | null>(null);
   const aiOpenRef = useRef(aiOpen);
   aiOpenRef.current = aiOpen;
   const shouldRenderAiPanel = aiPanelMounted || aiOpen;
   // ── Copilot tab-switch overlay ───────────────────────────────────────────
-  const [copilotOverlayActive, setCopilotOverlayActive] = useState(false);
   const copilotTabSwitchRef = useRef<(relPath: string) => Promise<void>>(async () => {});
   copilotTabSwitchRef.current = async (relPath: string) => {
-    if (getCanvasEditor(relPath)) return; // already mounted — nothing to do
     await handleOpenFile(relPath);
-    await new Promise<void>((resolve, reject) => {
-      const start = Date.now();
-      const check = () => {
-        if (!mountedRef.current) { reject(new Error('Component unmounted')); return; }
-        if (getCanvasEditor(relPath)) { resolve(); return; }
-        if (Date.now() - start > 10_000) { reject(new Error('Canvas editor did not mount in time')); return; }
-        setTimeout(check, 80);
-      };
-      check();
-    });
   };
-  useEffect(() => {
-    registerCanvasTabControls(
-      (r) => copilotTabSwitchRef.current(r),
-      setCopilotOverlayActive,
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   // ── Panel resize (sidebar ↔ editor ↔ AI panel) ───────────────────────────
   const {
     sidebarWidth,
@@ -373,11 +342,8 @@ export default function App() {
     activeFileMarks,
     loadMarksForWorkspace,
     handleMarkRecorded,
-    handleCanvasMarkRecorded,
     handleMarkReviewed,
     handleMarkRejected,
-    handleReviewAllMarks,
-    handleMarkUserEdited,
     handleAINavNext,
     handleAINavPrev,
     cleanupMarksForContent,
@@ -389,7 +355,6 @@ export default function App() {
     tabsRef,
     tabContentsRef,
     savedContentRef,
-    canvasEditorRef,
     editorRef,
     setContent,
     setDirtyFiles,
@@ -399,9 +364,8 @@ export default function App() {
   const savedToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Demo Hub publish status toast
   // Proactive AI nudge
-  const isCanvasActive = !!activeFile?.endsWith('.tldr.json');
   const { activeNudge, recordEdit, dismissNudge } = useProactiveNudge(
-    isCanvasActive,
+    false,
     appSettings.proactiveNudge ?? true,
   );
   // Feedback nudge — appears after SESSION_THRESHOLD sessions
@@ -454,16 +418,6 @@ export default function App() {
     activeFile,
     workspace,
     fileTypeInfo?.kind === 'markdown',
-  );
-  // TypeScript/JS diagnostics — run tsc on the active file when it's a code file
-  const tsEnabled = fileTypeInfo?.language === 'typescript' || fileTypeInfo?.language === 'javascript';
-  const tsDiagnosticsDirty = activeFile ? dirtyFiles.has(activeFile) : false;
-  const tsDiags = useTsDiagnostics(
-    content,
-    activeFile ?? null,
-    workspace?.path ?? null,
-    tsEnabled,
-    tsDiagnosticsDirty,
   );
 
   // ── In-app update ───────────────────────────────────────────
@@ -570,7 +524,7 @@ export default function App() {
   async function reloadActiveFile() {
     if (!workspace || !activeTabId) return;
     const info = getFileTypeInfo(activeTabId);
-    if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image' || info.kind === 'spreadsheet') return;
+    if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image' || info.kind === 'unsupported') return;
     try {
       const text = await readFile(workspace, activeTabId);
       savedContentRef.current.set(activeTabId, text);
@@ -601,20 +555,10 @@ export default function App() {
     }),
     onSave: async () => {
       const kind = fileTypeInfo?.kind;
-      if (activeTabId && workspace && kind !== 'pdf' && kind !== 'video' && kind !== 'image' && kind !== 'spreadsheet') {
-        if (kind === 'canvas') forceSaveRef.current?.();
+      if (activeTabId && workspace && kind !== 'pdf' && kind !== 'video' && kind !== 'image' && kind !== 'audio' && kind !== 'unsupported') {
         const current = tabContentsRef.current.get(activeTabId) ?? content;
         cancelAutosave();
-        let textToSave = current;
-        if (appSettings.formatOnSave !== false && fileTypeInfo?.language && kind !== 'canvas') {
-          const formatted = await formatContent(current, fileTypeInfo.language);
-          if (formatted !== current) {
-            textToSave = formatted;
-            tabContentsRef.current.set(activeTabId, formatted);
-            bumpFileRevision(activeTabId);
-            setContent(formatted);
-          }
-        }
+        const textToSave = current;
         writeFile(workspace, activeTabId, textToSave).then(() => {
           savedContentRef.current.set(activeTabId, textToSave);
           setDirtyFiles((prev) => { const s = new Set(prev); s.delete(activeTabId); return s; });
@@ -676,18 +620,6 @@ export default function App() {
     if (lineNo != null) setPendingJumpLine(lineNo);
     else if (matchText) setPendingJumpText(matchText);
   }, []);
-
-  // ── Format via Prettier standalone ─────────────────────────────────────────
-  async function handleFormat() {
-    if (!activeFile || !workspace || fileTypeInfo?.kind !== 'code') return;
-    const current = tabContentsRef.current.get(activeFile) ?? content;
-    const formatted = await formatContent(current, fileTypeInfo.language ?? '');
-    if (formatted !== current) {
-      tabContentsRef.current.set(activeFile, formatted);
-      setContent(formatted);
-      scheduleAutosave(workspace, activeFile, formatted);
-    }
-  }
 
   // ── Workspace file tree refresh ────────────────────────────────────────────
   // Rebuilds files + fileTree and merges into workspace state.
@@ -758,12 +690,12 @@ export default function App() {
   // ── PDF export ─────────────────────────────────────────
   const {
     pandocBusy, pandocError, setPandocError, pandocStatus,
-    exportLock, exportLockState, setExportLockState,
+    exportLock, exportLockState,
     handleExportPDF, handleCancelExportPDF,
-    handleOpenFileForExport, handleRestoreAfterExport, handleExportConfigChange,
+    handleExportConfigChange,
   } = useExport({
     workspace, activeFile, content,
-    canvasEditorRef, activeTabId, mountedRef,
+    activeTabId,
     switchToTab, handleOpenFileRef, refreshWorkspace, setWorkspace,
   });
 
@@ -801,9 +733,7 @@ export default function App() {
     setAiOpen,
     setViewMode,
     tabViewModeRef,
-    onFormat: handleFormat,
     fileTypeKind: fileTypeInfo?.kind,
-    viewMode,
     activeTabId,
   });
 
@@ -825,7 +755,6 @@ export default function App() {
   const { dragOver, dragFiles } = useDroppedFiles({
     workspace,
     workspaceRef,
-    activeTabIdRef,
     aiPanelRef,
     setAiOpen,
     refreshWorkspace,
@@ -884,8 +813,8 @@ export default function App() {
 
     const info = getFileTypeInfo(filename);
 
-    // Binary/non-text files: no content to read — register tab and switch
-    if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image' || info.kind === 'spreadsheet' || info.kind === 'rtf' || info.kind === 'docx' || info.kind === 'pptx') {
+    // Binary/non-text or unsupported files: no content to read — register tab and switch
+    if (info.kind === 'pdf' || info.kind === 'video' || info.kind === 'audio' || info.kind === 'image' || info.kind === 'unsupported') {
       tabContentsRef.current.set(filename, '');
       tabViewModeRef.current.set(filename, info.defaultMode as 'edit' | 'preview');
       addTab(filename);
@@ -937,9 +866,7 @@ export default function App() {
   const handleContentChange = useCallback(
     (newContent: string) => {
       const previousContent = activeFile ? tabContentsRef.current.get(activeFile) : null;
-      // Canvas files are self-managed by tldraw — never feed changed JSON back
-      // into React state or tldraw will see the `snapshot` prop change and reset.
-      if (!activeFile?.endsWith('.tldr.json')) setContent(newContent);
+      setContent(newContent);
       // Keep per-tab content ref in sync so switching away/back is lossless
       if (activeFile) tabContentsRef.current.set(activeFile, newContent);
       if (activeFile && previousContent !== newContent) bumpFileRevision(activeFile);
@@ -948,21 +875,6 @@ export default function App() {
       // Auto-remove AI marks whose text no longer exists in the document
       // (delegated to useAIMarks).
       cleanupMarksForContent(activeFile, newContent);
-
-      // Canvas files: the tldraw store listener already debounces to 500ms before
-      // calling onChange — a second autosave debounce (1s) is redundant and pushes
-      // disk writes to ~1500ms. Write immediately here so the total latency is just
-      // the 500ms from the tldraw store listener.
-      if (activeFile.endsWith('.tldr.json')) {
-        writeFile(workspace, activeFile, newContent)
-          .then(() => {
-            savedContentRef.current.set(activeFile, newContent);
-            setDirtyFiles((prev) => { const s = new Set(prev); s.delete(activeFile); return s; });
-            setSaveError(null);
-          })
-          .catch((err) => setSaveError(String((err as Error)?.message ?? err)));
-        return;
-      }
 
       scheduleAutosave(workspace, activeFile, newContent);
       recordEdit();
@@ -986,7 +898,6 @@ export default function App() {
   // ── Retry a failed save — invoked by the ⚠ banner in the header ─────────────
   function handleRetrySave() {
     if (!activeTabId || !workspace) return;
-    if (fileTypeInfo?.kind === 'canvas') forceSaveRef.current?.();
     const current = tabContentsRef.current.get(activeTabId) ?? content;
     cancelAutosave();
     writeFile(workspace, activeTabId, current)
@@ -1066,7 +977,6 @@ export default function App() {
   const { aiDocumentContext } = useAIDocumentContext({
     activeFile,
     fileTypeKind: fileTypeInfo?.kind,
-    canvasEditorRef,
     content,
   });
   const title = useMemo(
@@ -1081,48 +991,15 @@ export default function App() {
     if (activeTabId) tabViewModeRef.current.set(activeTabId, mode);
   }, [activeTabId, setViewMode, tabViewModeRef]);
 
-  const handleCanvasPresentModeChange = useCallback((presenting: boolean) => {
-    handleViewModeChange(presenting ? 'preview' : 'edit');
-  }, [handleViewModeChange]);
-
-  const handleRecoverCanvas = useCallback(async () => {
-    if (!workspace || !activeFile) return;
-    try {
-      const fresh = await readFile(workspace, activeFile);
-      savedContentRef.current.set(activeFile, fresh);
-      tabContentsRef.current.set(activeFile, fresh);
-      bumpFileRevision(activeFile);
-      setContent(fresh);
-    } catch {
-      // Keep whatever is on disk if reload fails.
-    }
-    setCanvasResetKey((value) => value + 1);
-  }, [activeFile, bumpFileRevision, savedContentRef, setContent, tabContentsRef, workspace]);
-
   // ── Stable callbacks for memoised children (Sidebar, AIPanel, AppOverlays) ─
   // These are defined with useCallback so that React.memo on those components
   // actually prevents re-renders on every keystroke (content change in App).
 
   // Sidebar callbacks
-  // Keep a ref to activeFileMarks so onOpenAIReview doesn't need it in deps.
-  const activeFileMarksRef = useRef(activeFileMarks);
-  activeFileMarksRef.current = activeFileMarks;
-
   const handleSidebarOpenAIReview = useCallback(() => {
     setAiHighlight(true);
-    setAiNavIndex(0);
-    const marks = activeFileMarksRef.current;
-    if (marks.length > 0) {
-      const m = marks[0];
-      if (m.canvasShapeIds?.length && canvasEditorRef.current) {
-        const bounds = canvasEditorRef.current.getShapePageBounds(m.canvasShapeIds[0] as TLShapeId);
-        if (bounds) canvasEditorRef.current.zoomToBounds(bounds, { animation: { duration: 300 }, inset: 60 });
-      } else {
-        setTimeout(() => editorRef.current?.jumpToText({ text: m.text, revert: m.revert }), 120);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // refs handle mutable values — no deps needed
+    openWritingReview();
+  }, [openWritingReview, setAiHighlight]);
 
   const handleExpandSidebar = useCallback(() => {
     if (sidebarWidthRef.current < 80) setSidebarWidth(220);
@@ -1130,13 +1007,6 @@ export default function App() {
   }, []); // sidebarWidthRef is a ref — stable
 
   const handleExportOpen = useCallback(() => setExportModalOpen(true), []);
-
-  // getActiveHtml reads content via tabContentsRef at call time — no content dep.
-  const getActiveHtml = useCallback((): { html: string; absPath: string } | null => {
-    if (!activeFile || !fileTypeInfo || fileTypeInfo.kind !== 'code' || !fileTypeInfo.supportsPreview) return null;
-    const html = tabContentsRef.current.get(activeFile) ?? '';
-    return { html, absPath: `${workspace?.path}/${activeFile}` };
-  }, [activeFile, fileTypeInfo, workspace?.path]); // tabContentsRef is a ref — stable
 
   // AppOverlays callbacks
   const handleCloseUpdateModal = useCallback(() => setShowUpdateModal(false), []);
@@ -1166,20 +1036,9 @@ export default function App() {
   const handleEditorAreaOpenAIReview = useCallback(() => {
     setAiHighlight(true);
     setAiNavIndex(0);
-  }, []);
+    openWritingReview();
+  }, [openWritingReview, setAiHighlight, setAiNavIndex]);
   const handleActivateSync = useCallback(() => openSettings('sync'), [openSettings]);
-  const handleCanvasEditorReady = useCallback((editor: TldrawEditor | null) => {
-    canvasEditorRef.current = editor;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // canvasEditorRef is a ref — stable
-
-  // activeFile captured via ref so this callback is stable across file switches.
-  const activeFileRef2 = useRef(activeFile);
-  activeFileRef2.current = activeFile;
-  const handleEditorFileSaved = useCallback(() => {
-    handleFileWritten(activeFileRef2.current ?? '');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // handleFileWritten is stable (useCallback with stable deps)
 
   // AIPanel style — memoised so React.memo on AIPanel isn't defeated by
   // a new style object on every parent render.
@@ -1268,7 +1127,6 @@ export default function App() {
         savedToast={savedToast}
         pandocError={pandocError}
         onClearPandocError={handleClearPandocError}
-        isDev={import.meta.env.DEV}
         aiOpen={aiOpen}
         onToggleAi={handleToggleAi}
         previewShortcutLabel={previewShortcutLabel}
@@ -1295,7 +1153,7 @@ export default function App() {
                 onSyncComplete={handleSyncComplete}
                 sidebarMode={sidebarMode}
                 onSidebarModeChange={setSidebarMode}
-                onReviewAllMarks={handleReviewAllMarks}
+                onReviewChanges={openWritingReview}
                 onOpenAIReview={handleSidebarOpenAIReview}
                 onAIPrev={handleAINavPrev}
                 onAINext={handleAINavNext}
@@ -1331,22 +1189,12 @@ export default function App() {
           homeVisible={homeVisible}
           findReplaceOpen={findReplaceOpen}
           aiHighlight={aiHighlight}
-          aiNavIndex={aiNavIndex}
           activeFileMarks={activeFileMarks}
-          onAIPrev={handleAINavPrev}
-          onAINext={handleAINavNext}
           backlinks={backlinks}
           outlinks={outlinks}
           backlinksLoading={backlinksLoading}
-          canvasResetKey={canvasResetKey}
-          onSlideCountChange={setCanvasSlideCount}
-          tsDiagnostics={tsDiags.diagnostics}
           editorRef={editorRef}
           editorAreaRef={editorAreaRef}
-          webPreviewRef={webPreviewRef}
-          canvasEditorRef={canvasEditorRef}
-          rescanFramesRef={rescanFramesRef}
-          forceSaveRef={forceSaveRef}
           onSelectTab={switchToTab}
           onCloseTab={handleCloseTab}
           onCloseOthers={handleCloseOthers}
@@ -1360,7 +1208,6 @@ export default function App() {
           onSelectionContextChange={setAiSelectionContext}
           onMarkReviewed={handleMarkReviewed}
           onMarkRejected={handleMarkRejected}
-          onMarkUserEdited={handleMarkUserEdited}
           onOpenFile={handleOpenFile}
           onCreateFirstWorkspaceFile={handleCreateFirstWorkspaceFile}
           onOpenAIReview={handleEditorAreaOpenAIReview}
@@ -1368,11 +1215,6 @@ export default function App() {
           onActivateSync={handleActivateSync}
           onSetHomeVisible={setHomeVisible}
           onSetFileStat={setFileStat}
-          onRecoverCanvas={handleRecoverCanvas}
-          onCanvasEditorReady={handleCanvasEditorReady}
-          onCanvasPresentModeChange={handleCanvasPresentModeChange}
-          onFileSaved={handleEditorFileSaved}
-          onFormat={handleFormat}
           onImagePaste={handleEditorImagePaste}
 
         />
@@ -1398,21 +1240,15 @@ export default function App() {
               workspacePath={workspace.path}
               workspace={workspace}
               memoryRefreshKey={memoryRefreshKey}
-              canvasEditorRef={canvasEditorRef}
               onFileWritten={handleFileWritten}
               onPathRenamed={handlePathRenamed}
               getLiveFileContent={getLiveFileContent}
               isFileDirty={isFileDirty}
               getAgentContextSnapshot={getAgentContextSnapshot}
               onMarkRecorded={handleMarkRecorded}
-              onCanvasMarkRecorded={handleCanvasMarkRecorded}
               activeFile={activeFile ?? undefined}
-              rescanFramesRef={rescanFramesRef}
               onStreamingChange={setIsAIStreaming}
               style={aiPanelStyle}
-              screenshotTargetRef={editorAreaRef}
-              webPreviewRef={webPreviewRef}
-              getActiveHtml={getActiveHtml}
               workspaceExportConfig={workspace.config.exportConfig}
               onExportConfigChange={handleExportConfigChange}
               workspaceConfig={workspace.config}
@@ -1444,6 +1280,14 @@ export default function App() {
 
       </div> {/* end app-workspace */}
 
+      {reviewOpen && (
+        <Suspense fallback={null}>
+          <WritingReviewPanel marks={aiMarks} onAccept={handleMarkReviewed}
+            onReject={handleMarkRejected} onOpenFile={handleOpenFile}
+            onClose={closeWritingReview} />
+        </Suspense>
+      )}
+
       <AppOverlays
         projectRoot={__PROJECT_ROOT__}
         workspace={workspace}
@@ -1467,14 +1311,8 @@ export default function App() {
         desktopOnboardingSeen={desktopOnboardingSeen}
         onCloseDesktopOnboarding={handleCloseDesktopOnboarding}
         exportModalOpen={exportModalOpen}
-        canvasEditorRef={canvasEditorRef}
-        activeFile={activeFile}
-        onOpenFileForExport={handleOpenFileForExport}
-        onRestoreAfterExport={handleRestoreAfterExport}
         onCloseExportModal={handleCloseExportModal}
         onOpenAIFromExport={handleOpenAIFromExport}
-        onExportLockStateChange={setExportLockState}
-        copilotOverlayActive={copilotOverlayActive}
         activeNudge={activeNudge}
         onAskNudge={handleAskNudge}
         onDismissNudge={dismissNudge}

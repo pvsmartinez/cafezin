@@ -19,9 +19,6 @@ import {
 } from '../../services/memoryMetadata';
 import type { ToolDefinition, DomainExecutor } from './shared';
 import {
-  CUSTOM_EXPORT_INJECTION_SPEC,
-  CUSTOM_EXPORT_PROTOCOL,
-  getCustomExportConfig,
   normalizeExportTarget,
   normalizeWorkspaceExportConfig,
   type ExportTarget,
@@ -33,31 +30,12 @@ import {
 
 function buildExportCapabilityPayload(targets: ExportTarget[]) {
   return {
-    supportedFormats: ['pdf', 'canvas-png', 'canvas-pdf', 'zip', 'git-publish', 'custom'],
+    supportedFormats: ['pdf', 'zip'],
+    unsupportedFormats: ['git-publish', 'custom', 'canvas-png', 'canvas-pdf'],
+    unsupportedNote: 'Legacy shell-backed formats (git-publish, custom) and canvas exports are no longer executed; existing targets with those formats return an error and their config is kept untouched.',
     fileSelection: 'includeFiles overrides include extensions; excludeFiles filters afterwards',
     pdfOptions: ['merge', 'mergeName', 'pdfCssFile', 'toc', 'titlePage', 'versionOutput', 'preProcess.stripFrontmatter', 'preProcess.stripDraftSections', 'preProcess.stripDetails'],
-    canvasPdfOptions: ['merge', 'mergeName'],
-    gitPublishOptions: ['gitPublish.commitMessage', 'gitPublish.remote', 'gitPublish.branch', 'gitPublish.skipCommitWhenNoChanges'],
-    custom: {
-      executionModes: ['auto', 'batch', 'per-file'],
-      placeholders: CUSTOM_EXPORT_INJECTION_SPEC.placeholders,
-      quotedPlaceholders: CUSTOM_EXPORT_INJECTION_SPEC.quotedPlaceholders,
-      batchPlaceholders: CUSTOM_EXPORT_INJECTION_SPEC.batchPlaceholders,
-      progressProtocol: [
-        `${CUSTOM_EXPORT_PROTOCOL.progressPrefix} 3/10 Generating images`,
-        `${CUSTOM_EXPORT_PROTOCOL.progressPrefix} 42% Building PDF`,
-        `${CUSTOM_EXPORT_PROTOCOL.progressPrefix} {"done":3,"total":10,"detail":"Generating images","label":"chapter-01","phase":"render"}`,
-      ],
-      artifactProtocol: [
-        `${CUSTOM_EXPORT_PROTOCOL.artifactPrefix} 07_Exports/manuscript_v12.pdf`,
-        `${CUSTOM_EXPORT_PROTOCOL.artifactPrefix} {"path":"07_Exports/manuscript_v12.pdf","label":"PDF"}`,
-      ],
-      behavior: 'auto runs once when no per-file placeholders are present, otherwise once per matched file',
-    },
-    configuredTargets: targets.map((target) => {
-      const custom = getCustomExportConfig(target);
-      return custom ? normalizeExportTarget({ ...target, custom }) : normalizeExportTarget(target);
-    }),
+    configuredTargets: targets.map((target) => normalizeExportTarget(target)),
   };
 }
 
@@ -69,9 +47,10 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
     function: {
       name: 'export_workspace',
       description:
-        'Run export targets for this workspace — markdown → PDF, canvas → PNG/PDF, zip bundles, git publish flows, or custom commands. ' +
-        'Call this when the user says to export, build, publish, deploy, or produce output files. ' +
-        'With no argument it runs all enabled targets. Pass a target name to run just one.',
+        'Run export targets for this workspace — markdown → PDF or zip bundles. ' +
+        'Call this when the user says to export or build output files. ' +
+        'With no argument it runs all enabled targets. Pass a target name to run just one. ' +
+        'Legacy targets configured with git-publish, custom, or canvas formats are not executed anymore; they return an unsupported-format error.',
       parameters: {
         type: 'object',
         properties: {
@@ -96,20 +75,19 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
         'action="add" creates a new target (name, format, and outputDir required). ' +
         'action="update" patches an existing target by id or name. ' +
         'action="remove" deletes a target by id or name. ' +
-        'Supported formats and key options: pdf (merge, toc, titlePage, pdfCssFile, versionOutput, preProcess), canvas-png, canvas-pdf (merge), zip, git-publish (commitMessage, remote, branch, skipCommitWhenNoChanges), custom (target.custom.command + target.custom.mode with placeholders and progress protocol).',
+        'Supported formats and key options: pdf (merge, toc, titlePage, pdfCssFile, versionOutput, preProcess) and zip. ' +
+        'Formats git-publish, custom, canvas-png, and canvas-pdf are no longer supported — do not create or update targets with them.',
       parameters: {
         type: 'object',
         properties: {
           action: { type: 'string', enum: ['list', 'add', 'update', 'remove'], description: 'Operation to perform.' },
           preset: {
             type: 'string',
-            enum: ['book', 'course-slides', 'article', 'git-publish'],
+            enum: ['book', 'article'],
             description:
               'Opinionated export preset for action="add" — sets all required options automatically. ' +
               '"book": merge all .md files → single PDF with TOC, title page, counter versioning, strip frontmatter. ' +
-              '"course-slides": export all .tldr.json canvases as PDFs. ' +
               '"article": single clean PDF, timestamp versioning, no merge. ' +
-              '"git-publish": stage all changes, create a commit when needed, and push to the remote for deploy-by-git workflows. ' +
               'title, author, and outputDir can still be passed alongside preset to personalise.',
           },
           id:          { type: 'string', description: 'Target id (for update/remove).' },
@@ -117,37 +95,13 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
           description: { type: 'string', description: 'Human/AI readable description of what this target produces.' },
           format: {
             type: 'string',
-            enum: ['pdf', 'canvas-png', 'canvas-pdf', 'zip', 'git-publish', 'custom'],
+            enum: ['pdf', 'zip'],
             description: 'Export format.',
           },
           include:      { type: 'array', items: { type: 'string' }, description: 'File extensions to match, e.g. ["md"] or ["tldr.json"].' },
           includeFiles: { type: 'array', items: { type: 'string' }, description: 'Pinned specific files (relative paths). Overrides include extensions when set.' },
           excludeFiles: { type: 'array', items: { type: 'string' }, description: 'Relative paths to skip.' },
           outputDir:    { type: 'string', description: 'Output directory relative to workspace root.' },
-          gitPublishCommitMessage: {
-            type: 'string',
-            description: '(Git publish only) Commit message template. Supports {{workspace}}, {{target}}, {{date}}, {{datetime}}.',
-          },
-          gitPublishRemote: {
-            type: 'string',
-            description: '(Git publish only) Remote name, e.g. "origin".',
-          },
-          gitPublishBranch: {
-            type: 'string',
-            description: '(Git publish only) Optional branch to push, e.g. "main". Leave empty for the current branch.',
-          },
-          gitPublishSkipCommitWhenNoChanges: {
-            type: 'boolean',
-            description: '(Git publish only) Skip commit when there are no changes and still try to push. Defaults to true.',
-          },
-          custom: {
-            type: 'object',
-            description: '(Custom only) Shell integration config for this target.',
-            properties: {
-              command: { type: 'string', description: `Shell command for custom format. Placeholders: ${CUSTOM_EXPORT_INJECTION_SPEC.placeholders.join(', ')}, plus quoted shell-safe variants and batch placeholders. Scripts can report progress by printing lines starting with ${CUSTOM_EXPORT_PROTOCOL.progressPrefix} and generated files by printing lines starting with ${CUSTOM_EXPORT_PROTOCOL.artifactPrefix}.` },
-              mode: { type: 'string', enum: ['auto', 'batch', 'per-file'], description: 'auto = infer from placeholders, batch = run once for whole target, per-file = run once per matched file.' },
-            },
-          },
           enabled:      { type: 'boolean', description: 'Whether this target is included in Export All.' },
           merge:        { type: 'boolean', description: 'Merge all matched files into one output (pdf/canvas-pdf).' },
           mergeName:    { type: 'string', description: 'Filename (no extension) for merged output.' },
@@ -341,7 +295,7 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
       description:
         'Save a task to be executed later on the desktop. ' +
         'Use this ONLY when the user requests something that cannot be done on mobile: ' +
-        'running scripts, editing canvas/slides, compiling code, running a local server, etc. ' +
+        'running scripts, compiling code, running a local server, etc. ' +
         'Do NOT use this for file edits, markdown writing, or anything the mobile Copilot can do directly. ' +
         'The task will show up as a notification when the user opens this workspace on their computer.',
       parameters: {
@@ -369,8 +323,6 @@ export const CONFIG_TOOL_DEFS: ToolDefinition[] = [
 export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
   const {
     workspacePath,
-    canvasEditor,
-    activeFile,
     workspaceExportConfig,
     workspaceConfig,
     onFileWritten,
@@ -399,22 +351,13 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
         return `No matching target found for "${args.target ?? 'all'}". Available targets: ${names}`;
       }
 
-      // Formats that require a shell or the tldraw editor — not available on mobile.
-      const MOBILE_UNSUPPORTED = new Set(['custom', 'git-publish', 'canvas-png', 'canvas-pdf']);
-
       const lines: string[] = [];
       for (const target of toRun) {
-        if (ctx.isMobile && MOBILE_UNSUPPORTED.has(target.format)) {
-          lines.push(`[${target.name}] ⚠ Format "${target.format}" is not supported on mobile (requires shell / canvas editor). Run this target on the desktop.`);
-          continue;
-        }
         try {
           const result = await runExportTarget({
             workspacePath,
             workspaceConfig,
             target,
-            canvasEditorRef: canvasEditor,
-            activeCanvasRel: typeof activeFile === 'string' ? activeFile : null,
           });
           const okPart  = result.outputs.length > 0 ? `✓ ${result.outputs.join(', ')}` : (result.summary ? `✓ ${result.summary}` : '');
           const errPart = result.errors.length  > 0 ? `⚠ ${result.errors.join('; ')}` : '';
@@ -456,15 +399,6 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
             stripDraftSections: true,
             versionOutput: 'counter',
           };
-        } else if (args.preset === 'course-slides') {
-          // Export all canvas files as PDFs (one per slide deck).
-          if (!args.name) args = { ...args, name: 'Slides do Curso' };
-          args = {
-            ...args,
-            format: 'canvas-pdf',
-            include: ['tldr.json'],
-            outputDir: args.outputDir ?? 'export/',
-          };
         } else if (args.preset === 'article') {
           // Single clean PDF from the current MD file — no merge, no TOC.
           if (!args.name) args = { ...args, name: 'Artigo PDF' };
@@ -476,17 +410,6 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
             toc: false,
             stripFrontmatter: true,
             versionOutput: 'timestamp',
-          };
-        } else if (args.preset === 'git-publish') {
-          if (!args.name) args = { ...args, name: 'Git Publish' };
-          args = {
-            ...args,
-            format: 'git-publish',
-            include: [],
-            outputDir: '.',
-            gitPublishCommitMessage: args.gitPublishCommitMessage ?? 'Publish from Cafezin — {{datetime}}',
-            gitPublishRemote: args.gitPublishRemote ?? 'origin',
-            gitPublishSkipCommitWhenNoChanges: args.gitPublishSkipCommitWhenNoChanges ?? true,
           };
         }
 
@@ -505,20 +428,6 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
           stripDraftSections: args.stripDraftSections === true ? true : undefined,
           stripDetails:       args.stripDetails        === true ? true : undefined,
         } : undefined;
-        const hasGitPublish =
-          args.format === 'git-publish' ||
-          args.gitPublishCommitMessage !== undefined ||
-          args.gitPublishRemote !== undefined ||
-          args.gitPublishBranch !== undefined ||
-          args.gitPublishSkipCommitWhenNoChanges !== undefined;
-        const gitPublish = hasGitPublish ? {
-          commitMessage: args.gitPublishCommitMessage ? String(args.gitPublishCommitMessage) : undefined,
-          remote: args.gitPublishRemote ? String(args.gitPublishRemote) : undefined,
-          branch: args.gitPublishBranch ? String(args.gitPublishBranch) : undefined,
-          skipCommitWhenNoChanges: args.gitPublishSkipCommitWhenNoChanges !== undefined
-            ? Boolean(args.gitPublishSkipCommitWhenNoChanges)
-            : undefined,
-        } : undefined;
         const newTarget: ExportTarget = {
           id: Math.random().toString(36).slice(2, 9),
           name: String(args.name),
@@ -528,15 +437,6 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
           includeFiles: Array.isArray(args.includeFiles) ? args.includeFiles.map(String) : undefined,
           excludeFiles: Array.isArray(args.excludeFiles) ? args.excludeFiles.map(String) : undefined,
           outputDir: args.outputDir ? String(args.outputDir) : 'dist',
-          gitPublish,
-          custom: args.custom && typeof args.custom === 'object' && args.custom !== null && 'command' in args.custom
-            ? {
-                command: String((args.custom as { command: unknown }).command),
-                mode: (args.custom as { mode?: unknown }).mode
-                  ? String((args.custom as { mode?: unknown }).mode) as NonNullable<ExportTarget['custom']>['mode']
-                  : undefined,
-              }
-            : undefined,
           enabled: args.enabled !== false,
           merge: args.merge === true ? true : undefined,
           mergeName: args.mergeName ? String(args.mergeName) : undefined,
@@ -566,29 +466,6 @@ export const executeConfigTools: DomainExecutor = async (name, args, ctx) => {
         if (args.includeFiles !== undefined) patch.includeFiles  = Array.isArray(args.includeFiles) ? args.includeFiles.map(String) : [];
         if (args.excludeFiles !== undefined) patch.excludeFiles  = Array.isArray(args.excludeFiles) ? args.excludeFiles.map(String) : [];
         if (args.outputDir    !== undefined) patch.outputDir     = String(args.outputDir);
-        if (args.gitPublishCommitMessage !== undefined || args.gitPublishRemote !== undefined ||
-            args.gitPublishBranch !== undefined || args.gitPublishSkipCommitWhenNoChanges !== undefined) {
-          const existing = match.gitPublish ?? {};
-          patch.gitPublish = {
-            ...existing,
-            ...(args.gitPublishCommitMessage !== undefined ? { commitMessage: String(args.gitPublishCommitMessage) || undefined } : {}),
-            ...(args.gitPublishRemote !== undefined ? { remote: String(args.gitPublishRemote) || undefined } : {}),
-            ...(args.gitPublishBranch !== undefined ? { branch: String(args.gitPublishBranch) || undefined } : {}),
-            ...(args.gitPublishSkipCommitWhenNoChanges !== undefined ? { skipCommitWhenNoChanges: Boolean(args.gitPublishSkipCommitWhenNoChanges) } : {}),
-          };
-          if (!Object.values(patch.gitPublish).some((value) => value !== undefined && value !== '')) patch.gitPublish = undefined;
-        }
-        if (args.custom !== undefined) {
-          const existing = getCustomExportConfig(match);
-          const customArgs = args.custom && typeof args.custom === 'object' ? args.custom as { command?: unknown; mode?: unknown } : undefined;
-          const nextCommand = customArgs?.command !== undefined
-            ? String(customArgs.command)
-            : (existing?.command ?? '');
-          const nextMode = customArgs?.mode !== undefined
-            ? (String(customArgs.mode) || undefined) as NonNullable<ExportTarget['custom']>['mode']
-            : existing?.mode;
-          patch.custom = nextCommand ? { command: nextCommand, mode: nextMode } : undefined;
-        }
         if (args.enabled      !== undefined) patch.enabled       = Boolean(args.enabled);
         if (args.merge        !== undefined) patch.merge         = Boolean(args.merge);
         if (args.mergeName    !== undefined) patch.mergeName     = String(args.mergeName);

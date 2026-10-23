@@ -1,6 +1,6 @@
 # Cafezin
 
-Cafezin is a local-first AI book-authoring workspace for writers.
+Cafezin is a local-first writing workspace for books, reports, and connected Markdown notes.
 
 It combines Markdown documents, a focused prose editor, built-in git, reviewable AI edits, and PDF export in one app. The goal is to support the complete writing loop — structure, drafting, revision, continuity, and delivery — without forcing a book into a cloud-first editor or a blank chat box.
 
@@ -8,8 +8,9 @@ It combines Markdown documents, a focused prose editor, built-in git, reviewable
 
 Cafezin is designed for workflows such as:
 
-- Writing books and long-form drafts
-- Organizing chapters, notes, and book research as local files
+- Writing books, reports, and long-form drafts
+- Organizing chapters, notes, and research as local Markdown files
+- Connecting documents with clickable `[[wiki links]]` and relative Markdown links
 - Using AI to draft, revise, summarize, and check continuity with real workspace context
 - Exporting a manuscript to a configured PDF target
 
@@ -49,7 +50,9 @@ Current public positioning:
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `scripts/sync.sh`                | Stage all changes, commit, and push to `origin/main`                                                                             |
 | `scripts/build-windows-store.sh` | Trigger the Microsoft Store Windows MSI build in GitHub Actions                                                                  |
-| `scripts/release-version.sh`     | Checkpoint dirty changes, bump `major`/`minor`/`patch`, sync app versions, push, and trigger macOS + Windows + iOS release flows |
+| `scripts/release-version.sh`     | Checkpoint changes, bump version, push, and release macOS + Windows; iOS requires `--with-ios` |
+| `scripts/build-all.sh`           | Desktop release entrypoint; mobile targets are explicit opt-ins |
+| `scripts/clean-builds.py`        | Preview disposable build outputs; add `--apply` to remove them safely |
 
 Usage:
 
@@ -58,7 +61,38 @@ bash scripts/sync.sh "optional commit message"
 bash scripts/build-windows-store.sh --tag v0.2.0
 bash scripts/release-version.sh patch
 bash scripts/release-version.sh minor --no-wait-windows
+# Only when intentionally working on the parked mobile target:
+bash scripts/release-version.sh patch --with-ios
 ```
+
+Release commands publish artifacts and may commit/push changes; they are not validation commands.
+
+## Keeping Local Builds Small
+
+```sh
+python3 scripts/clean-builds.py          # preview only
+# Stop Cargo, Gradle, Xcode and dev/build processes first:
+python3 scripts/clean-builds.py --apply
+python3 scripts/test-clean-builds.py    # safety tests in temporary directories
+```
+
+The cleaner removes only allowlisted Rust/Android/iOS build outputs, frontend outputs,
+and Vercel staging output. It refuses tracked files and symlinked output paths. It keeps
+native project sources, dependencies, videos, git history, credentials, and writing workspaces.
+The next native build will be slower. Rust development builds use line-table debug symbols
+and no incremental cache to limit disk growth; release settings are unchanged.
+
+## Focused Writing, Not a General-Purpose Workbench
+
+The product centers on Markdown/plain text, Prose editing, connected references, research,
+reviewable AI changes, git history, and manuscript PDF export. Canvas/slides, PowerPoint,
+spreadsheet/Office viewers, shell tools, and Vercel publishing are outside the product.
+Removing a reader must never delete the corresponding file or load binary data into a text editor.
+
+The assistant stays beside the document. Text changes are marked for human review; users can
+inspect, accept, or reject them instead of losing track of what the AI changed.
+
+See [the simplification notes](docs/authoring-simplification.md) for the implementation scope.
 
 ## Windows Store Build
 

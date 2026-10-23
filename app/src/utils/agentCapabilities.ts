@@ -1,37 +1,31 @@
 import type { FileTreeNode, WorkspaceConfig, Workspace, WorkspaceIndex } from '../types';
 
-export const CANVAS_AGENT_TOOL_NAMES = new Set([
-  'list_canvas_shapes',
-  'canvas_op',
-  'canvas_screenshot',
-  'add_canvas_image',
-]);
 
-export const SPREADSHEET_AGENT_TOOL_NAMES = new Set([
-  'read_spreadsheet',
-  'write_spreadsheet',
-]);
-
-// run_command is desktop-only (filtered separately in useAIStream for mobile)
-// but is NOT gated behind the web capability — it's always available on desktop
-// regardless of whether the workspace contains HTML files.
-export const DESKTOP_SHELL_TOOL_NAMES = new Set([
-  'run_command',
-]);
-
-export const WEB_AGENT_TOOL_NAMES = new Set([
+export const WEB_SEARCH_TOOL_NAMES = new Set([
   'web_search',
   'search_images',
   'fetch_url',
-  'screenshot_preview',
-  'publish_vercel',
+]);
+
+export const WEB_AGENT_TOOL_NAMES = new Set([
+  ...WEB_SEARCH_TOOL_NAMES,
+]);
+
+// No shell/development tools remain: run_command and publish_vercel were removed
+// with the authoring-first simplification.
+export const REMOVED_AGENT_TOOL_NAMES = new Set([
+  'run_command', 'publish_vercel', 'screenshot_preview',
+  'list_canvas_shapes', 'canvas_op', 'canvas_screenshot', 'add_canvas_image',
+  'read_spreadsheet', 'write_spreadsheet',
 ]);
 
 export interface AgentCapabilityState {
   markdownMermaid: boolean;
-  canvas: boolean;
-  spreadsheet: boolean;
   web: boolean;
+  /** Web search / image search / URL fetch — enabled by default in any workspace. */
+  search: boolean;
+  /** Compatibility field for old configurations; development tools were removed. */
+  development: boolean;
 }
 
 export interface AgentWorkspaceProfile {
@@ -68,9 +62,9 @@ export function detectAgentCapabilitiesFromFileTree(fileTree?: FileTreeNode[]): 
   const files = flattenFiles(fileTree);
   return {
     markdownMermaid: false,
-    canvas: files.some((path) => path.endsWith('.tldr.json')),
-    spreadsheet: files.some((path) => /\.(csv|tsv|xlsx|xls|ods|xlsm|xlsb)$/i.test(path)),
     web: files.some((path) => /\.(html|htm)$/i.test(path)),
+    search: true,
+    development: false,
   };
 }
 
@@ -109,9 +103,9 @@ export function getAgentCapabilityState(source?: AgentCapabilitySource): AgentCa
       workspaceConfig?.features?.markdown?.mermaid,
       detectMarkdownMermaidFromIndex(extractWorkspaceIndex(source)) || detected.markdownMermaid,
     ),
-    canvas: resolveCapability(workspaceConfig?.features?.canvas?.agentTools, detected.canvas),
-    spreadsheet: resolveCapability(workspaceConfig?.features?.spreadsheet?.agentTools, detected.spreadsheet),
     web: resolveCapability(workspaceConfig?.features?.web?.agentTools, detected.web),
+    search: resolveCapability(workspaceConfig?.features?.web?.agentTools, true),
+    development: false,
   };
 }
 
@@ -138,11 +132,9 @@ export function getAgentWorkspaceProfile(source?: AgentCapabilitySource): AgentW
 }
 
 export function isToolEnabledByWorkspace(toolName: string, source?: AgentCapabilitySource): boolean {
+  if (REMOVED_AGENT_TOOL_NAMES.has(toolName)) return false;
   const caps = getAgentCapabilityState(source);
-  if (CANVAS_AGENT_TOOL_NAMES.has(toolName)) return caps.canvas;
-  if (SPREADSHEET_AGENT_TOOL_NAMES.has(toolName)) return caps.spreadsheet;
+  if (WEB_SEARCH_TOOL_NAMES.has(toolName)) return caps.search;
   if (WEB_AGENT_TOOL_NAMES.has(toolName)) return caps.web;
-  // DESKTOP_SHELL_TOOL_NAMES (run_command) are always enabled on desktop;
-  // mobile filtering happens separately in useAIStream.
   return true;
 }

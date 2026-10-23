@@ -53,10 +53,7 @@ const contentToString = (content: string | ContentPart[]): string =>
         .map((p) => p.text)
         .join('');
 
-// Strip canvas + shell tools — neither is available on mobile
-const CANVAS_TOOLS = new Set([
-  'list_canvas_shapes', 'canvas_op', 'canvas_screenshot', 'add_canvas_image',
-]);
+
 const MOBILE_SYSTEM_CONTEXT = `\
 ## Mobile environment constraints
 You are running inside the Cafezin iOS app. Keep these limitations in mind:
@@ -72,15 +69,14 @@ You are running inside the Cafezin iOS app. Keep these limitations in mind:
 
 **What you CANNOT do on mobile:**
 - Run shell commands or scripts (no terminal, no npm/node/python/make)
-- Edit canvas/tldraw files (slides and diagrams are desktop-only)
-- Export as canvas-png, canvas-pdf, custom script, or git-publish (all require shell/canvas)
+- Export as custom script or git-publish (require shell)
 - Compile or execute code
 - Access external network APIs from within HTML previews (sandbox restricted)
 - Push to git requiring SSH keys (HTTPS token auth only)
 
 **When to use save_desktop_task:**
 Use it proactively whenever the user asks for something that requires the desktop:
-- "run the build", "execute the script", "update the canvas slide", "npm install", etc.
+- "run the build", "execute the script", "npm install", etc.
 Save a clear task description so the user sees it as a reminder when they open the workspace on their computer.
 Do NOT use it for things you can already do here (file edits, writing, web search).`;
 
@@ -219,7 +215,7 @@ export default function MobileCopilot({
   const activeProvider = getActiveProvider();
   const mobileTools = useMemo(
     () => getWorkspaceTools(workspace, workspace?.config.exportConfig).filter(
-      (t) => !CANVAS_TOOLS.has(t.function.name) && t.function.name !== 'run_command',
+      (t) => t.function.name !== 'run_command',
     ),
     [workspace],
   );
@@ -436,7 +432,6 @@ export default function MobileCopilot({
       // Full agent loop with workspace tools (canvas + shell blocked on mobile)
       const executor = buildToolExecutor({
         workspacePath: workspace.path,
-        canvasEditor: { current: null }, // no canvas on mobile
         isMobile: true,
         onFileWritten,
       });
