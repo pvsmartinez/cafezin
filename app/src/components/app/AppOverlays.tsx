@@ -150,7 +150,7 @@ const AppOverlaysInner = function AppOverlays({
         />
       )}
 
-      {showFeedbackNudge && !activeNudge && (
+      {showFeedbackNudge && !activeNudge && !showDesktopOnboarding && (
         <FeedbackNudge
           onOpenFeedback={onContactUs}
           onDismiss={onDismissFeedbackNudge}

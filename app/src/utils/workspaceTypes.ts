@@ -17,12 +17,7 @@ export const WORKSPACE_TYPES: WorkspaceTypeInfo[] = [
     labelKey: 'wt.book',
     skillsKey: 'wt.bookSkills',
   },
-  {
-    id: 'classes',
-    icon: '🎓',
-    labelKey: 'wt.classes',
-    skillsKey: 'wt.classesSkills',
-  },
+
   {
     id: 'notes',
     icon: '📝',

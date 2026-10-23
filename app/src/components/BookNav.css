@@ -1,0 +1,421 @@
+/* BookNav — a book's table of contents, sitting on the desk (no panel chrome). */
+.book-nav {
+  /* Inner panels (search) inherit the desk instead of the old UI surfaces. */
+  --surface: var(--desk);
+  --surface2: var(--paper-rule);
+  --bg: var(--desk);
+  --border: var(--paper-rule);
+  --border2: var(--paper-rule);
+  --text: var(--paper-text);
+  --text-bright: var(--paper-ink);
+  --text-muted: var(--paper-muted);
+  --text-dim: var(--paper-muted);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--desk);
+  color: var(--paper-muted);
+  font-family: var(--font-serif);
+}
+
+.bn-head {
+  padding: 26px 22px 18px 28px;
+  flex-shrink: 0;
+}
+
+.bn-title {
+  display: block;
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: var(--font-serif);
+  text-align: left;
+  cursor: pointer;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--paper-ink);
+  overflow-wrap: anywhere;
+}
+
+.bn-title:hover {
+  color: var(--accent);
+}
+
+.bn-meta {
+  margin-top: 6px;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xs);
+  color: var(--paper-muted);
+}
+
+.bn-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 14px 16px 20px;
+}
+
+.bn-section + .bn-section {
+  margin-top: 22px;
+}
+
+.bn-h {
+  margin: 0 0 6px 8px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper-muted);
+}
+
+.bn-empty {
+  margin: 2px 8px 6px;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--paper-muted);
+}
+
+.bn-item {
+  position: relative;
+  border-radius: var(--radius-md);
+}
+
+.bn-item.is-dragging {
+  opacity: 0.4;
+}
+
+.bn-item.drop-before::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: -1px;
+  border-top: 2px solid var(--accent);
+}
+
+.bn-link {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 8px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-serif);
+  font-size: 15.5px;
+  line-height: 1.35;
+  text-align: left;
+  color: var(--paper-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.bn-link:hover {
+  color: var(--paper-ink);
+  background: var(--paper-rule);
+}
+
+.bn-item.is-active .bn-link {
+  color: var(--paper-ink);
+  font-weight: 500;
+}
+
+.bn-num {
+  flex: none;
+  width: 16px;
+  text-align: right;
+  font-size: 12.5px;
+  color: var(--paper-muted);
+  font-variant-numeric: oldstyle-nums;
+}
+
+.bn-item.is-active .bn-num {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.bn-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bn-item.is-research .bn-link {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+}
+
+.bn-words {
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--paper-muted);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.bn-link:hover .bn-words,
+.bn-item.is-active .bn-words {
+  opacity: 1;
+}
+
+.bn-ai-dot {
+  flex: none;
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.bn-rename {
+  width: 100%;
+  margin: 2px 0;
+  padding: 4px 8px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--paper-ink);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+
+.bn-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 0 0 26px;
+  padding: 4px 6px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--paper-muted);
+  cursor: pointer;
+}
+
+.bn-add:hover {
+  color: var(--accent);
+}
+
+/* ── Search ──────────────────────────────────────────────── */
+.bn-search {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-ui);
+}
+
+.bn-search-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px 6px 28px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bn-search .project-search-panel,
+.bn-search > div:last-child {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+.bn-foot {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px 16px 20px;
+  font-family: var(--font-ui);
+}
+
+.bn-foot-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bn-foot-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  color: var(--paper-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.bn-foot-btn:hover:not(:disabled) {
+  color: var(--paper-ink);
+  background: var(--paper-rule);
+}
+
+.bn-foot-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.bn-foot-btn.is-accent {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.bn-foot-btn kbd {
+  margin-left: auto;
+  padding-left: 8px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+}
+
+.bn-text-btn {
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  font-size: var(--font-size-xs);
+  color: var(--paper-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.bn-text-btn:hover {
+  color: var(--accent);
+}
+
+.bn-count {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.bn-icon {
+  display: inline-flex;
+  padding: 4px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--paper-muted);
+  cursor: pointer;
+}
+
+.bn-icon:hover {
+  color: var(--paper-ink);
+  background: var(--paper-rule);
+}
+
+/* ── Item menu ───────────────────────────────────────────── */
+.bn-menu {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  padding: 5px;
+  background: var(--paper-raised);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--note-shadow), 0 0 0 1px var(--paper-rule);
+  font-family: var(--font-ui);
+}
+
+.bn-menu button {
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  color: var(--paper-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bn-menu button:hover {
+  background: var(--paper-rule);
+}
+
+.bn-menu button.is-danger {
+  color: var(--red);
+}
+
+/* ── Book PDF options card ───────────────────────────────── */
+.bn-pdf-options {
+  margin: 0 14px 4px 20px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--note-shadow);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--paper-text);
+}
+
+.bn-pdf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  color: var(--paper-ink);
+}
+
+.bn-pdf-options label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--paper-muted);
+}
+
+.bn-pdf-options input:not([type="checkbox"]) {
+  padding: 6px 8px;
+  border: 1px solid var(--paper-rule);
+  border-radius: var(--radius-md);
+  background: var(--paper-raised);
+  color: var(--paper-ink);
+  font: inherit;
+  outline: none;
+}
+
+.bn-pdf-options input:not([type="checkbox"]):focus {
+  border-color: var(--accent-border);
+}
+
+.bn-pdf-options .bn-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  color: var(--paper-text);
+}
+
+.bn-pdf-options .bn-check input {
+  accent-color: var(--accent);
+}
+
+.bn-advanced {
+  align-self: flex-start;
+  padding: 0;
+}

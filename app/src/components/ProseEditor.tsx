@@ -15,14 +15,13 @@ import StarterKit from '@tiptap/starter-kit';
 import { Extension } from '@tiptap/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { flattenFileTree, resolveDocumentLink, restoreProseWikiLinks } from '../utils/documentLinks';
+import { restoreProseTaskMarkers } from '../utils/proseMarkdown';
 import type { FileTreeNode } from '../types';
 import { Markdown } from 'tiptap-markdown';
 import { useTranslation } from 'react-i18next';
+import { BubbleMenu } from '@tiptap/react/menus';
 import {
-  TextB, TextItalic, TextUnderline, TextStrikethrough,
-  TextHOne, TextHTwo, TextHThree,
-  ListBullets, ListNumbers,
-  Quotes, Code, Terminal, Minus, LinkSimple,
+  TextB, TextItalic, TextHTwo, TextHThree, ListBullets, Quotes, Sparkle,
 } from '@phosphor-icons/react';
 import {
   forwardRef,
@@ -40,16 +39,34 @@ import type { AISelectionContext, AITextRevert } from '../types/index';
 import { findAIMarkRange } from '../utils/aiMarkMatch';
 import './ProseEditor.css';
 
-// ── Prose formatting toolbar ─────────────────────────────────────────────────
+// ── Selection menu — formatting appears only when text is selected ──────────
 
-interface ToolBtn {
+interface MenuBtn {
   title: string;
   icon: React.ReactNode;
   action: () => void;
   isActive: boolean;
 }
 
-function ProseToolbar({ editor }: { editor: TiptapEditor }) {
+const SELECTION_MENU_OPTIONS = { placement: 'top' } as const;
+
+// The BubbleMenu re-registers its plugin when its props change, which dispatches
+// a transaction; keep it stable and let only the buttons re-render.
+function SelectionMenu({ editor, onAIRequest }: {
+  editor: TiptapEditor;
+  onAIRequest?: (selectedText: string) => void;
+}) {
+  return (
+    <BubbleMenu editor={editor} className="sel-menu" options={SELECTION_MENU_OPTIONS}>
+      <SelectionMenuButtons editor={editor} onAIRequest={onAIRequest} />
+    </BubbleMenu>
+  );
+}
+
+function SelectionMenuButtons({ editor, onAIRequest }: {
+  editor: TiptapEditor;
+  onAIRequest?: (selectedText: string) => void;
+}) {
   const { t } = useTranslation();
   // Re-render whenever selection/marks change so active states stay in sync
   const [, forceUpdate] = useState(0);
@@ -63,49 +80,41 @@ function ProseToolbar({ editor }: { editor: TiptapEditor }) {
     };
   }, [editor]);
 
-  function setLink() {
-    const prev = editor.getAttributes('link').href ?? '';
-    // eslint-disable-next-line no-alert
-    const url = window.prompt(t('editor.linkUrlPrompt'), prev);
-    if (url === null) return; // cancelled
-    if (url === '') {
-      editor.chain().focus().unsetMark('link').run();
-    } else {
-      editor.chain().focus().toggleMark('link', { href: url, target: '_blank' }).run();
-    }
+  function selectedText(): string {
+    const { from, to } = editor.state.selection;
+    return editor.state.doc.textBetween(from, to, ' ');
   }
 
-  const groups: ToolBtn[][] = [
+  function makeReference() {
+    const raw = selectedText();
+    const text = raw.trim();
+    if (!text || text.includes('\n')) return;
+    // Keep the spaces a loose selection picked up at its edges.
+    const lead = raw.slice(0, raw.length - raw.trimStart().length);
+    const trail = raw.slice(raw.trimEnd().length);
+    editor.chain().focus().insertContent(`${lead}[[${text}]]${trail}`).run();
+  }
+
+  const groups: MenuBtn[][] = [
     [
-      { title: t('editor.bold'),           icon: <TextB size={15} weight="bold" />,              action: () => editor.chain().focus().toggleBold().run(),       isActive: editor.isActive('bold') },
-      { title: t('editor.italic'),         icon: <TextItalic size={15} />,                        action: () => editor.chain().focus().toggleItalic().run(),     isActive: editor.isActive('italic') },
-      { title: t('editor.underline'),      icon: <TextUnderline size={15} />,                     action: () => editor.chain().focus().toggleUnderline().run(),   isActive: editor.isActive('underline') },
-      { title: t('editor.strikethrough'),  icon: <TextStrikethrough size={15} />,                 action: () => editor.chain().focus().toggleStrike().run(),     isActive: editor.isActive('strike') },
+      { title: t('editor.bold'),          icon: <TextB size={15} weight="bold" />, action: () => editor.chain().focus().toggleBold().run(),   isActive: editor.isActive('bold') },
+      { title: t('editor.italic'),        icon: <TextItalic size={15} />,          action: () => editor.chain().focus().toggleItalic().run(), isActive: editor.isActive('italic') },
     ],
     [
-      { title: t('editor.heading1Short'),  icon: <TextHOne size={15} />,                           action: () => editor.chain().focus().toggleHeading({ level: 1 }).run(), isActive: editor.isActive('heading', { level: 1 }) },
-      { title: t('editor.heading2Short'),  icon: <TextHTwo size={15} />,                           action: () => editor.chain().focus().toggleHeading({ level: 2 }).run(), isActive: editor.isActive('heading', { level: 2 }) },
-      { title: t('editor.heading3Short'),  icon: <TextHThree size={15} />,                         action: () => editor.chain().focus().toggleHeading({ level: 3 }).run(), isActive: editor.isActive('heading', { level: 3 }) },
+      { title: t('editor.heading2Short'), icon: <TextHTwo size={15} />,            action: () => editor.chain().focus().toggleHeading({ level: 2 }).run(), isActive: editor.isActive('heading', { level: 2 }) },
+      { title: t('editor.heading3Short'), icon: <TextHThree size={15} />,          action: () => editor.chain().focus().toggleHeading({ level: 3 }).run(), isActive: editor.isActive('heading', { level: 3 }) },
+      { title: t('editor.blockquote'),    icon: <Quotes size={15} />,              action: () => editor.chain().focus().toggleBlockquote().run(), isActive: editor.isActive('blockquote') },
+      { title: t('editor.bulletList'),    icon: <ListBullets size={15} />,         action: () => editor.chain().focus().toggleBulletList().run(), isActive: editor.isActive('bulletList') },
     ],
     [
-      { title: t('editor.bulletList'),     icon: <ListBullets size={15} />,                       action: () => editor.chain().focus().toggleBulletList().run(), isActive: editor.isActive('bulletList') },
-      { title: t('editor.numberedList'),   icon: <ListNumbers size={15} />,                       action: () => editor.chain().focus().toggleOrderedList().run(), isActive: editor.isActive('orderedList') },
-    ],
-    [
-      { title: t('editor.blockquote'),     icon: <Quotes size={15} />,                            action: () => editor.chain().focus().toggleBlockquote().run(), isActive: editor.isActive('blockquote') },
-      { title: t('editor.inlineCode'),     icon: <Code size={15} />,                              action: () => editor.chain().focus().toggleCode().run(),       isActive: editor.isActive('code') },
-      { title: t('editor.codeBlock'),      icon: <Terminal size={15} />,                          action: () => editor.chain().focus().toggleCodeBlock().run(),  isActive: editor.isActive('codeBlock') },
-    ],
-    [
-      { title: t('editor.horizontalDivider'), icon: <Minus size={15} />,                          action: () => editor.chain().focus().setHorizontalRule().run(), isActive: false },
-      { title: t('editor.link'),           icon: <LinkSimple size={15} />,                        action: setLink,                                               isActive: editor.isActive('link') },
+      { title: t('editor.makeReference'), icon: <span className="sel-menu-ref">[[ ]]</span>, action: makeReference, isActive: false },
     ],
   ];
 
   return (
-    <div className="prose-toolbar" role="toolbar" aria-label={t('editor.proseToolbarLabel')}>
+    <>
       {groups.map((group, gi) => (
-        <div key={gi} className="prose-toolbar-group">
+        <div key={gi} className="sel-menu-group">
           {group.map((btn) => (
             <button
               key={btn.title}
@@ -113,14 +122,22 @@ function ProseToolbar({ editor }: { editor: TiptapEditor }) {
               aria-label={btn.title}
               aria-pressed={btn.isActive}
               onMouseDown={(e) => { e.preventDefault(); btn.action(); }}
-              className={`prose-toolbar-btn${btn.isActive ? ' active' : ''}`}
+              className={`sel-menu-btn${btn.isActive ? ' active' : ''}`}
             >
               {btn.icon}
             </button>
           ))}
         </div>
       ))}
-    </div>
+      {onAIRequest && (
+        <button
+          className="sel-menu-ai"
+          onMouseDown={(e) => { e.preventDefault(); onAIRequest(selectedText()); }}
+        >
+          <Sparkle size={14} weight="fill" /> {t('editor.askAgent')}
+        </button>
+      )}
+    </>
   );
 }
 
@@ -202,20 +219,65 @@ function makeAIMarkPlugin(storeRef: { current: AIMark[] }) {
 }
 
 // Decorate wiki syntax without replacing its text: Markdown persistence stays portable.
+// Live preview for Markdown that Tiptap keeps as plain text:
+//  · [[target|label]] shows only the label (the syntax returns while the cursor
+//    is inside it), and a plain click opens the referenced text;
+//  · "- [x] item" shows a checkbox that toggles the marker.
+const WIKI_LINK = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+const TASK_MARKER = /^\[( |x|X)\] /;
+
+function taskBox(checked: boolean, markerPos: number) {
+  return (view: import('@tiptap/pm/view').EditorView) => {
+    const box = document.createElement('span');
+    box.className = `prose-task-box${checked ? ' is-checked' : ''}`;
+    box.setAttribute('role', 'checkbox');
+    box.setAttribute('aria-checked', String(checked));
+    box.contentEditable = 'false';
+    box.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      view.dispatch(view.state.tr.insertText(checked ? ' ' : 'x', markerPos + 1, markerPos + 2));
+    });
+    return box;
+  };
+}
+
 const wikiLinkPlugin = new Plugin({
   props: {
     decorations(state) {
       const decorations: Decoration[] = [];
-      state.doc.descendants((node, pos, parent) => {
+      const { from: selFrom, to: selTo } = state.selection;
+      const touches = (start: number, end: number) => selFrom < end && selTo > start;
+      state.doc.descendants((node, pos, parent, index) => {
         if (!node.isText || parent?.type.name === 'codeBlock' ||
             node.marks.some((mark) => mark.type.name === 'code')) return;
-        const pattern = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
-        for (const match of (node.text ?? '').matchAll(pattern)) {
-          decorations.push(Decoration.inline(pos + match.index!, pos + match.index! + match[0].length, {
+        const text = node.text ?? '';
+
+        if (index === 0 && parent?.type.name === 'paragraph'
+            && state.doc.resolve(pos).node(-1)?.type.name === 'listItem') {
+          const task = text.match(TASK_MARKER);
+          if (task && !touches(pos, pos + 4)) {
+            decorations.push(Decoration.widget(pos, taskBox(task[1] !== ' ', pos), { side: -1 }));
+            decorations.push(Decoration.inline(pos, pos + 4, { class: 'pm-hidden' }));
+            if (task[1] !== ' ') decorations.push(Decoration.inline(pos + 4, pos + text.length, { class: 'prose-task-done' }));
+          }
+        }
+
+        for (const match of text.matchAll(WIKI_LINK)) {
+          const start = pos + match.index!;
+          const end = start + match[0].length;
+          const target = match[1].trim();
+          const linkAttrs = {
             class: 'prose-wiki-link',
-            'data-document-target': match[1].trim(),
-            title: '⌘/Ctrl + clique para abrir a referência',
-          }));
+            'data-document-target': target,
+          };
+          if (touches(start, end)) {
+            decorations.push(Decoration.inline(start, end, linkAttrs));
+            continue;
+          }
+          const labelStart = match[2] !== undefined ? start + 2 + match[1].length + 1 : start + 2;
+          decorations.push(Decoration.inline(start, labelStart, { class: 'pm-hidden' }));
+          decorations.push(Decoration.inline(labelStart, end - 2, { ...linkAttrs, 'data-collapsed': 'true' }));
+          decorations.push(Decoration.inline(end - 2, end, { class: 'pm-hidden' }));
         }
       });
       return DecorationSet.create(state.doc, decorations);
@@ -240,9 +302,19 @@ interface ProseEditorProps {
   activeFile?: string;
   onNavigate?: (path: string) => void;
   workspaceFileTree?: FileTreeNode[];
+  /** Small label above the title, e.g. "Capítulo 2" for manuscript chapters. */
+  kicker?: string;
+  /** Pending agent notes: leave room for them in the right margin. */
+  hasMarginNotes?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
+
+function serializeProse(editor: TiptapEditor): string {
+  return (editor.storage as unknown as {
+    markdown: { getMarkdown(): string };
+  }).markdown.getMarkdown();
+}
 
 const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
   (
@@ -261,6 +333,8 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
       activeFile,
       onNavigate,
       workspaceFileTree,
+      kicker,
+      hasMarginNotes = false,
     },
     ref,
   ) => {
@@ -274,6 +348,10 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
     const [missingTarget, setMissingTarget] = useState<string | null>(null);
     useEffect(() => { setMissingTarget(null); }, [activeFile]);
     const lastEmittedMdRef   = useRef<string | null>(null);
+    // Serialization of the document right after it was loaded. Tiptap's markdown
+    // round-trip is lossy (spacing, escapes), so an update whose serialization
+    // still equals this baseline is not a user edit and must not rewrite the file.
+    const baselineRef = useRef<{ source: string; serialized: string } | null>(null);
     const aiMarksStoreRef    = useRef<AIMark[]>(aiMarks ?? []);
     const aiMarksRef         = useRef(aiMarks ?? []);
     const onAIMarkEditedRef  = useRef(onAIMarkEdited);
@@ -368,6 +446,9 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
           return false;
         },
       },
+      onCreate({ editor: ed }) {
+        baselineRef.current = { source: content, serialized: serializeProse(ed) };
+      },
       onUpdate({ editor: ed }) {
         // AI mark edit detection: check if any marked text was removed/changed
         const cb = onAIMarkEditedRef.current;
@@ -380,10 +461,11 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
           }
         }
         // Emit markdown and record it so the sync effect can detect the echo.
-        const serialized = (ed.storage as unknown as {
-          markdown: { getMarkdown(): string };
-        }).markdown.getMarkdown();
-        const md = restoreProseWikiLinks(serialized, content);
+        const serialized = serializeProse(ed);
+        const baseline = baselineRef.current;
+        const md = baseline && serialized === baseline.serialized
+          ? baseline.source
+          : restoreProseTaskMarkers(restoreProseWikiLinks(serialized, baseline?.source ?? content));
         lastEmittedMdRef.current = md;
         onChange(md);
       },
@@ -410,6 +492,7 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
       }
       lastEmittedMdRef.current = null;
       editor.commands.setContent(content, { emitUpdate: false });
+      baselineRef.current = { source: content, serialized: serializeProse(editor) };
     }, [editor, content]);
 
     // ── Sync isLocked ─────────────────────────────────────────────────────────
@@ -509,6 +592,15 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
       },
     }));
 
+    function openReference(target: string) {
+      if (/^https?:\/\//i.test(target)) { void openUrl(target); return; }
+      const fromDir = activeFile?.split('/').slice(0, -1).join('/') ?? '';
+      const resolved = resolveDocumentLink(target, fromDir,
+        workspaceFileTree ? flattenFileTree(workspaceFileTree) : undefined);
+      if (resolved) { setMissingTarget(null); onNavigate?.(resolved); }
+      else setMissingTarget(target);
+    }
+
     // ── Render ────────────────────────────────────────────────────────────────
     return (
       <div
@@ -516,22 +608,31 @@ const ProseEditor = forwardRef<EditorHandle, ProseEditorProps>(
         data-locked={isLocked || undefined}
         data-theme={isDark ? 'dark' : 'light'}
         style={{ '--prose-font-size': `${fontSize}px` } as React.CSSProperties}
+        onMouseDown={(event) => {
+          // A collapsed [[reference]] behaves like a link: one click opens it.
+          if (event.metaKey || event.ctrlKey || event.button !== 0) return;
+          const link = (event.target as HTMLElement).closest('[data-collapsed="true"]');
+          const target = link?.getAttribute('data-document-target');
+          if (!target) return;
+          event.preventDefault();
+          openReference(target);
+        }}
         onClick={(event) => {
           if (!event.metaKey && !event.ctrlKey) return;
           const link = (event.target as HTMLElement).closest('[data-document-target], a[href]');
           const target = link?.getAttribute('data-document-target') ?? link?.getAttribute('href');
           if (!target) return;
           event.preventDefault();
-          if (/^https?:\/\//i.test(target)) { void openUrl(target); return; }
-          const fromDir = activeFile?.split('/').slice(0, -1).join('/') ?? '';
-          const resolved = resolveDocumentLink(target, fromDir,
-            workspaceFileTree ? flattenFileTree(workspaceFileTree) : undefined);
-          if (resolved) { setMissingTarget(null); onNavigate?.(resolved); }
-          else setMissingTarget(target);
+          openReference(target);
         }}
       >
-        {editor && !isLocked && <ProseToolbar editor={editor} />}
-        <EditorContent editor={editor} className="tiptap-content" />
+        {editor && !isLocked && <SelectionMenu editor={editor} onAIRequest={onAIRequest} />}
+        <div className="tiptap-content" data-notes={hasMarginNotes || undefined}>
+          <div className="prose-page">
+            {kicker && <div className="prose-kicker">{kicker}</div>}
+            <EditorContent editor={editor} />
+          </div>
+        </div>
         {missingTarget && <p className="md-missing-link" role="status">
           Referência não encontrada: {missingTarget}. Nenhum arquivo foi criado.
         </p>}

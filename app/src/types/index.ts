@@ -445,6 +445,12 @@ export interface WorkspaceConfig {
   lastEditedAt?: string;
   /** Export / Build targets, persisted in the workspace config file */
   exportConfig?: WorkspaceExportConfig;
+  /** Ordered chapter paths shown in the Sumário and used for the book PDF. */
+  manuscript?: {
+    chapters: string[];
+    /** Options for the one-click book PDF. */
+    pdf?: { subtitle?: string; author?: string; toc?: boolean; cssFile?: string };
+  };
   /** Custom action buttons shown at the bottom of the sidebar */
   sidebarButtons?: SidebarButton[];
   /** Relative path of the voice-dump inbox file (default: 00_Inbox/raw_transcripts.md) */
@@ -583,10 +589,6 @@ export interface AppSettings {
   aiHighlightDefault: boolean;
   /** Show sidebar on startup */
   sidebarOpenDefault: boolean;
-  /** Run Prettier on manual save (Cmd/Ctrl+S) for JS/TS/JSON/CSS/HTML */
-  formatOnSave: boolean;
-  /** Show the integrated terminal panel (advanced / power-user feature) */
-  showTerminal: boolean;
   /** UI language — undefined means auto-detect from navigator.language */
   locale?: 'en' | 'pt-BR';
   /** User overrides for global app keyboard shortcuts */
@@ -602,8 +604,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showWordCount: true,
   aiHighlightDefault: true,
   sidebarOpenDefault: true,
-  formatOnSave: true,
-  showTerminal: false,
 };
 
 export const APP_SETTINGS_KEY = 'cafezin-app-settings';

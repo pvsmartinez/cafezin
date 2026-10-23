@@ -5,6 +5,7 @@
  * For markdown files (Tiptap): searches document text directly via ProseMirror.
  */
 
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { X, ArrowUp, ArrowDown, CaretDown, CaretRight } from '@phosphor-icons/react';
 import {
@@ -123,6 +124,7 @@ export default function FindReplaceBar({
   editorRef,
   fileKind,
 }: FindReplaceBarProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [replacement, setReplacement] = useState('');
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -316,7 +318,7 @@ export default function FindReplaceBar({
       <button
         className="frb-toggle"
         onClick={() => setShowReplace((v) => !v)}
-        title="Toggle replace"
+        title={t('search.toggleReplace')}
       >
         {showReplace ? <CaretDown weight="thin" size={11} /> : <CaretRight weight="thin" size={11} />}
       </button>
@@ -328,14 +330,14 @@ export default function FindReplaceBar({
             <input
               ref={searchInputRef}
               className="frb-input"
-              placeholder="Find…"
+              placeholder={t('search.findPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               spellCheck={false}
             />
             {query && (
               <span className="frb-count">
-                {matchCount === 0 ? 'no results' : `${matchCount} match${matchCount !== 1 ? 'es' : ''}`}
+                {matchCount === 0 ? t('search.noResults') : t('search.matches', { count: matchCount })}
               </span>
             )}
           </div>
@@ -345,27 +347,27 @@ export default function FindReplaceBar({
             <button
               className={`frb-opt${caseSensitive ? ' active' : ''}`}
               onClick={() => setCaseSensitive((v) => !v)}
-              title="Case sensitive"
+              title={t('search.caseSensitive')}
             >Aa</button>
             <button
               className={`frb-opt${wholeWord ? ' active' : ''}`}
               onClick={() => setWholeWord((v) => !v)}
-              title="Whole word"
+              title={t('search.wholeWord')}
             >[W]</button>
             <button
               className={`frb-opt${useRegex ? ' active' : ''}`}
               onClick={() => setUseRegex((v) => !v)}
-              title="Use regex"
+              title={t('search.regex')}
             >.*</button>
           </div>
 
           {/* Navigation */}
           <div className="frb-nav">
-            <button className="frb-nav-btn" onClick={handleFindPrev} title="Previous match (Shift+Enter)" disabled={matchCount === 0}><ArrowUp weight="thin" size={13} /></button>
-            <button className="frb-nav-btn" onClick={handleFindNext} title="Next match (Enter)" disabled={matchCount === 0}><ArrowDown weight="thin" size={13} /></button>
+            <button className="frb-nav-btn" onClick={handleFindPrev} title={t('search.prev')} disabled={matchCount === 0}><ArrowUp weight="thin" size={13} /></button>
+            <button className="frb-nav-btn" onClick={handleFindNext} title={t('search.next')} disabled={matchCount === 0}><ArrowDown weight="thin" size={13} /></button>
           </div>
 
-          <button className="frb-close" onClick={handleClose} title="Close (Esc)"><X weight="thin" size={14} /></button>
+          <button className="frb-close" onClick={handleClose} title={t('search.close')}><X weight="thin" size={14} /></button>
         </div>
 
         {/* ── Replace row ── */}
@@ -375,15 +377,15 @@ export default function FindReplaceBar({
               <input
                 ref={replaceInputRef}
                 className="frb-input frb-input--replace"
-                placeholder="Replace…"
+                placeholder={t('search.replacePlaceholder')}
                 value={replacement}
                 onChange={(e) => setReplacement(e.target.value)}
                 spellCheck={false}
               />
             </div>
             <div className="frb-replace-actions">
-              <button className="frb-rep-btn" onClick={handleReplaceOne} disabled={matchCount === 0 || !query}>Replace</button>
-              <button className="frb-rep-btn" onClick={handleReplaceAll} disabled={matchCount === 0 || !query}>Replace All</button>
+              <button className="frb-rep-btn" onClick={handleReplaceOne} disabled={matchCount === 0 || !query}>{t('search.replaceOne')}</button>
+              <button className="frb-rep-btn" onClick={handleReplaceAll} disabled={matchCount === 0 || !query}>{t('search.replaceAll')}</button>
             </div>
           </div>
         )}

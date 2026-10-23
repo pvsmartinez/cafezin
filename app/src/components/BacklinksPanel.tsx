@@ -5,6 +5,7 @@
  * Displayed as a compact collapsible strip at the bottom of the editor area.
  */
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { LinkRef } from '../hooks/useBacklinks';
 import './BacklinksPanel.css';
 
@@ -16,6 +17,7 @@ interface BacklinksPanelProps {
 }
 
 export default function BacklinksPanel({ backlinks, outlinks, loading, onOpen }: BacklinksPanelProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const total = backlinks.length + outlinks.length;
 
@@ -27,27 +29,23 @@ export default function BacklinksPanel({ backlinks, outlinks, loading, onOpen }:
       <button
         className="backlinks-toggle"
         onClick={() => setExpanded((v) => !v)}
-        title={expanded ? 'Collapse links' : 'Show backlinks and outlinks'}
+        aria-expanded={expanded}
       >
         <span className="backlinks-toggle-icon">{expanded ? '⌄' : '⌃'}</span>
         {backlinks.length > 0 && (
-          <span className="backlinks-badge backlinks-badge--in" title="Files that link here">
-            ← {backlinks.length}
-          </span>
+          <span className="backlinks-toggle-label">{t('backlinks.inCount', { count: backlinks.length })}</span>
         )}
+        {backlinks.length > 0 && outlinks.length > 0 && <span className="backlinks-toggle-sep">·</span>}
         {outlinks.length > 0 && (
-          <span className="backlinks-badge backlinks-badge--out" title="Files this links to">
-            → {outlinks.length}
-          </span>
+          <span className="backlinks-toggle-label">{t('backlinks.outCount', { count: outlinks.length })}</span>
         )}
-        <span className="backlinks-toggle-label">links</span>
       </button>
 
       {expanded && (
         <div className="backlinks-body">
           {backlinks.length > 0 && (
             <div className="backlinks-section">
-              <div className="backlinks-section-title">← referenced by</div>
+              <div className="backlinks-section-title">{t('backlinks.inTitle')}</div>
               <div className="backlinks-list">
                 {backlinks.map((l) => (
                   <button
@@ -64,7 +62,7 @@ export default function BacklinksPanel({ backlinks, outlinks, loading, onOpen }:
           )}
           {outlinks.length > 0 && (
             <div className="backlinks-section">
-              <div className="backlinks-section-title">→ links to</div>
+              <div className="backlinks-section-title">{t('backlinks.outTitle')}</div>
               <div className="backlinks-list">
                 {outlinks.map((l) => (
                   <button

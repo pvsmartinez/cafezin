@@ -21,7 +21,6 @@
  *   Cmd/Ctrl+Shift+P     Toggle Edit / Preview mode
  *   Cmd/Ctrl+Shift+.     Toggle focus (distraction-free) mode
  *   Escape               Close AI panel (when open)
- *   Cmd/Ctrl+J           Toggle terminal panel
  */
 import { useEffect, useRef } from 'react';
 import { getShortcutBindings, matchesShortcut, type ShortcutOverrideMap } from '../keyboardShortcuts';
@@ -56,7 +55,6 @@ export interface KeyboardShortcutOptions {
   onToggleFind:   () => void;
   onGlobalSearch: () => void;
   onTogglePreview:() => void;
-  onToggleTerminal?:() => void;
   onToggleFocusMode?: () => void;
   focusMode?: boolean;
   onZoomIn?: () => void;
@@ -80,7 +78,7 @@ export function useKeyboardShortcuts(opts: KeyboardShortcutOptions): void {
         shortcutOverrides,
         onOpenAI, onCloseAI, onCloseTab, onOpenSettings,
         onToggleSidebar, onSave, onReload, onNewFile, onSwitchTab,
-        onToggleFind, onGlobalSearch, onTogglePreview, onToggleTerminal,
+        onToggleFind, onGlobalSearch, onTogglePreview,
         onToggleFocusMode, focusMode,
       } = optsRef.current;
       const bindings = getShortcutBindings(shortcutOverrides);
@@ -163,11 +161,6 @@ export function useKeyboardShortcuts(opts: KeyboardShortcutOptions): void {
       if (matchesShortcut(bindings.toggleFocusMode, e)) {
         e.preventDefault();
         onToggleFocusMode?.();
-        return;
-      }
-      if (matchesShortcut(bindings.toggleTerminal, e)) {
-        e.preventDefault();
-        onToggleTerminal?.();
         return;
       }
       // Zoom: Cmd/Ctrl + = or + (in), - (out), 0 (reset) — standard in every editor

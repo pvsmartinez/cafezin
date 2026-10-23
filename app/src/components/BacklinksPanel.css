@@ -1,112 +1,101 @@
-/* ── Backlinks Panel ──────────────────────────────────────────────────────── */
+/* ── References — a quiet tag on the desk, opening into a card ───────────── */
 
 .backlinks-panel {
-  flex-shrink: 0;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
+  position: absolute;
+  left: 18px;
+  bottom: 22px;
   z-index: var(--z-raised);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: min(320px, calc(50% - 300px));
+  white-space: nowrap;
   font-family: var(--font-ui);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+}
+
+/* Not enough desk beside the page: keep it out of the way of the text. */
+@media (max-width: 1180px) {
+  .backlinks-panel { display: none; }
 }
 
 .backlinks-toggle {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
-  padding: 5px 16px;
+  padding: 6px 10px;
   background: none;
   border: none;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  color: var(--text-dim);
-  font-family: var(--font-ui);
-  font-size: 11px;
+  color: var(--paper-muted);
+  font: inherit;
   text-align: left;
-  transition: color 0.12s;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
-.backlinks-toggle:hover {
-  color: var(--text-muted);
+.backlinks-toggle:hover,
+.backlinks-panel.expanded .backlinks-toggle {
+  color: var(--paper-ink);
+  background: var(--paper-rule);
 }
 
 .backlinks-toggle-icon {
   font-size: 10px;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
-.backlinks-toggle-label {
-  color: var(--text-dim);
-  opacity: 0.6;
+.backlinks-toggle-sep {
+  opacity: 0.5;
 }
 
-.backlinks-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 7px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
-}
-.backlinks-badge--in {
-  background: var(--accent-bg);
-  color: var(--accent);
-}
-.backlinks-badge--out {
-  background: var(--surface2);
-  color: var(--text-muted);
-}
-
-/* Expanded body */
+/* Expanded card */
 .backlinks-body {
   display: flex;
-  gap: 0;
-  padding: 6px 16px 10px;
-  flex-wrap: wrap;
-  gap: 16px;
-  border-top: 1px solid var(--border);
-  max-height: 140px;
+  flex-direction: column;
+  gap: 14px;
+  width: 280px;
+  max-width: 100%;
+  max-height: 50vh;
   overflow-y: auto;
+  padding: 14px 16px;
+  background: var(--paper-raised);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--note-shadow), 0 0 0 1px var(--paper-rule);
 }
 
 .backlinks-section {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 160px;
 }
 
 .backlinks-section-title {
-  font-size: 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-  opacity: 0.7;
-  font-weight: 600;
+  color: var(--paper-muted);
 }
 
 .backlinks-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
 }
 
 .backlinks-item {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-family: var(--font-ui);
-  padding: 3px 10px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--paper-text);
+  font-family: var(--font-serif);
+  font-size: 15px;
+  text-align: left;
   cursor: pointer;
-  transition: all 0.1s;
-  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .backlinks-item:hover {
-  border-color: var(--accent);
   color: var(--accent);
-  background: var(--accent-bg, rgba(212, 169, 106, 0.08));
 }

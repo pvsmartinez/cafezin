@@ -32,10 +32,6 @@ export interface AppShellState {
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
   homeVisible: boolean;
   setHomeVisible: React.Dispatch<React.SetStateAction<boolean>>;
-  terminalOpen: boolean;
-  setTerminalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  terminalHeight: number;
-  setTerminalHeight: React.Dispatch<React.SetStateAction<number>>;
   terminalRequestCd: string | undefined;
   setTerminalRequestCd: React.Dispatch<React.SetStateAction<string | undefined>>;
   terminalRequestRun: string | undefined;
@@ -54,8 +50,6 @@ export function useAppShellState(): AppShellState {
   const [sidebarMode, setSidebarMode] = useState<'explorer' | 'search'>('explorer');
   const [sidebarOpen, setSidebarOpen] = useState(initSettings.sidebarOpenDefault);
   const [homeVisible, setHomeVisible] = useState(true);
-  const [terminalOpen, setTerminalOpen] = useState(false);
-  const [terminalHeight, setTerminalHeight] = useState(240);
   const [terminalRequestCd, setTerminalRequestCd] = useState<string | undefined>();
   const [terminalRequestRun, setTerminalRequestRun] = useState<string | undefined>();
   const [focusMode, setFocusMode] = useState(false);
@@ -112,10 +106,6 @@ export function useAppShellState(): AppShellState {
     setSidebarOpen,
     homeVisible,
     setHomeVisible,
-    terminalOpen,
-    setTerminalOpen,
-    terminalHeight,
-    setTerminalHeight,
     terminalRequestCd,
     setTerminalRequestCd,
     terminalRequestRun,

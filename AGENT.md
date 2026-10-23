@@ -56,9 +56,14 @@ Useful paths:
 
 - `app/src/App.tsx`: workspace lifecycle, tabs, autosave, agent and review wiring.
 - `components/app/AppEditorArea.tsx`: writing/source/preview and attachment routing.
+- `components/BookNav.tsx`, `utils/manuscript.ts`: the workspace as a book — Sumário (ordered
+  chapters in `.cafezin/config.json` → `manuscript.chapters`, also the book-PDF order), Caderno,
+  Pesquisa, titles from each text's H1, one-click book PDF and its options (`manuscript.pdf`).
 - `components/Editor.tsx`, `ProseEditor.tsx`, `MarkdownPreview.tsx`: writing surfaces.
 - `utils/documentLinks.ts`, `hooks/useBacklinks.ts`, `components/BacklinksPanel.tsx`: references.
 - `components/WritingReviewPanel.tsx`, `AIMarkOverlay.tsx`, `hooks/useAIMarks.ts`: AI review.
+  Pending edits are margin notes beside the page (compact buttons when there is no margin).
+- `components/AskBar.tsx`: ⌘K-style prompt under the page; sends via `autoSend` to the agent.
 - `services/aiMarks.ts`, `utils/aiMarkMatch.ts`, `utils/aiMarkRevert.ts`: persisted decisions/revert.
 - `services/workspace.ts`: local filesystem and workspace config.
 - `utils/fileType.ts`: supported formats; unknown/development/Office/canvas formats are unsupported.
@@ -133,6 +138,9 @@ not lightweight validation. Full native compilation is required before shipping 
 - Keep versions aligned in `app/package.json` and `app/src-tauri/Cargo.toml`.
 - Do not alter an existing dirty iOS build counter unless explicitly working on an iOS build.
 - No commit/push, production release, migration, notarization or installation without permission.
+- Design direction ("Manuscrito"): the page is the hero — paper (`--paper*` tokens) on a desk
+  (`--desk`), serif text for long reading, silent chrome, no fixed toolbars. Both themes must stay
+  comfortable for hours; check contrast with axe. Dialogs/panels remap UI tokens to paper locally.
 - UI changes need browser validation and before/after screenshots using synthetic data. Read
   the `browsin` and `revisao-visual-antes-depois` skills; delegate pixel inspection to `vision`.
 - Conversation/UI: pt-BR; code and commit messages: English. Prefer simple, focused changes.

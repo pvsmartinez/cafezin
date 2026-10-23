@@ -145,8 +145,8 @@
 .dom-bullet {
   padding: 12px 14px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface2);
+  border: 1px solid var(--border);
   color: var(--text);
   font-size: 14px;
   line-height: 1.45;
@@ -164,7 +164,7 @@
   border-radius: 999px;
   border: none;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--border2);
   transition: width 140ms ease, background-color 140ms ease;
 }
 

@@ -1,61 +1,121 @@
-/* ── Overlay layer — transparent to pointer events except the buttons ── */
+/* ── Overlay layer — transparent to pointer events except the notes ── */
 .aimo-layer {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: var(--z-editor-overlay);
-  overflow: visible;
+  overflow: hidden;
 }
 
-/* ── Per-mark action buttons — always visible, right of the highlighted text ── */
+/* ── Margin note: the agent's edit, beside the page ───────────────── */
+.aimo-note {
+  position: absolute;
+  pointer-events: auto;
+  padding: 12px 14px 11px;
+  background: var(--paper);
+  border-radius: 10px;
+  box-shadow: var(--note-shadow);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+  line-height: 1.45;
+  color: var(--paper-text);
+  animation: aimo-note-in 0.2s ease;
+}
+
+/* Dashed tie back to the page edge */
+.aimo-note::before {
+  content: "";
+  position: absolute;
+  left: -26px;
+  top: 19px;
+  width: 26px;
+  border-top: 1px dashed rgba(var(--accent-rgb), 0.45);
+}
+
+@keyframes aimo-note-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.aimo-note-who {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.aimo-note-who span {
+  margin-left: auto;
+  font-weight: 500;
+  color: var(--paper-muted);
+}
+
+.aimo-note-before {
+  font-family: var(--font-serif);
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--red);
+  text-decoration: line-through;
+  text-decoration-color: rgba(var(--red-rgb), 0.5);
+  opacity: 0.8;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.aimo-note-added {
+  color: var(--paper-muted);
+}
+
+.aimo-note-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 9px;
+}
+
+.aimo-note-actions button {
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.aimo-note-keep { color: var(--green); }
+.aimo-note-undo { color: var(--paper-muted); }
+.aimo-note-actions button:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Compact buttons inside the page's right padding (narrow windows) ── */
 .aimo-actions {
   position: absolute;
-  transform: translate(4px, -50%);
+  transform: translateY(-50%);
   display: inline-flex;
   gap: 4px;
-  opacity: 0.75;
-  transition: opacity var(--transition-fast);
-  z-index: calc(var(--z-editor-overlay) + 1);
-}
-
-.aimo-actions:hover {
-  opacity: 1;
+  pointer-events: auto;
 }
 
 .aimo-accept-btn,
 .aimo-reject-btn {
-  pointer-events: auto;
-  background: var(--surface-code);
-  border-radius: var(--radius-sm);
+  width: 26px;
+  height: 24px;
+  background: var(--paper-raised);
+  border: 1px solid var(--paper-rule);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  padding: 1px 6px;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 700;
-  line-height: 1.5;
+  line-height: 1;
   box-shadow: var(--shadow-sm);
-  transition: background 0.1s, color 0.1s, border-color 0.1s;
-  white-space: nowrap;
-  user-select: none;
 }
 
-.aimo-accept-btn {
-  border: 1px solid rgba(var(--green-rgb, 126,200,160), 0.5);
-  color: var(--green);
-}
-
-.aimo-accept-btn:hover {
-  background: rgba(var(--green-rgb, 126,200,160), 0.18);
-  color: var(--green);
-  border-color: rgba(var(--green-rgb, 126,200,160), 0.8);
-}
-
-.aimo-reject-btn {
-  border: 1px solid rgba(220, 110, 110, 0.5);
-  color: #d87878;
-}
-
-.aimo-reject-btn:hover {
-  background: rgba(220, 110, 110, 0.16);
-  color: #e08989;
-  border-color: rgba(220, 110, 110, 0.78);
-}
+.aimo-accept-btn { color: var(--green); }
+.aimo-reject-btn { color: var(--paper-muted); }
+.aimo-accept-btn:hover { border-color: rgba(var(--green-rgb), 0.6); }
+.aimo-reject-btn:hover { border-color: var(--paper-muted); }

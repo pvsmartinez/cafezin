@@ -175,3 +175,26 @@ body.theme-light .editor-wrapper .cm-editor .cm-activeLineGutter {
 body.theme-light .cm-ghost-text {
   opacity: 0.45;
 }
+
+/* ── Markdown mode: raw text on the same sheet of paper ──────────────────── */
+.editor-wrapper {
+  background: var(--desk);
+  padding: 8px 32px 0;
+}
+
+.editor-wrapper .editor-md-toolbar {
+  display: none;
+}
+
+.editor-wrapper .cm-editor {
+  width: 100%;
+  max-width: var(--page-width);
+  margin: 0 auto;
+  background: var(--paper);
+  border-radius: 3px 3px 0 0;
+  box-shadow: var(--page-shadow);
+}
+
+@media (max-width: 1000px) {
+  .editor-wrapper { padding: 0; }
+}

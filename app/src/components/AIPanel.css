@@ -3,14 +3,25 @@
   to   { opacity: 1; transform: translateX(0); }
 }
 .ai-panel {
+  /* The conversation lives on the desk itself, like the Sumário: remap the UI
+     tokens locally so every inner component inherits the desk and the ink. */
+  --surface: var(--desk);
+  --surface2: var(--paper-rule);
+  --surface-deep: var(--paper-raised);
+  --bg: var(--desk);
+  --border: var(--paper-rule);
+  --border2: var(--paper-rule);
+  --text: var(--paper-text);
+  --text-bright: var(--paper-ink);
+  --text-muted: var(--paper-muted);
   display: flex;
   flex-direction: column;
   width: 340px;
   min-width: 260px;
   height: 100%;
-  background: var(--surface2);
-  border-left: 1px solid var(--border2);
-  box-shadow: -4px 0 32px var(--shadow), var(--shadow-glow);
+  background: var(--desk);
+  border-left: none;
+  box-shadow: none;
   flex-shrink: 0;
   position: relative;
   animation: ai-panel-in 0.17s cubic-bezier(0.22, 1, 0.36, 1);
@@ -23,7 +34,7 @@
 .ai-panel-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 8px 16px;
   border-bottom: 1px solid var(--border2);
   background: var(--surface2);
@@ -644,24 +655,9 @@
   letter-spacing: 0.02em;
 }
 
-body.theme-light .ai-panel {
-  background: rgba(242, 238, 229, 0.94);
-  border-left: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.32);
-}
-
-body.theme-light .ai-panel-header {
-  background: rgba(246, 242, 234, 0.98);
-  border-bottom-color: rgba(0, 0, 0, 0.07);
-}
 
 body.theme-light .ai-btn-ghost:hover {
   background: rgba(0, 0, 0, 0.04);
-}
-
-body.theme-light .ai-message--user .ai-message-content {
-  background: rgba(var(--green-rgb), 0.05);
-  border-left-color: rgba(var(--green-rgb), 0.28);
 }
 
 body.theme-light .ai-session-stats {
@@ -1407,8 +1403,8 @@ body.theme-light .ai-session-stat-chip {
 }
 
 .ai-model-trigger-provider {
-  font-size: 9px;
-  color: var(--text-dim);
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2766,4 +2762,129 @@ body.theme-light .ai-session-stat-chip {
   .ai-history-panel {
     width: 100%;
   }
+}
+
+/* ── Light conversation (Manuscrito) ─────────────────────────────────────────
+   No chrome: tabs and model are quiet text, answers read like prose, the
+   question box matches the ask bar under the page. */
+.ai-panel .ai-tab-bar,
+.ai-panel .ai-panel-header {
+  background: transparent;
+  border: none;
+}
+
+.ai-panel .ai-tab-bar {
+  padding: 6px 16px 0;
+}
+
+.ai-panel .ai-tab,
+.ai-panel .ai-tab:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+.ai-panel .ai-tab::before {
+  display: none;
+}
+
+.ai-panel .ai-panel-header {
+  padding: 2px 16px 0;
+}
+
+.ai-panel .ai-model-trigger {
+  background: transparent;
+  border-color: transparent;
+}
+
+.ai-panel .ai-messages {
+  padding: 18px 22px 24px;
+  gap: 20px;
+}
+
+.ai-panel .ai-message-label {
+  display: none;
+}
+
+.ai-panel .ai-message--user {
+  align-items: flex-end;
+}
+
+.ai-panel .ai-message--user .ai-message-content {
+  max-width: 88%;
+  padding: 9px 13px;
+  background: var(--paper-raised);
+  border: none;
+  border-radius: 14px 14px 4px 14px;
+  box-shadow: 0 0 0 1px var(--paper-rule);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  color: var(--paper-ink);
+}
+
+.ai-panel .ai-message--assistant .ai-message-content {
+  font-family: var(--font-serif);
+  font-size: 16.5px;
+  line-height: 1.65;
+  color: var(--paper-text);
+}
+
+.ai-panel .ai-message--assistant .ai-message-content strong {
+  color: var(--paper-ink);
+  font-weight: 600;
+}
+
+.ai-panel .ai-routine-pill {
+  background: var(--paper-rule);
+  border-color: transparent;
+}
+
+.ai-panel .ai-input-row {
+  padding: 10px 18px 18px;
+  background: transparent;
+  border-top: none;
+}
+
+.ai-panel .ai-input {
+  min-height: 48px;
+  padding: 12px 14px;
+  background: var(--paper-raised);
+  border: none;
+  border-radius: 14px;
+  box-shadow: var(--note-shadow), 0 0 0 1px var(--paper-rule);
+  color: var(--paper-ink);
+}
+
+.ai-panel .ai-input:focus {
+  box-shadow: var(--note-shadow), 0 0 0 1.5px var(--accent-border);
+}
+
+.ai-panel .ai-tab--active {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.ai-panel .ai-tab--active .ai-tab-label {
+  color: var(--paper-ink);
+}
+
+.ai-panel .ai-btn-mic,
+.ai-panel .ai-btn-attach {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* Saved-session drawer: a solid sheet over the conversation. */
+.ai-panel .ai-history-overlay {
+  background: rgba(20, 15, 10, 0.16);
+  z-index: 30;
+}
+
+.ai-panel .ai-history-panel {
+  width: min(340px, 100%);
+  background: var(--paper-raised);
+  border-left: none;
+  box-shadow: var(--note-shadow);
 }

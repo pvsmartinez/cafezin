@@ -13,8 +13,8 @@ const AI_PANEL_COLLAPSE_THRESHOLD = 140;
 const AI_PANEL_MAX_WIDTH = 900;
 
 export function useDragResize(
-  initialSidebarWidth = 220,
-  initialPanelWidth = 340,
+  initialSidebarWidth = 248,
+  initialPanelWidth = 400,
 ) {
   const [sidebarWidth, setSidebarWidth] = useState(initialSidebarWidth);
   const [aiPanelWidth, setAiPanelWidth] = useState(initialPanelWidth);
@@ -30,7 +30,7 @@ export function useDragResize(
       if (!draggingRef.current) return;
       const delta = e.clientX - dragStartX.current;
       if (draggingRef.current === 'sidebar') {
-        setSidebarWidth(Math.max(48, Math.min(480, dragStartWidth.current + delta)));
+        setSidebarWidth(Math.max(200, Math.min(420, dragStartWidth.current + delta)));
       } else {
         // Panel resizes from its left edge — dragging left increases width
         const rawWidth = Math.min(AI_PANEL_MAX_WIDTH, dragStartWidth.current - delta);

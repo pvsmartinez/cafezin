@@ -12,9 +12,9 @@
 
 /* ── Modal shell ─────────────────────────────────── */
 .sm-modal {
-  width: 620px;
+  width: 660px;
   max-width: 94vw;
-  max-height: 84vh;
+  height: min(720px, 86vh);
   background: var(--surface);
   border: 1px solid var(--border2);
   border-radius: var(--radius-xl);
@@ -999,4 +999,31 @@
   flex-direction: column;
   gap: 6px;
   margin-top: 8px;
+}
+
+/* Login / sign-up switch on the account page */
+.sm-sync-auth-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--paper-rule);
+}
+
+.sm-sync-auth-tab {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--paper-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sm-sync-auth-tab.active {
+  background: var(--paper-raised);
+  color: var(--paper-ink);
+  box-shadow: var(--shadow-sm);
 }

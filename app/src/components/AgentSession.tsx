@@ -162,6 +162,8 @@ export interface AgentSessionProps {
 
   // ── Workspace props (same as the old AIPanel) ─────────────────────────────
   initialPrompt?: string;
+  /** A prompt to send right away (from the ask bar); `id` changes per request. */
+  autoSend?: { id: number; text: string };
   initialModel?: string;
   onModelChange?: (model: string) => void;
   documentContext?: string;
@@ -211,6 +213,7 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
   modelsLoading,
   onClose,
   initialPrompt = '',
+  autoSend,
   initialModel,
   onModelChange,
   documentContext = '',
@@ -448,6 +451,13 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream.handleSend, pendingImages, pendingFileRef, pendingSelectionContext, input]);
+
+  const lastAutoSendRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isActive || !autoSend || lastAutoSendRef.current === autoSend.id) return;
+    lastAutoSendRef.current = autoSend.id;
+    void handleSend(undefined, autoSend.text);
+  }, [autoSend, handleSend, isActive]);
 
   // ── Session actions ───────────────────────────────────────────────────────
   function handleRestoreSession() {
@@ -761,7 +771,6 @@ const AgentSession = forwardRef<AgentSessionHandle, AgentSessionProps>(function 
 
       {/* Per-session header: model picker + label */}
       <div className="ai-panel-header">
-        <span className="ai-panel-title">✶ {agentLabel}</span>
         <div className="ai-panel-header-right">
           <ModelPicker
             models={availableModels}

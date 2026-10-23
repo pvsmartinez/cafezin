@@ -35,7 +35,7 @@ export function useModals(): UseModalsReturn {
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general');
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(true);
+  const [aiOpen, setAiOpen] = useState(false);
   const [aiInitialPrompt, setAiInitialPrompt] = useState('');
 
   function openSettings(tab: SettingsTab = 'general') {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Icon } from '@phosphor-icons/react';
-import { ArrowsLeftRight, Books, Keyboard, RocketLaunch, Sparkle, X } from '@phosphor-icons/react';
+import { Books, LinkSimple, Sparkle, X } from '@phosphor-icons/react';
 import './DesktopOnboardingModal.css';
 
 type Locale = 'en' | 'pt-BR';
@@ -27,86 +27,54 @@ const SWIPE_THRESHOLD = 56;
 const SLIDES: Record<Locale, HelpSlide[]> = {
   'pt-BR': [
     {
-      eyebrow: 'Como usar o Cafezin',
-      title: 'Um workspace para escrever, ensinar, planejar e publicar',
-      body: 'Use o Cafezin para livros, aulas, sites, planilhas e qualquer trabalho intelectual que precise de contexto real.',
-      accent: 'Markdown e IA no mesmo lugar',
-      bullets: ['Escreva livro ou aula em arquivos locais', 'Exporte para PDF com um clique', 'Pesquise imagens e PDFs com a IA'],
-      Icon: Sparkle,
-    },
-    {
-      eyebrow: 'Inteligência Artificial',
-      title: 'A IA trabalha com o contexto real do seu projeto',
-      body: 'Abra o painel de IA para revisar textos, estruturar ideias, transformar rascunhos em material finalizado e usar ferramentas direto na pasta.',
-      accent: 'Cmd+K para abrir o painel de IA',
-      bullets: ['Use qualquer modelo — OpenAI, Claude, Groq, GitHub Copilot ou local', 'Pergunte sobre o arquivo atual ou crie e edite arquivos com ferramentas', 'A IA vê o projeto inteiro, não só o arquivo aberto'],
-      Icon: RocketLaunch,
-    },
-    {
-      eyebrow: 'Atalhos',
-      title: 'Os atalhos certos deixam o fluxo mais rapido',
-      body: 'O Cafezin foi desenhado para ficar leve no dia a dia. Os principais atalhos resolvem quase tudo sem tirar sua mao do teclado.',
-      accent: 'Fluxo de trabalho diario',
-      bullets: ['Cmd+K abre o Copilot', 'Cmd+F busca no arquivo e Cmd+Shift+F no projeto', 'Cmd+, abre Settings e Cmd+Shift+P alterna preview'],
-      Icon: Keyboard,
-    },
-    {
-      eyebrow: 'Casos de uso',
-      title: 'Livro, aula e material podem conviver no mesmo projeto',
-      body: 'Monte materiais longos, revise dados, organize pesquisa e publique demos sem espalhar seu trabalho em varias ferramentas soltas.',
-      accent: 'Feito para trabalho profundo',
-      bullets: ['Capitulos, notas e pesquisa lado a lado', 'Aulas, slides e materiais no mesmo workspace', 'Planilhas e sites como parte do processo'],
+      eyebrow: 'Bem-vindo',
+      title: 'Escreva livros e relatórios em arquivos que são seus',
+      body: 'Cada texto é um arquivo Markdown numa pasta do seu computador. Nada fica preso no app.',
+      accent: 'Seus textos, no seu computador',
+      bullets: ['Capítulos e notas em Markdown', 'Escrita visual ou Markdown puro', 'Manuscrito em PDF quando quiser'],
       Icon: Books,
     },
     {
-      eyebrow: 'Companion app',
-      title: 'O mobile entra como companion app do desktop',
-      body: 'Quando voce estiver fora da mesa, o celular serve para capturar ideias, revisar arquivos, usar voice memos e manter o contexto andando.',
-      accent: 'Desktop e mobile no mesmo fluxo',
-      bullets: ['Revise workspaces sincronizados', 'Capture ideias por voz no celular', 'Continue o trabalho sem perder o fio'],
-      Icon: ArrowsLeftRight,
+      eyebrow: 'Referências',
+      title: 'Ligue um texto ao outro',
+      body: 'Escreva [[nome do texto]] para criar uma referência. Clique e o outro texto abre.',
+      accent: '[[ ]] cria uma referência',
+      bullets: ['[[personagens]] abre personagens.md', '[[personagens|as notas]] mostra outro rótulo', 'O rodapé mostra quem cita o texto aberto'],
+      Icon: LinkSimple,
+    },
+    {
+      eyebrow: 'Agente',
+      title: 'Um agente ao lado, e a decisão é sua',
+      body: 'Peça revisão, pesquisa ou um rascunho. Cada edição do agente fica marcada até você aceitar ou desfazer.',
+      accent: '⌘K abre o agente',
+      bullets: ['Antes e depois de cada edição', 'Aceite ou desfaça com um clique', 'Use o modelo que preferir'],
+      Icon: Sparkle,
     },
   ],
   en: [
     {
-      eyebrow: 'How Cafezin works',
-      title: 'One workspace for writing, teaching, planning, and publishing',
-      body: 'Use Cafezin for books, lessons, and any deep work that benefits from real project context.',
-      accent: 'Markdown and AI together',
-      bullets: ['Write books and lessons in local files', 'Export to PDF with one click', 'Research images and PDFs with the AI'],
-      Icon: Sparkle,
-    },
-    {
-      eyebrow: 'Artificial Intelligence',
-      title: 'AI works with real workspace context',
-      body: 'Open the AI panel to revise text, structure ideas, turn rough drafts into finished material, and use workspace tools directly.',
-      accent: 'Cmd+K opens the AI panel',
-      bullets: ['Use any model — OpenAI, Claude, Groq, GitHub Copilot, or local', 'Ask about the current file or create and edit files through tools', 'AI sees the full project, not just the open file'],
-      Icon: RocketLaunch,
-    },
-    {
-      eyebrow: 'Shortcuts',
-      title: 'The right shortcuts make the workflow feel light',
-      body: 'Cafezin is designed for everyday use. A small set of shortcuts covers most of the flow without forcing you into menus.',
-      accent: 'Daily workflow',
-      bullets: ['Cmd+K opens Copilot', 'Cmd+F searches the file and Cmd+Shift+F searches the project', 'Cmd+, opens Settings and Cmd+Shift+P toggles preview'],
-      Icon: Keyboard,
-    },
-    {
-      eyebrow: 'Use cases',
-      title: 'Books, lessons, and material can live in one project',
-      body: 'Build long-form material, review data, organize research, and publish demos without scattering your work across disconnected tools.',
-      accent: 'Built for deep work',
-      bullets: ['Chapters, notes, and research side by side', 'Lessons and materials in one workspace', 'PDF export built in'],
+      eyebrow: 'Welcome',
+      title: 'Write books and reports in files you own',
+      body: 'Every text is a Markdown file in a folder on your computer. Nothing is locked inside the app.',
+      accent: 'Your texts, on your computer',
+      bullets: ['Chapters and notes in Markdown', 'Visual writing or raw Markdown', 'Manuscript PDF whenever you want'],
       Icon: Books,
     },
     {
-      eyebrow: 'Companion app',
-      title: 'Mobile works as the desktop companion app',
-      body: 'Away from the desk, use mobile to capture ideas, review files, record voice memos, and keep the work moving with the same context.',
-      accent: 'Desktop and mobile in one flow',
-      bullets: ['Review synced workspaces', 'Capture ideas by voice on mobile', 'Keep momentum without losing context'],
-      Icon: ArrowsLeftRight,
+      eyebrow: 'References',
+      title: 'Connect one text to another',
+      body: 'Type [[text name]] to create a reference. Click it and the other text opens.',
+      accent: '[[ ]] creates a reference',
+      bullets: ['[[characters]] opens characters.md', '[[characters|the notes]] shows another label', 'The footer shows who references the open text'],
+      Icon: LinkSimple,
+    },
+    {
+      eyebrow: 'Agent',
+      title: 'An agent at your side, and you decide',
+      body: 'Ask for a review, research or a draft. Every agent edit stays marked until you accept or undo it.',
+      accent: '⌘K opens the agent',
+      bullets: ['Before and after for every edit', 'Accept or undo with one click', 'Use the model you prefer'],
+      Icon: Sparkle,
     },
   ],
 };
@@ -170,7 +138,7 @@ export default function DesktopOnboardingModal({ open, locale, firstRun = false,
       <div className="dom-modal" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         <div className="dom-header">
           <div>
-            <div className="dom-kicker">{firstRun ? (locale === 'pt-BR' ? 'Primeira sessao' : 'First session') : 'Help'}</div>
+            <div className="dom-kicker">{firstRun ? (locale === 'pt-BR' ? 'Primeira sessão' : 'First session') : (locale === 'pt-BR' ? 'Ajuda' : 'Help')}</div>
             <div className="dom-step">{index + 1} / {slides.length}</div>
           </div>
           <button className="dom-close" onClick={onClose} title={locale === 'pt-BR' ? 'Fechar' : 'Close'}>
@@ -198,18 +166,18 @@ export default function DesktopOnboardingModal({ open, locale, firstRun = false,
           </div>
         </div>
 
-        <div className="dom-progress" aria-label="Onboarding progress">
+        <div className="dom-progress" aria-label={locale === 'pt-BR' ? 'Progresso' : 'Progress'}>
           {slides.map((item, itemIndex) => (
-            <button key={item.title} className={`dom-dot ${itemIndex === index ? 'is-active' : ''}`} aria-label={`Go to slide ${itemIndex + 1}`} onClick={() => setIndex(itemIndex)} />
+            <button key={item.title} className={`dom-dot ${itemIndex === index ? 'is-active' : ''}`} aria-label={`${locale === 'pt-BR' ? 'Ir para o passo' : 'Go to step'} ${itemIndex + 1}`} onClick={() => setIndex(itemIndex)} />
           ))}
         </div>
 
         <div className="dom-footer">
-          <div className="dom-hint">{locale === 'pt-BR' ? 'Setas esquerda/direita tambem funcionam' : 'Left and right arrows also work'}</div>
+          <div />
           <div className="dom-actions">
             {!isFirst && <button className="dom-btn dom-btn-secondary" onClick={goPrev}>{locale === 'pt-BR' ? 'Voltar' : 'Back'}</button>}
-            <button className="dom-btn dom-btn-secondary" onClick={onClose}>{locale === 'pt-BR' ? 'Fechar' : 'Close'}</button>
-            <button className="dom-btn dom-btn-primary" onClick={goNext}>{isLast ? (locale === 'pt-BR' ? 'Comecar' : 'Start') : (locale === 'pt-BR' ? 'Proximo' : 'Next')}</button>
+            {!isLast && <button className="dom-btn dom-btn-secondary" onClick={onClose}>{locale === 'pt-BR' ? 'Pular' : 'Skip'}</button>}
+            <button className="dom-btn dom-btn-primary" onClick={goNext}>{isLast ? (locale === 'pt-BR' ? 'Começar' : 'Start') : (locale === 'pt-BR' ? 'Próximo' : 'Next')}</button>
           </div>
         </div>
       </div>

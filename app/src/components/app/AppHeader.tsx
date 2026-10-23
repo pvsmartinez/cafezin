@@ -1,19 +1,20 @@
-import { House, List, Sparkle } from '@phosphor-icons/react';
+import { List, Sparkle } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import type { Workspace } from '../../types';
 import type { FileTypeInfo } from '../../utils/fileType';
+
+export type EditorMode = 'write' | 'source' | 'read';
 
 export interface AppHeaderProps {
   sidebarOpen: boolean;
   sidebarShortcutLabel: string;
   onToggleSidebar: () => void;
   activeFile: string | null;
-  title: string;
   workspace: Workspace;
   onGoHome: () => void;
   fileTypeInfo: FileTypeInfo | null;
-  viewMode: 'edit' | 'preview';
-  onSetViewMode: (mode: 'edit' | 'preview') => void;
+  editorMode: EditorMode;
+  onSetEditorMode: (mode: EditorMode) => void;
   pandocBusy: boolean;
   pandocStatus: { detail?: string; cancelRequested?: boolean } | null;
   onCancelPandocExport: () => void;
@@ -27,6 +28,8 @@ export interface AppHeaderProps {
   aiOpen: boolean;
   onToggleAi: () => void;
   previewShortcutLabel: string;
+  /** Words in the active text, shown next to the save status. */
+  wordCount?: number;
 }
 
 export function AppHeader({
@@ -34,12 +37,11 @@ export function AppHeader({
   sidebarShortcutLabel,
   onToggleSidebar,
   activeFile,
-  title,
   workspace,
   onGoHome,
   fileTypeInfo,
-  viewMode,
-  onSetViewMode,
+  editorMode,
+  onSetEditorMode,
   pandocBusy,
   pandocStatus,
   onCancelPandocExport,
@@ -53,8 +55,9 @@ export function AppHeader({
   aiOpen,
   onToggleAi,
   previewShortcutLabel,
+  wordCount,
 }: AppHeaderProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   return (
     <header className="app-header">
@@ -62,47 +65,33 @@ export function AppHeader({
         <button
           className={`app-sidebar-toggle ${sidebarOpen ? 'active' : ''}`}
           onClick={onToggleSidebar}
-          title={sidebarOpen ? `Hide sidebar (${sidebarShortcutLabel})` : `Show sidebar (${sidebarShortcutLabel})`}
+          title={t(sidebarOpen ? 'app.hideSidebarTitle' : 'app.showSidebarTitle', { shortcut: sidebarShortcutLabel })}
         >
           <List weight="thin" size={18} />
         </button>
-        <span className="app-logo">✦</span>
-        {activeFile && (
-          <button
-            className="app-home-btn"
-            onClick={onGoHome}
-            title="Go to workspace home"
-          >
-            <House weight="thin" size={15} />
+        {!sidebarOpen && (
+          <button className="app-home-btn" onClick={onGoHome} title={t('app.goHomeTitle')}>
+            {workspace.config.name || workspace.name}
           </button>
-        )}
-        {!activeFile && (
-          <>
-            <span className="app-title">{title}</span>
-            {workspace.config.name && (
-              <span className="app-workspace-name">{workspace.config.name}</span>
-            )}
-          </>
         )}
       </div>
 
       <div className="app-header-right">
-        {fileTypeInfo?.kind === 'markdown' && (
-          <div className="app-view-toggle">
-            <button
-              className={`app-view-btn ${viewMode === 'edit' ? 'active' : ''}`}
-              onClick={() => onSetViewMode('edit')}
-              title={`Edit mode (${previewShortcutLabel} to toggle)`}
-            >
-              Edit
-            </button>
-            <button
-              className={`app-view-btn ${viewMode === 'preview' ? 'active' : ''}`}
-              onClick={() => onSetViewMode('preview')}
-              title={`Preview rendered markdown (${previewShortcutLabel} to toggle)`}
-            >
-              Preview
-            </button>
+        {activeFile && fileTypeInfo?.kind === 'markdown' && (
+          <div className="app-view-toggle" role="group" aria-label={t('app.editorModeLabel')}>
+            {(['write', 'source', 'read'] as const).map((mode) => (
+              <button
+                key={mode}
+                className={`app-view-btn ${editorMode === mode ? 'active' : ''}`}
+                aria-pressed={editorMode === mode}
+                onClick={() => onSetEditorMode(mode)}
+                title={mode === 'read'
+                  ? t('app.readModeTitle', { shortcut: previewShortcutLabel })
+                  : t(`app.${mode}ModeTitle`)}
+              >
+                {t(`app.${mode}ModeLabel`)}
+              </button>
+            ))}
           </div>
         )}
 
@@ -118,7 +107,7 @@ export function AppHeader({
           </button>
         )}
 
-        {activeTabId && fileTypeInfo && !['pdf', 'video', 'audio', 'image'].includes(fileTypeInfo.kind) && (
+        {activeTabId && fileTypeInfo && !['pdf', 'video', 'audio', 'image', 'unsupported'].includes(fileTypeInfo.kind) && (
           saveError ? (
             <span
               className="app-save-error"
@@ -127,15 +116,13 @@ export function AppHeader({
             >
               {t('app.saveFailedLabel')}
             </span>
-          ) : dirtyFiles.has(activeTabId) && !savedToast ? (
-            <span className="app-unsaved" title={t('app.unsavedTitle')}>
-              {t('app.unsavedLabel')}
+          ) : (
+            <span className="app-doc-status" title={dirtyFiles.has(activeTabId) ? t('app.unsavedTitle') : undefined}>
+              {wordCount !== undefined && `${t('app.wordCount', { count: wordCount, formatted: wordCount.toLocaleString(i18n.language) })} · `}
+              {dirtyFiles.has(activeTabId) && !savedToast ? t('app.unsavedLabel') : t('app.savedLabel')}
             </span>
-          ) : null
+          )
         )}
-
-        {savedToast && <span className="app-saved-toast">{t('app.savedLabel')}</span>}
-
 
         {pandocError && (
           <span

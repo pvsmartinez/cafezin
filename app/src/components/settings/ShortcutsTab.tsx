@@ -43,36 +43,9 @@ const EDITOR_SHORTCUT_SECTIONS: EditorShortcutSection[] = [
       { binding: 'Mod+K', labelKey: 'settings.scAskCopilot' },
     ],
   },
-  {
-    titleKey: 'settings.scGroupCodeEditor',
-    rows: [
-      { binding: 'Mod+F', labelKey: 'settings.scFindReplace' },
-      { binding: 'Alt+F', labelKey: 'settings.scFormatCode' },
-      { binding: 'Mod+K', labelKey: 'settings.scAskCopilot' },
-    ],
-  },
-  {
-    titleKey: 'settings.scGroupCanvasEditor',
-    rows: [
-      { binding: 'Mod+]', labelKey: 'settings.scBringForward' },
-      { binding: 'Mod+Shift+]', labelKey: 'settings.scBringToFront' },
-      { binding: 'Mod+[', labelKey: 'settings.scSendBackward' },
-      { binding: 'Mod+Shift+[', labelKey: 'settings.scSendToBack' },
-      { binding: 'Mod+D', labelKey: 'settings.scDuplicateSelection' },
-      { binding: 'Mod+G', labelKey: 'settings.scGroupSelection' },
-      { binding: 'Mod+Shift+G', labelKey: 'settings.scUngroupSelection' },
-    ],
-  },
-  {
-    titleKey: 'settings.scGroupSpreadsheetEditor',
-    rows: [
-      { binding: '↑ ↓ ← →', labelKey: 'settings.scSpreadsheetNavigate', plain: true },
-      { binding: 'Enter', labelKey: 'settings.scSpreadsheetEditCell' },
-      { binding: 'Delete', labelKey: 'settings.scSpreadsheetClearCell' },
-      { binding: 'Mod+C', labelKey: 'settings.scSpreadsheetCopy' },
-      { binding: 'Mod+V', labelKey: 'settings.scSpreadsheetPaste' },
-    ],
-  },
+
+
+
   {
     titleKey: 'settings.scGroupSidebarEditor',
     rows: [

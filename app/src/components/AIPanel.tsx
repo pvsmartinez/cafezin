@@ -6,7 +6,6 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle, memo } fr
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
-  Snowflake,
   Microphone,
   CaretDown,
   CaretUp,
@@ -16,6 +15,7 @@ import {
   CircleNotch,
   CheckCircle,
   WarningCircle,
+  X,
 } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
@@ -71,6 +71,7 @@ interface AIPanelProps {
   onCollapse?: () => void;
   onExpand?: () => void;
   initialPrompt?: string;
+  autoSend?: { id: number; text: string };
   initialModel?: string;
   onModelChange?: (model: string) => void;
   documentContext?: string;
@@ -226,6 +227,7 @@ const AIPanel = forwardRef<AIPanelHandle, AIPanelProps>(function AIPanel({
   onCollapse,
   onExpand,
   initialPrompt,
+  autoSend,
   initialModel,
   onModelChange,
   documentContext,
@@ -724,7 +726,7 @@ function resolveTabModelForProvider(
               onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
               title={tabs.length === 1 ? t('aiPanel.closePanelTitle') : t('aiPanel.closeAgentTitle')}
             >
-              <Snowflake weight="thin" size={10} />
+              <X weight="bold" size={10} />
             </button>
           </div>
           );
@@ -802,6 +804,7 @@ function resolveTabModelForProvider(
           modelsLoading={modelsLoading}
           onClose={onClose}
           initialPrompt={initialPrompt}
+          autoSend={tab.id === activeTabId ? autoSend : undefined}
           initialModel={tab.model ?? initialModel}
           onModelChange={(model) => {
             setTabs((tabs) => mapTabsIfChanged(tabs, (t) => {

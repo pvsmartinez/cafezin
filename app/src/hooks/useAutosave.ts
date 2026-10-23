@@ -71,10 +71,11 @@ export function useAutosave({
         // Guard: if an external writer (e.g. AI agent tool) already saved a
         // different version since this timer was scheduled, skip the write.
         // handleFileWritten updates savedContentRef immediately after the AI
-        // write succeeds, so a diverged value here means the disk is already
-        // at the newer version and we would be rolling it back.
+        // write succeeds, so a value that moved away from the baseline captured
+        // at schedule time means the disk is already at the newer version and
+        // we would be rolling it back.
         const currentSaved = savedContentRef.current.get(file);
-        if (currentSaved !== undefined && currentSaved !== newContent) {
+        if (currentSaved !== lastSaved) {
           if (pendingSaveFileRef.current === file) pendingSaveFileRef.current = null;
           return;
         }

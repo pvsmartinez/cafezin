@@ -1,3 +1,4 @@
+import i18n from 'i18next';
 import { useState, useRef, useEffect } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { newSessionId } from '../services/copilotLog';
@@ -129,7 +130,15 @@ export function persistSession(
   } catch { /* quota exceeded — skip silently */ }
 }
 
-export const fmtRelative = (iso: string): string => timeAgo(iso);
+export const fmtRelative = (iso: string): string => {
+  const minutes = Math.round((Date.parse(iso) - Date.now()) / 60_000);
+  if (Number.isNaN(minutes)) return timeAgo(iso);
+  const rtf = new Intl.RelativeTimeFormat(i18n.language, { numeric: 'auto', style: 'short' });
+  if (Math.abs(minutes) < 60) return rtf.format(minutes, 'minute');
+  const hours = Math.round(minutes / 60);
+  if (Math.abs(hours) < 24) return rtf.format(hours, 'hour');
+  return rtf.format(Math.round(hours / 24), 'day');
+};
 
 // ── Flatten content to plain text (for copy / insert / log) ──────────────────
 export const contentToString = (content: ChatMessage['content']): string =>

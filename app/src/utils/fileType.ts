@@ -28,3 +28,10 @@ export function getFileTypeInfo(filename: string): FileTypeInfo {
   // buffer. They remain visible on disk without risking accidental text overwrites.
   return { kind, supportsPreview: false, defaultMode: kind === 'unsupported' ? 'edit' : 'preview', language: '' };
 }
+
+/** File name as shown to writers: Markdown documents drop the `.md` suffix,
+ *  except agent/readme files whose extension is part of their identity. */
+export function displayFileName(name: string): string {
+  if (/^(AGENTS?|README|CLAUDE)\.md$/i.test(name)) return name;
+  return name.replace(/\.md$/i, '');
+}

@@ -36,7 +36,7 @@ import {
   type SyncDeviceFlowState, type SyncedWorkspace,
 } from '../services/syncConfig'
 import { FALLBACK_MODELS } from '../types';
-import type { Workspace, AppSettings, SidebarButton, WorkspaceFeatureConfig } from '../types';
+import type { Workspace, AppSettings, WorkspaceFeatureConfig } from '../types';
 import { saveApiSecret } from '../services/apiSecrets';
 import { createCustomerPortalUrl } from '../services/accountService';
 import { useAccountState } from '../hooks/useAccountState';
@@ -66,6 +66,19 @@ interface SettingsModalProps {
 }
 
 type Tab = 'general' | 'shortcuts' | 'ai' | 'workspace' | 'agent' | 'mcp' | 'sync' | 'account';
+
+/** Pages shown in the modal; each groups the sections a writer looks for together. */
+const PAGES: { id: Tab; labelKey: string; sections: Tab[]; needsWorkspace?: boolean }[] = [
+  { id: 'general', labelKey: 'settings.pageGeneral', sections: ['general'] },
+  { id: 'workspace', labelKey: 'settings.pageBook', sections: ['workspace', 'sync'], needsWorkspace: true },
+  { id: 'ai', labelKey: 'settings.pageAgent', sections: ['ai', 'agent', 'mcp'] },
+  { id: 'account', labelKey: 'settings.pageAccount', sections: ['account'] },
+  { id: 'shortcuts', labelKey: 'settings.pageShortcuts', sections: ['shortcuts'] },
+];
+
+function pageOf(tab: Tab): Tab {
+  return PAGES.find((page) => page.sections.includes(tab))?.id ?? 'general';
+}
 
 export default function SettingsModal({
   open,
@@ -111,11 +124,12 @@ export default function SettingsModal({
     return mode === 'on' ? t('settings.capabilityOnManual') : t('settings.capabilityOffManual');
   }
 
-  const [tab, setTab] = useState<Tab>(initialTab ?? 'general');
+  const [tab, setTab] = useState<Tab>(pageOf(initialTab ?? 'general'));
+  const shown = (section: Tab) => PAGES.find((page) => page.id === tab)?.sections.includes(section) ?? false;
 
   // Respect initialTab changes (e.g. first-launch opens directly on sync)
   useEffect(() => {
-    if (open) setTab(initialTab ?? 'general');
+    if (open) setTab(pageOf(initialTab ?? 'general'));
   }, [open, initialTab]);
 
   // ── Sync tab state ────────────────────────────────────────────────────────
@@ -194,7 +208,7 @@ export default function SettingsModal({
   }, [])
 
   useEffect(() => {
-    if (open && (tab === 'sync' || tab === 'account') && syncStatus === 'idle') loadSyncState();
+    if (open && (shown('sync') || shown('account')) && syncStatus === 'idle') loadSyncState();
   }, [open, tab, syncStatus, loadSyncState]);
 
   useEffect(() => {
@@ -359,7 +373,6 @@ export default function SettingsModal({
   const [wsModel, setWsModel] = useState('');
   const [wsLanguage, setWsLanguage] = useState('pt-BR');
   const [wsAgent, setWsAgent] = useState('');
-  const [wsSidebarButtons, setWsSidebarButtons] = useState<SidebarButton[]>([]);
   const [wsInboxFile, setWsInboxFile] = useState('');
   const [wsGitBranch, setWsGitBranch] = useState('');
   const [wsMarkdownMermaid, setWsMarkdownMermaid] = useState<CapabilityOverrideMode>('auto');
@@ -552,9 +565,6 @@ export default function SettingsModal({
     }
   }
   // New button form state
-  const [newBtnLabel, setNewBtnLabel] = useState('');
-  const [newBtnCmd, setNewBtnCmd] = useState('');
-  const [newBtnDesc, setNewBtnDesc] = useState('');
 
   // Reset local draft whenever modal opens or workspace changes
   useEffect(() => {
@@ -565,7 +575,6 @@ export default function SettingsModal({
       : '');
     setWsLanguage(workspace.config.preferredLanguage ?? 'pt-BR');
     setWsAgent(workspace.agentContext ?? '');
-    setWsSidebarButtons(workspace.config.sidebarButtons ?? []);
     setWsInboxFile(workspace.config.inboxFile ?? '');
     setWsGitBranch(workspace.config.gitBranch ?? '');
     setWsMarkdownMermaid(getCapabilityOverrideMode(workspace.config.features?.markdown?.mermaid));
@@ -682,7 +691,6 @@ export default function SettingsModal({
             ? resolveCopilotModelForChatCompletions(wsModel)
             : undefined,
           preferredLanguage: wsLanguage !== 'pt-BR' ? wsLanguage : undefined,
-          sidebarButtons: wsSidebarButtons.length > 0 ? wsSidebarButtons : undefined,
           inboxFile: wsInboxFile.trim() || undefined,
           gitBranch: wsGitBranch.trim() || undefined,
           githubOAuth: wsGitHubClientId.trim()
@@ -722,47 +730,21 @@ export default function SettingsModal({
 
         {/* Tabs */}
         <div className="sm-tabs">
-          <button
-            className={`sm-tab ${tab === 'general' ? 'active' : ''}`}
-            onClick={() => setTab('general')}
-          >{t('settings.tabGeneral')}</button>
-          <button
-            className={`sm-tab ${tab === 'shortcuts' ? 'active' : ''}`}
-            onClick={() => setTab('shortcuts')}
-          >{t('settings.tabShortcuts')}</button>
-          <button
-            className={`sm-tab ${tab === 'ai' ? 'active' : ''}`}
-            onClick={() => setTab('ai')}
-          >{t('settings.tabAI')}</button>
-          <button
-            className={`sm-tab ${tab === 'workspace' ? 'active' : ''}`}
-            onClick={() => setTab('workspace')}
-            disabled={!workspace}
-          >{t('settings.tabWorkspace')}</button>
-          <button
-            className={`sm-tab ${tab === 'agent' ? 'active' : ''}`}
-            onClick={() => setTab('agent')}
-            disabled={!workspace}
-          >{t('settings.tabAgent')}</button>
-          <button
-            className={`sm-tab ${tab === 'mcp' ? 'active' : ''}`}
-            onClick={() => setTab('mcp')}
-          >{t('settings.tabMcp')}</button>
-          <button
-            className={`sm-tab ${tab === 'sync' ? 'active' : ''}`}
-            onClick={() => setTab('sync')}
-          >{t('settings.tabSync')}</button>
-          <button
-            className={`sm-tab ${tab === 'account' ? 'active' : ''}`}
-            onClick={() => setTab('account')}
-          >{t('settings.tabAccount')}</button>
+          {PAGES.map((page) => (
+            <button
+              key={page.id}
+              className={`sm-tab ${tab === page.id ? 'active' : ''}`}
+              onClick={() => setTab(page.id)}
+              disabled={page.needsWorkspace && !workspace}
+            >{t(page.labelKey)}</button>
+          ))}
         </div>
 
         {/* Body */}
         <div className="sm-body">
 
           {/* ── General tab ── */}
-          {tab === 'general' && (
+          {shown('general') && (
             <GeneralTab
               appSettings={appSettings}
               onAppSettingsChange={onAppSettingsChange}
@@ -771,7 +753,7 @@ export default function SettingsModal({
             />
           )}
 
-          {tab === 'shortcuts' && (
+          {shown('shortcuts') && (
             <ShortcutsTab
               appSettings={appSettings}
               onAppSettingsChange={onAppSettingsChange}
@@ -779,7 +761,7 @@ export default function SettingsModal({
           )}
 
           {/* ── AI tab ── */}
-          {tab === 'ai' && (
+          {shown('ai') && (
             <AITab
               appSettings={appSettings}
               onAppSettingsChange={onAppSettingsChange}
@@ -827,30 +809,22 @@ export default function SettingsModal({
           )}
 
           {/* ── Workspace tab ── */}
-          {tab === 'workspace' && workspace && (
+          {shown('workspace') && workspace && (
             <WorkspaceTab
               workspace={workspace}
               wsName={wsName}
               setWsName={setWsName}
-              wsSidebarButtons={wsSidebarButtons}
-              setWsSidebarButtons={setWsSidebarButtons}
               wsInboxFile={wsInboxFile}
               setWsInboxFile={setWsInboxFile}
               wsGitBranch={wsGitBranch}
               setWsGitBranch={setWsGitBranch}
-              newBtnLabel={newBtnLabel}
-              setNewBtnLabel={setNewBtnLabel}
-              newBtnCmd={newBtnCmd}
-              setNewBtnCmd={setNewBtnCmd}
-              newBtnDesc={newBtnDesc}
-              setNewBtnDesc={setNewBtnDesc}
               wsSaving={wsSaving}
               wsSaved={wsSaved}
               onWsSave={handleWsSave}
             />
           )}
           {/* ── Agent tab ── */}
-          {tab === 'agent' && workspace && (
+          {shown('agent') && workspace && (
             <AgentTab
               workspace={workspace}
               wsLanguage={wsLanguage}
@@ -872,10 +846,10 @@ export default function SettingsModal({
           )}
 
           {/* ── MCP tab ── */}
-          {tab === 'mcp' && <McpTab />}
+          {shown('mcp') && <McpTab />}
 
           {/* ── Sync tab ── */}
-          {tab === 'sync' && (
+          {shown('sync') && (
             <SyncTab
               workspace={workspace}
               syncStatus={syncStatus}
@@ -911,13 +885,13 @@ export default function SettingsModal({
               onConnectGitAccount={handleConnectGitAccount}
               onUnregister={handleUnregister}
               syncError={syncError}
-              onNavigateToAccount={() => setTab('account')}
+              onNavigateToAccount={() => setTab(pageOf('account'))}
               onCancelDeviceFlow={handleCancelDeviceFlow}
             />
           )}
 
           {/* ── Account tab ── */}
-          {tab === 'account' && (
+          {shown('account') && (
             <AccountTab
               syncStatus={syncStatus}
               syncUser={syncUser}

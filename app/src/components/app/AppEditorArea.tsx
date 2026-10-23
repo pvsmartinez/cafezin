@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense, useState, type ComponentProps, type RefObject } from 'react';
+import { lazy, memo, Suspense, useMemo, type ComponentProps, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import Editor from '../Editor';
 import type { EditorHandle } from '../Editor';
@@ -6,10 +6,11 @@ import { EditorErrorBoundary } from '../EditorErrorBoundary';
 import WorkspaceHome from '../WorkspaceHome';
 import FindReplaceBar from '../FindReplaceBar';
 import AIMarkOverlay from '../AIMarkOverlay';
-import TabBar from '../TabBar';
 import BacklinksPanel from '../BacklinksPanel';
+import AskBar from '../AskBar';
 import type { AIEditMark, AISelectionContext, AppSettings, Workspace } from '../../types';
 import type { FileTypeInfo } from '../../utils/fileType';
+import { buildManuscriptLayout } from '../../utils/manuscript';
 
 const ProseEditor = lazy(() => import('../ProseEditor'));
 const MarkdownPreview = lazy(() => import('../MarkdownPreview'));
@@ -21,15 +22,12 @@ type ViewMode = 'edit' | 'preview';
 interface AppEditorAreaProps {
   workspace: Workspace;
   aiMarks: AIEditMark[];
-  tabs: ComponentProps<typeof TabBar>['tabs'];
-  activeTabId: ComponentProps<typeof TabBar>['activeTabId'];
-  previewTabId: ComponentProps<typeof TabBar>['previewTabId'];
-  dirtyFiles: Set<string>;
   lockedFiles: Set<string>;
   activeFile: string | null;
   fileTypeInfo: FileTypeInfo | null;
   content: string;
   viewMode: ViewMode;
+  sourceMode: boolean;
   appSettings: AppSettings;
   isDarkTheme: boolean;
   homeVisible: boolean;
@@ -41,13 +39,7 @@ interface AppEditorAreaProps {
   backlinksLoading: boolean;
   editorRef: RefObject<EditorHandle | null>;
   editorAreaRef: RefObject<HTMLDivElement | null>;
-  onSelectTab: ComponentProps<typeof TabBar>['onSelect'];
-  onCloseTab: ComponentProps<typeof TabBar>['onClose'];
-  onCloseOthers: ComponentProps<typeof TabBar>['onCloseOthers'];
-  onCloseToRight: ComponentProps<typeof TabBar>['onCloseToRight'];
-  onCloseAllTabs: () => void;
-  onPromoteTab: ComponentProps<typeof TabBar>['onPromoteTab'];
-  onReorderTabs: ComponentProps<typeof TabBar>['onReorder'];
+  onCloseTab: (filePath: string) => void;
   onSetFindReplaceOpen: (open: boolean) => void;
   onContentChange: (next: string) => void;
   onAIRequest: ComponentProps<typeof Editor>['onAIRequest'];
@@ -62,20 +54,19 @@ interface AppEditorAreaProps {
   onSetHomeVisible: (visible: boolean) => void;
   onSetFileStat: (value: string | null) => void;
   onImagePaste: ComponentProps<typeof Editor>['onImagePaste'];
+  /** When set, a quiet ask bar sits under the page and sends prompts to the agent. */
+  onAsk?: (text: string) => void;
 }
 
 export function AppEditorAreaInner({
   workspace,
   aiMarks,
-  tabs,
-  activeTabId,
-  previewTabId,
-  dirtyFiles,
   lockedFiles,
   activeFile,
   fileTypeInfo,
   content,
   viewMode,
+  sourceMode,
   appSettings,
   isDarkTheme,
   homeVisible,
@@ -87,13 +78,7 @@ export function AppEditorAreaInner({
   backlinksLoading,
   editorRef,
   editorAreaRef,
-  onSelectTab,
   onCloseTab,
-  onCloseOthers,
-  onCloseToRight,
-  onCloseAllTabs,
-  onPromoteTab,
-  onReorderTabs,
   onSetFindReplaceOpen,
   onContentChange,
   onAIRequest,
@@ -108,35 +93,16 @@ export function AppEditorAreaInner({
   onSetHomeVisible,
   onSetFileStat,
   onImagePaste,
+  onAsk,
 }: AppEditorAreaProps) {
   const { t } = useTranslation();
-  const [sourceMode, setSourceMode] = useState(false);
+  const chapterIndex = useMemo(
+    () => (activeFile ? buildManuscriptLayout(workspace.fileTree, workspace.config).chapters.indexOf(activeFile) : -1),
+    [activeFile, workspace.fileTree, workspace.config],
+  );
+  const kicker = chapterIndex >= 0 ? t('book.chapterKicker', { n: chapterIndex + 1 }) : undefined;
   return (
     <div className="editor-area" ref={editorAreaRef}>
-      <TabBar
-        tabs={tabs}
-        activeTabId={activeTabId}
-        dirtyFiles={dirtyFiles}
-        lockedFiles={lockedFiles}
-        previewTabId={previewTabId}
-        workspacePath={workspace.path}
-        onSelect={onSelectTab}
-        onClose={onCloseTab}
-        onCloseOthers={onCloseOthers}
-        onCloseToRight={onCloseToRight}
-        onCloseAll={onCloseAllTabs}
-        onPromoteTab={onPromoteTab}
-        onReorder={onReorderTabs}
-      />
-
-      {activeFile && fileTypeInfo?.kind === 'markdown' && viewMode === 'edit' && (
-        <div className="writing-mode-switch" role="group" aria-label="Modo de escrita">
-          <button className={`app-view-btn ${!sourceMode ? 'active' : ''}`}
-            aria-pressed={!sourceMode} onClick={() => setSourceMode(false)}>Escrita</button>
-          <button className={`app-view-btn ${sourceMode ? 'active' : ''}`}
-            aria-pressed={sourceMode} onClick={() => setSourceMode(true)}>Markdown</button>
-        </div>
-      )}
 
       {activeFile && lockedFiles.has(activeFile) && (
         <div className="copilot-lock-overlay" aria-hidden>
@@ -245,6 +211,8 @@ export function AppEditorAreaInner({
                   workspaceFileTree={workspace.fileTree}
                   isDark={isDarkTheme}
                   isLocked={activeFile ? lockedFiles.has(activeFile) : false}
+                  kicker={kicker}
+                  hasMarginNotes={aiHighlight && activeFileMarks.length > 0}
                 />
               ) : (
                 <Editor
@@ -281,7 +249,14 @@ export function AppEditorAreaInner({
         />
       )}
 
-      {fileTypeInfo?.kind === 'markdown' && (
+      {onAsk && activeFile && fileTypeInfo?.kind === 'markdown' && (
+        <AskBar
+          placeholder={kicker ? t('askBar.placeholderChapter') : t('askBar.placeholder')}
+          onAsk={onAsk}
+        />
+      )}
+
+      {fileTypeInfo?.kind === 'markdown' && onAsk && (
         <BacklinksPanel
           backlinks={backlinks}
           outlinks={outlinks}

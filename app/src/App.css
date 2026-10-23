@@ -51,6 +51,14 @@ body.theme-light {
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 ::-webkit-scrollbar-corner { background: transparent; }
 
+/* Form controls don't inherit the UI font by default. */
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
 /* ── Focus ring ─────────────────────────────────── */
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -68,12 +76,12 @@ button:focus-visible,
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: var(--bg);
+  background: var(--desk);
   color: var(--text);
 }
 
 body.theme-light .app {
-  background: transparent;
+  background: var(--desk);
 }
 
 /* ── Header ──────────────────────────────────────── */
@@ -81,10 +89,9 @@ body.theme-light .app {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 44px;
-  padding: 0 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  height: 46px;
+  padding: 0 20px 0 14px;
+  background: var(--desk);
   flex-shrink: 0;
   -webkit-app-region: drag;
   user-select: none;
@@ -123,16 +130,23 @@ body.theme-light .app {
 .app-home-btn {
   background: none;
   border: none;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 6px;
-  border-radius: var(--radius-sm);
+  color: var(--text-bright);
+  font: inherit;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: color var(--transition-base), background var(--transition-base);
 }
-.app-home-btn:hover {
+.app-home-btn:disabled {
+  cursor: default;
+}
+.app-home-btn:not(:disabled):hover {
   color: var(--accent);
   background: var(--accent-bg);
 }
@@ -210,24 +224,22 @@ body.theme-light .app {
   align-items: center;
   gap: 6px;
   background: none;
-  border: 1px solid var(--border2);
-  color: var(--text-muted);
-  font-size: var(--font-size-base);
-  padding: 4px 12px;
+  border: none;
   border-radius: var(--radius-md);
+  color: var(--accent);
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  padding: 5px 10px;
   cursor: pointer;
-  transition: all var(--transition-base);
+  transition: background var(--transition-fast);
 }
 
 .app-ai-toggle:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--accent-bg);
 }
 
 .app-ai-toggle.active {
   background: var(--accent-bg);
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 .app-devtools-btn {
@@ -272,27 +284,17 @@ body.theme-light .app {
 /* ── "Saved ✓" toast chip ─────────────────────────────────── */
 .app-saved-toast {
   font-size: var(--font-size-xs);
-  font-weight: 600;
-  color: var(--green);
-  background: rgba(var(--green-rgb), 0.12);
-  border: 1px solid rgba(var(--green-rgb), 0.35);
-  border-radius: var(--radius-md);
-  padding: 3px 9px;
+  color: var(--text-muted);
   pointer-events: none;
   animation: app-saved-fadein var(--transition-base);
 }
 
 /* ── "● Unsaved" indicator ───────────────────────────────── */
-.app-unsaved {
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  color: var(--yellow);
-  background: rgba(var(--yellow-rgb), 0.1);
-  border: 1px solid rgba(var(--yellow-rgb), 0.3);
-  border-radius: var(--radius-md);
-  padding: 3px 9px;
-  pointer-events: none;
+.app-doc-status {
+  font-size: var(--font-size-sm);
+  color: var(--paper-muted);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── "⚠ Save failed" warning ───────────────────────────── */
@@ -390,32 +392,29 @@ body.theme-light .app {
 .app-view-toggle {
   display: flex;
   align-items: center;
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius-md);
-  overflow: hidden;
+  gap: 2px;
   flex-shrink: 0;
 }
 
 .app-view-btn {
   background: none;
   border: none;
-  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  color: var(--paper-muted);
   font-size: var(--font-size-sm);
-  font-weight: 500;
-  padding: 4px 11px;
+  font-weight: 600;
+  padding: 4px 8px;
   cursor: pointer;
   transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .app-view-btn:hover {
-  color: var(--text);
-  background: var(--border2);
+  color: var(--paper-ink);
 }
 
 .app-view-btn.active {
-  background: var(--accent-bg);
-  color: var(--accent);
+  color: var(--paper-ink);
+  background: var(--paper-rule);
 }
 
 /* -- Export PDF busy indicator (shown while pandoc is running) ---------- */
@@ -510,15 +509,6 @@ body.theme-light .app {
   overflow-wrap: anywhere;
 }
 
-.writing-mode-switch {
-  display: flex;
-  justify-content: flex-end;
-  gap: 4px;
-  padding: 5px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
-
 /* ── Editor area — wraps writing and reference viewers.
    position:relative is required so FindReplaceBar can anchor to top-right. */
 .editor-area {
@@ -543,11 +533,6 @@ body.theme-light .app {
   animation: file-fadein 0.13s ease;
 }
 
-body.theme-light .app-header {
-  background: rgba(247, 243, 235, 0.96);
-  border-bottom-color: rgba(0, 0, 0, 0.08);
-}
-
 body.theme-light .app-title {
   color: var(--text-bright);
 }
@@ -558,51 +543,21 @@ body.theme-light .app-workspace-name {
   color: var(--text-muted);
 }
 
-body.theme-light .app-ai-toggle {
-  border-color: rgba(0, 0, 0, 0.1);
-  background: rgba(0, 0, 0, 0.015);
-}
-
 body.theme-light .app-header-btn {
   border-color: rgba(0, 0, 0, 0.1);
   background: rgba(0, 0, 0, 0.015);
 }
 
-body.theme-light .app-ai-toggle.active {
-  background: var(--surface);
-  border-color: rgba(var(--accent-rgb), 0.3);
+@keyframes sidebar-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
-body.theme-light .app-view-toggle {
-  background: rgba(0, 0, 0, 0.02);
-  border-color: rgba(0, 0, 0, 0.09);
-}
-
-body.theme-light .app-view-btn:hover {
-  background: rgba(0, 0, 0, 0.045);
-}
-
-body.theme-light .app-view-btn.active {
-  background: var(--surface);
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
-}
-
-body.theme-light .app-body {
-  background: linear-gradient(to right, var(--bg) 0%, var(--bg) 100%);
-}
-
-body.theme-light .editor-area {
-  background:
-    radial-gradient(700px 180px at 50% 0%, rgba(255, 255, 255, 0.22), transparent 70%),
-    transparent;
-}
-
-body.theme-light .editor-file-view {
-  background: rgba(247, 244, 237, 0.72);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.035),
-    0 14px 40px rgba(41, 33, 20, 0.06);
+.book-nav-wrap {
+  flex-shrink: 0;
+  min-width: 0;
+  height: 100%;
+  animation: sidebar-in 0.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* ── Copilot lock overlay ─────────────────────────────── */
@@ -1061,7 +1016,7 @@ body.is-resizing webview {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
+  background: var(--desk);
   cursor: pointer;
   user-select: none;
   gap: 8px;
@@ -1131,4 +1086,23 @@ body.is-resizing webview {
 }
 .ws-empty-btn--primary:hover {
   opacity: 0.92;
+}
+
+/* ── Dialogs are sheets of the same paper as the page ─────────────────────── */
+.em-modal,
+.sm-modal,
+.writing-review,
+.um-modal,
+.cd-dialog,
+.dom-modal {
+  --surface: var(--paper);
+  --surface2: var(--paper-rule);
+  --surface-deep: var(--paper-raised);
+  --bg: var(--paper-raised);
+  --border: var(--paper-rule);
+  --border2: var(--paper-rule);
+  --text: var(--paper-text);
+  --text-bright: var(--paper-ink);
+  --text-muted: var(--paper-muted);
+  --text-dim: var(--paper-muted);
 }

@@ -46,7 +46,8 @@ import { useForceUpdateCheck } from './hooks/useForceUpdateCheck';
 import { useProactiveNudge } from './hooks/useProactiveNudge';
 import { useFeedbackNudge } from './hooks/useFeedbackNudge';
 import { AppOverlays } from './components/app/AppOverlays';
-import { AppHeader } from './components/app/AppHeader';
+import { AppHeader, type EditorMode } from './components/app/AppHeader';
+import { buildManuscriptLayout, countWords } from './utils/manuscript';
 import { AppEditorArea } from './components/app/AppEditorArea';
 import { consumeLaunchWorkspacePath } from './services/windowing';
 import { formatShortcutLabel, getShortcutBindings } from './keyboardShortcuts';
@@ -75,7 +76,7 @@ setupI18n(loadAppSettings().locale);
 
 const launchWorkspacePath = consumeLaunchWorkspacePath();
 const AIPanel = lazy(() => import('./components/AIPanel'));
-const Sidebar = lazy(() => import('./components/Sidebar'));
+const BookNav = lazy(() => import('./components/BookNav'));
 const DesktopOnboardingModal = lazy(() => import('./components/DesktopOnboardingModal'));
 const WritingReviewPanel = lazy(() => import('./components/WritingReviewPanel'));
 
@@ -179,7 +180,7 @@ export default function App() {
     content, setContent, viewMode, setViewMode,
     tabContentsRef, tabViewModeRef, savedContentRef,
     activeTabIdRef, tabsRef,
-    switchToTab, addTab, closeTab, closeAllTabs, closeOthers, closeToRight, reorderTabs,
+    switchToTab, addTab, closeTab,
     promoteTab, remapPaths, pruneTabs, clearAll,
   } = useTabManager({ fallbackContent: FALLBACK_CONTENT });
   // Debounce word/line count so the status bar doesn't update on every keystroke.
@@ -338,14 +339,12 @@ export default function App() {
   const {
     aiMarks, setAiMarks,
     aiHighlight, setAiHighlight,
-    aiNavIndex, setAiNavIndex,
+    setAiNavIndex,
     activeFileMarks,
     loadMarksForWorkspace,
     handleMarkRecorded,
     handleMarkReviewed,
     handleMarkRejected,
-    handleAINavNext,
-    handleAINavPrev,
     cleanupMarksForContent,
   } = useAIMarks({
     workspace,
@@ -538,10 +537,15 @@ export default function App() {
   }
 
   // ── Keyboard shortcuts ───────────────────────────────────────
+  // Without tabs, Ctrl+Tab walks the book: next/previous chapter in the Sumário.
+  const chapterOrder = useMemo(
+    () => (workspace ? buildManuscriptLayout(workspace.fileTree, workspace.config).chapters : []),
+    [workspace],
+  );
   useKeyboardShortcuts({
     aiOpen,
     activeTabId,
-    tabs,
+    tabs: chapterOrder,
     fileTypeInfo,
     shortcutOverrides: appSettings.shortcutOverrides,
     onOpenAI:        () => { setAiInitialPrompt(''); setAiOpen(true); },
@@ -550,7 +554,7 @@ export default function App() {
     onOpenSettings:  () => openSettings(),
     onToggleSidebar: () => setSidebarOpen((v) => {
       // When opening from icon-mode (width < 80 px), snap sidebar back to normal
-      if (!v && sidebarWidthRef.current < 80) setSidebarWidth(220);
+      if (!v && sidebarWidthRef.current < 80) setSidebarWidth(248);
       return !v;
     }),
     onSave: async () => {
@@ -574,7 +578,7 @@ export default function App() {
     },
     onReload:        reloadActiveFile,
     onNewFile:       () => { setSidebarOpen(true); setTimeout(() => newFileRef.current?.(), 80); },
-    onSwitchTab:     switchToTab,
+    onSwitchTab:     (path) => { void handleOpenFile(path); },
     onToggleFind:    () => setFindReplaceOpen(true),
     onGlobalSearch:  () => { setSidebarOpen(true); setSidebarMode('search'); },
     onTogglePreview: () => {
@@ -649,16 +653,6 @@ export default function App() {
 
     void markWorkspaceMemoryForChangedPaths(ws.path, changedPaths);
   }, [markWorkspaceMemoryForChangedPaths, recordWorkspaceStructureDiff]);
-
-  const handleRefreshWorkspaceFiles = useCallback(async () => {
-    if (!workspace) return;
-    try {
-      await refreshWorkspace(workspace);
-    } catch (err) {
-      console.error('Failed to refresh workspace:', err);
-      setSaveError(`Could not refresh workspace: ${(err as Error)?.message ?? String(err)}`);
-    }
-  }, [refreshWorkspace, workspace]);
 
   const handlePathRenamed = useCallback((fromPath: string, toPath: string) => {
     if (!fromPath || !toPath || fromPath === toPath) return;
@@ -773,26 +767,6 @@ export default function App() {
       setDirtyFiles((prev) => { const next = new Set(prev); next.delete(p); return next; });
     });
   }
-
-  function handleCloseAllTabs() {
-    cancelAutosave();
-    closeAllTabs((paths) => {
-      setDirtyFiles((prev) => { const s = new Set(prev); paths.forEach((p) => s.delete(p)); return s; });
-    });
-  }
-
-  function handleCloseOthers(filePath: string) {
-    closeOthers(filePath, (paths) => {
-      setDirtyFiles((prev) => { const s = new Set(prev); paths.forEach((p) => s.delete(p)); return s; });
-    });
-  }
-
-  function handleCloseToRight(filePath: string) {
-    closeToRight(filePath, (paths) => {
-      setDirtyFiles((prev) => { const s = new Set(prev); paths.forEach((p) => s.delete(p)); return s; });
-    });
-  }
-
 
   async function handleWorkspaceConfigChange(patch: Partial<WorkspaceConfig>): Promise<void> {
     if (!workspace) return;
@@ -979,34 +953,37 @@ export default function App() {
     fileTypeKind: fileTypeInfo?.kind,
     content,
   });
-  const title = useMemo(
-    () => activeFile
-      ? (content.slice(0, 500).match(/^#\s+(.+)$/m)?.[1] ?? activeFile)
-      : workspace?.name ?? 'Untitled',
-    [activeFile, content, workspace?.name],
-  );
 
   const handleViewModeChange = useCallback((mode: 'edit' | 'preview') => {
     setViewMode(mode);
     if (activeTabId) tabViewModeRef.current.set(activeTabId, mode);
   }, [activeTabId, setViewMode, tabViewModeRef]);
 
+  const [sourceMode, setSourceMode] = useState(false);
+  const activeWordCount = useMemo(
+    () => (fileTypeInfo?.kind === 'markdown' ? countWords(content) : undefined),
+    [content, fileTypeInfo?.kind],
+  );
+  const editorMode: EditorMode = viewMode === 'preview' ? 'read' : sourceMode ? 'source' : 'write';
+  const handleEditorModeChange = useCallback((mode: EditorMode) => {
+    handleViewModeChange(mode === 'read' ? 'preview' : 'edit');
+    if (mode !== 'read') setSourceMode(mode === 'source');
+  }, [handleViewModeChange]);
+
   // ── Stable callbacks for memoised children (Sidebar, AIPanel, AppOverlays) ─
   // These are defined with useCallback so that React.memo on those components
   // actually prevents re-renders on every keystroke (content change in App).
 
-  // Sidebar callbacks
-  const handleSidebarOpenAIReview = useCallback(() => {
-    setAiHighlight(true);
-    openWritingReview();
-  }, [openWritingReview, setAiHighlight]);
-
-  const handleExpandSidebar = useCallback(() => {
-    if (sidebarWidthRef.current < 80) setSidebarWidth(220);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // sidebarWidthRef is a ref — stable
-
   const handleExportOpen = useCallback(() => setExportModalOpen(true), []);
+  const [aiAutoSend, setAiAutoSend] = useState<{ id: number; text: string } | undefined>();
+  const handleAsk = useCallback((text: string) => {
+    setAiOpen(true);
+    setAiAutoSend({ id: Date.now(), text });
+  }, [setAiOpen]);
+  const handleOpenSettings = useCallback(() => openSettings(), [openSettings]);
+  const handleSearchOpenChange = useCallback((open: boolean) => {
+    setSidebarMode(open ? 'search' : 'explorer');
+  }, [setSidebarMode]);
 
   // AppOverlays callbacks
   const handleCloseUpdateModal = useCallback(() => setShowUpdateModal(false), []);
@@ -1111,12 +1088,11 @@ export default function App() {
         sidebarShortcutLabel={sidebarShortcutLabel}
         onToggleSidebar={handleToggleSidebar}
         activeFile={activeFile}
-        title={title}
         workspace={workspace}
         onGoHome={handleGoHome}
         fileTypeInfo={fileTypeInfo}
-        viewMode={viewMode}
-        onSetViewMode={handleViewModeChange}
+        editorMode={editorMode}
+        onSetEditorMode={handleEditorModeChange}
         pandocBusy={pandocBusy}
         pandocStatus={pandocStatus}
         onCancelPandocExport={handleCancelExportPDF}
@@ -1130,6 +1106,7 @@ export default function App() {
         aiOpen={aiOpen}
         onToggleAi={handleToggleAi}
         previewShortcutLabel={previewShortcutLabel}
+        wordCount={activeWordCount}
       />
 
       {/* Workspace: editor body */}
@@ -1139,33 +1116,27 @@ export default function App() {
         {sidebarOpen && (
           <>
             <Suspense fallback={null}>
-              <Sidebar
-                workspace={workspace}
-                activeFile={activeFile}
-                dirtyFiles={dirtyFiles}
-                aiMarks={aiMarks}
-                aiNavCount={activeFileMarks.length}
-                aiNavIndex={aiNavIndex}
-                style={{ width: sidebarWidth }}
-                onFileSelect={handleOpenFile}
-                onWorkspaceChange={handleWorkspaceChange}
-                onUpdate={handleUpdate}
-                onSyncComplete={handleSyncComplete}
-                sidebarMode={sidebarMode}
-                onSidebarModeChange={setSidebarMode}
-                onReviewChanges={openWritingReview}
-                onOpenAIReview={handleSidebarOpenAIReview}
-                onAIPrev={handleAINavPrev}
-                onAINext={handleAINavNext}
-                onFileDeleted={handleFileDeleted}
-                onPathRenamed={handlePathRenamed}
-                onSearchFileOpen={handleSearchFileOpen}
-                onRefreshFiles={handleRefreshWorkspaceFiles}
-                lockedFiles={lockedFiles}
-                newFileRef={newFileRef}
-                onExportOpen={handleExportOpen}
-                onExpandSidebar={handleExpandSidebar}
-              />
+              <div className="book-nav-wrap" style={{ width: sidebarWidth }}>
+                <BookNav
+                  workspace={workspace}
+                  activeFile={activeFile}
+                  activeContent={content}
+                  dirtyFiles={dirtyFiles}
+                  aiMarks={aiMarks}
+                  searchOpen={sidebarMode === 'search'}
+                  onSearchOpenChange={handleSearchOpenChange}
+                  onFileSelect={handleOpenFile}
+                  onSearchFileOpen={handleSearchFileOpen}
+                  onWorkspaceChange={handleWorkspaceChange}
+                  onFileDeleted={handleFileDeleted}
+                  onPathRenamed={handlePathRenamed}
+                  onExportOpen={handleExportOpen}
+                  onOpenSettings={handleOpenSettings}
+                  onGoHome={handleGoHome}
+                  onSyncComplete={handleSyncComplete}
+                  newFileRef={newFileRef}
+                />
+              </div>
             </Suspense>
             {/* Sidebar resize handle */}
             <div className="resize-divider" onMouseDown={startSidebarDrag} />
@@ -1175,15 +1146,12 @@ export default function App() {
         <AppEditorArea
           workspace={workspace}
           aiMarks={aiMarks}
-          tabs={tabs}
-          activeTabId={activeTabId}
-          previewTabId={previewTabId}
-          dirtyFiles={dirtyFiles}
           lockedFiles={lockedFiles}
           activeFile={activeFile}
           fileTypeInfo={fileTypeInfo}
           content={content}
           viewMode={viewMode}
+          sourceMode={sourceMode}
           appSettings={appSettings}
           isDarkTheme={isDarkTheme}
           homeVisible={homeVisible}
@@ -1195,13 +1163,7 @@ export default function App() {
           backlinksLoading={backlinksLoading}
           editorRef={editorRef}
           editorAreaRef={editorAreaRef}
-          onSelectTab={switchToTab}
           onCloseTab={handleCloseTab}
-          onCloseOthers={handleCloseOthers}
-          onCloseToRight={handleCloseToRight}
-          onCloseAllTabs={handleCloseAllTabs}
-          onPromoteTab={promoteTab}
-          onReorderTabs={reorderTabs}
           onSetFindReplaceOpen={setFindReplaceOpen}
           onContentChange={handleContentChange}
           onAIRequest={handleAIRequest}
@@ -1216,6 +1178,7 @@ export default function App() {
           onSetHomeVisible={setHomeVisible}
           onSetFileStat={setFileStat}
           onImagePaste={handleEditorImagePaste}
+          onAsk={aiOpen ? undefined : handleAsk}
 
         />
 
@@ -1233,6 +1196,7 @@ export default function App() {
               onCollapse={collapseAiPanel}
               onExpand={expandAiPanel}
               initialPrompt={aiInitialPrompt}
+              autoSend={aiAutoSend}
               initialModel={workspace.config.preferredModel}
               onModelChange={handleModelChange}
               documentContext={aiDocumentContext}
@@ -1319,7 +1283,7 @@ export default function App() {
         updateToastVersion={updateToastVersion}
         setUpdateToastVersion={setUpdateToastVersion}
         onOpenUpdateReleaseModal={handleOpenUpdateReleaseModal}
-        showFeedbackNudge={showFeedbackNudge}
+        showFeedbackNudge={showFeedbackNudge && !aiOpen && !activeFile}
         onDismissFeedbackNudge={dismissFeedbackNudge}
       />
 

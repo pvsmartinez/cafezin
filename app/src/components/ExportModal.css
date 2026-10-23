@@ -66,10 +66,20 @@
 }
 
 .em-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
   color: var(--text-muted);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   text-align: center;
   padding: 32px 16px;
+}
+
+.em-empty-text {
+  margin: 0;
+  max-width: 360px;
+  line-height: var(--line-height-base);
 }
 
 /* ── Target card ─────────────────────────────────────────────────────────── */
@@ -337,11 +347,9 @@
 }
 
 .em-field label {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  color: var(--text);
 }
 
 .em-field input,
@@ -363,7 +371,8 @@
 
 .em-hint {
   font-size: var(--font-size-xs);
-  color: var(--text-dim);
+  font-weight: 400;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
@@ -560,7 +569,7 @@
   align-items: center;
   gap: 6px;
   background: var(--accent);
-  color: #000;
+  color: var(--text-on-emphasis);
   border: none;
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);

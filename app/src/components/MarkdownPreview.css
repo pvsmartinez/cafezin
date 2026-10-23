@@ -277,3 +277,54 @@
   color: var(--purple);
   font-style: normal;
 }
+
+/* ── Reading mode: the same sheet of paper as the writing mode ───────────── */
+.md-preview-scroll {
+  background: var(--desk);
+  padding: 8px 32px 0;
+}
+
+.md-preview-scroll > .md-preview-body {
+  --text: var(--paper-text);
+  --text-bright: var(--paper-ink);
+  --text-muted: var(--paper-muted);
+  max-width: var(--page-width);
+  min-height: calc(100% - 8px);
+  padding: 72px 80px 30vh;
+  background: var(--paper);
+  border-radius: 3px 3px 0 0;
+  box-shadow: var(--page-shadow);
+  color: var(--paper-text);
+  font-size: 19.5px;
+  line-height: 1.78;
+  hyphens: auto;
+}
+
+.md-preview-scroll > .md-preview-body h1,
+.md-preview-scroll > .md-preview-body h2,
+.md-preview-scroll > .md-preview-body h3 {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.md-preview-scroll > .md-preview-body > h1:first-child {
+  margin: 0 0 1.3em;
+  text-align: center;
+  font-size: 1.85em;
+}
+
+.md-preview-scroll > .md-preview-body > h1:first-child::after {
+  content: "· · ·";
+  display: block;
+  margin-top: 0.9em;
+  font-size: 0.32em;
+  letter-spacing: 0.6em;
+  color: var(--paper-muted);
+}
+
+.md-preview-scroll > .md-preview-body p + p { text-indent: 1.4em; }
+
+@media (max-width: 1000px) {
+  .md-preview-scroll { padding: 0; }
+  .md-preview-scroll > .md-preview-body { padding: 48px 40px 30vh; border-radius: 0; }
+}

@@ -141,36 +141,6 @@ export function GeneralTab({
         </div>
         <div className="sm-row">
           <div className="sm-row-label">
-            <span>{t('settings.formatOnSaveLabel')}</span>
-            <span className="sm-row-desc">{t('settings.formatOnSaveDesc')}</span>
-          </div>
-          <label className="sm-toggle">
-            <input
-              type="checkbox"
-              checked={appSettings.formatOnSave ?? true}
-              onChange={(e) => setApp('formatOnSave', e.target.checked)}
-            />
-            <span className="sm-toggle-track" />
-          </label>
-        </div>
-
-        <div className="sm-row">
-          <div className="sm-row-label">
-            <span>{t('settings.terminalLabel')}</span>
-            <span className="sm-row-desc">{t('settings.terminalDesc')}</span>
-          </div>
-          <label className="sm-toggle">
-            <input
-              type="checkbox"
-              checked={appSettings.showTerminal ?? false}
-              onChange={(e) => setApp('showTerminal', e.target.checked)}
-            />
-            <span className="sm-toggle-track" />
-          </label>
-        </div>
-
-        <div className="sm-row">
-          <div className="sm-row-label">
             <span>{t('settings.languageLabel')}</span>
             <span className="sm-row-desc">{t('settings.languageDesc')}</span>
           </div>

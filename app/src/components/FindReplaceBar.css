@@ -1,18 +1,23 @@
 /* ── FindReplaceBar ────────────────────────────────────────────────── */
 
 .frb-root {
+  --surface: var(--paper-raised);
+  --surface2: var(--paper-rule);
+  --border: var(--paper-rule);
+  --border2: var(--paper-rule);
+  --text: var(--paper-text);
+  --text-muted: var(--paper-muted);
+  --text-dim: var(--paper-muted);
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 10px;
+  right: 20px;
   z-index: var(--z-panel);
   display: flex;
   align-items: flex-start;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-top: none;
-  border-right: none;
-  border-radius: 0 0 0 8px;
-  box-shadow: var(--shadow-md);
+  background: var(--paper-raised);
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--note-shadow), 0 0 0 1px var(--paper-rule);
   padding: 6px 8px 6px 4px;
   gap: var(--space-2);
   min-width: 360px;

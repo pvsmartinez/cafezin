@@ -1,23 +1,14 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Workspace, SidebarButton } from '../../types';
+import type { Workspace } from '../../types';
 
 export interface WorkspaceTabProps {
   workspace: Workspace;
   wsName: string;
   setWsName: (v: string) => void;
-  wsSidebarButtons: SidebarButton[];
-  setWsSidebarButtons: React.Dispatch<React.SetStateAction<SidebarButton[]>>;
   wsInboxFile: string;
   setWsInboxFile: (v: string) => void;
   wsGitBranch: string;
   setWsGitBranch: (v: string) => void;
-  newBtnLabel: string;
-  setNewBtnLabel: (v: string) => void;
-  newBtnCmd: string;
-  setNewBtnCmd: (v: string) => void;
-  newBtnDesc: string;
-  setNewBtnDesc: (v: string) => void;
   wsSaving: boolean;
   wsSaved: boolean;
   onWsSave: () => void;
@@ -27,18 +18,10 @@ export function WorkspaceTab({
   workspace,
   wsName,
   setWsName,
-  wsSidebarButtons,
-  setWsSidebarButtons,
   wsInboxFile,
   setWsInboxFile,
   wsGitBranch,
   setWsGitBranch,
-  newBtnLabel,
-  setNewBtnLabel,
-  newBtnCmd,
-  setNewBtnCmd,
-  newBtnDesc,
-  setNewBtnDesc,
   wsSaving,
   wsSaved,
   onWsSave,
@@ -74,57 +57,6 @@ export function WorkspaceTab({
         </div>
       </section>
 
-      <section className="sm-section">
-        <h3 className="sm-section-title">{t('settings.wsSidebarShortcutsTitle')}</h3>
-        <p className="sm-section-desc">
-          {t('settings.wsSidebarShortcutsDesc')}
-        </p>
-        {wsSidebarButtons.map((btn) => (
-          <div key={btn.id} className="sm-sidebar-btn-row">
-            <span className="sm-sidebar-btn-label">{btn.label}</span>
-            <code className="sm-sidebar-btn-cmd">{btn.command}</code>
-            <button
-              className="sm-sidebar-btn-delete"
-              onClick={() => setWsSidebarButtons((prev) => prev.filter((b) => b.id !== btn.id))}
-              title={t('settings.wsRemoveButton') ?? ''}
-            >✕</button>
-          </div>
-        ))}
-        <div className="sm-sidebar-btn-form">
-          <input
-            className="sm-input"
-            placeholder={t('settings.wsLabelPlaceholder') ?? ''}
-            value={newBtnLabel}
-            onChange={(e) => setNewBtnLabel(e.target.value)}
-          />
-          <input
-            className="sm-input"
-            placeholder={t('settings.wsCommandPlaceholder') ?? ''}
-            value={newBtnCmd}
-            onChange={(e) => setNewBtnCmd(e.target.value)}
-          />
-          <input
-            className="sm-input"
-            placeholder={t('settings.wsDescPlaceholder') ?? ''}
-            value={newBtnDesc}
-            onChange={(e) => setNewBtnDesc(e.target.value)}
-          />
-          <button
-            className="sm-save-btn"
-            style={{ marginTop: 8 }}
-            disabled={!newBtnLabel.trim() || !newBtnCmd.trim()}
-            onClick={() => {
-              setWsSidebarButtons((prev) => [...prev, {
-                id: Math.random().toString(36).slice(2, 9),
-                label: newBtnLabel.trim(),
-                command: newBtnCmd.trim(),
-                description: newBtnDesc.trim() || undefined,
-              }]);
-              setNewBtnLabel(''); setNewBtnCmd(''); setNewBtnDesc('');
-            }}
-          >{t('settings.wsAddButton')}</button>
-        </div>
-      </section>
 
       <section className="sm-section">
         <h3 className="sm-section-title">{t('settings.wsGitSyncBranchTitle')}</h3>

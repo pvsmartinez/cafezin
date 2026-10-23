@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { FolderOpen, Plus, SignIn, SignOut, Cloud, CloudSlash, CloudArrowUp, GitBranch, ArrowSquareOut } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
@@ -54,6 +55,7 @@ You'll get 3 free responses to try it out. After that, you can connect your own 
 
 ---
 
+**Link texts:** type \`[[text name]]\`
 **Create a new file:** \`Cmd+N\`
 **Search everything:** \`Cmd+Shift+F\`
 **Settings:** \`Cmd+,\`
@@ -90,6 +92,7 @@ Você tem 3 respostas grátis para experimentar. Depois disso, pode conectar sua
 
 ---
 
+**Ligar textos:** escreva \`[[nome do texto]]\`
 **Criar arquivo:** \`Cmd+N\`
 **Buscar em tudo:** \`Cmd+Shift+F\`
 **Configurações:** \`Cmd+,\`
@@ -170,7 +173,8 @@ interface WorkspacePickerProps {
 }
 
 export default function WorkspacePicker({ onOpen, externalError = null }: WorkspacePickerProps) {
-  const isPt = navigator.language.startsWith('pt');
+  const { i18n } = useTranslation();
+  const isPt = i18n.language.startsWith('pt');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recents, setRecents] = useState<RecentWorkspace[]>(getRecents);
@@ -476,7 +480,7 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
         <div className="wp-header">
           <div className="wp-logo">✦</div>
           <h1 className="wp-title">Cafezin</h1>
-          <p className="wp-tagline">{isPt ? 'Escreva, ensine, publique' : 'Write, teach, publish'}</p>
+          <p className="wp-tagline">{isPt ? 'Livros, relatórios e notas conectadas' : 'Books, reports and connected notes'}</p>
         </div>
 
         {/* ── First-run concept explainer (shown when no workspaces exist) ── */}
@@ -529,7 +533,7 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
         <div className="wp-actions">
           <button className="wp-btn-action" onClick={handlePick} disabled={loading || createBusy}>
             <FolderOpen weight="thin" size={16} />
-            <span>Abrir pasta</span>
+            <span>{isPt ? 'Abrir pasta' : 'Open folder'}</span>
           </button>
           <button
             className={`wp-btn-action wp-btn-action--create${createMode ? ' wp-btn-action--active' : ''}`}
@@ -717,8 +721,8 @@ export default function WorkspacePicker({ onOpen, externalError = null }: Worksp
           <div className="wp-recents">
             <div className="wp-recents-label">
               {userEmail
-                ? <><Cloud weight="thin" size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />Workspaces</>
-                : 'Recent folders'}
+                ? <><Cloud weight="thin" size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Pastas' : 'Folders'}</>
+                : (isPt ? 'Pastas recentes' : 'Recent folders')}
             </div>
 
             {cloudLoading && <div className="wp-cloud-empty">Loading…</div>}

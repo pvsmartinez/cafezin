@@ -20,25 +20,12 @@ import {
   type WorkspaceExportConfig,
 } from '../types';
 import { SK } from '../services/storageKeys';
+import { useTranslation } from 'react-i18next';
 import './ExportModal.css';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
-
-const FORMAT_LABELS: Record<ExportFormat, string> = {
-  'pdf':        'Markdown → PDF',
-  'zip':        'Zip bundle',
-  'git-publish':'Git publish',
-  'custom':     'Custom command',
-};
-
-const FORMAT_BADGE_COLOR: Record<ExportFormat, string> = {
-  'pdf':        'red',
-  'zip':        'orange',
-  'git-publish':'blue',
-  'custom':     'grey',
-};
 
 const DEFAULT_TARGET: Omit<ExportTarget, 'id' | 'name'> = {
   include: ['md'],
@@ -50,13 +37,6 @@ const DEFAULT_TARGET: Omit<ExportTarget, 'id' | 'name'> = {
 // Keep the export engine backward-compatible with existing workspace config,
 // while exposing only manuscript → PDF in the active book-authoring UI.
 const BOOK_AUTHORING_ONLY = true;
-
-const FORMAT_DEFAULTS: Record<ExportFormat, { include: string[]; outputDir: string }> = {
-  'pdf':         { include: ['md', 'mdx'],          outputDir: 'dist' },
-  'zip':         { include: ['html', 'css', 'js'],  outputDir: 'dist' },
-  'git-publish': { include: [],                     outputDir: '.' },
-  'custom':      { include: [],                     outputDir: 'dist' },
-};
 
 type RunStatus = 'idle' | 'running' | 'done' | 'error' | 'canceled';
 
@@ -104,22 +84,13 @@ function splitProgressDetail(progress?: ExportProgressInfo): { summary: string; 
   };
 }
 
-function getSlowExportHint(target: ExportTarget): string {
-  if (target.format === 'pdf') {
-    return 'Taking longer than usual. Large documents, many pages or heavy Markdown rendering can do this.';
-  }
-  if (target.format === 'zip') {
-    return 'Taking longer than usual. Large bundles or many matched files can do this.';
-  }
-  return 'Taking longer than usual. Large documents, many pages or broad include rules can do this.';
-}
-
 export default function ExportModal({
   workspace,
   onWorkspaceChange,
   onClose,
   onOpenAI,
 }: ExportModalProps) {
+  const { t } = useTranslation();
   const savedConfig = normalizeWorkspaceExportConfig(workspace.config.exportConfig);
   const [targets, setTargets] = useState<ExportTarget[]>(savedConfig?.targets ?? []);
   const visibleTargets = targets.filter((target) => !BOOK_AUTHORING_ONLY || target.format === 'pdf');
@@ -219,6 +190,20 @@ export default function ExportModal({
     setTargets(next);
     setExpandedId(id);
     persist(next); // use derived `next`, not stale `targets` closure
+  }
+
+  function addManuscript() {
+    const target = normalizeExportTarget({
+      id: uid(),
+      name: t('export.manuscriptName'),
+      ...DEFAULT_TARGET,
+      merge: true,
+      mergeName: 'manuscrito',
+      titlePage: { title: workspace.config.name || workspace.name },
+      toc: true,
+    });
+    updateTargets([...targets, target]);
+    setExpandedId(target.id);
   }
 
   function deleteTarget(id: string) {
@@ -362,15 +347,18 @@ export default function ExportModal({
 
         {/* Header */}
         <div className="em-header">
-          <span className="em-title">Export / Build Settings</span>
-          <button className="em-close" onClick={handleRequestClose} title={closeRequested ? 'Stopping exports before closing' : 'Close'}><X weight="bold" /></button>
+          <span className="em-title">{t('export.title')}</span>
+          <button className="em-close" onClick={handleRequestClose} title={closeRequested ? t('export.closingTitle') : t('export.close')}><X weight="bold" /></button>
         </div>
 
         {/* Target list */}
         <div className="em-body">
           {visibleTargets.length === 0 && (
             <div className="em-empty">
-              No export targets yet. Add one below to define what your workspace produces.
+              <p className="em-empty-text">{t('export.emptyText')}</p>
+              <button className="em-export-all-btn" onClick={addManuscript}>
+                <Plus weight="bold" /> {t('export.createManuscript')}
+              </button>
             </div>
           )}
 
@@ -398,25 +386,22 @@ export default function ExportModal({
                     className="em-checkbox"
                     checked={target.enabled}
                     onChange={(e) => updateTarget(target.id, { enabled: e.target.checked })}
-                    title="Enable this target in Export All"
+                    title={t('export.enableTitle')}
                   />
                   <span
                     className="em-target-name"
                     onDoubleClick={() => {
-                      const n = prompt('Rename target:', target.name);
+                      const n = prompt(t('export.renamePrompt'), target.name);
                       if (n?.trim()) updateTarget(target.id, { name: n.trim() });
                     }}
-                    title="Double-click to rename"
+                    title={t('export.renameTitle')}
                   >
                     {target.name}
                   </span>
-                  <span className={`em-badge em-badge--${FORMAT_BADGE_COLOR[target.format]}`}>
-                    {FORMAT_LABELS[target.format]}
-                  </span>
-                  <span className="em-target-out" title="Output directory">{targetOutLabel}</span>
+                  <span className="em-target-out" title={t('export.outputDir')}>{targetOutLabel}</span>
                   {fileCounts.has(target.id) && (
-                    <span className="em-file-count" title="Files matched by this target">
-                      {fileCounts.get(target.id)} file{fileCounts.get(target.id) !== 1 ? 's' : ''}
+                    <span className="em-file-count" title={t('export.fileCountTitle')}>
+                      {t('export.fileCount', { count: fileCounts.get(target.id) })}
                     </span>
                   )}
 
@@ -428,26 +413,26 @@ export default function ExportModal({
                       if (s?.status === 'running') requestCancel(target.id);
                       else void runTarget(target);
                     }}
-                    title={s?.status === 'running' ? 'Cancel this export' : 'Run this target'}
+                    title={s?.status === 'running' ? t('export.cancelTitle') : t('export.runTitle')}
                   >
                     {s?.status === 'running'
                       ? <CircleNotch className="em-spin" />
                       : <Play weight="fill" />
                     }
-                    {s?.status === 'running' ? (s.cancelRequested ? 'Stopping…' : 'Cancel') : 'Run'}
+                    {s?.status === 'running' ? (s.cancelRequested ? t('export.stopping') : t('export.cancel')) : t('export.run')}
                   </button>
 
                   <button
                     className="em-icon-btn"
                     onClick={() => setExpandedId(isExpanded ? null : target.id)}
-                    title={isExpanded ? 'Collapse' : 'Edit settings'}
+                    title={isExpanded ? t('export.collapse') : t('export.editSettings')}
                   >
                     {isExpanded ? <CaretUp /> : <CaretDown />}
                   </button>
                   <button
                     className="em-icon-btn em-icon-btn--danger"
                     onClick={() => deleteTarget(target.id)}
-                    title="Delete target"
+                    title={t('export.delete')}
                   >
                     <Trash />
                   </button>
@@ -469,16 +454,16 @@ export default function ExportModal({
                       </div>
                     </div>
                     <div className="em-progress-meta">
-                      <span>{formatElapsed(elapsedMs)} elapsed</span>
-                      <span>{Math.min(s.progress.done, s.progress.total)}/{s.progress.total} file{s.progress.total === 1 ? '' : 's'}</span>
+                      <span>{t('export.elapsed', { time: formatElapsed(elapsedMs) })}</span>
+                      <span>{Math.min(s.progress.done, s.progress.total)}/{s.progress.total}</span>
                       {s.cancelRequested && (
-                        <span className="em-progress-warning">Stopping after the current safe step…</span>
+                        <span className="em-progress-warning">{t('export.stoppingSafe')}</span>
                       )}
                       {!s.cancelRequested && isStalled && (
-                        <span className="em-progress-warning">No new progress for a while. This target may be stuck.</span>
+                        <span className="em-progress-warning">{t('export.stalled')}</span>
                       )}
                       {!s.cancelRequested && !isStalled && isSlow && (
-                        <span className="em-progress-warning">{getSlowExportHint(target)}</span>
+                        <span className="em-progress-warning">{t('export.slow')}</span>
                       )}
                     </div>
                   </>
@@ -494,17 +479,17 @@ export default function ExportModal({
                     )}
                     {s.result.outputs.length > 0 && (
                       <div className="em-result-row">
-                        <span>✓ {s.result.outputs.length} file{s.result.outputs.length !== 1 ? 's' : ''} → {s.result.outputs.join(', ')} ({s.result.elapsed}ms)</span>
+                        <span>✓ {s.result.outputs.join(', ')}</span>
                         <button
                           className="em-reveal-btn"
-                          title="Open generated file"
+                          title={t('export.openTitle')}
                           onClick={() => {
                             const outputPath = `${workspace.path}/${s.result!.outputs[0]}`;
                             openPath(outputPath).catch(() => revealItemInDir(outputPath));
                           }}
                         >
                           <FolderOpen weight="fill" size={13} />
-                          Open
+                          {t('export.open')}
                         </button>
 
                       </div>
@@ -520,45 +505,26 @@ export default function ExportModal({
                 {isExpanded && (
                   <div className="em-config">
                     <div className="em-field">
-                      <label>Name</label>
+                      <label>{t('export.name')}</label>
                       <input
                         value={target.name}
                         onChange={(e) => updateTarget(target.id, { name: e.target.value })}
                       />
                     </div>
                     <div className="em-field">
-                      <label>Description <span className="em-hint">(optional — helps AI understand this target)</span></label>
+                      <label>{t('export.description')} <span className="em-hint">{t('export.descriptionHint')}</span></label>
                       <input
-                        placeholder="e.g. Course handout for Chapter 3 students"
+                        placeholder={t('export.descriptionPlaceholder')}
                         value={target.description ?? ''}
                         onChange={(e) => updateTarget(target.id, { description: e.target.value || undefined })}
                       />
                     </div>
-                    <div className="em-field">
-                      <label>Format</label>
-                      <select
-                        value={target.format}
-                        onChange={(e) => {
-                          const f = e.target.value as ExportFormat;
-                          updateTarget(target.id, {
-                            format: f,
-                            include: FORMAT_DEFAULTS[f].include,
-                            outputDir: FORMAT_DEFAULTS[f].outputDir,
-                          });
-                        }}
-                      >
-                        {(Object.keys(FORMAT_LABELS) as ExportFormat[]).filter((f) => !BOOK_AUTHORING_ONLY || f === 'pdf').map((f) => (
-                          <option key={f} value={f}>{FORMAT_LABELS[f]}</option>
-                        ))}
-                      </select>
-                    </div>
-
                     {/* File selection —————————————————————————————— */}
                     {(
                       <>
-                        <div className="em-section-label">File selection</div>
+                        <div className="em-section-label">{t('export.filesSection')}</div>
                         <div className="em-field">
-                          <label>Pinned files <span className="em-hint">(one per line — overrides extensions below when set)</span></label>
+                          <label>{t('export.pinnedFiles')} <span className="em-hint">{t('export.pinnedFilesHint')}</span></label>
                           <textarea
                             className="em-monaco"
                             rows={3}
@@ -569,12 +535,12 @@ export default function ExportModal({
                               updateTarget(target.id, { includeFiles: lines.length ? lines : undefined });
                             }}
                           />
-                          <span className="em-hint">Leave empty to use extension matching instead.</span>
+                          <span className="em-hint">{t('export.pinnedFilesEmpty')}</span>
                         </div>
                         <div className="em-field">
-                          <label>Match extensions <span className="em-hint">(comma-separated, no dot — ignored when Pinned files is set)</span></label>
+                          <label>{t('export.extensions')} <span className="em-hint">{t('export.extensionsHint')}</span></label>
                           <input
-                            placeholder="md, tldr.json, html …"
+                            placeholder="md, mdx"
                             value={target.include.join(', ')}
                             onChange={(e) =>
                               updateTarget(target.id, {
@@ -584,7 +550,7 @@ export default function ExportModal({
                           />
                         </div>
                         <div className="em-field">
-                          <label>Exclude files <span className="em-hint">(one per line)</span></label>
+                          <label>{t('export.exclude')} <span className="em-hint">{t('export.pinnedFilesHint')}</span></label>
                           <textarea
                             className="em-monaco"
                             rows={2}
@@ -602,9 +568,9 @@ export default function ExportModal({
                     {/* Output ————————————————————————————————————— */}
                     {(
                       <>
-                        <div className="em-section-label">Output</div>
+                        <div className="em-section-label">{t('export.outputSection')}</div>
                         <div className="em-field">
-                          <label>Output directory</label>
+                          <label>{t('export.outputDir')}</label>
                           <input
                             placeholder="dist"
                             value={target.outputDir}
@@ -621,7 +587,7 @@ export default function ExportModal({
                             checked={target.merge ?? false}
                             onChange={(e) => updateTarget(target.id, { merge: e.target.checked || undefined })}
                           />
-                          {' '}Merge into one file
+                          {' '}{t('export.merge')}
                         </label>
                         {target.merge && (
                           <input
@@ -632,14 +598,14 @@ export default function ExportModal({
                           />
                         )}
                         <span className="em-hint">
-                          Combines all matched markdown into one PDF.
-                          {target.merge && ` Output: ${target.mergeName?.trim() || 'merged'}.pdf`}
+                          {t('export.mergeHint')}
+                          {target.merge && ` → ${target.mergeName?.trim() || 'merged'}.pdf`}
                         </span>
                       </div>
                     )}
                     {target.format === 'zip' && (
                       <div className="em-field">
-                        <label>Zip file name</label>
+                        <label>{t('export.zipName')}</label>
                         <input
                           placeholder="export"
                           value={target.mergeName ?? ''}
@@ -651,26 +617,26 @@ export default function ExportModal({
                     {/* PDF-only options ─────────────────────────────────── */}
                     {target.format === 'pdf' && (
                       <>
-                        <div className="em-section-label">PDF Options</div>
+                        <div className="em-section-label">{t('export.pdfSection')}</div>
 
                         {/* Versioning */}
                         <div className="em-field">
-                          <label>Output versioning</label>
+                          <label>{t('export.versioning')}</label>
                           <select
                             value={target.versionOutput ?? ''}
                             onChange={(e) => updateTarget(target.id, {
                               versionOutput: (e.target.value || undefined) as ExportTarget['versionOutput'],
                             })}
                           >
-                            <option value="">Overwrite (no versioning)</option>
-                            <option value="timestamp">Append date  (manuscript_2026-02-28.pdf)</option>
-                            <option value="counter">Increment counter  (manuscript_v3.pdf)</option>
+                            <option value="">{t('export.versionOverwrite')}</option>
+                            <option value="timestamp">{t('export.versionDate')}</option>
+                            <option value="counter">{t('export.versionCounter')}</option>
                           </select>
                         </div>
 
                         {/* Custom CSS */}
                         <div className="em-field">
-                          <label>Custom CSS file <span className="em-hint">(workspace-relative path)</span></label>
+                          <label>{t('export.css')} <span className="em-hint">{t('export.cssHint')}</span></label>
                           <input
                             className="em-mono"
                             placeholder="styles/book.css"
@@ -678,7 +644,7 @@ export default function ExportModal({
                             onChange={(e) => updateTarget(target.id, { pdfCssFile: e.target.value || undefined })}
                           />
                           <span className="em-hint">
-                            Appended after the default styles — use it to set fonts, page size, colours, etc.
+                            {t('export.cssHelp')}
                           </span>
                         </div>
 
@@ -692,28 +658,28 @@ export default function ExportModal({
                                 titlePage: e.target.checked ? {} : undefined,
                               })}
                             />
-                            {' '}Include title page
+                            {' '}{t('export.titlePage')}
                           </label>
                         </div>
                         {target.titlePage !== undefined && (
                           <div className="em-field em-field--indented">
                             <input
-                              placeholder="Title"
+                              placeholder={t('export.tpTitle')}
                               value={target.titlePage?.title ?? ''}
                               onChange={(e) => updateTarget(target.id, { titlePage: { ...target.titlePage, title: e.target.value || undefined } })}
                             />
                             <input
-                              placeholder="Subtitle"
+                              placeholder={t('export.tpSubtitle')}
                               value={target.titlePage?.subtitle ?? ''}
                               onChange={(e) => updateTarget(target.id, { titlePage: { ...target.titlePage, subtitle: e.target.value || undefined } })}
                             />
                             <input
-                              placeholder="Author"
+                              placeholder={t('export.tpAuthor')}
                               value={target.titlePage?.author ?? ''}
                               onChange={(e) => updateTarget(target.id, { titlePage: { ...target.titlePage, author: e.target.value || undefined } })}
                             />
                             <input
-                              placeholder="Version (e.g. v94)"
+                              placeholder={t('export.tpVersion')}
                               value={target.titlePage?.version ?? ''}
                               onChange={(e) => updateTarget(target.id, { titlePage: { ...target.titlePage, version: e.target.value || undefined } })}
                             />
@@ -728,17 +694,17 @@ export default function ExportModal({
                               checked={target.toc ?? false}
                               onChange={(e) => updateTarget(target.id, { toc: e.target.checked || undefined })}
                             />
-                            {' '}Generate Table of Contents
+                            {' '}{t('export.toc')}
                           </label>
                           <span className="em-hint">
                             {target.merge
-                              ? 'Inserts a TOC page (H1/H2 headings) after the title page.'
-                              : 'Inserts a TOC page at the beginning of each exported PDF.'}
+                              ? t('export.tocMergeHint')
+                              : t('export.tocHint')}
                           </span>
                         </div>
 
                         {/* Pre-processing */}
-                        <div className="em-section-label">Pre-export transformations</div>
+                        <div className="em-section-label">{t('export.cleanupSection')}</div>
                         <div className="em-field em-field--checkgroup">
                           <label>
                             <input
@@ -748,7 +714,7 @@ export default function ExportModal({
                                 preProcess: { ...target.preProcess, stripFrontmatter: e.target.checked || undefined },
                               })}
                             />
-                            {' '}Strip YAML front-matter
+                            {' '}{t('export.stripFrontmatter')}
                           </label>
                           <label>
                             <input
@@ -758,7 +724,7 @@ export default function ExportModal({
                                 preProcess: { ...target.preProcess, stripDraftSections: e.target.checked || undefined },
                               })}
                             />
-                            {' '}Remove ### Draft sections
+                            {' '}{t('export.stripDraft')}
                           </label>
                           <label>
                             <input
@@ -768,7 +734,7 @@ export default function ExportModal({
                                 preProcess: { ...target.preProcess, stripDetails: e.target.checked || undefined },
                               })}
                             />
-                            {' '}Remove &lt;details&gt; blocks
+                            {' '}{t('export.stripDetails')}
                           </label>
                         </div>
                       </>
@@ -787,20 +753,18 @@ export default function ExportModal({
             <div className="em-ai-banner-left">
               <Sparkle weight="fill" className="em-ai-banner-icon" />
               <span className="em-ai-banner-text">
-                {visibleTargets.length === 0
-                  ? 'Precisa de ajuda para configurar seus exports?'
-                  : 'Dúvidas sobre as configurações de export?'}
+                {t('export.aiHelp')}
               </span>
               <button
                 className="em-ai-banner-cta"
                 onClick={() => onOpenAI(getAIPrompt())}
               >
-                Perguntar ao AI
+                {t('export.askAgent')}
               </button>
             </div>
             <button
               className="em-ai-banner-dismiss"
-              title="Dispensar"
+              title={t('export.dismiss')}
               onClick={() => {
                 localStorage.setItem(SK.EXPORT_MODAL_AI_HELPER, '1');
                 setAiHelperDismissed(true);
@@ -815,20 +779,20 @@ export default function ExportModal({
         <div className="em-footer">
           <div className="em-footer-right">
             <button className="em-add-btn" onClick={addTarget}>
-              <Plus weight="bold" /> New target
+              <Plus weight="bold" /> {t('export.newTarget')}
             </button>
           </div>
           <div className="em-footer-right">
             {enabledCount > 0 && (
-              <span className="em-enabled-count">{enabledCount} target{enabledCount !== 1 ? 's' : ''} enabled</span>
+              <span className="em-enabled-count">{t('export.enabledCount', { count: enabledCount })}</span>
             )}
             <button
               className="em-export-all-btn"
               onClick={runAll}
               disabled={enabledCount === 0 || isRunningAll}
-              title="Run all enabled targets"
+              title={t('export.runAllTitle')}
             >
-              <Play weight="fill" /> Export All
+              <Play weight="fill" /> {t('export.runAll')}
             </button>
           </div>
         </div>
@@ -840,10 +804,11 @@ export default function ExportModal({
 // ── Status chip ────────────────────────────────────────────────────────────────
 
 function StatusChip({ status }: { status?: TargetStatus }) {
+  const { t } = useTranslation();
   if (!status || status.status === 'idle') return null;
-  if (status.status === 'running') return <span className="em-status em-status--running"><CircleNotch className="em-spin" /> Running</span>;
-  if (status.status === 'done')    return <span className="em-status em-status--done"><CheckCircle weight="fill" /> Done</span>;
-  if (status.status === 'canceled') return <span className="em-status em-status--canceled"><WarningCircle weight="fill" /> Canceled</span>;
-  if (status.status === 'error')   return <span className="em-status em-status--error"><WarningCircle weight="fill" /> Error</span>;
+  if (status.status === 'running') return <span className="em-status em-status--running"><CircleNotch className="em-spin" /> {t('export.statusRunning')}</span>;
+  if (status.status === 'done')    return <span className="em-status em-status--done"><CheckCircle weight="fill" /> {t('export.statusDone')}</span>;
+  if (status.status === 'canceled') return <span className="em-status em-status--canceled"><WarningCircle weight="fill" /> {t('export.statusCanceled')}</span>;
+  if (status.status === 'error')   return <span className="em-status em-status--error"><WarningCircle weight="fill" /> {t('export.statusError')}</span>;
   return null;
 }

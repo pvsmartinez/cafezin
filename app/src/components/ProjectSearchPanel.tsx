@@ -7,6 +7,8 @@
  * Toggles: case-sensitive · whole-word · regex
  */
 
+import { useTranslation } from 'react-i18next';
+import { displayFileName } from '../utils/fileType';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { readTextFile, writeTextFile } from '../services/fs';
 import type { Workspace, FileTreeNode } from '../types';
@@ -149,6 +151,7 @@ export interface ProjectSearchPanelProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSearchPanelProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [replacement, setReplacement] = useState('');
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -177,7 +180,7 @@ export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSea
 
       const re = buildRegex(q, cs, ww, rx);
       if (!re) {
-        setSearchError('Invalid regular expression');
+        setSearchError(t('search.invalidRegex'));
         return;
       }
       setSearchError(null);
@@ -226,7 +229,7 @@ export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSea
     let filesChanged = 0;
     let totalReplaced = 0;
 
-    setReplaceStatus('Replacing…');
+    setReplaceStatus(t('search.replacing'));
     for (const fr of results) {
       try {
         const text = await readTextFile(`${workspace.path}/${fr.relPath}`);
@@ -242,7 +245,7 @@ export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSea
       }
     }
 
-    setReplaceStatus(`Replaced ${totalReplaced} match${totalReplaced !== 1 ? 'es' : ''} in ${filesChanged} file${filesChanged !== 1 ? 's' : ''}`);
+    setReplaceStatus(t('search.replaced', { count: totalReplaced, files: filesChanged }));
     setTimeout(() => setReplaceStatus(null), 3000);
     // Re-run search to clear results
     runSearch(query, caseSensitive, wholeWord, useRegex);
@@ -275,7 +278,7 @@ export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSea
         <input
           ref={searchInputRef}
           className={`psp-search-input${searchError ? ' psp-input-error' : ''}`}
-          placeholder="Search…"
+          placeholder={t('search.placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -293,22 +296,22 @@ export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSea
         <button
           className={`psp-opt${caseSensitive ? ' active' : ''}`}
           onClick={() => setCaseSensitive((v) => !v)}
-          title="Case sensitive"
+          title={t('search.caseSensitive')}
         >Aa</button>
         <button
           className={`psp-opt${wholeWord ? ' active' : ''}`}
           onClick={() => setWholeWord((v) => !v)}
-          title="Whole word"
+          title={t('search.wholeWord')}
         >[W]</button>
         <button
           className={`psp-opt${useRegex ? ' active' : ''}`}
           onClick={() => setUseRegex((v) => !v)}
-          title="Use regular expression"
+          title={t('search.regex')}
         >.*</button>
         <button
           className={`psp-opt psp-opt-replace${showReplace ? ' active' : ''}`}
           onClick={() => setShowReplace((v) => !v)}
-          title="Toggle replace"
+          title={t('search.toggleReplace')}
         >⇄</button>
       </div>
 
@@ -319,7 +322,7 @@ export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSea
         <div className="psp-replace-row">
           <input
             className="psp-search-input psp-replace-input"
-            placeholder="Replace with…"
+            placeholder={t('search.replacePlaceholder')}
             value={replacement}
             onChange={(e) => setReplacement(e.target.value)}
             spellCheck={false}
@@ -328,7 +331,7 @@ export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSea
             className="psp-replace-btn"
             onClick={handleReplaceAll}
             disabled={results.length === 0 || !query}
-            title="Replace all matches across all files"
+            title={t('search.replaceAllTitle')}
           >
             Replace All
           </button>
@@ -341,8 +344,8 @@ export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSea
       {!searching && query && (
         <div className="psp-summary">
           {totalMatches === 0
-            ? 'No results'
-            : `${totalMatches} match${totalMatches !== 1 ? 'es' : ''} in ${results.length} file${results.length !== 1 ? 's' : ''}`}
+            ? t('search.noResults')
+            : t('search.summary', { count: totalMatches, files: results.length })}
         </div>
       )}
 
@@ -357,7 +360,7 @@ export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSea
               title={fr.relPath}
             >
               <span className="psp-file-arrow">{fr.collapsed ? '▸' : '▾'}</span>
-              <span className="psp-file-name">{fr.relPath.split('/').pop()}</span>
+              <span className="psp-file-name">{displayFileName(fr.relPath.split('/').pop() ?? fr.relPath)}</span>
               <span className="psp-file-path">{fr.relPath.includes('/') ? fr.relPath.substring(0, fr.relPath.lastIndexOf('/')) : ''}</span>
               <span className="psp-file-count">{fr.matches.length}</span>
             </button>
@@ -368,7 +371,7 @@ export default function ProjectSearchPanel({ workspace, onOpenFile }: ProjectSea
                 key={li}
                 className="psp-match-row"
                 onClick={() => onOpenFile(fr.relPath, lm.lineNo, lm.lineText.trim())}
-                title={`Line ${lm.lineNo}`}
+                title={t('search.line', { n: lm.lineNo })}
               >
                 <span className="psp-line-no">{lm.lineNo}</span>
                 <HighlightedLine

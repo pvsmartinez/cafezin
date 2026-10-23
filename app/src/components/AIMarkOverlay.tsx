@@ -1,14 +1,22 @@
 /**
- * AIMarkOverlay — always-visible ✓/× buttons anchored to each AI-marked region.
+ * AIMarkOverlay — the agent's edits as notes in the margin of the page.
  *
- * Each mark gets accept/reject buttons pinned to the right gutter of the editor,
- * vertically centred on the highlighted text. Always visible so they work
- * reliably regardless of live-preview panels or pointer position issues.
+ * Each pending mark gets a note beside the page, level with the edited text:
+ * what was there before (struck through), and Manter / Desfazer. When the
+ * window is too narrow for a margin, compact buttons sit inside the page's
+ * own right padding so they never cover words.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AIEditMark } from '../types';
 import type { EditorHandle } from './Editor';
 import './AIMarkOverlay.css';
+
+const NOTE_MIN_WIDTH = 190;
+const NOTE_MAX_WIDTH = 290;
+const NOTE_GAP = 26;
+const NOTE_ESTIMATED_HEIGHT = 128;
+const COMPACT_INSET = 66;
 
 interface AIMarkOverlayProps {
   visible: boolean;
@@ -24,6 +32,9 @@ interface MarkPos {
   actionsLeft: number;
   markId: string;
   canReject: boolean;
+  /** Note card in the margin, or compact buttons inside the page padding. */
+  mode: 'note' | 'compact';
+  width: number;
 }
 
 export default function AIMarkOverlay({
@@ -34,6 +45,7 @@ export default function AIMarkOverlay({
   onReview,
   onReject,
 }: AIMarkOverlayProps) {
+  const { t, i18n } = useTranslation();
   const [positions, setPositions] = useState<MarkPos[]>([]);
   const positionsRef = useRef<MarkPos[]>([]);
 
@@ -49,17 +61,32 @@ export default function AIMarkOverlay({
     const container = containerRef.current;
     if (!container) return;
     const containerRect = container.getBoundingClientRect();
+    const page = container.querySelector('.prose-page, .cm-content');
+    const pageRight = (page?.getBoundingClientRect().right ?? containerRect.right) - containerRect.left;
+    const available = containerRect.width - pageRight - NOTE_GAP - 16;
+    const mode: MarkPos['mode'] = available >= NOTE_MIN_WIDTH ? 'note' : 'compact';
+    const width = Math.min(NOTE_MAX_WIDTH, available);
 
-    const next: MarkPos[] = [];
+    const found: MarkPos[] = [];
     for (const mark of marks) {
       const coords = editorRef.current?.getMarkCoords({ text: mark.text, revert: mark.revert });
       if (!coords) continue;
-      next.push({
-        actionsTop: (coords.top + coords.bottom) / 2 - containerRect.top,
-        actionsLeft: coords.right - containerRect.left,
+      found.push({
+        actionsTop: (mode === 'note' ? coords.top : (coords.top + coords.bottom) / 2) - containerRect.top,
+        actionsLeft: mode === 'note' ? pageRight + NOTE_GAP : pageRight - COMPACT_INSET,
         markId: mark.id,
         canReject: !!mark.revert,
+        mode,
+        width,
       });
+    }
+    // Stack notes so they never overlap, keeping each as close to its text as possible.
+    found.sort((x, y) => x.actionsTop - y.actionsTop);
+    const next: MarkPos[] = [];
+    for (const pos of found) {
+      const prev = next[next.length - 1];
+      const minTop = prev && mode === 'note' ? prev.actionsTop + NOTE_ESTIMATED_HEIGHT + 12 : -Infinity;
+      next.push({ ...pos, actionsTop: Math.max(pos.actionsTop, minTop) });
     }
     // Skip setState if coords haven't actually changed (avoids re-renders on idle frames)
     const current = positionsRef.current;
@@ -68,6 +95,7 @@ export default function AIMarkOverlay({
       next.every((p, i) =>
         p.actionsTop === current[i].actionsTop &&
         p.actionsLeft === current[i].actionsLeft &&
+        p.width === current[i].width &&
         p.markId === current[i].markId
       )
     ) return;
@@ -96,6 +124,8 @@ export default function AIMarkOverlay({
     const raf = requestAnimationFrame(() => recalculate());
     const t100 = setTimeout(() => recalculate(), 100);
     const t400 = setTimeout(() => recalculate(), 400);
+    // The Prose editor is lazy-loaded and can mount after the retries above.
+    const t1200 = setTimeout(() => recalculate(), 1200);
     // Recalculate when ANY descendant scrolls (CM6 uses .cm-scroller, Tiptap
     // uses its own element) — capture:true catches scroll from any child.
     const container = containerRef.current;
@@ -103,10 +133,24 @@ export default function AIMarkOverlay({
     container?.addEventListener('scroll', onScroll, { passive: true, capture: true });
     // Recalculate on window resize (container rect changes)
     window.addEventListener('resize', onScroll, { passive: true });
+    // Side panels opening/closing resize the editor area without a window resize.
+    const resizeObserver = container ? new ResizeObserver(() => recalculate()) : null;
+    if (container) resizeObserver?.observe(container);
+    // Content loads (file switch, agent writes) change where marks sit.
+    let frame = 0;
+    const mutationObserver = container ? new MutationObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => recalculate());
+    }) : null;
+    if (container) mutationObserver?.observe(container, { childList: true, subtree: true, characterData: true });
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(t100);
       clearTimeout(t400);
+      clearTimeout(t1200);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+      cancelAnimationFrame(frame);
       container?.removeEventListener('scroll', onScroll, { capture: true });
       window.removeEventListener('resize', onScroll);
     };
@@ -114,28 +158,62 @@ export default function AIMarkOverlay({
 
   if (!visible || marks.length === 0) return null;
 
+  const markById = new Map(marks.map((mark) => [mark.id, mark]));
+
   return (
-    <div className="aimo-layer" aria-hidden="true">
-      {positions.map(({ actionsTop, actionsLeft, markId, canReject }) => (
-        <div
-          key={markId}
-          className="aimo-actions"
-          style={{ top: actionsTop, left: actionsLeft }}
-        >
-          <button
-            className="aimo-accept-btn"
-            title="Accept AI edit"
-            onClick={(e) => { e.stopPropagation(); onReview(markId); }}
-          >✓</button>
-          {canReject && (
-            <button
-              className="aimo-reject-btn"
-              title="Cancel AI edit"
-              onClick={(e) => { e.stopPropagation(); onReject(markId); }}
-            >×</button>
-          )}
-        </div>
-      ))}
+    <div className="aimo-layer">
+      {positions.map(({ actionsTop, actionsLeft, markId, canReject, mode, width }) => {
+        const mark = markById.get(markId);
+        if (mode === 'compact') {
+          return (
+            <div key={markId} className="aimo-actions" style={{ top: actionsTop, left: actionsLeft }}>
+              <button
+                className="aimo-accept-btn"
+                title={t('aiMarkOverlay.acceptTitle')}
+                onClick={(e) => { e.stopPropagation(); onReview(markId); }}
+              >✓</button>
+              {canReject && (
+                <button
+                  className="aimo-reject-btn"
+                  title={t('aiMarkOverlay.rejectTitle')}
+                  onClick={(e) => { e.stopPropagation(); onReject(markId); }}
+                >↺</button>
+              )}
+            </div>
+          );
+        }
+        const before = mark?.revert?.beforeText.trim();
+        return (
+          <aside key={markId} className="aimo-note" style={{ top: actionsTop, left: actionsLeft, width }}>
+            <div className="aimo-note-who">
+              ✦ {t('aiMarkOverlay.agent')}
+              {mark && <span>{relativeTime(mark.insertedAt, i18n.language)}</span>}
+            </div>
+            {before
+              ? <div className="aimo-note-before">{before}</div>
+              : <div className="aimo-note-added">{t('aiMarkOverlay.added')}</div>}
+            <div className="aimo-note-actions">
+              <button className="aimo-note-keep" onClick={(e) => { e.stopPropagation(); onReview(markId); }}>
+                ✓ {t('aiMarkOverlay.keep')}
+              </button>
+              {canReject && (
+                <button className="aimo-note-undo" onClick={(e) => { e.stopPropagation(); onReject(markId); }}>
+                  ↺ {t('aiMarkOverlay.undo')}
+                </button>
+              )}
+            </div>
+          </aside>
+        );
+      })}
     </div>
   );
+}
+
+function relativeTime(iso: string, locale: string): string {
+  const minutes = Math.round((Date.parse(iso) - Date.now()) / 60_000);
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' });
+  if (Math.abs(minutes) < 60) return rtf.format(minutes, 'minute');
+  const hours = Math.round(minutes / 60);
+  if (Math.abs(hours) < 24) return rtf.format(hours, 'hour');
+  return rtf.format(Math.round(hours / 24), 'day');
 }

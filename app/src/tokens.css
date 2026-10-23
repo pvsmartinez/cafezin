@@ -142,11 +142,11 @@
   /* Canvas format panel / active-state */
   --fmt-bg:          var(--surface-code);
   --fmt-border:      var(--border-code);
-  --fmt-hover-bg:    rgba(var(--blue-rgb), 0.08);
-  --fmt-hover-br:    rgba(var(--blue-rgb), 0.28);
-  --fmt-on-bg:       rgba(var(--blue-rgb), 0.14);
-  --fmt-on-border:   rgba(var(--blue-rgb), 0.52);
-  --fmt-on-text:     rgba(var(--blue-rgb), 0.9);
+  --fmt-hover-bg:    rgba(var(--accent-rgb), 0.08);
+  --fmt-hover-br:    rgba(var(--accent-rgb), 0.3);
+  --fmt-on-bg:       rgba(var(--accent-rgb), 0.14);
+  --fmt-on-border:   rgba(var(--accent-rgb), 0.45);
+  --fmt-on-text:     var(--accent);
   --fmt-green-bg:    rgba(var(--green-rgb), 0.1);
   --fmt-green-br:    rgba(var(--green-rgb), 0.4);
   --fmt-green-hbg:   rgba(var(--green-rgb), 0.16);
@@ -187,6 +187,17 @@
   --hover:          var(--surface2);
   --hover2:         var(--border2);
   --mb-danger:      var(--red);
+  --fg1:            var(--text-bright);
+  --text1:          var(--text-bright);
+  --text2:          var(--text);
+  --text3:          var(--text-muted);
+  --text4:          var(--text-dim);
+  --surface3:       var(--surface-deep);
+  --input-bg:       var(--surface-deep);
+  --amber:          var(--yellow);
+  --warning:        var(--yellow);
+  --warning-bg:     rgba(var(--yellow-rgb), 0.12);
+  --warning-border: rgba(var(--yellow-rgb), 0.3);
   --text-rgb:       224, 201, 164;   /* rgb() of --pal-text, keep in sync */
 }
 
@@ -239,11 +250,11 @@ body.theme-light {
   /* Canvas format panel / active-state */
   --fmt-bg:          var(--surface2);
   --fmt-border:      var(--border2);
-  --fmt-hover-bg:    rgba(var(--blue-rgb), 0.1);
-  --fmt-hover-br:    rgba(var(--blue-rgb), 0.4);
-  --fmt-on-bg:       rgba(var(--blue-rgb), 0.12);
-  --fmt-on-border:   rgba(var(--blue-rgb), 0.45);
-  --fmt-on-text:     var(--blue);
+  --fmt-hover-bg:    rgba(var(--accent-rgb), 0.08);
+  --fmt-hover-br:    rgba(var(--accent-rgb), 0.3);
+  --fmt-on-bg:       rgba(var(--accent-rgb), 0.14);
+  --fmt-on-border:   rgba(var(--accent-rgb), 0.45);
+  --fmt-on-text:     var(--accent);
   --fmt-green-bg:    rgba(var(--green-rgb), 0.1);
   --fmt-green-br:    rgba(var(--green-rgb), 0.45);
   --fmt-green-hbg:   rgba(var(--green-rgb), 0.18);
@@ -270,4 +281,32 @@ body.theme-light {
   --bg3:           rgba(0, 0, 0, 0.045);
 
   --text-rgb:  53, 44, 36;   /* rgb() of --pal-text #352c24, keep in sync */
+}
+
+/* ── Manuscript surfaces — the desk around the page and the page itself ──────
+   Tuned for long reading: warm, never pure black/white, body text ~11:1. */
+:root {
+  --desk:          #141310;
+  --paper:         #1c1a16;
+  --paper-raised:  #24211c;
+  --paper-text:    #d9d1c3;
+  --paper-ink:     #efe7da;
+  --paper-muted:   #9d9386;
+  --paper-rule:    rgba(239, 231, 218, 0.08);
+  --page-shadow:   0 1px 0 rgba(0, 0, 0, 0.35), 0 24px 60px -18px rgba(0, 0, 0, 0.7);
+  --note-shadow:   0 10px 28px -12px rgba(0, 0, 0, 0.7);
+  --page-width:    680px;
+}
+
+:root.theme-light,
+body.theme-light {
+  --desk:          #ebe5db;
+  --paper:         #fbf8f2;
+  --paper-raised:  #fffdf9;
+  --paper-text:    #352c24;
+  --paper-ink:     #201e18;
+  --paper-muted:   #66594e;
+  --paper-rule:    rgba(60, 40, 20, 0.10);
+  --page-shadow:   0 1px 0 rgba(60, 40, 20, 0.06), 0 18px 50px -12px rgba(60, 40, 20, 0.18);
+  --note-shadow:   0 8px 24px -10px rgba(60, 40, 20, 0.24);
 }

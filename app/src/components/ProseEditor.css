@@ -1,4 +1,6 @@
-/* ── ProseEditor — Tiptap WYSIWYG markdown editor ─────────────────────────── */
+/* ── ProseEditor — a sheet of paper on the desk ──────────────────────────────
+   The scroller is the desk; .prose-page is the paper. Typography is tuned for
+   hours of reading: serif, ~66 characters per line, generous leading. */
 
 .prose-editor-wrapper {
   flex: 1;
@@ -6,94 +8,100 @@
   overflow: visible; /* must NOT be hidden — Grammarly's overlay is positioned outside */
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  font-size: var(--prose-font-size, 14px);
-  font-family: var(--font-ui);
+  background: var(--desk);
+  --page-font-size: calc(var(--prose-font-size, 16px) + 3.5px);
 }
 
-/* ── Formatting toolbar ──────────────────────────────────────────────────── */
-
-.prose-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border2, rgba(128,128,128,0.15));
-  background: var(--surface, #1e1e1e);
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.prose-toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-}
-
-/* separator between groups */
-.prose-toolbar-group + .prose-toolbar-group {
-  margin-left: 4px;
-  padding-left: 6px;
-  border-left: 1px solid var(--border2, rgba(128,128,128,0.2));
-}
-
-.prose-toolbar-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 26px;
-  border-radius: 5px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted, #888);
-  cursor: pointer;
-  transition: background 0.1s, color 0.1s;
-  flex-shrink: 0;
-}
-
-.prose-toolbar-btn:hover {
-  background: var(--surface-hover, rgba(128,128,128,0.12));
-  color: var(--text, #e0e0e0);
-}
-
-.prose-toolbar-btn.active {
-  background: var(--accent-subtle, rgba(99,102,241,0.18));
-  color: var(--accent, #818cf8);
-}
-
-/* The @tiptap/react EditorContent wrapper */
+/* The desk: scrolls, centres the page. */
 .prose-editor-wrapper .tiptap-content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  padding: 8px 32px 0;
 }
 
-/* ProseMirror root — centred prose column, matches CM6 prose layout */
-.prose-editor-wrapper .ProseMirror {
-  max-width: 720px;
+.prose-page {
+  position: relative;
+  width: 100%;
+  max-width: var(--page-width);
+  min-height: calc(100% - 8px);
   margin: 0 auto;
-  padding: 48px 24px 168px 24px;
-  line-height: 1.75;
-  color: var(--text);
-  outline: none;
-  caret-color: var(--editor-cursor);
+  padding: 72px 80px 40vh;
+  background: var(--paper);
+  border-radius: 3px 3px 0 0;
+  box-shadow: var(--page-shadow);
+  color: var(--paper-text);
+  font-family: var(--font-serif);
+  font-size: var(--page-font-size);
 }
 
-/* Headings */
-.prose-editor-wrapper .ProseMirror h1 { font-size: 1.6em;  font-weight: 700; line-height: 1.3; margin: 1.2em 0 0.4em; }
-.prose-editor-wrapper .ProseMirror h2 { font-size: 1.35em; font-weight: 700; line-height: 1.3; margin: 1em 0 0.35em; }
-.prose-editor-wrapper .ProseMirror h3 { font-size: 1.15em; font-weight: 600; line-height: 1.3; margin: 0.9em 0 0.3em; }
+/* Pending agent notes: slide the page left so the margin can hold them. */
+.prose-editor-wrapper .tiptap-content[data-notes] .prose-page {
+  margin-left: auto;
+  margin-right: clamp(0px, calc(100% - var(--page-width) - 24px), 300px);
+}
 
-/* Paragraph */
-.prose-editor-wrapper .ProseMirror p { margin: 0 0 0.6em; }
+.prose-kicker {
+  margin-bottom: 6px;
+  text-align: center;
+  font-family: var(--font-serif);
+  font-size: 0.68em;
+  font-style: italic;
+  color: var(--paper-muted);
+}
+
+/* ProseMirror root */
+.prose-editor-wrapper .ProseMirror {
+  line-height: 1.78;
+  color: var(--paper-text);
+  outline: none;
+  caret-color: var(--accent);
+  hyphens: auto;
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures;
+}
+
+/* Headings — the first H1 is the title of the text */
+.prose-editor-wrapper .ProseMirror h1,
+.prose-editor-wrapper .ProseMirror h2,
+.prose-editor-wrapper .ProseMirror h3 {
+  font-family: var(--font-serif);
+  color: var(--paper-ink);
+  font-weight: 500;
+  line-height: 1.25;
+}
+.prose-editor-wrapper .ProseMirror h1 { font-size: 1.75em; margin: 1.4em 0 0.6em; }
+.prose-editor-wrapper .ProseMirror h2 { font-size: 1.3em;  margin: 1.6em 0 0.5em; }
+.prose-editor-wrapper .ProseMirror h3 { font-size: 1.08em; margin: 1.4em 0 0.4em; font-style: italic; }
+
+.prose-editor-wrapper .ProseMirror > h1:first-child {
+  margin: 0 0 1.3em;
+  text-align: center;
+  font-size: 1.85em;
+}
+.prose-editor-wrapper .ProseMirror > h1:first-child::after {
+  content: "· · ·";
+  display: block;
+  margin-top: 0.9em;
+  font-size: 0.32em;
+  letter-spacing: 0.6em;
+  color: var(--paper-muted);
+}
+
+/* Paragraphs — book rhythm: indent continuations, not the first after a break */
+.prose-editor-wrapper .ProseMirror p { margin: 0 0 0.7em; }
+.prose-editor-wrapper .ProseMirror p + p { text-indent: 1.4em; }
+.prose-editor-wrapper .ProseMirror > h1:first-child + p::first-letter {
+  float: left;
+  margin: 0.08em 0.1em 0 0;
+  font-size: 3.2em;
+  line-height: 0.85;
+  color: var(--accent);
+}
 
 /* Inline formatting */
-.prose-editor-wrapper .ProseMirror strong { font-weight: 700; }
+.prose-editor-wrapper .ProseMirror strong { font-weight: 600; color: var(--paper-ink); }
 .prose-editor-wrapper .ProseMirror em     { font-style: italic; }
 .prose-editor-wrapper .ProseMirror s      { text-decoration: line-through; }
 .prose-editor-wrapper .ProseMirror u      { text-decoration: underline; }
@@ -101,23 +109,24 @@
 /* Inline code */
 .prose-editor-wrapper .ProseMirror code {
   font-family: var(--font-mono);
-  font-size: 0.88em;
-  background: var(--surface-deep);
-  color: var(--accent);
+  font-size: 0.8em;
+  background: var(--paper-rule);
+  color: var(--paper-ink);
   padding: 1px 4px;
   border-radius: 4px;
 }
 
 /* Code block */
 .prose-editor-wrapper .ProseMirror pre {
-  background: var(--surface-deep);
-  color: var(--text);
+  background: var(--paper-rule);
+  color: var(--paper-text);
   font-family: var(--font-mono);
-  font-size: 0.88em;
-  padding: 12px 16px;
+  font-size: 0.78em;
+  line-height: 1.6;
+  padding: 14px 18px;
   border-radius: 8px;
   overflow-x: auto;
-  margin: 0.8em 0;
+  margin: 1em 0;
 }
 .prose-editor-wrapper .ProseMirror pre code {
   background: none;
@@ -126,28 +135,37 @@
   color: inherit;
 }
 
-/* Blockquote */
+/* Blockquote — an epigraph, not a callout */
 .prose-editor-wrapper .ProseMirror blockquote {
-  border-left: 3px solid var(--border);
-  padding-left: 1em;
-  color: var(--text-muted);
-  margin: 0.8em 0;
+  margin: 1.2em 2em;
+  padding: 0;
+  border: none;
+  font-style: italic;
+  color: var(--paper-muted);
 }
+.prose-editor-wrapper .ProseMirror blockquote p { text-indent: 0; }
 
 /* Lists */
 .prose-editor-wrapper .ProseMirror ul,
 .prose-editor-wrapper .ProseMirror ol {
-  padding-left: 1.6em;
-  margin: 0.4em 0;
+  padding-left: 1.4em;
+  margin: 0.5em 0 0.8em;
 }
 .prose-editor-wrapper .ProseMirror li { margin: 0.2em 0; }
+.prose-editor-wrapper .ProseMirror li p { text-indent: 0; margin: 0; }
 
-/* HR */
+/* HR — a scene break */
 .prose-editor-wrapper .ProseMirror hr {
   border: none;
-  border-top: 1px solid var(--border2);
-  margin: 1.5em 0;
+  margin: 1.6em 0;
+  text-align: center;
 }
+.prose-editor-wrapper .ProseMirror hr::after {
+  content: "* * *";
+  letter-spacing: 0.5em;
+  color: var(--paper-muted);
+}
+.prose-editor-wrapper .ProseMirror hr + p { text-indent: 0; }
 
 /* Selection */
 .prose-editor-wrapper .ProseMirror ::selection {
@@ -157,40 +175,154 @@
 /* Placeholder (empty document) */
 .prose-editor-wrapper .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: var(--text-dim);
+  color: var(--paper-muted);
   pointer-events: none;
   float: left;
   height: 0;
 }
 
-/* ── AI marks ─────────────────────────────────────────────────────────────── */
+/* ── AI marks — text the agent wrote, waiting for a decision ─────────────── */
 .prose-editor-wrapper .ProseMirror .prose-ai-mark {
-  background-color: rgba(var(--editor-ai-mark-rgb), 0.15);
-  border-bottom: 2px solid rgba(var(--editor-ai-mark-rgb), 0.7);
-  border-top:    1px solid rgba(var(--editor-ai-mark-rgb), 0.3);
-  border-left:   1px solid rgba(var(--editor-ai-mark-rgb), 0.3);
-  border-right:  1px solid rgba(var(--editor-ai-mark-rgb), 0.3);
+  background-color: rgba(var(--green-rgb), 0.1);
+  box-shadow: inset 0 -2px 0 rgba(var(--green-rgb), 0.38);
   border-radius: 2px;
-  box-shadow: 0 0 0 1px rgba(var(--editor-ai-mark-rgb), 0.1);
+}
+
+/* ── Links and references ────────────────────────────────────────────────── */
+.prose-editor-wrapper .tiptap a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--accent-border);
+  text-underline-offset: 4px;
 }
 
 .prose-editor-wrapper .prose-wiki-link {
   color: var(--accent);
   text-decoration: underline dotted;
-  text-underline-offset: 3px;
+  text-decoration-color: var(--accent-border);
+  text-underline-offset: 4px;
   cursor: pointer;
 }
 
-/* ── Locked state (AI writing) ────────────────────────────────────────────── */
-.prose-editor-wrapper[data-locked] {
-  pointer-events: none;
-  opacity: 0.80;
-  border: 1.5px solid rgba(var(--accent-rgb), 0.58);
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.12);
+/* Live-preview helpers: syntax hidden while the cursor is elsewhere */
+.prose-editor-wrapper .pm-hidden {
+  display: none;
 }
 
-/* ── Light mode overrides ─────────────────────────────────────────────────── */
-body.theme-light .prose-editor-wrapper .ProseMirror {
-  color: var(--text);
+.prose-editor-wrapper .prose-wiki-link[data-collapsed] {
+  text-decoration-style: solid;
+}
+
+.prose-task-box {
+  display: inline-block;
+  width: 0.78em;
+  height: 0.78em;
+  margin: 0 0.45em 0 -0.15em;
+  vertical-align: -0.06em;
+  border: 1.5px solid var(--paper-muted);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.prose-task-box.is-checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--paper);
+}
+
+.prose-editor-wrapper .prose-task-done {
+  color: var(--paper-muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--paper-rule);
+}
+
+.prose-editor-wrapper .ProseMirror ul:has(.prose-task-box) {
+  list-style: none;
+  padding-left: 0.2em;
+}
+
+/* ── Selection menu ──────────────────────────────────────────────────────── */
+.sel-menu {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--paper-ink);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-ui);
+  z-index: var(--z-dropdown);
+}
+
+.sel-menu-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.sel-menu-group + .sel-menu-group,
+.sel-menu-ai {
+  margin-left: 3px;
+  padding-left: 4px;
+  border-left: 1px solid color-mix(in srgb, var(--paper) 22%, transparent);
+}
+
+.sel-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: color-mix(in srgb, var(--paper) 78%, transparent);
+  cursor: pointer;
+}
+
+.sel-menu-btn:hover,
+.sel-menu-btn.active {
+  background: color-mix(in srgb, var(--paper) 14%, transparent);
+  color: var(--paper);
+}
+
+.sel-menu-ref {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sel-menu-ai {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 9px;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 0 7px 7px 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--accent) 45%, var(--paper));
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sel-menu-ai:hover {
+  color: var(--paper);
+}
+
+/* ── Locked state (AI writing) ────────────────────────────────────────────── */
+.prose-editor-wrapper[data-locked] .prose-page {
+  pointer-events: none;
+  opacity: 0.8;
+  box-shadow: var(--page-shadow), 0 0 0 1.5px rgba(var(--accent-rgb), 0.5);
+}
+
+/* ── Narrow windows: the page fills the desk ─────────────────────────────── */
+@media (max-width: 1000px) {
+  .prose-editor-wrapper .tiptap-content { padding: 0; }
+  .prose-page { padding: 48px 40px 40vh; border-radius: 0; }
 }

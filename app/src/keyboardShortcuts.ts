@@ -14,8 +14,7 @@ export type AppShortcutId =
   | 'globalSearch'
   | 'togglePreview'
   | 'toggleFocusMode'
-  | 'closeAI'
-  | 'toggleTerminal';
+  | 'closeAI';
 
 export type ShortcutOverrideMap = Partial<Record<AppShortcutId, string>>;
 
@@ -41,7 +40,6 @@ export const APP_SHORTCUTS: AppShortcutDefinition[] = [
   { id: 'openAI',          group: 'ai',         defaultBinding: 'Mod+K',          labelKey: 'settings.scOpenCopilot' },
   { id: 'closeAI',         group: 'ai',         defaultBinding: 'Escape',         labelKey: 'settings.scCloseCopilot' },
   { id: 'openSettings',    group: 'app',        defaultBinding: 'Mod+,',          labelKey: 'settings.scOpenSettings' },
-  { id: 'toggleTerminal',  group: 'app',        defaultBinding: 'Mod+J',          labelKey: 'settings.scToggleTerminal' },
   { id: 'toggleFocusMode', group: 'app',        defaultBinding: 'Mod+Shift+.',    labelKey: 'settings.scToggleFocusMode' },
 ];
 

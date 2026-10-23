@@ -1,7 +1,7 @@
 .wp-overlay {
   position: fixed;
   inset: 0;
-  background: var(--bg);
+  background: var(--desk);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15,10 +15,17 @@
   gap: var(--space-5);
   width: 480px;
   max-width: 90vw;
-  padding: 36px 36px 32px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
+  padding: 40px 40px 32px;
+  --surface: var(--paper);
+  --surface2: var(--paper-rule);
+  --border: var(--paper-rule);
+  --border2: var(--paper-rule);
+  --text: var(--paper-text);
+  --text-muted: var(--paper-muted);
+  background: var(--paper);
+  border: none;
+  border-radius: 6px;
+  box-shadow: var(--page-shadow);
 }
 
 .wp-welcome {
@@ -36,14 +43,16 @@
 }
 
 .wp-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text);
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--paper-ink);
   margin: 0;
 }
 
 .wp-tagline {
-  font-size: 12px;
+  font-family: var(--font-serif);
+  font-size: 15px;
   color: var(--text-muted);
   font-style: italic;
   letter-spacing: 0.04em;

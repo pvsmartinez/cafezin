@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { readFile } from '../services/fs';
 import type { FileKind } from '../utils/fileType';
@@ -57,6 +58,7 @@ function formatDuration(seconds: number): string {
 }
 
 export default function MediaViewer({ absPath, filename, kind, onStat }: MediaViewerProps) {
+  const { t } = useTranslation();
   const mime = getMimeType(filename);
   const src = useBlobUrl(absPath, mime);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -72,16 +74,16 @@ export default function MediaViewer({ absPath, filename, kind, onStat }: MediaVi
           <button
             className={`mv-zoom-btn${zoomed ? ' active' : ''}`}
             onClick={() => setZoomed((z) => !z)}
-            title={zoomed ? 'Fit to window' : 'Actual size'}
+            title={zoomed ? t('search.fitWindow') : t('search.actualSize')}
           >
             {zoomed ? '⊡' : '⊞'}
           </button>
         </div>
         <div className={`mv-image-area${zoomed ? ' zoomed' : ''}`}>
           {src === '__error__'
-            ? <div className="mv-loading mv-error">Could not load image.</div>
+            ? <div className="mv-loading mv-error">{t('search.loadImageError')}</div>
             : !src
-            ? <div className="mv-loading">Loading…</div>
+            ? <div className="mv-loading">{t('search.loading')}</div>
             : <img
                 src={src}
                 alt={filename}
@@ -107,9 +109,9 @@ export default function MediaViewer({ absPath, filename, kind, onStat }: MediaVi
         </div>
         <div className="mv-audio-area">
           {src === '__error__'
-            ? <div className="mv-loading mv-error">Could not load audio.</div>
+            ? <div className="mv-loading mv-error">{t('search.loadAudioError')}</div>
             : !src
-            ? <div className="mv-loading">Loading…</div>
+            ? <div className="mv-loading">{t('search.loading')}</div>
             : <audio
                 src={src}
                 className="mv-audio"
@@ -135,9 +137,9 @@ export default function MediaViewer({ absPath, filename, kind, onStat }: MediaVi
       </div>
       <div className="mv-video-area">
         {src === '__error__'
-          ? <div className="mv-loading mv-error">Could not load video.</div>
+          ? <div className="mv-loading mv-error">{t('search.loadVideoError')}</div>
           : !src
-          ? <div className="mv-loading">Loading…</div>
+          ? <div className="mv-loading">{t('search.loading')}</div>
           : <video
               ref={videoRef}
               src={src}
