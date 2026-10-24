@@ -1,4 +1,4 @@
-import { List, Sparkle } from '@phosphor-icons/react';
+import { List } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import type { Workspace } from '../../types';
 import type { FileTypeInfo } from '../../utils/fileType';
@@ -25,8 +25,6 @@ export interface AppHeaderProps {
   savedToast: boolean;
   pandocError: string | null;
   onClearPandocError: () => void;
-  aiOpen: boolean;
-  onToggleAi: () => void;
   previewShortcutLabel: string;
   /** Words in the active text, shown next to the save status. */
   wordCount?: number;
@@ -52,8 +50,6 @@ export function AppHeader({
   savedToast,
   pandocError,
   onClearPandocError,
-  aiOpen,
-  onToggleAi,
   previewShortcutLabel,
   wordCount,
 }: AppHeaderProps) {
@@ -79,15 +75,13 @@ export function AppHeader({
       <div className="app-header-right">
         {activeFile && fileTypeInfo?.kind === 'markdown' && (
           <div className="app-view-toggle" role="group" aria-label={t('app.editorModeLabel')}>
-            {(['write', 'source', 'read'] as const).map((mode) => (
+            {(['write', 'source'] as const).map((mode) => (
               <button
                 key={mode}
                 className={`app-view-btn ${editorMode === mode ? 'active' : ''}`}
                 aria-pressed={editorMode === mode}
                 onClick={() => onSetEditorMode(mode)}
-                title={mode === 'read'
-                  ? t('app.readModeTitle', { shortcut: previewShortcutLabel })
-                  : t(`app.${mode}ModeTitle`)}
+                title={t(`app.${mode}ModeTitle`, { shortcut: previewShortcutLabel })}
               >
                 {t(`app.${mode}ModeLabel`)}
               </button>
@@ -134,14 +128,6 @@ export function AppHeader({
           </span>
         )}
 
-        <button
-          className={`app-ai-toggle ${aiOpen ? 'active' : ''}`}
-          onClick={onToggleAi}
-          title={t('app.toggleCopilotTitle')}
-        >
-          <Sparkle weight="thin" size={16} />
-          <span>{t('app.copilotLabel')}</span>
-        </button>
       </div>
     </header>
   );

@@ -206,7 +206,7 @@
     "scGroupNav": "Navigation & Search",
     "scFindReplace": "Find & replace in file",
     "scProjectSearch": "Search across project",
-    "scTogglePreview": "Toggle writing / reading",
+    "scTogglePreview": "Toggle writing / Markdown",
     "scToggleSidebar": "Show/hide sidebar",
     "scToggleFocusMode": "Toggle focus mode",
     "scGroupAI": "Agent",
@@ -514,10 +514,8 @@
     "editorModeLabel": "Editor mode",
     "writeModeLabel": "Write",
     "sourceModeLabel": "Markdown",
-    "readModeLabel": "Read",
-    "writeModeTitle": "Write with visual formatting",
-    "sourceModeTitle": "Edit raw Markdown",
-    "readModeTitle": "Read the rendered text ({{shortcut}})",
+    "writeModeTitle": "Write with formatted text ({{shortcut}} toggles)",
+    "sourceModeTitle": "See and edit raw Markdown ({{shortcut}} toggles)",
     "hideSidebarTitle": "Hide sidebar ({{shortcut}})",
     "showSidebarTitle": "Show sidebar ({{shortcut}})",
     "wordCount_one": "{{formatted}} word",
@@ -1279,7 +1277,9 @@
     "label": "Ask the agent",
     "placeholder": "Ask something about this text…",
     "placeholderChapter": "Ask something about this chapter…",
-    "send": "Send"
+    "send": "Send",
+    "chat": "Conversation",
+    "chatTitle": "Open the conversation with the agent (⌘K)"
   },
   "search": {
     "invalidRegex": "Invalid regular expression",

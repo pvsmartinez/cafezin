@@ -56,6 +56,7 @@ interface AppEditorAreaProps {
   onImagePaste: ComponentProps<typeof Editor>['onImagePaste'];
   /** When set, a quiet ask bar sits under the page and sends prompts to the agent. */
   onAsk?: (text: string) => void;
+  onOpenChat?: () => void;
 }
 
 export function AppEditorAreaInner({
@@ -94,6 +95,7 @@ export function AppEditorAreaInner({
   onSetFileStat,
   onImagePaste,
   onAsk,
+  onOpenChat,
 }: AppEditorAreaProps) {
   const { t } = useTranslation();
   const chapterIndex = useMemo(
@@ -253,6 +255,7 @@ export function AppEditorAreaInner({
         <AskBar
           placeholder={kicker ? t('askBar.placeholderChapter') : t('askBar.placeholder')}
           onAsk={onAsk}
+          onOpenChat={onOpenChat}
         />
       )}
 

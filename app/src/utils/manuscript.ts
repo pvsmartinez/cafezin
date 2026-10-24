@@ -80,9 +80,9 @@ export function buildManuscriptLayout(
   };
 }
 
-/** First Markdown H1, used as the human title of a text. */
+/** Human title of a text: its first H1, or else its first heading of any level. */
 export function extractTitle(content: string): string | null {
-  const match = content.match(/^#\s+(.+?)\s*#*\s*$/m);
+  const match = content.match(/^#\s+(.+?)\s*#*\s*$/m) ?? content.match(/^#{2,6}\s+(.+?)\s*#*\s*$/m);
   return match ? match[1].trim() : null;
 }
 

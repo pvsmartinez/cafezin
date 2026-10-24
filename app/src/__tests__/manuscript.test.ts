@@ -41,6 +41,7 @@ describe('manuscript helpers', () => {
 
   it('extracts the first H1 as title', () => {
     expect(extractTitle('intro\n# A biblioteca fechada\n## x')).toBe('A biblioteca fechada');
+    expect(extractTitle('## Preface: The Pattern\n\ntext')).toBe('Preface: The Pattern');
     expect(extractTitle('sem título')).toBeNull();
   });
 

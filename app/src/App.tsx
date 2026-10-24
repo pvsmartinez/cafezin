@@ -554,7 +554,7 @@ export default function App() {
     onOpenSettings:  () => openSettings(),
     onToggleSidebar: () => setSidebarOpen((v) => {
       // When opening from icon-mode (width < 80 px), snap sidebar back to normal
-      if (!v && sidebarWidthRef.current < 80) setSidebarWidth(248);
+      if (!v && sidebarWidthRef.current < 80) setSidebarWidth(272);
       return !v;
     }),
     onSave: async () => {
@@ -581,14 +581,12 @@ export default function App() {
     onSwitchTab:     (path) => { void handleOpenFile(path); },
     onToggleFind:    () => setFindReplaceOpen(true),
     onGlobalSearch:  () => { setSidebarOpen(true); setSidebarMode('search'); },
+    // Writing already renders the text, so the shortcut flips between writing
+    // and raw Markdown instead of a separate reading mode.
     onTogglePreview: () => {
-      if (fileTypeInfo?.supportsPreview) {
-        setViewMode((v) => {
-          const next = v === 'edit' ? 'preview' : 'edit';
-          if (activeTabId) tabViewModeRef.current.set(activeTabId, next);
-          return next;
-        });
-      }
+      if (fileTypeInfo?.kind !== 'markdown') return;
+      setViewMode('edit');
+      setSourceMode((v) => !v);
     },
     focusMode,
     onToggleFocusMode: () => {
@@ -960,6 +958,10 @@ export default function App() {
   }, [activeTabId, setViewMode, tabViewModeRef]);
 
   const [sourceMode, setSourceMode] = useState(false);
+  // Older sessions may remember the retired reading mode for a text.
+  useEffect(() => {
+    if (viewMode === 'preview' && fileTypeInfo?.kind === 'markdown') handleViewModeChange('edit');
+  }, [viewMode, fileTypeInfo?.kind, handleViewModeChange]);
   const activeWordCount = useMemo(
     () => (fileTypeInfo?.kind === 'markdown' ? countWords(content) : undefined),
     [content, fileTypeInfo?.kind],
@@ -981,6 +983,7 @@ export default function App() {
     setAiAutoSend({ id: Date.now(), text });
   }, [setAiOpen]);
   const handleOpenSettings = useCallback(() => openSettings(), [openSettings]);
+  const handleOpenChat = useCallback(() => setAiOpen(true), [setAiOpen]);
   const handleSearchOpenChange = useCallback((open: boolean) => {
     setSidebarMode(open ? 'search' : 'explorer');
   }, [setSidebarMode]);
@@ -1006,7 +1009,6 @@ export default function App() {
   const handleToggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
   const handleGoHome = useCallback(() => switchToTab(null), [switchToTab]);
   const handleClearPandocError = useCallback(() => setPandocError(null), []);
-  const handleToggleAi = useCallback(() => setAiOpen((v) => !v), []);
   const handleCloseAi   = useCallback(() => setAiOpen(false), []);
 
   // ── AppEditorArea stable callbacks (broken out of JSX to enable React.memo) ─
@@ -1103,8 +1105,6 @@ export default function App() {
         savedToast={savedToast}
         pandocError={pandocError}
         onClearPandocError={handleClearPandocError}
-        aiOpen={aiOpen}
-        onToggleAi={handleToggleAi}
         previewShortcutLabel={previewShortcutLabel}
         wordCount={activeWordCount}
       />
@@ -1179,6 +1179,7 @@ export default function App() {
           onSetFileStat={setFileStat}
           onImagePaste={handleEditorImagePaste}
           onAsk={aiOpen ? undefined : handleAsk}
+          onOpenChat={handleOpenChat}
 
         />
 

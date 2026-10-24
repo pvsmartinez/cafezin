@@ -13,7 +13,7 @@ const AI_PANEL_COLLAPSE_THRESHOLD = 140;
 const AI_PANEL_MAX_WIDTH = 900;
 
 export function useDragResize(
-  initialSidebarWidth = 248,
+  initialSidebarWidth = 272,
   initialPanelWidth = 400,
 ) {
   const [sidebarWidth, setSidebarWidth] = useState(initialSidebarWidth);

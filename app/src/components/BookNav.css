@@ -144,8 +144,10 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
 }
 
 .bn-item.is-research .bn-link {
@@ -418,4 +420,57 @@
 .bn-advanced {
   align-self: flex-start;
   padding: 0;
+}
+
+/* ── Collapsible section and folder headers ─────────────── */
+.bn-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 8px);
+  padding: 2px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.bn-toggle:hover {
+  color: var(--paper-ink);
+}
+
+.bn-caret {
+  display: inline-flex;
+  width: 10px;
+  flex: none;
+}
+
+.bn-h-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bn-h-count {
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.bn-folder {
+  margin: 6px 0 2px;
+}
+
+.bn-toggle.is-folder {
+  margin-left: 8px;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.bn-folder .bn-item {
+  margin-left: 14px;
 }

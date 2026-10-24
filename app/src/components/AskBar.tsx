@@ -4,15 +4,17 @@
  */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Sparkle } from '@phosphor-icons/react';
+import { ChatCircle, Sparkle } from '@phosphor-icons/react';
 import './AskBar.css';
 
 interface AskBarProps {
   placeholder: string;
   onAsk: (text: string) => void;
+  /** Opens the conversation without sending anything. */
+  onOpenChat?: () => void;
 }
 
-export default function AskBar({ placeholder, onAsk }: AskBarProps) {
+export default function AskBar({ placeholder, onAsk, onOpenChat }: AskBarProps) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
 
@@ -38,7 +40,11 @@ export default function AskBar({ placeholder, onAsk }: AskBarProps) {
       />
       {text.trim()
         ? <button className="ask-bar-send" type="submit">{t('askBar.send')} ↵</button>
-        : <kbd className="ask-bar-kbd">⌘K</kbd>}
+        : onOpenChat && (
+          <button type="button" className="ask-bar-chat" onClick={onOpenChat} title={t('askBar.chatTitle')}>
+            <ChatCircle size={15} /> {t('askBar.chat')}
+          </button>
+        )}
     </form>
   );
 }

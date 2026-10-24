@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
-import { ArrowsClockwise, DownloadSimple, GearSix, MagnifyingGlass, Plus, X } from '@phosphor-icons/react';
+import { ArrowsClockwise, CaretDown, CaretRight, DownloadSimple, GearSix, MagnifyingGlass, Plus, X } from '@phosphor-icons/react';
 import type { AIEditMark, Workspace } from '../types';
 import { normalizeExportTarget } from '../types';
 import {
@@ -300,6 +300,55 @@ export default function BookNav({
     onSyncComplete();
   }
 
+  // ── Collapsible sections, remembered per book ───────────────────────────
+  const collapseKey = `cafezin:book-nav:${workspace.path}`;
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem(collapseKey) ?? '{}') as Record<string, boolean>; }
+    catch { return {}; }
+  });
+  useEffect(() => {
+    try { setCollapsed(JSON.parse(localStorage.getItem(collapseKey) ?? '{}') as Record<string, boolean>); }
+    catch { setCollapsed({}); }
+  }, [collapseKey]);
+  // Folders and reference material start closed; the book itself starts open.
+  const isCollapsed = (key: string) => collapsed[key] ?? (key.startsWith('dir:') || key === 'research' || key === 'other');
+  function toggleSection(key: string) {
+    setCollapsed((prev) => {
+      const next = { ...prev, [key]: !isCollapsed(key) };
+      try { localStorage.setItem(collapseKey, JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  }
+  function sectionHeader(key: string, title: string, count: number, folder = false) {
+    const closed = isCollapsed(key);
+    return (
+      <button
+        className={`bn-h bn-toggle${folder ? ' is-folder' : ''}`}
+        onClick={() => toggleSection(key)}
+        aria-expanded={!closed}
+      >
+        <span className="bn-caret" aria-hidden>
+          {closed ? <CaretRight size={10} weight="bold" /> : <CaretDown size={10} weight="bold" />}
+        </span>
+        <span className="bn-h-title">{title}</span>
+        {closed && <span className="bn-h-count">{count}</span>}
+      </button>
+    );
+  }
+
+  // Caderno: loose texts first, then one group per top-level folder.
+  const notebookGroups = useMemo(() => {
+    const loose: string[] = [];
+    const byDir = new Map<string, string[]>();
+    for (const path of layout.notebook) {
+      const slash = path.indexOf('/');
+      if (slash === -1) { loose.push(path); continue; }
+      const dir = path.slice(0, slash);
+      byDir.set(dir, [...(byDir.get(dir) ?? []), path]);
+    }
+    return { loose, folders: [...byDir.entries()] };
+  }, [layout.notebook]);
+
   // ── Render ───────────────────────────────────────────────────────────────
   function renderItem(path: string, section: Section | 'research', index: number) {
     const active = path === activeFile;
@@ -391,12 +440,16 @@ export default function BookNav({
             onDragOver={(e) => { if (drag) { e.preventDefault(); setDropAt({ section: 'chapters', index: layout.chapters.length }); } }}
             onDrop={(e) => { e.preventDefault(); handleDrop('chapters', layout.chapters.length); }}
           >
-            <h4 className="bn-h">{t('book.contents')}</h4>
-            {layout.chapters.map((p, i) => renderItem(p, 'chapters', i))}
-            {layout.chapters.length === 0 && <p className="bn-empty">{t('book.contentsEmpty')}</p>}
-            <button className="bn-add" onClick={() => void createText('chapters')}>
-              <Plus size={12} /> {t('book.newChapter')}
-            </button>
+            {sectionHeader('chapters', t('book.contents'), layout.chapters.length)}
+            {!isCollapsed('chapters') && (
+              <>
+                {layout.chapters.map((p, i) => renderItem(p, 'chapters', i))}
+                {layout.chapters.length === 0 && <p className="bn-empty">{t('book.contentsEmpty')}</p>}
+                <button className="bn-add" onClick={() => void createText('chapters')}>
+                  <Plus size={12} /> {t('book.newChapter')}
+                </button>
+              </>
+            )}
           </section>
 
           <section
@@ -404,24 +457,34 @@ export default function BookNav({
             onDragOver={(e) => { if (drag?.from === 'chapters') { e.preventDefault(); setDropAt({ section: 'notebook', index: layout.notebook.length }); } }}
             onDrop={(e) => { e.preventDefault(); handleDrop('notebook', layout.notebook.length); }}
           >
-            <h4 className="bn-h">{t('book.notebook')}</h4>
-            {layout.notebook.map((p, i) => renderItem(p, 'notebook', i))}
-            <button className="bn-add" onClick={() => void createText('notebook')}>
-              <Plus size={12} /> {t('book.newNote')}
-            </button>
+            {sectionHeader('notebook', t('book.notebook'), layout.notebook.length)}
+            {!isCollapsed('notebook') && (
+              <>
+                {notebookGroups.loose.map((p) => renderItem(p, 'notebook', layout.notebook.indexOf(p)))}
+                {notebookGroups.folders.map(([dir, paths]) => (
+                  <div key={dir} className="bn-folder">
+                    {sectionHeader(`dir:${dir}`, dir, paths.length, true)}
+                    {!isCollapsed(`dir:${dir}`) && paths.map((p) => renderItem(p, 'notebook', layout.notebook.indexOf(p)))}
+                  </div>
+                ))}
+                <button className="bn-add" onClick={() => void createText('notebook')}>
+                  <Plus size={12} /> {t('book.newNote')}
+                </button>
+              </>
+            )}
           </section>
 
           {layout.research.length > 0 && (
             <section className="bn-section">
-              <h4 className="bn-h">{t('book.research')}</h4>
-              {layout.research.map((p, i) => renderItem(p, 'research', i))}
+              {sectionHeader('research', t('book.research'), layout.research.length)}
+              {!isCollapsed('research') && layout.research.map((p, i) => renderItem(p, 'research', i))}
             </section>
           )}
 
           {layout.other.length > 0 && (
             <section className="bn-section bn-other">
-              <h4 className="bn-h">{t('book.other')}</h4>
-              {layout.other.map((p, i) => renderItem(p, 'research', i))}
+              {sectionHeader('other', t('book.other'), layout.other.length)}
+              {!isCollapsed('other') && layout.other.map((p, i) => renderItem(p, 'research', i))}
             </section>
           )}
         </div>

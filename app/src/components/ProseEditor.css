@@ -75,12 +75,13 @@
 .prose-editor-wrapper .ProseMirror h2 { font-size: 1.3em;  margin: 1.6em 0 0.5em; }
 .prose-editor-wrapper .ProseMirror h3 { font-size: 1.08em; margin: 1.4em 0 0.4em; font-style: italic; }
 
-.prose-editor-wrapper .ProseMirror > h1:first-child {
+.prose-editor-wrapper .ProseMirror > :is(h1, h2, h3):first-child {
   margin: 0 0 1.3em;
   text-align: center;
   font-size: 1.85em;
+  font-style: normal;
 }
-.prose-editor-wrapper .ProseMirror > h1:first-child::after {
+.prose-editor-wrapper .ProseMirror > :is(h1, h2, h3):first-child::after {
   content: "· · ·";
   display: block;
   margin-top: 0.9em;
@@ -92,11 +93,16 @@
 /* Paragraphs — book rhythm: indent continuations, not the first after a break */
 .prose-editor-wrapper .ProseMirror p { margin: 0 0 0.7em; }
 .prose-editor-wrapper .ProseMirror p + p { text-indent: 1.4em; }
-.prose-editor-wrapper .ProseMirror > h1:first-child + p::first-letter {
-  float: left;
-  margin: 0.08em 0.1em 0 0;
-  font-size: 3.2em;
-  line-height: 0.85;
+/* The opening paragraph contains its drop cap, even when it is a single line. */
+.prose-editor-wrapper .ProseMirror > :is(h1, h2, h3):first-child + p {
+  display: flow-root;
+}
+.prose-editor-wrapper .ProseMirror > :is(h1, h2, h3):first-child + p::first-letter {
+  /* Native drop cap: reserves exactly two lines, so a short opening
+     paragraph never pushes into the next one. */
+  -webkit-initial-letter: 2;
+  initial-letter: 2;
+  margin-right: 0.12em;
   color: var(--accent);
 }
 

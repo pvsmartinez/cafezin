@@ -206,7 +206,7 @@
     "scGroupNav": "Navegação & Busca",
     "scFindReplace": "Localizar & substituir no arquivo",
     "scProjectSearch": "Busca em todo o projeto",
-    "scTogglePreview": "Alternar escrita / leitura",
+    "scTogglePreview": "Alternar escrita / Markdown",
     "scToggleSidebar": "Mostrar/ocultar barra lateral",
     "scToggleFocusMode": "Alternar modo foco",
     "scGroupAI": "Agente",
@@ -514,10 +514,8 @@
     "editorModeLabel": "Modo do editor",
     "writeModeLabel": "Escrita",
     "sourceModeLabel": "Markdown",
-    "readModeLabel": "Leitura",
-    "writeModeTitle": "Escrever com formatação visual",
-    "sourceModeTitle": "Editar o Markdown puro",
-    "readModeTitle": "Ler como vai ficar ({{shortcut}})",
+    "writeModeTitle": "Escrever com o texto formatado ({{shortcut}} alterna)",
+    "sourceModeTitle": "Ver e editar o Markdown puro ({{shortcut}} alterna)",
     "hideSidebarTitle": "Esconder barra lateral ({{shortcut}})",
     "showSidebarTitle": "Mostrar barra lateral ({{shortcut}})",
     "wordCount_one": "{{formatted}} palavra",
@@ -1279,7 +1277,9 @@
     "label": "Pedir ao agente",
     "placeholder": "Peça algo sobre este texto…",
     "placeholderChapter": "Peça algo sobre este capítulo…",
-    "send": "Enviar"
+    "send": "Enviar",
+    "chat": "Conversa",
+    "chatTitle": "Abrir a conversa com o agente (⌘K)"
   },
   "search": {
     "invalidRegex": "Expressão regular inválida",
